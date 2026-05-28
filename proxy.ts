@@ -18,21 +18,32 @@ import { validateSessionToken } from '@/lib/auth';
  * and email-verification routes are deleted (404). The allowlist in
  * lib/auth.ts is the authoritative gate; this middleware does not enforce it.
  *
- * FUTURE PORTFOLIO ROUTES — gate these here when Phase 2+ adds them:
- *   /studio          (Dennis's design/dev portfolio gallery)
+ * GATED PORTFOLIO ROUTES (2026-05-28):
+ *   /studio          — DNK Studio (vendored under /studio in this repo,
+ *                      proxied to the internal-only dnkstudio container via
+ *                      next.config.ts rewrites). HARD security constraint:
+ *                      unreachable without a valid session.
+ *
+ * FUTURE PORTFOLIO ROUTES — gate these here when later phases add them:
  *   /subastas        (Auctions product)
  *   /defensapenal    (Criminal defense product)
  *   ...any other sub-route owned by the DNK umbrella that requires a login.
  *
- * Each future route should be appended to the PROTECTED array below AND
- * added to the matcher config at the bottom. Pattern is identical to the
- * /app pattern this file inherited from the ComputerCaller codebase —
- * payload null → bounce to /login?next=<original-path>.
+ * Each route should be appended to the PROTECTED array below AND added to the
+ * matcher config at the bottom. Pattern is identical to the /app pattern this
+ * file inherited from the ComputerCaller codebase — payload null → bounce to
+ * /login?next=<original-path>.
  */
 
-// Empty in Phase 1 — no gated routes exist yet. Append future portfolio
-// routes here. Order doesn't matter; matching is `startsWith`.
-const PROTECTED: string[] = [];
+// Gated portfolio routes. Order doesn't matter; matching is `startsWith`.
+//
+// /studio (2026-05-28): added when the dnkstudio Express app was vendored into
+// /studio in this repo and exposed via a Next.js rewrite to the internal-only
+// dnkstudio container. The hard security constraint from Dennis: /studio/* must
+// be reachable ONLY after authenticated login. Next.js applies middleware BEFORE
+// rewrites (per Next.js docs), so this check fires first; unauthed requests
+// bounce to /login?next=<path> and never reach the rewrite.
+const PROTECTED: string[] = ['/studio'];
 
 // Auth flow pages. Logged-in users who hit one of these get bounced to /
 // so the login form isn't shown after a successful sign-in. Registration /
@@ -89,8 +100,10 @@ export async function proxy(req: NextRequest) {
     return res;
   }
 
-  // Protect future portfolio routes. PROTECTED is empty in Phase 1, so this
-  // block is a no-op until portfolio routes ship.
+  // Protect portfolio routes. Currently `/studio` (DNK Studio, vendored under
+  // /studio in this repo and exposed via the next.config.ts rewrite to the
+  // internal-only dnkstudio container). Middleware runs before rewrites, so
+  // this gate fires first and unauthed traffic never reaches the rewrite.
   if (PROTECTED.some(p => pathname.startsWith(p))) {
     if (!payload) {
       return bounceToLogin(pathname);
@@ -109,5 +122,5 @@ export async function proxy(req: NextRequest) {
 // Matcher — list every path the proxy needs to inspect. When portfolio routes
 // land, add their patterns here (e.g. '/studio/:path*').
 export const config = {
-  matcher: ['/', '/login', '/forgot-password'],
+  matcher: ['/', '/login', '/forgot-password', '/studio/:path*'],
 };

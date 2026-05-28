@@ -1,0 +1,6 @@
+{
+  "video1-botanicals_v1c1": {
+    "status": "failed",
+    "error": "ai.models.generateVideo is not a function"
+  }
+}

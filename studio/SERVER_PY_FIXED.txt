@@ -1,0 +1,150 @@
+Copy this COMPLETE server.py to your RunPod terminal:
+
+cd /workspace
+
+cat > server.py << 'ENDOFFILE'
+import os
+import io
+import base64
+import torch
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import Optional
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+pipe = None
+
+class GenerateRequest(BaseModel):
+    prompt: str
+    width: int = 1024
+    height: int = 1024
+    num_inference_steps: int = 9
+    seed: Optional[int] = None
+
+class GenerateResponse(BaseModel):
+    image_base64: str
+    mime_type: str
+
+def apply_torch_xpu_patch():
+    try:
+        import site
+        import re
+        for site_package in site.getsitepackages():
+            diffusers_path = os.path.join(site_package, "diffusers")
+            if os.path.exists(diffusers_path):
+                torch_utils = os.path.join(diffusers_path, "utils", "torch_utils.py")
+                if os.path.exists(torch_utils):
+                    with open(torch_utils, "r") as f:
+                        content = f.read()
+                    original_content = content
+                    content = re.sub(r'"xpu":\s*torch\.xpu\.device_count,', '"xpu": lambda: 0,  # Patched', content)
+                    content = re.sub(r'"xpu":\s*torch\.xpu\.empty_cache,', '"xpu": lambda: None,  # Patched', content)
+                    content = re.sub(r'"xpu":\s*torch\.xpu\.manual_seed,', '"xpu": lambda x: None,  # Patched', content)
+                    content = re.sub(r'torch\.xpu\.device_count', 'lambda: 0', content)
+                    content = re.sub(r'torch\.xpu\.empty_cache', 'lambda: None', content)
+                    content = re.sub(r'torch\.xpu\.manual_seed', 'lambda x: None', content)
+                    if content != original_content:
+                        with open(torch_utils, "w") as f:
+                            f.write(content)
+                        print("✅ Applied torch.xpu patch")
+                        return True
+                    return True
+        return False
+    except Exception as e:
+        print(f"⚠️  Patch error: {e}")
+        return False
+
+def load_model():
+    global pipe
+    if pipe is not None:
+        return pipe
+    print("Loading Z-Image-Turbo model...")
+    try:
+        print("Applying torch.xpu patch...")
+        apply_torch_xpu_patch()
+        from diffusers import ZImagePipeline
+        pipe = ZImagePipeline.from_pretrained(
+            "Tongyi-MAI/Z-Image-Turbo",
+            torch_dtype=torch.bfloat16,
+            low_cpu_mem_usage=True
+        )
+        pipe = pipe.to("cuda")
+        print("✅ Model loaded successfully!")
+        return pipe
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+@app.get("/")
+async def root():
+    return {
+        "status": "running",
+        "service": "Z-Image-Turbo",
+        "model": "Tongyi-MAI/Z-Image-Turbo"
+    }
+
+@app.get("/health")
+async def health():
+    try:
+        gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else None
+        return {
+            "status": "ok",
+            "model_loaded": pipe is not None,
+            "gpu": gpu_name,
+            "cuda_available": torch.cuda.is_available()
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+@app.post("/generate")
+async def generate(request: GenerateRequest):
+    global pipe
+    try:
+        if pipe is None:
+            load_model()
+        print(f"Generating: {request.prompt[:60]}...")
+        with torch.inference_mode():
+            result = pipe(
+                prompt=request.prompt,
+                height=request.height,
+                width=request.width,
+                num_inference_steps=request.num_inference_steps,
+                guidance_scale=0.0,
+                generator=torch.Generator("cuda").manual_seed(request.seed) if request.seed else None
+            )
+        image = result.images[0]
+        buf = io.BytesIO()
+        image.save(buf, format="PNG")
+        return GenerateResponse(
+            image_base64=base64.b64encode(buf.getvalue()).decode(),
+            mime_type="image/png"
+        )
+    except Exception as e:
+        print(f"Error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+if __name__ == "__main__":
+    import uvicorn
+    print("=" * 60)
+    print("Z-Image-Turbo Server Starting...")
+    print("=" * 60)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+ENDOFFILE
+
+echo "✅ server.py created successfully!"
+```
+

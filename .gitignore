@@ -50,3 +50,39 @@ next-env.d.ts
 # (Coolify deploy runs `prisma migrate deploy` from them).
 prisma/dev.db
 prisma/dev.db-journal
+
+# dnkstudio (vendored under /studio — keeps build artifacts and user data out of git)
+studio/node_modules
+studio/dist
+studio/.env
+studio/.env.local
+studio/.sessions
+studio/test-results
+studio/test-veo31-output
+studio/uploads
+studio/downloads/*.png
+studio/downloads/*.jpg
+studio/server.log
+studio/server-restart.log
+studio/*.log
+studio/.next
+
+# studio runtime/user data — generated at runtime in the container, never source.
+# discovered-keywords.json is 43 MB of cached trend data; projects/ + runs/ are
+# user-created artefacts; kdp/assets/ is uploaded cover imagery. None belong in
+# git. Initial state for these is created on first server boot.
+studio/data/
+
+# studio public/Video/ — large media files (60-90 MB each) not referenced by
+# the SPA source (the only "Smoke" in src/ is a CSS animation comment, not the
+# .mp4/.mov files). Excluded to keep the repo lean; restore on a per-asset
+# basis only if a feature actually imports them.
+studio/public/Video/
+
+# studio test fixtures + playwright artefacts — never useful in this monorepo.
+studio/tests/
+studio/playwright-report/
+studio/test-fixtures/
+
+# studio cache directories that may be created by the data pipeline.
+studio/cache/

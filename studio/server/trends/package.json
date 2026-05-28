@@ -1,0 +1,16 @@
+{
+  "name": "trends-microservice",
+  "version": "1.0.0",
+  "description": "Standalone trends scraping microservice",
+  "type": "module",
+  "main": "microservice.js",
+  "scripts": {
+    "start": "node --loader ts-node/esm microservice.ts",
+    "dev": "nodemon --exec node --loader ts-node/esm microservice.ts",
+    "build": "tsc",
+    "start:prod": "node microservice.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

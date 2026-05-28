@@ -1,0 +1,249 @@
+/* GrapesJS overrides & shell styling */
+@import 'grapesjs/dist/css/grapes.min.css';
+
+.site-builder {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #0c0c14;
+  color: #fff;
+  font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ── Top Toolbar ── */
+.sb-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #14141f;
+  border-bottom: 1px solid #2a2a3d;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.sb-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sb-toolbar-group + .sb-toolbar-group {
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid #2a2a3d;
+}
+
+.sb-toolbar button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: #1c1c2a;
+  border: 1px solid #2a2a3d;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.sb-toolbar button:hover {
+  background: #2a2a3d;
+  color: #fff;
+}
+
+.sb-toolbar button.active {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: #fff;
+}
+
+.sb-toolbar button.sb-save-btn {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: #fff;
+}
+
+.sb-toolbar button.sb-save-btn:hover {
+  background: #8b5cf6;
+}
+
+.sb-toolbar-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fff;
+  margin-right: auto;
+}
+
+/* ── Main Layout ── */
+.sb-main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Left Panel (Blocks) ── */
+.sb-panel-left {
+  width: 240px;
+  background: #14141f;
+  border-right: 1px solid #2a2a3d;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.sb-panel-header {
+  padding: 14px 16px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #1c1c2a;
+}
+
+.sb-blocks-container {
+  padding: 8px;
+}
+
+/* ── Right Panel (Styles) ── */
+.sb-panel-right {
+  width: 280px;
+  background: #14141f;
+  border-left: 1px solid #2a2a3d;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+/* ── Canvas ── */
+.sb-canvas {
+  flex: 1;
+  overflow: hidden;
+}
+
+#gjs {
+  height: 100%;
+  width: 100%;
+}
+
+/* ── Toast ── */
+.sb-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  z-index: 9999;
+  animation: sb-toast-in 0.25s ease-out;
+}
+
+.sb-toast.success {
+  background: #16a34a;
+  color: #fff;
+}
+
+.sb-toast.error {
+  background: #dc2626;
+  color: #fff;
+}
+
+@keyframes sb-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── GrapesJS Overrides ── */
+.gjs-one-bg {
+  background-color: #0c0c14 !important;
+}
+
+.gjs-two-color {
+  color: rgba(255, 255, 255, 0.75) !important;
+}
+
+.gjs-three-bg {
+  background-color: #14141f !important;
+}
+
+.gjs-four-color,
+.gjs-four-color-h:hover {
+  color: #7c3aed !important;
+}
+
+/* Hide default GrapesJS panels - we use custom UI */
+.gjs-pn-panels {
+  display: none !important;
+}
+
+.gjs-cv-canvas {
+  top: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Style manager inside right panel */
+.gjs-sm-sectors {
+  background: transparent;
+}
+
+.gjs-sm-sector .gjs-sm-sector-title {
+  background: #1c1c2a;
+  color: rgba(255, 255, 255, 0.7);
+  border: none;
+  padding: 10px 14px;
+  font-size: 0.8rem;
+}
+
+.gjs-sm-property {
+  padding: 4px 14px;
+}
+
+.gjs-sm-property .gjs-sm-label {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.75rem;
+}
+
+.gjs-field {
+  background: #0c0c14;
+  border: 1px solid #2a2a3d;
+  border-radius: 4px;
+  color: #fff;
+}
+
+.gjs-field input {
+  color: #fff;
+}
+
+/* Block items in GrapesJS */
+.gjs-block {
+  background: #1c1c2a;
+  border: 1px solid #2a2a3d;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.7);
+  min-height: 50px;
+  margin: 4px;
+  font-size: 0.75rem;
+}
+
+.gjs-block:hover {
+  border-color: #7c3aed;
+  color: #fff;
+}
+
+/* ── Responsive: collapse panels ── */
+@media (max-width: 900px) {
+  .sb-panel-left,
+  .sb-panel-right {
+    display: none;
+  }
+}
