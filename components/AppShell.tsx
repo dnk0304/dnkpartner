@@ -23,14 +23,14 @@ import { ProfileMenu } from '@/components/ProfileMenu';
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 font-sans">
-      <header className="h-16 px-6 flex items-center justify-between bg-white/80 backdrop-blur border-b border-slate-200 sticky top-0 z-10">
-        <Link href="/" className="flex items-center gap-2" aria-label="DNK Partner — home">
+    <div className="min-h-screen flex flex-col bg-brand-light/40 font-sans text-brand-dark">
+      <header className="h-16 px-6 flex items-center justify-between bg-white/80 backdrop-blur border-b border-slate-200/70 sticky top-0 z-10">
+        <Link href="/" className="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40 rounded-md" aria-label="DNK Partner — home">
           <Image
             src="/brand/dnk-partner-logo.png"
             alt="DNK Partner"
-            width={600}
-            height={200}
+            width={1503}
+            height={704}
             priority
             className="h-9 w-auto"
           />

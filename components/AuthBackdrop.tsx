@@ -57,9 +57,11 @@ export function AuthBackdrop() {
         />
       </div>
 
-      {/* Layer 2 — soft top-to-bottom white wash. Anchors visual weight toward
-          the center and keeps the upper edge calm near the nav-less auth header. */}
-      <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-slate-50/40 to-slate-50/80" />
+      {/* Layer 2 — soft top-to-bottom brand-light wash. Anchors visual weight
+          toward the center and keeps the upper edge calm near the nav-less
+          auth header. Re-skinned to brand-light (DNK Partner palette) so the
+          backdrop reads as part of the brand, not a generic slate page. */}
+      <div className="absolute inset-0 bg-gradient-to-b from-brand-light via-brand-light/40 to-brand-light/80" />
     </div>
   );
 }

@@ -64,7 +64,7 @@ export default function RegisterPage() {
 
   if (done) {
     return (
-      <div className="relative min-h-screen bg-slate-50 flex items-center justify-center px-4 py-12">
+      <div className="relative min-h-screen bg-brand-light/40 flex items-center justify-center px-4 py-12">
         <AuthBackdrop />
         <div className="w-full max-w-md">
           <Link
@@ -75,8 +75,8 @@ export default function RegisterPage() {
             <Image
               src="/brand/dnk-partner-logo.png"
               alt="DNK Partner"
-              width={600}
-              height={200}
+              width={1503}
+              height={704}
               priority
               className="h-12 w-auto"
             />
@@ -86,7 +86,7 @@ export default function RegisterPage() {
             <div className="mx-auto w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center">
               <Check className="w-7 h-7 text-emerald-600" strokeWidth={3} />
             </div>
-            <h2 className="mt-5 text-2xl font-semibold text-slate-900 tracking-tight">
+            <h2 className="mt-5 text-2xl font-semibold text-brand-accent tracking-tight">
               Check your email
             </h2>
             <p className="mt-2 text-slate-600 text-sm leading-relaxed">
@@ -96,7 +96,7 @@ export default function RegisterPage() {
             </p>
             <Link
               href="/auth/login"
-              className="mt-6 inline-block text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
+              className="mt-6 inline-block text-sm font-medium text-brand-primary hover:text-brand-primary-hover transition-colors"
             >
               Back to sign in
             </Link>
@@ -107,26 +107,26 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="relative min-h-screen bg-slate-50 flex items-center justify-center px-4 py-12">
+    <div className="relative min-h-screen bg-brand-light/40 flex items-center justify-center px-4 py-12">
       <AuthBackdrop />
       <div className="w-full max-w-md">
         <Link
           href="/"
-          className="flex items-center justify-center mb-10"
+          className="flex items-center justify-center mb-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40 rounded-md"
           aria-label="DNK Partner — home"
         >
           <Image
             src="/brand/dnk-partner-logo.png"
             alt="DNK Partner"
-            width={600}
-            height={200}
+            width={1503}
+            height={704}
             priority
             className="h-12 w-auto"
           />
         </Link>
 
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-8">
-          <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">
+          <h1 className="text-2xl font-semibold text-brand-accent tracking-tight">
             Create your account
           </h1>
           <p className="mt-1.5 text-slate-500 text-sm">
@@ -165,7 +165,7 @@ export default function RegisterPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 placeholder:text-slate-400 transition-colors"
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary placeholder:text-slate-400 transition-colors"
                 placeholder="you@example.com"
               />
             </div>
@@ -187,7 +187,7 @@ export default function RegisterPage() {
                 minLength={8}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 placeholder:text-slate-400 transition-colors"
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary placeholder:text-slate-400 transition-colors"
                 placeholder="••••••••"
               />
             </div>
@@ -204,7 +204,7 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors text-sm shadow-sm shadow-blue-600/20"
+              className="w-full py-2.5 bg-brand-primary hover:bg-brand-primary-hover disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors text-sm shadow-sm shadow-brand-primary/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40"
             >
               {loading ? 'Creating account…' : 'Create account'}
             </button>
@@ -219,7 +219,7 @@ export default function RegisterPage() {
           Already have an account?{' '}
           <Link
             href="/auth/login"
-            className="font-medium text-blue-600 hover:text-blue-700 transition-colors"
+            className="font-medium text-brand-primary hover:text-brand-primary-hover transition-colors"
           >
             Sign in
           </Link>

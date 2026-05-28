@@ -7,7 +7,7 @@ import { AuthBackdrop } from '@/components/AuthBackdrop';
 
 export default function ForgotPasswordPage() {
   return (
-    <div className="relative min-h-screen bg-slate-50 flex items-center justify-center px-4 py-12">
+    <div className="relative min-h-screen bg-brand-light/40 flex items-center justify-center px-4 py-12">
       <AuthBackdrop />
       <div className="w-full max-w-md">
         <Link
@@ -18,28 +18,28 @@ export default function ForgotPasswordPage() {
           <Image
             src="/brand/dnk-partner-logo.png"
             alt="DNK Partner"
-            width={600}
-            height={200}
+            width={1503}
+            height={704}
             priority
             className="h-12 w-auto"
           />
         </Link>
 
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-8 text-center">
-          <div className="mx-auto w-12 h-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center">
-            <Mail className="w-6 h-6 text-blue-600" />
+          <div className="mx-auto w-12 h-12 rounded-xl bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center">
+            <Mail className="w-6 h-6 text-brand-primary" aria-hidden="true" />
           </div>
-          <h1 className="mt-5 text-2xl font-semibold text-slate-900 tracking-tight">
+          <h1 className="mt-5 text-2xl font-semibold text-brand-accent tracking-tight">
             Reset password
           </h1>
-          <p className="mt-3 text-slate-600 text-sm leading-relaxed">
+          <p className="mt-3 text-brand-dark/65 text-sm leading-relaxed">
             Password resets are handled by support. Email us and we&apos;ll
             get you back in.
           </p>
 
           <a
             href="mailto:support@dnkpartner.com"
-            className="mt-6 inline-flex items-center justify-center gap-1.5 w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors text-sm shadow-sm shadow-blue-600/20"
+            className="mt-6 inline-flex items-center justify-center gap-1.5 w-full py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white font-medium rounded-lg transition-colors text-sm shadow-sm shadow-brand-primary/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40"
           >
             <Mail className="w-4 h-4" />
             support@dnkpartner.com
@@ -49,7 +49,7 @@ export default function ForgotPasswordPage() {
         <p className="mt-6 text-center text-sm text-slate-600">
           <Link
             href="/auth/login"
-            className="font-medium text-blue-600 hover:text-blue-700 transition-colors"
+            className="font-medium text-brand-primary hover:text-brand-primary-hover transition-colors"
           >
             Back to sign in
           </Link>

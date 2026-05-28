@@ -130,15 +130,15 @@ function LoginForm() {
         <Image
           src="/brand/dnk-partner-logo.png"
           alt="DNK Partner"
-          width={600}
-          height={200}
+          width={1503}
+          height={704}
           priority
           className="h-12 w-auto"
         />
       </Link>
 
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-8">
-        <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">
+        <h1 className="text-2xl font-semibold text-brand-accent tracking-tight">
           Welcome back
         </h1>
         <p className="mt-1.5 text-slate-500 text-sm">
@@ -198,7 +198,7 @@ function LoginForm() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 placeholder:text-slate-400 transition-colors"
+              className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary placeholder:text-slate-400 transition-colors"
               placeholder="you@example.com"
             />
           </div>
@@ -216,7 +216,7 @@ function LoginForm() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 placeholder:text-slate-400 transition-colors"
+              className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary placeholder:text-slate-400 transition-colors"
               placeholder="••••••••"
             />
           </div>
@@ -233,7 +233,7 @@ function LoginForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors text-sm shadow-sm shadow-blue-600/20"
+            className="w-full py-2.5 bg-brand-primary hover:bg-brand-primary-hover disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors text-sm shadow-sm shadow-brand-primary/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40"
           >
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
@@ -253,7 +253,7 @@ function LoginForm() {
         Don&apos;t have an account?{' '}
         <Link
           href="/auth/register"
-          className="font-medium text-blue-600 hover:text-blue-700 transition-colors"
+          className="font-medium text-brand-primary hover:text-brand-primary-hover transition-colors"
         >
           Create one
         </Link>
@@ -264,7 +264,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="relative min-h-screen bg-slate-50 flex items-center justify-center px-4 py-12">
+    <div className="relative min-h-screen bg-brand-light/40 flex items-center justify-center px-4 py-12">
       <AuthBackdrop />
       <Suspense
         fallback={

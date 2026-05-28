@@ -13,44 +13,47 @@ export const metadata = {
 // bridge, Whop billing, €7.99/mo subscription). DNK Partner currently has no
 // product surface, so this page is intentionally minimal. Update with real
 // terms once portfolio products ship and billing/usage rules are defined.
+//
+// Pixel pass (2026-05-28): re-skinned to the DNK Partner brand palette — see
+// app/globals.css for token provenance. Legal copy untouched.
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen bg-white text-slate-900">
-      <header className="sticky top-0 z-20 bg-white/80 backdrop-blur border-b border-slate-200/80">
+    <div className="min-h-screen bg-white text-brand-dark">
+      <header className="sticky top-0 z-20 bg-brand-light/80 backdrop-blur border-b border-slate-200/70">
         <div className="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link
             href="/"
-            className="flex items-center group"
+            className="flex items-center group focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40 rounded-md"
             aria-label="DNK Partner — home"
           >
             <Image
               src="/brand/dnk-partner-logo.png"
               alt="DNK Partner"
-              width={600}
-              height={200}
+              width={1503}
+              height={704}
               priority
               className="h-10 w-auto"
             />
           </Link>
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900"
+            className="inline-flex items-center gap-1.5 text-sm text-brand-dark/70 hover:text-brand-accent transition-colors"
           >
-            <ArrowLeft className="w-3.5 h-3.5" /> Home
+            <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" /> Home
           </Link>
         </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-6 py-16">
-        <h1 className="text-4xl font-semibold tracking-tight">
+        <h1 className="text-4xl font-semibold tracking-tight text-brand-accent">
           Terms of Service
         </h1>
-        <p className="mt-2 text-sm text-slate-500">Last updated: 28 May 2026</p>
+        <p className="mt-2 text-sm text-brand-dark/55">Last updated: 28 May 2026</p>
 
-        <div className="mt-10 space-y-8 text-slate-700 leading-relaxed">
+        <div className="mt-10 space-y-8 text-brand-dark/80 leading-relaxed">
           <section>
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">
+            <h2 className="text-xl font-semibold text-brand-accent mb-2">
               The service
             </h2>
             <p>
@@ -61,7 +64,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">
+            <h2 className="text-xl font-semibold text-brand-accent mb-2">
               Your account
             </h2>
             <ul className="list-disc list-inside space-y-2">
@@ -75,7 +78,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">
+            <h2 className="text-xl font-semibold text-brand-accent mb-2">
               Availability
             </h2>
             <p>
@@ -86,7 +89,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">
+            <h2 className="text-xl font-semibold text-brand-accent mb-2">
               Liability
             </h2>
             <p>
@@ -97,7 +100,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">
+            <h2 className="text-xl font-semibold text-brand-accent mb-2">
               Changes
             </h2>
             <p>
@@ -109,7 +112,7 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">
+            <h2 className="text-xl font-semibold text-brand-accent mb-2">
               Governing law
             </h2>
             <p>
@@ -120,14 +123,14 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">
+            <h2 className="text-xl font-semibold text-brand-accent mb-2">
               Contact
             </h2>
             <p>
               Operator:{' '}
               <a
                 href="mailto:support@dnkpartner.com"
-                className="text-blue-600 hover:underline"
+                className="text-brand-primary hover:text-brand-primary-hover underline-offset-4 hover:underline transition-colors"
               >
                 support@dnkpartner.com
               </a>
@@ -137,18 +140,18 @@ export default function TermsPage() {
         </div>
       </main>
 
-      <footer className="border-t border-slate-200 bg-slate-50/60 mt-16">
+      <footer className="border-t border-slate-200/70 bg-brand-light/60 mt-16">
         <div className="max-w-3xl mx-auto px-6 py-8 flex items-center justify-between gap-3">
-          <span className="text-sm text-slate-500">
+          <span className="text-sm text-brand-dark/65">
             © {new Date().getFullYear()} DNK Partner
           </span>
-          <div className="flex items-center gap-5 text-sm text-slate-500">
-            <Link href="/privacy" className="hover:text-slate-900">
+          <div className="flex items-center gap-5 text-sm text-brand-dark/65">
+            <Link href="/privacy" className="hover:text-brand-accent transition-colors">
               Privacy
             </Link>
             <a
               href="mailto:support@dnkpartner.com"
-              className="hover:text-slate-900"
+              className="hover:text-brand-accent transition-colors"
             >
               support@dnkpartner.com
             </a>

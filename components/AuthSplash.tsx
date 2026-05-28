@@ -171,24 +171,27 @@ export function AuthSplash({ onDone, subtitle = 'Welcome back' }: AuthSplashProp
       // also get launch feedback even without seeing the visual.
       role="status"
       aria-live="polite"
-      // Background gradient sampled from the banner PNG's top edge (#dfeaf3,
-      // light cool blue) to its bottom edge (#f6fbfd, near-white blue-tinted).
-      // This makes the banner's own internal gradient dissolve into the splash
-      // surface so there's no visible image edge — the whole screen reads as
-      // a single illustrated surface rather than "image on a white card".
-      // (Per Dennis QA 2026-05-26: "make the background match the banner".)
+      // Background gradient tinted with DNK Partner's brand-light token so
+      // the splash reads as part of the brand surface. The original banner-
+      // sampled gradient (#dfeaf3 → #f6fbfd) was tied to a different logo —
+      // brand-light (#F5FAFB) carries the same cool feel but stays in
+      // lockstep with the rest of the palette via the @theme tokens.
       className="
         fixed inset-0 z-50
         flex items-center justify-center
-        bg-gradient-to-b from-[#dfeaf3] to-[#f6fbfd]
+        bg-gradient-to-b from-brand-light to-white
         animate-cc-splash-fade-in
         motion-reduce:animate-none
       "
     >
-      {/* Subtle radial brand wash — feels less clinical than pure white. */}
+      {/* Subtle radial brand wash — feels less clinical than pure white.
+          Re-coloured to brand-primary (teal) so the wash reads as DNK Partner
+          rather than the generic blue-600 the scaffold inherited. Held at
+          7% opacity — visible as warmth on white, never as "blob in the
+          background". */}
       <div
         aria-hidden="true"
-        className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,_rgba(37,99,235,0.06),_transparent_60%)]"
+        className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,_rgba(44,128,143,0.07),_transparent_60%)]"
       />
 
       <div
@@ -201,8 +204,8 @@ export function AuthSplash({ onDone, subtitle = 'Welcome back' }: AuthSplashProp
         <Image
           src="/brand/dnk-partner-logo.png"
           alt="DNK Partner"
-          width={600}
-          height={200}
+          width={1503}
+          height={704}
           priority
           // Cap visual width — keeps the logo from bumping viewport edges on
           // tablets. max-w + h-auto preserves aspect ratio across breakpoints.
