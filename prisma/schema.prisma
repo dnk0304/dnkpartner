@@ -1,0 +1,36 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// DNK Partner — minimal auth-only schema (Phase 1 scaffold, 2026-05-28).
+// Stripped from the ComputerCaller schema: Subscription model + Template model
+// + User.phoneToken + relations to either. Future portfolio products (Studio,
+// Subastas, Defensa Penal) will own their own tables; this file stays
+// auth-focused.
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  // Nullable for Google-OAuth-only accounts. Email/password users hold a hash;
+  // accounts that started one way and later linked the other keep their hash.
+  passwordHash      String?
+  emailVerified     Boolean   @default(false)
+  emailVerifyToken  String?
+  resetToken        String?
+  resetTokenExpiry  DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  // Monotonic counter, bumped on every successful login. JWTs are signed with
+  // the post-bump value in their `ver` claim. Any token whose `ver` no longer
+  // matches the DB column is rejected = single-active-session policy.
+  sessionVersion    Int       @default(0)
+  // Google OAuth identity. googleId = the `sub` claim from Google's ID token;
+  // authProvider = 'email' | 'google' | 'both'.
+  googleId          String?   @unique
+  authProvider      String    @default("email")
+}

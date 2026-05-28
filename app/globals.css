@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+:root {
+  --background: #f8fafc; /* slate-50 */
+  --foreground: #0f172a; /* slate-900 */
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Post-signin splash (components/AuthSplash.tsx).
+   Three coordinated keyframes drive a ~3700ms launch sequence that
+   cross-fades into the post-login surface:
+   - cc-splash-fade-in   (0-250ms):    full-screen banner-tinted surface fades
+                                       in so the auth form behind it doesn't
+                                       show through during transition.
+   - cc-splash-rise      (80-430ms):   banner + subtitle lift slightly with
+                                       a gentle ease.
+   - cc-splash-fade-out  (1300-3700ms):applied to a cloned DOM node that
+                                       survives the route change so the
+                                       splash fades AWAY over the next route
+                                       rendering underneath. See AuthSplash.tsx
+                                       for the handoff choreography.
+   All three are gated by Tailwind's `motion-reduce:animate-none` and by an
+   in-component prefers-reduced-motion check that skips the splash entirely. */
+@keyframes cc-splash-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes cc-splash-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-cc-splash-fade-in {
+  animation: cc-splash-fade-in 250ms ease-out both;
+}
+.animate-cc-splash-rise {
+  animation: cc-splash-rise 350ms ease-out 80ms both;
+}
+/* Applied to the detached DOM clone after handoff. Duration MUST stay locked
+   with SPLASH_FADE_OUT_MS in components/AuthSplash.tsx — the cleanup setTimeout
+   uses that constant as its backstop. If they drift, the clone either rips out
+   mid-fade (TS shorter) or lingers blocking input (TS longer). */
+.cc-splash-fade-out {
+  transition: opacity 2400ms ease-out;
+  pointer-events: none;
+}

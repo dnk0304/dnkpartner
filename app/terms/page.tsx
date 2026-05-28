@@ -1,0 +1,160 @@
+import Link from 'next/link';
+import Image from 'next/image';
+import { ArrowLeft } from 'lucide-react';
+
+export const metadata = {
+  title: 'Terms of Service — DNK Partner',
+  description:
+    'The agreement between you and DNK Partner when you use the service.',
+};
+
+// Terms of Service — Phase 1 placeholder (2026-05-28).
+// The ComputerCaller original referenced a specific product (Android phone
+// bridge, Whop billing, €7.99/mo subscription). DNK Partner currently has no
+// product surface, so this page is intentionally minimal. Update with real
+// terms once portfolio products ship and billing/usage rules are defined.
+
+export default function TermsPage() {
+  return (
+    <div className="min-h-screen bg-white text-slate-900">
+      <header className="sticky top-0 z-20 bg-white/80 backdrop-blur border-b border-slate-200/80">
+        <div className="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">
+          <Link
+            href="/"
+            className="flex items-center group"
+            aria-label="DNK Partner — home"
+          >
+            <Image
+              src="/brand/dnk-partner-logo.png"
+              alt="DNK Partner"
+              width={600}
+              height={200}
+              priority
+              className="h-10 w-auto"
+            />
+          </Link>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" /> Home
+          </Link>
+        </div>
+      </header>
+
+      <main className="max-w-3xl mx-auto px-6 py-16">
+        <h1 className="text-4xl font-semibold tracking-tight">
+          Terms of Service
+        </h1>
+        <p className="mt-2 text-sm text-slate-500">Last updated: 28 May 2026</p>
+
+        <div className="mt-10 space-y-8 text-slate-700 leading-relaxed">
+          <section>
+            <h2 className="text-xl font-semibold text-slate-900 mb-2">
+              The service
+            </h2>
+            <p>
+              DNK Partner is the umbrella site for Dennis Kotlenko&apos;s
+              portfolio of products and services. By creating an account, you
+              agree to the terms below.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-slate-900 mb-2">
+              Your account
+            </h2>
+            <ul className="list-disc list-inside space-y-2">
+              <li>You are responsible for keeping your password secure.</li>
+              <li>One person per account. Don&apos;t share logins.</li>
+              <li>
+                We may suspend accounts that abuse the service (spam,
+                harassment, impersonation, illegal activity).
+              </li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-slate-900 mb-2">
+              Availability
+            </h2>
+            <p>
+              We aim for high availability but make no uptime guarantees.
+              Scheduled maintenance happens occasionally. We&apos;ll try to
+              notify in advance for anything significant.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-slate-900 mb-2">
+              Liability
+            </h2>
+            <p>
+              The service is provided &quot;as is&quot;. We&apos;re not liable
+              for indirect or consequential damages arising from use of the
+              service.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-slate-900 mb-2">
+              Changes
+            </h2>
+            <p>
+              We may update these terms. Material changes will be announced by
+              email or in-app notice at least 14 days before they take effect.
+              Continuing to use the service after the effective date means you
+              accept the new terms.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-slate-900 mb-2">
+              Governing law
+            </h2>
+            <p>
+              These terms are governed by European Law. Disputes are resolved
+              under European jurisdiction unless local consumer-protection law
+              gives you the right to your own jurisdiction.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-slate-900 mb-2">
+              Contact
+            </h2>
+            <p>
+              Operator:{' '}
+              <a
+                href="mailto:support@dnkpartner.com"
+                className="text-blue-600 hover:underline"
+              >
+                support@dnkpartner.com
+              </a>
+              .
+            </p>
+          </section>
+        </div>
+      </main>
+
+      <footer className="border-t border-slate-200 bg-slate-50/60 mt-16">
+        <div className="max-w-3xl mx-auto px-6 py-8 flex items-center justify-between gap-3">
+          <span className="text-sm text-slate-500">
+            © {new Date().getFullYear()} DNK Partner
+          </span>
+          <div className="flex items-center gap-5 text-sm text-slate-500">
+            <Link href="/privacy" className="hover:text-slate-900">
+              Privacy
+            </Link>
+            <a
+              href="mailto:support@dnkpartner.com"
+              className="hover:text-slate-900"
+            >
+              support@dnkpartner.com
+            </a>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
