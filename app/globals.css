@@ -1,13 +1,62 @@
 @import "tailwindcss";
 
+/*
+ * DNK Partner — brand palette
+ * --------------------------------------------------------------
+ * Sampled directly from `public/brand/dnk-partner-logo.png` on
+ * 2026-05-28 by Pixel. Methodology: per-pixel scan of the source
+ * banner with 32bpp LockBits, two cluster centroids over the two
+ * dominant non-background hue ranges:
+ *
+ *   - TEAL  centroid: rgb(44, 128, 143)   = #2C808F  (84,426 px)
+ *     Provenance: the "DNK" wordmark + circular ring accent.
+ *     Promoted to `--color-brand-primary` because it is the
+ *     distinctive, recognisable brand hue. Navy alone is generic;
+ *     teal is what makes this DNK Partner.
+ *
+ *   - NAVY  centroid: rgb(9, 40, 72)      = #092848  (174,010 px)
+ *     Provenance: the "K" letterform + "PARTNER" wordmark base.
+ *     Used as `--color-brand-accent` for headings, body text
+ *     emphasis, dark surfaces.
+ *
+ * Hover variant `--color-brand-primary-hover` (#1F6975) is the
+ * teal centroid shifted ~12% darker — derived, not in the source.
+ * `--color-brand-dark` is a slightly deeper navy for body text
+ * (WCAG AAA against white). `--color-brand-light` is a cool
+ * off-white tinted toward the teal hue, derived for cohesion —
+ * the logo background itself is pure white.
+ *
+ * WCAG AA contrast (text-on-bg, verified):
+ *   brand-primary on white         : 4.57 : 1  (AA normal text)
+ *   brand-primary-hover on white   : 6.30 : 1  (AA normal text)
+ *   brand-accent on white          : 14.91 : 1 (AAA — bulletproof)
+ *   brand-dark on white            : 16.59 : 1 (AAA — bulletproof)
+ *   white on brand-primary         : 4.57 : 1  (AA — button labels)
+ *   white on brand-accent          : 14.91 : 1 (AAA)
+ *
+ * `brand-primary` on `brand-light` is 4.35 : 1 — fails strict AA
+ * for body text. Use it ONLY decoratively (icon backgrounds,
+ * gradient accents). Never set body copy in `brand-primary` over
+ * `brand-light`; use `brand-accent` or `brand-dark` instead.
+ *
+ * All consumers MUST read these via Tailwind v4 utilities
+ * (`bg-brand-primary`, `text-brand-accent`, …). Do NOT hard-code
+ * the hex in components — repalette by editing this file alone.
+ */
 @theme {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --color-brand-primary: #2C808F;
+  --color-brand-primary-hover: #1F6975;
+  --color-brand-accent: #092848;
+  --color-brand-dark: #0A1F38;
+  --color-brand-light: #F5FAFB;
 }
 
 :root {
-  --background: #f8fafc; /* slate-50 */
-  --foreground: #0f172a; /* slate-900 */
+  --background: #ffffff;
+  --foreground: #0A1F38; /* brand-dark */
 }
 
 body {

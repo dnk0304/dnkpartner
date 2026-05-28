@@ -61,7 +61,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0f172a',
+  // brand-accent — used by mobile browser chrome / theme-color meta tag.
+  // Sampled from the DNK Partner logo wordmark; see app/globals.css for
+  // full palette provenance.
+  themeColor: '#092848',
 };
 
 export default function RootLayout({
