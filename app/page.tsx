@@ -11,15 +11,18 @@ import {
 } from 'lucide-react';
 
 /**
- * DNK Partner — landing page (Phase 2, Pixel, 2026-05-28).
+ * DNK Partner — landing page (Phase 2, Pixel, 2026-05-28; trimmed 2026-05-28).
  *
  * Single scroll, ~6 sections:
- *   1. Sticky header (logo + Sign in)
- *   2. Hero (logo + tagline + dual CTA)
+ *   1. Sticky header (logo only — public face has no sign-in affordance)
+ *   2. Hero (logo + tagline + single email CTA)
  *   3. Services strip (5 text-only cards)
  *   4. About
- *   5. CTA section
+ *   5. CTA section (single email CTA)
  *   6. Footer
+ *
+ * Per Dennis: the site is a private portal. Login lives at /login and is
+ * not exposed from the public landing. The only public affordance is email.
  *
  * Design language references the ComputerCaller card pattern:
  *   `bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md`
@@ -90,7 +93,9 @@ export default function LandingPage() {
           border-b border-slate-200/70
         "
       >
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+        {/* Single-item header: logo only. No right-side affordance — the
+            public site is brochure-only, sign-in is unlisted at /login. */}
+        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center">
           <Link
             href="/"
             className="flex items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40 rounded-md"
@@ -106,20 +111,6 @@ export default function LandingPage() {
               priority
               className="h-10 sm:h-12 w-auto"
             />
-          </Link>
-          <Link
-            href="/auth/login"
-            className="
-              inline-flex items-center gap-1.5
-              px-3.5 py-2 rounded-lg
-              text-sm font-medium text-brand-accent
-              border border-slate-200 bg-white/70
-              hover:bg-white hover:border-slate-300
-              focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40
-              transition-colors
-            "
-          >
-            Sign in
           </Link>
         </div>
       </header>
@@ -183,8 +174,11 @@ export default function LandingPage() {
             </span>
           </p>
 
-          {/* CTAs. Stack vertically on mobile, side-by-side from sm. */}
-          <div className="mt-9 sm:mt-10 flex flex-col sm:flex-row items-center gap-3 sm:gap-4 w-full max-w-md sm:max-w-none sm:w-auto">
+          {/* Single CTA. With sign-in removed, the previous dual-button
+              row collapses to one centred button. Mobile keeps full-width
+              tap target; sm+ shrinks to intrinsic width so it doesn't
+              stretch awkwardly across the hero. */}
+          <div className="mt-9 sm:mt-10 w-full max-w-md sm:max-w-none flex justify-center">
             <a
               href={`mailto:${CONTACT_EMAIL}`}
               className="
@@ -201,20 +195,6 @@ export default function LandingPage() {
               <Mail className="w-4 h-4" aria-hidden="true" />
               Get in touch
             </a>
-            <Link
-              href="/auth/login"
-              className="
-                w-full sm:w-auto
-                inline-flex items-center justify-center gap-2
-                px-5 py-3 rounded-xl
-                bg-white text-brand-accent text-sm font-medium
-                border border-slate-200 hover:border-slate-300 hover:bg-slate-50
-                focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40
-                transition-colors
-              "
-            >
-              Sign in
-            </Link>
           </div>
         </div>
       </section>
@@ -339,10 +319,11 @@ export default function LandingPage() {
             >
               {CONTACT_EMAIL}
             </a>{' '}
-            or sign in to access your project space.
+            and we&apos;ll get back to you.
           </p>
 
-          <div className="mt-9 flex flex-col sm:flex-row items-center gap-3 sm:gap-4 w-full max-w-md sm:max-w-none sm:w-auto">
+          {/* Single email CTA — same pattern as hero. */}
+          <div className="mt-9 w-full max-w-md sm:max-w-none flex justify-center">
             <a
               href={`mailto:${CONTACT_EMAIL}`}
               className="
@@ -360,20 +341,6 @@ export default function LandingPage() {
               Email us
               <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
             </a>
-            <Link
-              href="/auth/login"
-              className="
-                w-full sm:w-auto
-                inline-flex items-center justify-center gap-2
-                px-5 py-3 rounded-xl
-                bg-white text-brand-accent text-sm font-medium
-                border border-slate-200 hover:border-slate-300 hover:bg-slate-50
-                focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40
-                transition-colors
-              "
-            >
-              Sign in
-            </Link>
           </div>
         </div>
       </section>
