@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { db } from '@/lib/db';
-import { signAccessToken } from '@/lib/auth';
+import { signAccessToken, isEmailAllowed } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   try {
     const { email, password } = await req.json();
+
+    // Allowlist gate — only authorised emails proceed. Run BEFORE the DB
+    // lookup so the timing is identical regardless of whether the email exists
+    // on the list. Generic 401 mirrors the wrong-password response below, so
+    // the allowlist's existence stays invisible to enumeration.
+    if (!isEmailAllowed(email)) {
+      return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
+    }
 
     const user = await db.user.findUnique({
       where: { email: email?.toLowerCase() },
@@ -27,10 +35,6 @@ export async function POST(req: NextRequest) {
 
     if (!user || !user.passwordHash || !(await bcrypt.compare(password, user.passwordHash))) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
-    }
-
-    if (!user.emailVerified) {
-      return NextResponse.json({ error: 'Please verify your email before logging in' }, { status: 403 });
     }
 
     // Single-active-session: bump sessionVersion BEFORE signing the new JWT.

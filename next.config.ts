@@ -14,6 +14,19 @@ const nextConfig: NextConfig = {
   // package as a runtime require — no symlink, no panic.
   // Refs: https://www.prisma.io/docs/orm/more/help-and-troubleshooting/nextjs-help
   serverExternalPackages: ['@prisma/client', '.prisma/client'],
+
+  // Permanent 308 redirects for the auth-lockdown URL move (2026-05-28).
+  // Old /auth/login + /auth/forgot-password URLs survive in bookmarks, email
+  // links, search-engine indices — 308 preserves the method on the redirect
+  // (matters for any POST, though both targets are GET-only in practice).
+  // Registration was deleted entirely (no redirect) so /auth/register and
+  // /api/auth/register naturally 404 once their directories are removed.
+  async redirects() {
+    return [
+      { source: '/auth/login', destination: '/login', permanent: true },
+      { source: '/auth/forgot-password', destination: '/forgot-password', permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

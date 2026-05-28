@@ -13,8 +13,12 @@ npm run dev
 # http://localhost:3000
 ```
 
-Without `RESEND_API_KEY`, `/api/auth/register` auto-verifies the account so
-the register → login flow works offline.
+Registration is disabled in this build — the only login surface is `/login`,
+and only addresses in `ALLOWED_LOGIN_EMAILS` (env var, comma-separated; falls
+back to `dennis.kotlenko@gmail.com`) can authenticate via either email/password
+or Google OAuth. Allowlist rejects mirror wrong-password 401s so the list
+stays invisible to enumeration. Add a user: insert a row in `User` then add
+the address to `ALLOWED_LOGIN_EMAILS`.
 
 ## Scripts
 - `npm run dev` — local dev server

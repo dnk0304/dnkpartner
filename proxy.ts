@@ -5,12 +5,18 @@ import { validateSessionToken } from '@/lib/auth';
  * DNK Partner — auth proxy / middleware.
  *
  * Phase 1 (scaffold, 2026-05-28) scope:
- *   - Auth pages (/auth/*) bounce LOGGED-IN users back to / so the back
- *     button doesn't dump them into login again after they signed in.
+ *   - Auth pages (/login, /forgot-password) bounce LOGGED-IN users back to /
+ *     so the back button doesn't dump them into login again after they
+ *     signed in.
  *   - Root /, /privacy, /terms render for everyone (guest or logged-in).
  *   - Stale-cookie cleanup: if a cookie exists but fails validation, clear
  *     it so the next request is a clean guest request (avoids a redirect
  *     loop where a kicked browser keeps re-failing validation).
+ *
+ * Lockdown (2026-05-28): /auth/login + /auth/forgot-password were moved to
+ * /login + /forgot-password (308 redirects in next.config.ts). Registration
+ * and email-verification routes are deleted (404). The allowlist in
+ * lib/auth.ts is the authoritative gate; this middleware does not enforce it.
  *
  * FUTURE PORTFOLIO ROUTES — gate these here when Phase 2+ adds them:
  *   /studio          (Dennis's design/dev portfolio gallery)
@@ -21,7 +27,7 @@ import { validateSessionToken } from '@/lib/auth';
  * Each future route should be appended to the PROTECTED array below AND
  * added to the matcher config at the bottom. Pattern is identical to the
  * /app pattern this file inherited from the ComputerCaller codebase —
- * payload null → bounce to /auth/login?next=<original-path>.
+ * payload null → bounce to /login?next=<original-path>.
  */
 
 // Empty in Phase 1 — no gated routes exist yet. Append future portfolio
@@ -29,13 +35,11 @@ import { validateSessionToken } from '@/lib/auth';
 const PROTECTED: string[] = [];
 
 // Auth flow pages. Logged-in users who hit one of these get bounced to /
-// so the login form isn't shown after a successful sign-in.
+// so the login form isn't shown after a successful sign-in. Registration /
+// verify-email / reset-password were deleted in the 2026-05-28 lockdown.
 const AUTH_PAGES = [
-  '/auth/login',
-  '/auth/register',
-  '/auth/verify-email',
-  '/auth/forgot-password',
-  '/auth/reset-password',
+  '/login',
+  '/forgot-password',
 ];
 
 export async function proxy(req: NextRequest) {
@@ -55,8 +59,8 @@ export async function proxy(req: NextRequest) {
   // loop. Clearing the cookie means the next request is a clean guest request.
   const bounceToLogin = (nextPath?: string) => {
     const loginUrl = nextPath
-      ? new URL(`/auth/login?next=${encodeURIComponent(nextPath)}`, req.url)
-      : new URL('/auth/login', req.url);
+      ? new URL(`/login?next=${encodeURIComponent(nextPath)}`, req.url)
+      : new URL('/login', req.url);
     const res = NextResponse.redirect(loginUrl);
     if (token && !payload) {
       res.cookies.set('auth_token', '', {
@@ -105,5 +109,5 @@ export async function proxy(req: NextRequest) {
 // Matcher — list every path the proxy needs to inspect. When portfolio routes
 // land, add their patterns here (e.g. '/studio/:path*').
 export const config = {
-  matcher: ['/', '/auth/:path*'],
+  matcher: ['/', '/login', '/forgot-password'],
 };

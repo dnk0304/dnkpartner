@@ -22,7 +22,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { signAccessToken } from '@/lib/auth';
+import { signAccessToken, isEmailAllowed } from '@/lib/auth';
 import {
   exchangeCodeForTokens,
   verifyIdToken,
@@ -38,7 +38,7 @@ const STATE_COOKIE = 'g_oauth_state';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 
 function loginErrorRedirect(reason: string): NextResponse {
-  const url = new URL(`/auth/login?error=${encodeURIComponent(reason)}`, APP_URL);
+  const url = new URL(`/login?error=${encodeURIComponent(reason)}`, APP_URL);
   const res = NextResponse.redirect(url);
   // Burn the state cookie — single-use.
   res.cookies.set(STATE_COOKIE, '', { maxAge: 0, path: '/api/auth/google' });
@@ -82,6 +82,16 @@ export async function GET(req: NextRequest) {
 
     const email = claims.email.toLowerCase();
     const googleId = claims.sub;
+
+    // Allowlist gate — run BEFORE any user lookup or creation so a non-
+    // authorised Google account never produces a User row or a session. The
+    // user gets bounced back to /login with `error=not_authorized`; the login
+    // page maps that code to a friendly "This account is not authorized for
+    // DNK Partner." copy. Mirrors the email/password allowlist semantics.
+    if (!isEmailAllowed(email)) {
+      console.warn(`[GoogleCallback] Refused: email ${email} not on ALLOWED_LOGIN_EMAILS`);
+      return loginErrorRedirect('not_authorized');
+    }
 
     // Branch a: look up by googleId first — exact match wins regardless of email.
     let user = await db.user.findUnique({ where: { googleId } });

@@ -18,16 +18,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 1.0,
     },
     {
-      url: `${BASE_URL}/auth/login`,
+      url: `${BASE_URL}/login`,
       lastModified: now,
       changeFrequency: 'monthly',
-      priority: 0.5,
-    },
-    {
-      url: `${BASE_URL}/auth/register`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.7,
+      priority: 0.3,
     },
     {
       url: `${BASE_URL}/privacy`,

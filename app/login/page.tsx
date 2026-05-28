@@ -69,6 +69,8 @@ function LoginForm() {
       case 'google_error':
       case 'google_internal_error':
         return 'Google sign-in failed. Please try again or use email and password.';
+      case 'not_authorized':
+        return 'This account is not authorized for DNK Partner.';
       default:
         return null;
     }
@@ -241,23 +243,13 @@ function LoginForm() {
 
         <div className="mt-6 text-center">
           <Link
-            href="/auth/forgot-password"
+            href="/forgot-password"
             className="text-sm text-slate-500 hover:text-slate-900 transition-colors"
           >
             Forgot password?
           </Link>
         </div>
       </div>
-
-      <p className="mt-6 text-center text-sm text-slate-600">
-        Don&apos;t have an account?{' '}
-        <Link
-          href="/auth/register"
-          className="font-medium text-brand-primary hover:text-brand-primary-hover transition-colors"
-        >
-          Create one
-        </Link>
-      </p>
     </div>
   );
 }

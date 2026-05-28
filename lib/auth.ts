@@ -75,3 +75,29 @@ export function signEmailToken(userId: string): string {
 export function signResetToken(userId: string): string {
   return jwt.sign({ userId, purpose: 'reset-password' }, JWT_SECRET, { expiresIn: '1h' });
 }
+
+/**
+ * Email allowlist — only addresses in ALLOWED_LOGIN_EMAILS can authenticate
+ * (via email+password OR Google OAuth). Source: env var; comma-separated,
+ * lowercased on parse, trimmed.
+ *
+ * Checked BEFORE DB lookup or bcrypt.compare so timing is identical regardless
+ * of whether the email exists or is on the list — invisible from outside.
+ * Reject mirrors wrong-password 401 (email/password) or generic redirect
+ * (Google OAuth) so attackers can't enumerate authorised emails.
+ *
+ * Single-owner site — Dennis is the only authorised email. Add reviewers /
+ * co-founders via env-var update + redeploy (no code change). Dev fallback
+ * keeps `dennis.kotlenko@gmail.com` working when the env var is unset.
+ */
+const ALLOWED_EMAILS: Set<string> = new Set(
+  (process.env.ALLOWED_LOGIN_EMAILS ?? 'dennis.kotlenko@gmail.com')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean),
+);
+
+export function isEmailAllowed(email: string | null | undefined): boolean {
+  if (!email || typeof email !== 'string') return false;
+  return ALLOWED_EMAILS.has(email.trim().toLowerCase());
+}
