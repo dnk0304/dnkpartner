@@ -178,12 +178,15 @@ node check-db.js
 ### .env (Already Updated)
 ```
 DATABASE_URL="file:./data/database/prod.db"
-NEXTAUTH_SECRET=ES4AMdQ4sD+HkdESAkx1Uc3NbsgW9PsSmOfoj9UZZQ4=
+# NEVER commit real secret values. Generate locally with:
+#   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+# or: openssl rand -base64 32
+NEXTAUTH_SECRET=<set-in-env-do-not-commit>
 NEXTAUTH_URL=http://localhost:3005
 AUTH_TRUST_HOST=true
 
 # Email - Just add your Resend API key below
-RESEND_API_KEY=re_your_key_here  👈 ADD YOUR KEY
+RESEND_API_KEY=<set-in-env-do-not-commit>
 RESEND_FROM_EMAIL=dennis.kotlenko@gmail.com
 NEXT_PUBLIC_APP_URL=http://localhost:3005
 ```
