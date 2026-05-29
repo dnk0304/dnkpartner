@@ -19,6 +19,7 @@ from ..core.browser import get_browser_manager
 from ..core.stealth import random_delay
 from ..config.provinces import get_province_code, ALL_PROVINCES
 from ..config.categories import get_category_type
+from ..config.municipality_province import municipality_to_province, province_from_text
 from ..config.settings import SCRAPE_MAX_PAGES, SCRAPE_MAX_ITEMS_PER_PAGE, BOE_REQUEST_DELAY_SECONDS
 from ..database.adapter import get_database_adapter
 
@@ -235,11 +236,20 @@ class BOEScraper(BaseScraper):
             # Detect auction type
             auction_type = self.detect_auction_type(autoridad_gestora)
             
+            # Province: prefer self.province (set when scraping per-province),
+            # otherwise derive from municipality or from full listing text.
+            # Fall back to 'Unknown' only when all derivation paths fail.
+            province = self.province
+            if not province and municipality:
+                province = municipality_to_province(municipality)
+            if not province:
+                province = province_from_text(full_text) or 'Unknown'
+
             auction_data = {
                 'boe_id': boe_id,
                 'title': title,
                 'category': category,
-                'province': self.province or 'Unknown',
+                'province': province,
                 'municipality': municipality,
                 'status': status,
                 'auction_type': auction_type,
@@ -268,6 +278,16 @@ class BOEScraper(BaseScraper):
                     auction_data['charges_detail'] = detail_info['warning']
                 if detail_info.get('detail_url'):
                     auction_data['boe_link'] = detail_info['detail_url']
+                # Province enrichment from detail page text if still Unknown
+                if auction_data.get('province') == 'Unknown':
+                    detail_text = " ".join(filter(None, [
+                        detail_info.get('general_info', ''),
+                        detail_info.get('autoridad_gestora', ''),
+                        detail_info.get('bienes_info', ''),
+                    ]))
+                    derived = province_from_text(detail_text)
+                    if derived:
+                        auction_data['province'] = derived
             
             return auction_data
         

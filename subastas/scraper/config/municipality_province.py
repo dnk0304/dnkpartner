@@ -1,0 +1,735 @@
+"""
+Municipality → Province lookup for Spanish BOE auctions.
+
+Built from INE (Instituto Nacional de Estadistica) official municipio codes.
+The keys are lowercase-normalized municipality names for fuzzy matching.
+Used by:
+  1. The scraper (forward: parse province from court/municipality text)
+  2. The province backfill script (reverse: fix province=Unknown rows)
+
+Only includes municipalities that are either:
+  a) Capitals or major cities (population > ~5,000) — these cover ~95% of auction activity
+  b) Common municipality spellings seen in BOE listings
+
+For exact lookups: normalize with normalize_municipality() first.
+"""
+
+from typing import Optional
+import unicodedata
+import re
+
+
+def normalize_municipality(name: str) -> str:
+    """Lowercase, strip accents, collapse whitespace."""
+    if not name:
+        return ""
+    nfkd = unicodedata.normalize("NFKD", name)
+    ascii_str = "".join(c for c in nfkd if not unicodedata.combining(c))
+    return re.sub(r"\s+", " ", ascii_str.lower().strip())
+
+
+# ---------------------------------------------------------------------------
+# municipality (normalized) -> province name (matching provinces.py keys)
+# ---------------------------------------------------------------------------
+# Format: lowercase-no-accent municipio -> province name as in provinces.py
+# Includes capitals, major cities, and common BOE text variants.
+
+_RAW: dict[str, str] = {
+    # Almería
+    "almeria": "Almería",
+    "roquetas de mar": "Almería",
+    "el ejido": "Almería",
+    "nijar": "Almería",
+    "vera": "Almería",
+    "adra": "Almería",
+    "berja": "Almería",
+    "huercal-overa": "Almería",
+    "huercal overa": "Almería",
+    "carboneras": "Almería",
+    "viator": "Almería",
+    "benahadux": "Almería",
+    "pechina": "Almería",
+    "cuevas del almanzora": "Almería",
+    "garrucha": "Almería",
+    "mojacar": "Almería",
+    "pulpi": "Almería",
+
+    # Cádiz
+    "cadiz": "Cádiz",
+    "jerez de la frontera": "Cádiz",
+    "algeciras": "Cádiz",
+    "san fernando": "Cádiz",
+    "el puerto de santa maria": "Cádiz",
+    "chiclana de la frontera": "Cádiz",
+    "sanlucar de barrameda": "Cádiz",
+    "la linea de la concepcion": "Cádiz",
+    "ubrique": "Cádiz",
+    "rota": "Cádiz",
+    "arcos de la frontera": "Cádiz",
+    "barbate": "Cádiz",
+    "conil de la frontera": "Cádiz",
+    "tarifa": "Cádiz",
+    "medina sidonia": "Cádiz",
+    "los barrios": "Cádiz",
+    "puerto real": "Cádiz",
+    "vejer de la frontera": "Cádiz",
+
+    # Córdoba
+    "cordoba": "Córdoba",
+    "lucena": "Córdoba",
+    "puente genil": "Córdoba",
+    "cabra": "Córdoba",
+    "montilla": "Córdoba",
+    "pozoblanco": "Córdoba",
+    "priego de cordoba": "Córdoba",
+    "palma del rio": "Córdoba",
+    "baena": "Córdoba",
+    "aguilar de la frontera": "Córdoba",
+    "bujalance": "Córdoba",
+    "montoro": "Córdoba",
+    "nueva carteya": "Córdoba",
+    "penarrubia": "Córdoba",
+
+    # Granada
+    "granada": "Granada",
+    "motril": "Granada",
+    "almunecar": "Granada",
+    "baza": "Granada",
+    "guadix": "Granada",
+    "loja": "Granada",
+    "armilla": "Granada",
+    "maracena": "Granada",
+    "albolote": "Granada",
+    "pinos puente": "Granada",
+    "atarfe": "Granada",
+    "churriana de la vega": "Granada",
+    "salobrena": "Granada",
+    "huescar": "Granada",
+    "las gabias": "Granada",
+    "ogijares": "Granada",
+
+    # Huelva
+    "huelva": "Huelva",
+    "almonte": "Huelva",
+    "lepe": "Huelva",
+    "moguer": "Huelva",
+    "ayamonte": "Huelva",
+    "cartaya": "Huelva",
+    "isla cristina": "Huelva",
+    "punta umbria": "Huelva",
+    "bollullos par del condado": "Huelva",
+    "palos de la frontera": "Huelva",
+    "nerva": "Huelva",
+
+    # Jaén
+    "jaen": "Jaén",
+    "linares": "Jaén",
+    "andujar": "Jaén",
+    "ubeda": "Jaén",
+    "baeza": "Jaén",
+    "martos": "Jaén",
+    "alcala la real": "Jaén",
+    "villacarrillo": "Jaén",
+    "mancha real": "Jaén",
+    "jodar": "Jaén",
+    "cazorla": "Jaén",
+
+    # Málaga
+    "malaga": "Málaga",
+    "marbella": "Málaga",
+    "fuengirola": "Málaga",
+    "velez-malaga": "Málaga",
+    "velez malaga": "Málaga",
+    "benalmadena": "Málaga",
+    "torremolinos": "Málaga",
+    "mijas": "Málaga",
+    "rincon de la victoria": "Málaga",
+    "estepona": "Málaga",
+    "antequera": "Málaga",
+    "alhaurin de la torre": "Málaga",
+    "nerja": "Málaga",
+    "ronda": "Málaga",
+    "torrox": "Málaga",
+    "alhaurin el grande": "Málaga",
+    "coin": "Málaga",
+    "manilva": "Málaga",
+    "casares": "Málaga",
+    "maro": "Málaga",
+    "alora": "Málaga",
+
+    # Sevilla
+    "sevilla": "Sevilla",
+    "dos hermanas": "Sevilla",
+    "alcala de guadaira": "Sevilla",
+    "ecija": "Sevilla",
+    "utrera": "Sevilla",
+    "la rinconada": "Sevilla",
+    "marchena": "Sevilla",
+    "osuna": "Sevilla",
+    "morón de la frontera": "Sevilla",
+    "moron de la frontera": "Sevilla",
+    "bollullos de la mitacion": "Sevilla",
+    "carmona": "Sevilla",
+    "lebrija": "Sevilla",
+    "san juan de aznalfarache": "Sevilla",
+    "tomares": "Sevilla",
+    "coria del rio": "Sevilla",
+
+    # Huesca
+    "huesca": "Huesca",
+    "monzon": "Huesca",
+    "barbastro": "Huesca",
+    "jaca": "Huesca",
+    "sabinanigo": "Huesca",
+    "fraga": "Huesca",
+    "binaced": "Huesca",
+
+    # Teruel
+    "teruel": "Teruel",
+    "alcañiz": "Teruel",
+    "alcaniz": "Teruel",
+    "andorra": "Teruel",
+    "utrillas": "Teruel",
+
+    # Zaragoza
+    "zaragoza": "Zaragoza",
+    "calatayud": "Zaragoza",
+    "tarazona": "Zaragoza",
+    "ejea de los caballeros": "Zaragoza",
+    "caspe": "Zaragoza",
+    "utebo": "Zaragoza",
+    "cuarte de huerva": "Zaragoza",
+    "zuera": "Zaragoza",
+    "muel": "Zaragoza",
+    "garrapinillos": "Zaragoza",
+    "la muela": "Zaragoza",
+
+    # Asturias
+    "oviedo": "Asturias",
+    "gijon": "Asturias",
+    "aviles": "Asturias",
+    "mieres": "Asturias",
+    "langreo": "Asturias",
+    "san martin del rey aurelio": "Asturias",
+    "corvera de asturias": "Asturias",
+    "llanera": "Asturias",
+    "siero": "Asturias",
+    "castrillon": "Asturias",
+    "navia": "Asturias",
+    "llanes": "Asturias",
+    "cangas del narcea": "Asturias",
+
+    # Illes Balears
+    "palma": "Illes Balears",
+    "palma de mallorca": "Illes Balears",
+    "calvia": "Illes Balears",
+    "llucmajor": "Illes Balears",
+    "marratxi": "Illes Balears",
+    "inca": "Illes Balears",
+    "manacor": "Illes Balears",
+    "ibiza": "Illes Balears",
+    "eivissa": "Illes Balears",
+    "mahon": "Illes Balears",
+    "ciutadella de menorca": "Illes Balears",
+    "mao": "Illes Balears",
+    "soller": "Illes Balears",
+    "felanitx": "Illes Balears",
+    "sant antoni de portmany": "Illes Balears",
+    "formentera": "Illes Balears",
+
+    # Las Palmas
+    "las palmas de gran canaria": "Las Palmas",
+    "las palmas": "Las Palmas",
+    "telde": "Las Palmas",
+    "santa lucia de tirajana": "Las Palmas",
+    "arucas": "Las Palmas",
+    "mogan": "Las Palmas",
+    "ingenio": "Las Palmas",
+    "guia de isora": "Las Palmas",
+    "valleseco": "Las Palmas",
+    "agimes": "Las Palmas",
+    "puerto rico": "Las Palmas",
+    "maspalomas": "Las Palmas",
+    "playa del ingles": "Las Palmas",
+    "galdar": "Las Palmas",
+    "lanzarote": "Las Palmas",
+    "arrecife": "Las Palmas",
+    "fuerteventura": "Las Palmas",
+    "puerto del rosario": "Las Palmas",
+
+    # Santa Cruz de Tenerife
+    "santa cruz de tenerife": "Santa Cruz de Tenerife",
+    "san cristobal de la laguna": "Santa Cruz de Tenerife",
+    "la laguna": "Santa Cruz de Tenerife",
+    "arona": "Santa Cruz de Tenerife",
+    "adeje": "Santa Cruz de Tenerife",
+    "san miguel de abona": "Santa Cruz de Tenerife",
+    "granadilla de abona": "Santa Cruz de Tenerife",
+    "santiago del teide": "Santa Cruz de Tenerife",
+    "los realejos": "Santa Cruz de Tenerife",
+    "puerto de la cruz": "Santa Cruz de Tenerife",
+    "guia de isora (tenerife)": "Santa Cruz de Tenerife",
+    "la orotava": "Santa Cruz de Tenerife",
+    "la palma": "Santa Cruz de Tenerife",
+    "santa cruz de la palma": "Santa Cruz de Tenerife",
+    "el hierro": "Santa Cruz de Tenerife",
+    "la gomera": "Santa Cruz de Tenerife",
+    "valverde": "Santa Cruz de Tenerife",
+
+    # Cantabria
+    "santander": "Cantabria",
+    "torrelavega": "Cantabria",
+    "camargo": "Cantabria",
+    "castro urdiales": "Cantabria",
+    "laredo": "Cantabria",
+    "colindres": "Cantabria",
+    "los corrales de buelna": "Cantabria",
+    "potes": "Cantabria",
+
+    # Ávila
+    "avila": "Ávila",
+    "arenas de san pedro": "Ávila",
+    "el tiemblo": "Ávila",
+
+    # Burgos
+    "burgos": "Burgos",
+    "miranda de ebro": "Burgos",
+    "aranda de duero": "Burgos",
+    "villarcayo": "Burgos",
+
+    # León
+    "leon": "León",
+    "ponferrada": "León",
+    "san andres del rabanedo": "León",
+    "astorga": "León",
+    "villablino": "León",
+    "fabero": "León",
+
+    # Palencia
+    "palencia": "Palencia",
+    "guardo": "Palencia",
+    "aguilar de campoo": "Palencia",
+    "venta de banos": "Palencia",
+
+    # Salamanca
+    "salamanca": "Salamanca",
+    "bejar": "Salamanca",
+    "ciudad rodrigo": "Salamanca",
+    "santa marta de tormes": "Salamanca",
+
+    # Segovia
+    "segovia": "Segovia",
+    "cuéllar": "Segovia",
+    "cuellar": "Segovia",
+    "la granja de san ildefonso": "Segovia",
+
+    # Soria
+    "soria": "Soria",
+    "almazan": "Soria",
+
+    # Valladolid
+    "valladolid": "Valladolid",
+    "medina del campo": "Valladolid",
+    "laguna de duero": "Valladolid",
+    "arroyo de la encomienda": "Valladolid",
+    "peñafiel": "Valladolid",
+    "penafiel": "Valladolid",
+    "tordesillas": "Valladolid",
+
+    # Zamora
+    "zamora": "Zamora",
+    "benavente": "Zamora",
+    "toro": "Zamora",
+
+    # Albacete
+    "albacete": "Albacete",
+    "hellin": "Albacete",
+    "villarrobledo": "Albacete",
+    "almansa": "Albacete",
+    "la roda": "Albacete",
+
+    # Ciudad Real
+    "ciudad real": "Ciudad Real",
+    "puertollano": "Ciudad Real",
+    "valdepeñas": "Ciudad Real",
+    "valdepenas": "Ciudad Real",
+    "tomelloso": "Ciudad Real",
+    "alcazar de san juan": "Ciudad Real",
+    "manzanares": "Ciudad Real",
+    "daimiel": "Ciudad Real",
+    "miguelturra": "Ciudad Real",
+
+    # Cuenca
+    "cuenca": "Cuenca",
+    "tarancón": "Cuenca",
+    "tarancon": "Cuenca",
+    "motilla del palancar": "Cuenca",
+    "san clemente": "Cuenca",
+
+    # Guadalajara
+    "guadalajara": "Guadalajara",
+    "azuqueca de henares": "Guadalajara",
+    "alovera": "Guadalajara",
+    "cabanillas del campo": "Guadalajara",
+    "molina de aragon": "Guadalajara",
+
+    # Toledo
+    "toledo": "Toledo",
+    "talavera de la reina": "Toledo",
+    "illescas": "Toledo",
+    "ajofrin": "Toledo",
+    "madridejos": "Toledo",
+    "consuegra": "Toledo",
+    "quintanar de la orden": "Toledo",
+    "mora": "Toledo",
+
+    # Barcelona
+    "barcelona": "Barcelona",
+    "hospitalet de llobregat": "Barcelona",
+    "l'hospitalet de llobregat": "Barcelona",
+    "badalona": "Barcelona",
+    "terrassa": "Barcelona",
+    "sabadell": "Barcelona",
+    "mataro": "Barcelona",
+    "sant cugat del valles": "Barcelona",
+    "cornella de llobregat": "Barcelona",
+    "santa coloma de gramenet": "Barcelona",
+    "manresa": "Barcelona",
+    "sant boi de llobregat": "Barcelona",
+    "rubí": "Barcelona",
+    "rubi": "Barcelona",
+    "viladecans": "Barcelona",
+    "el prat de llobregat": "Barcelona",
+    "mollet del valles": "Barcelona",
+    "cerdanyola del valles": "Barcelona",
+    "ripollet": "Barcelona",
+    "berga": "Barcelona",
+    "vic": "Barcelona",
+    "igualada": "Barcelona",
+    "martorell": "Barcelona",
+    "granollers": "Barcelona",
+    "sitges": "Barcelona",
+    "premià de mar": "Barcelona",
+    "premia de mar": "Barcelona",
+    "calella": "Barcelona",
+    "vilanova i la geltru": "Barcelona",
+
+    # Girona
+    "girona": "Girona",
+    "banyoles": "Girona",
+    "blanes": "Girona",
+    "lloret de mar": "Girona",
+    "roses": "Girona",
+    "figueres": "Girona",
+    "olot": "Girona",
+    "salt": "Girona",
+    "santa coloma de farners": "Girona",
+
+    # Lleida
+    "lleida": "Lleida",
+    "mollerussa": "Lleida",
+    "balaguer": "Lleida",
+    "igualada (lleida)": "Lleida",
+    "artesa de segre": "Lleida",
+
+    # Tarragona
+    "tarragona": "Tarragona",
+    "reus": "Tarragona",
+    "salou": "Tarragona",
+    "cambrils": "Tarragona",
+    "tortosa": "Tarragona",
+    "vila-seca": "Tarragona",
+    "calafell": "Tarragona",
+    "el vendrell": "Tarragona",
+    "amposta": "Tarragona",
+    "valls": "Tarragona",
+
+    # Alicante
+    "alicante": "Alicante",
+    "elche": "Alicante",
+    "torrevieja": "Alicante",
+    "benidorm": "Alicante",
+    "orihuela": "Alicante",
+    "alcoy": "Alicante",
+    "villena": "Alicante",
+    "denia": "Alicante",
+    "calpe": "Alicante",
+    "altea": "Alicante",
+    "elda": "Alicante",
+    "petrer": "Alicante",
+    "crevillent": "Alicante",
+    "santa pola": "Alicante",
+    "guardamar del segura": "Alicante",
+    "ibi": "Alicante",
+    "jávea": "Alicante",
+    "javea": "Alicante",
+    "la nucia": "Alicante",
+    "pilar de la horadada": "Alicante",
+
+    # Castellón
+    "castellon de la plana": "Castellón",
+    "castellon": "Castellón",
+    "benicàssim": "Castellón",
+    "benicasim": "Castellón",
+    "vila-real": "Castellón",
+    "villarreal": "Castellón",
+    "almazora": "Castellón",
+    "onda": "Castellón",
+    "burriana": "Castellón",
+    "vinaros": "Castellón",
+    "peñiscola": "Castellón",
+    "peniscola": "Castellón",
+
+    # Valencia
+    "valencia": "Valencia",
+    "gandia": "Valencia",
+    "sagunto": "Valencia",
+    "torrent": "Valencia",
+    "paterna": "Valencia",
+    "mislata": "Valencia",
+    "burjassot": "Valencia",
+    "catarroja": "Valencia",
+    "xativa": "Valencia",
+    "denia (valencia)": "Valencia",
+    "oliva": "Valencia",
+    "ontinyent": "Valencia",
+    "alzira": "Valencia",
+    "manises": "Valencia",
+    "quart de poblet": "Valencia",
+    "requena": "Valencia",
+    "picanya": "Valencia",
+    "alboraya": "Valencia",
+
+    # Badajoz
+    "badajoz": "Badajoz",
+    "merida": "Badajoz",
+    "don benito": "Badajoz",
+    "villanueva de la serena": "Badajoz",
+    "almendralejo": "Badajoz",
+    "zafra": "Badajoz",
+
+    # Cáceres
+    "caceres": "Cáceres",
+    "plasencia": "Cáceres",
+    "coria": "Cáceres",
+    "navalmoral de la mata": "Cáceres",
+    "trujillo": "Cáceres",
+    "miajadas": "Cáceres",
+
+    # A Coruña
+    "a coruna": "A Coruña",
+    "la coruna": "A Coruña",
+    "coruna": "A Coruña",
+    "santiago de compostela": "A Coruña",
+    "ferrol": "A Coruña",
+    "oleiros": "A Coruña",
+    "narón": "A Coruña",
+    "naron": "A Coruña",
+    "arteixo": "A Coruña",
+    "betanzos": "A Coruña",
+    "cambre": "A Coruña",
+    "ribeira": "A Coruña",
+    "carballo": "A Coruña",
+
+    # Lugo
+    "lugo": "Lugo",
+    "monforte de lemos": "Lugo",
+    "vilalba": "Lugo",
+    "sarria": "Lugo",
+    "foz": "Lugo",
+    "viveiro": "Lugo",
+
+    # Ourense
+    "ourense": "Ourense",
+    "o barco de valdeorras": "Ourense",
+    "verin": "Ourense",
+    "xinzo de limia": "Ourense",
+
+    # Pontevedra
+    "pontevedra": "Pontevedra",
+    "vigo": "Pontevedra",
+    "vilagarcia de arousa": "Pontevedra",
+    "cangas": "Pontevedra",
+    "moana": "Pontevedra",
+    "redondela": "Pontevedra",
+    "poio": "Pontevedra",
+    "bueu": "Pontevedra",
+    "sanxenxo": "Pontevedra",
+    "o grove": "Pontevedra",
+    "cambados": "Pontevedra",
+    "tui": "Pontevedra",
+    "a guarda": "Pontevedra",
+    "lalín": "Pontevedra",
+    "lalin": "Pontevedra",
+
+    # La Rioja
+    "logrono": "La Rioja",
+    "logroño": "La Rioja",
+    "calahorra": "La Rioja",
+    "arnedo": "La Rioja",
+    "alfaro": "La Rioja",
+    "haro": "La Rioja",
+    "santo domingo de la calzada": "La Rioja",
+
+    # Madrid
+    "madrid": "Madrid",
+    "móstoles": "Madrid",
+    "mostoles": "Madrid",
+    "alcalá de henares": "Madrid",
+    "alcala de henares": "Madrid",
+    "fuenlabrada": "Madrid",
+    "leganés": "Madrid",
+    "leganes": "Madrid",
+    "getafe": "Madrid",
+    "alcorcón": "Madrid",
+    "alcorcon": "Madrid",
+    "torrejón de ardoz": "Madrid",
+    "torrejon de ardoz": "Madrid",
+    "parla": "Madrid",
+    "alcobendas": "Madrid",
+    "majadahonda": "Madrid",
+    "rivas-vaciamadrid": "Madrid",
+    "rivas vaciamadrid": "Madrid",
+    "pozuelo de alarcón": "Madrid",
+    "pozuelo de alarcon": "Madrid",
+    "colmenar viejo": "Madrid",
+    "valdemoro": "Madrid",
+    "san sebastian de los reyes": "Madrid",
+    "coslada": "Madrid",
+    "el escorial": "Madrid",
+    "arganda del rey": "Madrid",
+    "las rozas de madrid": "Madrid",
+    "collado villalba": "Madrid",
+    "arroyomolinos": "Madrid",
+    "navalcarnero": "Madrid",
+    "galapagar": "Madrid",
+    "pinto": "Madrid",
+    "villaviciosa de odón": "Madrid",
+    "villaviciosa de odon": "Madrid",
+    "humanes de madrid": "Madrid",
+    "ciempozuelos": "Madrid",
+    "san fernando de henares": "Madrid",
+    "alcala la real (madrid)": "Madrid",
+    "boadilla del monte": "Madrid",
+    "brunete": "Madrid",
+
+    # Murcia
+    "murcia": "Murcia",
+    "cartagena": "Murcia",
+    "lorca": "Murcia",
+    "molina de segura": "Murcia",
+    "alcantarilla": "Murcia",
+    "mazarron": "Murcia",
+    "los alcazares": "Murcia",
+    "san pedro del pinatar": "Murcia",
+    "san javier": "Murcia",
+    "yecla": "Murcia",
+    "jumilla": "Murcia",
+    "la union": "Murcia",
+    "torre-pacheco": "Murcia",
+    "torre pacheco": "Murcia",
+    "totana": "Murcia",
+    "alhama de murcia": "Murcia",
+    "caravaca de la cruz": "Murcia",
+    "cieza": "Murcia",
+    "puerto lumbreras": "Murcia",
+
+    # Navarra
+    "pamplona": "Navarra",
+    "tudela": "Navarra",
+    "barañain": "Navarra",
+    "baranain": "Navarra",
+    "burlada": "Navarra",
+    "valle de egues": "Navarra",
+    "estella": "Navarra",
+    "san adrián": "Navarra",
+    "san adrian": "Navarra",
+
+    # Álava
+    "vitoria": "Álava",
+    "vitoria-gasteiz": "Álava",
+    "vitoria gasteiz": "Álava",
+    "gasteiz": "Álava",
+    "amurrio": "Álava",
+    "llodio": "Álava",
+
+    # Gipuzkoa
+    "san sebastian": "Gipuzkoa",
+    "donostia": "Gipuzkoa",
+    "donostia-san sebastian": "Gipuzkoa",
+    "eibar": "Gipuzkoa",
+    "irún": "Gipuzkoa",
+    "irun": "Gipuzkoa",
+    "errenteria": "Gipuzkoa",
+    "zarautz": "Gipuzkoa",
+    "azpeitia": "Gipuzkoa",
+    "zumaia": "Gipuzkoa",
+    "ondarroa": "Gipuzkoa",
+    "mondragón": "Gipuzkoa",
+    "mondragon": "Gipuzkoa",
+    "arrasate": "Gipuzkoa",
+    "bergara": "Gipuzkoa",
+    "hernani": "Gipuzkoa",
+    "tolosa": "Gipuzkoa",
+    "beasain": "Gipuzkoa",
+
+    # Bizkaia
+    "bilbao": "Bizkaia",
+    "barakaldo": "Bizkaia",
+    "getxo": "Bizkaia",
+    "basauri": "Bizkaia",
+    "leioa": "Bizkaia",
+    "santurtzi": "Bizkaia",
+    "portugalete": "Bizkaia",
+    "durango": "Bizkaia",
+    "ermua": "Bizkaia",
+    "erandio": "Bizkaia",
+    "galdakao": "Bizkaia",
+    "berango": "Bizkaia",
+    "mungia": "Bizkaia",
+    "gernika-lumo": "Bizkaia",
+    "sestao": "Bizkaia",
+    "balmaseda": "Bizkaia",
+
+    # Ceuta
+    "ceuta": "Ceuta",
+
+    # Melilla
+    "melilla": "Melilla",
+}
+
+
+def municipality_to_province(municipality: str) -> Optional[str]:
+    """
+    Look up province from municipality name.
+    Returns province name (matching provinces.py keys) or None if not found.
+    Performs accent-insensitive, case-insensitive matching.
+    """
+    if not municipality:
+        return None
+    key = normalize_municipality(municipality)
+    result = _RAW.get(key)
+    if result:
+        return result
+    # Partial match: check if key starts with any known municipality
+    # (handles " (Juzgado X)", parenthetical suffixes, etc.)
+    for known_key, province in _RAW.items():
+        if key.startswith(known_key) or known_key.startswith(key):
+            if abs(len(key) - len(known_key)) <= 5:
+                return province
+    return None
+
+
+def province_from_text(text: str) -> Optional[str]:
+    """
+    Scan arbitrary text (e.g., courtName, address, title) for a known municipality name.
+    Returns the first match found, or None.
+    """
+    if not text:
+        return None
+    norm = normalize_municipality(text)
+    # Try longest match first to avoid false positives from short names
+    for known_key in sorted(_RAW.keys(), key=len, reverse=True):
+        if known_key in norm:
+            return _RAW[known_key]
+    return None

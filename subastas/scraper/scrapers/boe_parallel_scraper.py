@@ -11,6 +11,7 @@ import logging
 from pathlib import Path
 import sys
 
+import os
 from .boe_scraper import BOEScraper
 from ..core.stealth import random_delay
 from ..config.settings import SCRAPER_ROOT, BOE_REQUEST_DELAY_SECONDS
@@ -37,8 +38,9 @@ class BOEParallelScraper(BOEScraper):
         if self._own_browser is None:
             from playwright.sync_api import sync_playwright
             self._playwright = sync_playwright().start()
+            headless_mode = os.environ.get('HEADLESS', 'true').lower() != 'false'
             self._own_browser = self._playwright.chromium.launch(
-                headless=False,  # Visible for monitoring
+                headless=headless_mode,  # True on server (HEADLESS env var)
                 args=[
                     '--disable-blink-features=AutomationControlled',
                     '--disable-dev-shm-usage',

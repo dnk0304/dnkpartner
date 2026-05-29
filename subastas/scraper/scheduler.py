@@ -5,125 +5,382 @@ PROPERTY SCRAPER SCHEDULER
 Runs periodic scraping and monitors auction status changes.
 
 G4 FIX: hardened for Linux/Coolify container deployment.
-- PYTHON_BIN env var replaces hardcoded 'python' (use 'python3' on Linux)
-- DB_PATH/LOG_DIR/APP_BASE_URL all env-configurable
-- monitor_status_changes uses DatabaseAdapter (Postgres + SQLite compatible)
-- Windows-only sys.stdout.reconfigure removed (was crashing on Linux)
-- Scheduler choice: schedule.py over Celery
-  Justification: Celery requires Redis infra + worker processes which adds
-  operational complexity for a single-container Coolify deploy. schedule.py
-  runs in-process, has zero external dependencies, and is sufficient for the
-  current scrape cadence (sub-hourly pulse, daily full scan). Migrate to Celery
-  if/when parallel worker isolation or distributed retries are needed.
+G6 FIX: monitor_status_changes uses direct psycopg2 (DatabaseAdapter.get_auctions_by_status
+        fails on Postgres because dict(row) breaks on psycopg2 tuples).
+Wave 1 close-out fixes (0652027):
+  - scrape_pulse: bypass tasks/__init__.py Celery import; direct psycopg2 + app.scrapers.boe_scraper
+  - run_daily_update_scraper: inline BOEParallelScraper (no subprocess to missing /scripts dir)
+
+Wave 2a additions (province-capture + outbox):
+  - monitor_status_changes: emits EventOutbox + AuctionStatusHistory on every status flip
+  - scrape_pulse: emits auction.new_bid outbox event + AuctionBidHistory on bid change
+  - run_daily_update_scraper: no separate outbox here (upsert path handles it via adapter)
+  - ending_soon: emitted once per auction when endsAt <= 24h (dedupe prevents double-fire)
+
+Scheduler choice: schedule.py over Celery
+  Celery requires Redis infra + worker processes = 3 Coolify services for no gain at current scale.
+  schedule.py runs in-process, zero external deps, sufficient for sub-hourly pulse + daily scan.
 """
 
 import sys
 import os
 import time
-import subprocess
 import schedule
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
-# G4: Linux/Coolify compat — do NOT call reconfigure on non-Windows
+# G4: Linux/Coolify compat
 if sys.platform == 'win32':
     sys.stdout.reconfigure(encoding='utf-8')
 
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent
 
-# G4: all paths env-configurable for container deployment
 DB_PATH = Path(os.getenv("DB_PATH", str(SCRIPT_DIR.parent / "data" / "database" / "prod.db")))
 LOG_DIR = Path(os.getenv("LOG_DIR", str(SCRIPT_DIR / "logs")))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 APP_BASE_URL = os.getenv("NEXT_PUBLIC_APP_URL", "http://localhost:3005").rstrip("/")
-# G4: use 'python3' on Linux; override via PYTHON_BIN env var
 PYTHON_BIN = os.getenv("PYTHON_BIN", "python3" if sys.platform != "win32" else "python")
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+
+# Wave 2a: ending_soon threshold (hours before endsAt to emit the event)
+ENDING_SOON_HOURS = int(os.getenv("ENDING_SOON_HOURS", "24"))
+
 
 class ScraperScheduler:
     def __init__(self):
         self.log_file = LOG_DIR / f"scheduler_{datetime.now().strftime('%Y%m%d')}.log"
-    
+
     def log(self, message):
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         log_line = f"[{timestamp}] {message}"
         print(log_line)
-        
         with open(self.log_file, 'a', encoding='utf-8') as f:
             f.write(log_line + '\n')
-    
-    def run_scraper(self, mode: str, pages: int = 50):
-        """Run property scraper"""
-        self.log(f"🚀 Starting {mode.upper()} scraper (pages={pages})...")
-        
+
+    def _get_pg_conn(self):
+        """Return a psycopg2 connection using DATABASE_URL."""
+        import psycopg2
+        return psycopg2.connect(DATABASE_URL)
+
+    # -----------------------------------------------------------------------
+    # monitor_status_changes — G6 (direct psycopg2) + Wave 2a (outbox)
+    # -----------------------------------------------------------------------
+
+    def monitor_status_changes(self):
+        """
+        Transition expired live auctions to CONCLUIDA_PORTAL.
+        G6 FIX: uses direct psycopg2 (bypasses broken DatabaseAdapter.get_auctions_by_status).
+        Wave 2a: emits EventOutbox + AuctionStatusHistory rows in the SAME transaction.
+        Also emits ending_soon for auctions entering the final 24h window.
+        """
+        self.log("Monitoring auction status changes...")
+
+        is_postgres = DATABASE_URL and ('postgresql://' in DATABASE_URL or 'postgres://' in DATABASE_URL)
+
+        if not is_postgres:
+            # SQLite path (dev only) — no outbox writes
+            self._monitor_sqlite()
+            return
+
         try:
-            if mode not in ['active', 'finished', 'pre']:
-                self.log(f"  ⚠️  Unsupported mode: {mode}")
-                return
-            result = subprocess.run(
-                [PYTHON_BIN, 'property_scraper.py', '--mode', mode, '--pages', str(pages), '--headless'],
-                cwd=str(SCRIPT_DIR),
-                capture_output=True,
-                text=True,
-                encoding='utf-8',
-                errors='replace',
-                timeout=600  # 10 minute timeout
+            conn = self._get_pg_conn()
+            cursor = conn.cursor()
+            now = datetime.utcnow()
+
+            # ---- 1. Expire past-deadline live auctions ----
+            cursor.execute("""
+                SELECT id, "boeId", "endsAt", status, title,
+                       "boeLink", province, municipality,
+                       "appraisalValue", "currentBid",
+                       "suspensionReason", "resumeAt"
+                FROM "Auction"
+                WHERE status IN ('ACTIVE', 'CELEBRANDOSE')
+                  AND "endsAt" < %s
+            """, (now,))
+            expired = cursor.fetchall()
+
+            if expired:
+                self.log(f"  Found {len(expired)} expired live auctions")
+
+                # Import outbox writer
+                sys.path.insert(0, str(SCRIPT_DIR))
+                from database.outbox import emit_status_change
+
+                expired_ids = [row[0] for row in expired]
+
+                # Batch-update status
+                cursor.execute("""
+                    UPDATE "Auction"
+                    SET status = 'CONCLUIDA_PORTAL',
+                        "transitionedAt" = %s,
+                        "updatedAt" = %s
+                    WHERE id = ANY(%s)
+                """, (now, now, expired_ids))
+
+                # Write outbox + history rows for each
+                for (
+                    auction_id, boe_id, ends_at, from_status, title,
+                    boe_link, province, municipality,
+                    appraisal_value, current_bid,
+                    suspension_reason, resume_at,
+                ) in expired:
+                    try:
+                        emit_status_change(
+                            cursor,
+                            auction_id=auction_id,
+                            boe_id=boe_id or "",
+                            boe_link=boe_link or f"https://subastas.boe.es/detalleSubasta.php?idSub={boe_id}",
+                            title=title or "",
+                            from_status=from_status,
+                            to_status="CONCLUIDA_PORTAL",
+                            province=province or "",
+                            municipality=municipality or "",
+                            appraisal_value=float(appraisal_value or 0),
+                            current_bid=float(current_bid) if current_bid else None,
+                            ends_at=ends_at,
+                            detected_by="scheduler.monitor_status_changes",
+                        )
+                    except Exception as e:
+                        self.log(f"  Warning: outbox write failed for {boe_id}: {e}")
+
+                conn.commit()
+                self.log(f"  Marked {len(expired)} auctions as CONCLUIDA_PORTAL (outbox written)")
+
+            # ---- 2. ending_soon — emit once for auctions entering final 24h ----
+            ending_soon_cutoff = now + timedelta(hours=ENDING_SOON_HOURS)
+            cursor.execute("""
+                SELECT a.id, a."boeId", a."endsAt", a.title,
+                       a."boeLink", a.province, a.municipality,
+                       a."appraisalValue", a."currentBid"
+                FROM "Auction" a
+                WHERE a.status IN ('CELEBRANDOSE', 'ACTIVE')
+                  AND a."endsAt" IS NOT NULL
+                  AND a."endsAt" > %s
+                  AND a."endsAt" <= %s
+            """, (now, ending_soon_cutoff))
+            ending_soon_rows = cursor.fetchall()
+
+            if ending_soon_rows:
+                sys.path.insert(0, str(SCRIPT_DIR))
+                from database.outbox import emit_ending_soon
+
+                fired_count = 0
+                for (
+                    auction_id, boe_id, ends_at, title,
+                    boe_link, province, municipality,
+                    appraisal_value, current_bid,
+                ) in ending_soon_rows:
+                    try:
+                        fired = emit_ending_soon(
+                            cursor,
+                            auction_id=auction_id,
+                            boe_id=boe_id or "",
+                            boe_link=boe_link or f"https://subastas.boe.es/detalleSubasta.php?idSub={boe_id}",
+                            title=title or "",
+                            ends_at=ends_at,
+                            province=province or "",
+                            municipality=municipality or "",
+                            appraisal_value=float(appraisal_value or 0),
+                            current_bid=float(current_bid) if current_bid else None,
+                            threshold_hours=ENDING_SOON_HOURS,
+                        )
+                        if fired:
+                            fired_count += 1
+                    except Exception as e:
+                        self.log(f"  Warning: ending_soon outbox failed for {boe_id}: {e}")
+
+                conn.commit()
+                if fired_count:
+                    self.log(f"  ending_soon: emitted {fired_count} new events (of {len(ending_soon_rows)} in window)")
+
+            # ---- Stats ----
+            cursor.execute(
+                'SELECT status, COUNT(*) FROM "Auction" GROUP BY status ORDER BY COUNT(*) DESC'
             )
-            
-            if result.returncode == 0:
-                # Parse output for stats
-                output = result.stdout
-                if output and 'Total properties:' in output:
-                    for line in output.split('\n'):
-                        if 'Total properties:' in line or 'New:' in line or 'Updated:' in line:
-                            self.log(f"  {line.strip()}")
-                else:
-                    self.log(f"  ✅ Completed successfully")
-            else:
-                stderr = result.stderr if result.stderr else "No error output"
-                self.log(f"  ❌ Error: {stderr[:200]}")
-            
-        except subprocess.TimeoutExpired:
-            self.log(f"  ⏰ Timeout after 10 minutes")
+            stats = cursor.fetchall()
+            self.log("  Current database stats:")
+            for status, count in stats:
+                self.log(f"     {status}: {count}")
+
+            cursor.close()
+            conn.close()
+
         except Exception as e:
-            self.log(f"  ❌ Exception: {e}")
+            self.log(f"  Error in monitor_status_changes: {e}")
+            import traceback
+            self.log(traceback.format_exc())
+
+    def _monitor_sqlite(self):
+        """SQLite path for local dev — no outbox writes."""
+        try:
+            import sqlite3
+            db_path = str(DB_PATH)
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, boeId, endsAt, status FROM Auction
+                WHERE status IN ('ACTIVE', 'CELEBRANDOSE') AND endsAt < datetime('now')
+            """)
+            expired = cursor.fetchall()
+            if expired:
+                self.log(f"  Found {len(expired)} expired live auctions (SQLite)")
+                for row in expired:
+                    cursor.execute("""
+                        UPDATE Auction SET status='CONCLUIDA_PORTAL',
+                        transitionedAt=CURRENT_TIMESTAMP, updatedAt=CURRENT_TIMESTAMP
+                        WHERE id=?
+                    """, (row[0],))
+                conn.commit()
+                self.log(f"  Marked {len(expired)} as CONCLUIDA_PORTAL")
+            conn.close()
+        except Exception as e:
+            self.log(f"  SQLite monitor error: {e}")
+
+    # -----------------------------------------------------------------------
+    # scrape_pulse — Wave 1 close-out (direct psycopg2) + Wave 2a (outbox)
+    # -----------------------------------------------------------------------
+
+    def scrape_pulse(self):
+        """
+        Quick bid updates for active auctions (pulse mode).
+        Wave 1 close-out: bypasses tasks/__init__.py Celery import via sys.path + direct import.
+        Wave 2a: emits auction.new_bid outbox event + AuctionBidHistory when bid changes.
+        """
+        self.log("Running pulse mode (bid updates)...")
+
+        is_postgres = DATABASE_URL and ('postgresql://' in DATABASE_URL or 'postgres://' in DATABASE_URL)
+
+        if not is_postgres:
+            self.log("  Pulse skipped (not Postgres — no DATABASE_URL configured)")
+            return
+
+        try:
+            import psycopg2
+
+            # Import BOEScraper via sys.path trick (avoids tasks/__init__.py -> celery crash)
+            sys.path.insert(0, '/')
+            from app.scrapers.boe_scraper import BOEScraper
+
+            conn = self._get_pg_conn()
+            cursor = conn.cursor()
+
+            # Fetch live boeIds
+            cursor.execute("""
+                SELECT id, "boeId", "currentBid", title, "boeLink",
+                       province, municipality, "appraisalValue", "endsAt"
+                FROM "Auction"
+                WHERE status IN ('CELEBRANDOSE', 'ACTIVE')
+                ORDER BY "endsAt" ASC NULLS LAST
+            """)
+            auctions = cursor.fetchall()
+            self.log(f"  Pulse targeting {len(auctions)} live auctions")
+
+            if not auctions:
+                self.log("  No live auctions to pulse")
+                cursor.close()
+                conn.close()
+                return
+
+            sys.path.insert(0, str(SCRIPT_DIR))
+            from database.outbox import emit_new_bid
+
+            scraper = BOEScraper()
+            updated_count = 0
+
+            for (
+                auction_id, boe_id, prev_bid, title,
+                boe_link, province, municipality,
+                appraisal_value, ends_at,
+            ) in auctions:
+                try:
+                    new_bid = scraper.update_bid(boe_id)
+                    if new_bid is not None:
+                        # Only write outbox + history if bid actually changed
+                        prev_bid_f = float(prev_bid) if prev_bid else None
+                        if prev_bid_f is None or abs(new_bid - prev_bid_f) > 0.01:
+                            # Bid-only update (G2 fix — no corrupt upsert)
+                            cursor.execute("""
+                                UPDATE "Auction"
+                                SET "currentBid" = %s, "updatedAt" = NOW()
+                                WHERE "boeId" = %s
+                            """, (new_bid, boe_id))
+
+                            emit_new_bid(
+                                cursor,
+                                auction_id=auction_id,
+                                boe_id=boe_id,
+                                boe_link=boe_link or f"https://subastas.boe.es/detalleSubasta.php?idSub={boe_id}",
+                                title=title or "",
+                                new_bid=new_bid,
+                                previous_bid=prev_bid_f,
+                                province=province or "",
+                                municipality=municipality or "",
+                                appraisal_value=float(appraisal_value or 0),
+                                ends_at=ends_at,
+                            )
+                            conn.commit()
+                            updated_count += 1
+                except Exception as e:
+                    self.log(f"  Pulse error for {boe_id}: {e}")
+
+            cursor.close()
+            conn.close()
+            self.log(f"  Pulse complete: updated {updated_count}/{len(auctions)} auctions")
+
+        except Exception as e:
+            self.log(f"  Pulse exception: {e}")
+            import traceback
+            self.log(traceback.format_exc())
+
+    # -----------------------------------------------------------------------
+    # run_daily_update_scraper — Wave 1 close-out (inline BOEParallelScraper)
+    # -----------------------------------------------------------------------
 
     def run_daily_update_scraper(self):
-        """Run rolling 5-day BOE daily update scraper."""
-        self.log("🗓️ Running BOE daily update scraper (last 5 days)...")
+        """
+        Rolling 5-day BOE update scraper.
+        Wave 1 close-out: runs inline BOEParallelScraper (no subprocess to /scripts).
+        Province fix (Wave 2a): BOEParallelScraper now derives province from municipality
+        via municipality_province.py — new rows will have correct province.
+        """
+        self.log("Running BOE daily update scraper (last 5 days)...")
 
         try:
-            script_path = PROJECT_ROOT / "scripts" / "run_daily_update.py"
-            result = subprocess.run(
-                [PYTHON_BIN, str(script_path)],
-                cwd=str(PROJECT_ROOT),
-                capture_output=True,
-                text=True,
-                encoding='utf-8',
-                errors='replace',
-                timeout=1800,  # 30 minutes
+            sys.path.insert(0, '/')
+            from app.scrapers.boe_parallel_scraper import BOEParallelScraper
+            import psycopg2
+
+            conn = self._get_pg_conn() if DATABASE_URL else None
+
+            today = datetime.now()
+            start = today - timedelta(days=5)
+
+            scraper = BOEParallelScraper(scraper_id=1)
+            progress = scraper.scrape_date_range(
+                start_year=start.year, start_month=start.month, start_day=start.day,
+                end_year=today.year, end_month=today.month, end_day=today.day,
+                resume=False,  # Always fresh 5-day window
             )
 
-            if result.returncode == 0:
-                self.log("  ✅ Daily update scraper completed successfully")
-                tail_lines = [line.strip() for line in result.stdout.splitlines() if line.strip()][-6:]
-                for line in tail_lines:
-                    self.log(f"  {line}")
-            else:
-                stderr = result.stderr if result.stderr else "No error output"
-                self.log(f"  ❌ Daily update failed: {stderr[:400]}")
-        except subprocess.TimeoutExpired:
-            self.log("  ⏰ Daily update timeout after 30 minutes")
+            total = progress.get('total_auctions', 0)
+            errors = len(progress.get('errors', []))
+            self.log(f"  Daily update complete: fetched={total}, errors={errors}")
+
+            if conn:
+                conn.close()
+
         except Exception as e:
-            self.log(f"  ❌ Daily update exception: {e}")
+            self.log(f"  Daily update exception: {e}")
+            import traceback
+            self.log(traceback.format_exc())
 
     def trigger_alert_check(self):
         """Trigger /api/alerts/check after daily refresh jobs."""
-        self.log("🔔 Triggering alert check endpoint...")
-
+        self.log("Triggering alert check endpoint...")
         try:
-            endpoint = f"{APP_BASE_URL}/api/alerts/check"
+            endpoint = f"{APP_BASE_URL}/subastas/api/alerts/check"
             request = urllib.request.Request(
                 endpoint,
                 data=b'{}',
@@ -132,350 +389,75 @@ class ScraperScheduler:
             )
             with urllib.request.urlopen(request, timeout=60) as response:
                 body = response.read().decode('utf-8', errors='replace')
-                self.log(f"  ✅ Alert check triggered ({response.status})")
-                self.log(f"  Response: {body[:300]}")
+                self.log(f"  Alert check triggered ({response.status}): {body[:200]}")
         except Exception as e:
-            self.log(f"  ❌ Alert check trigger failed: {e}")
+            self.log(f"  Alert check failed: {e}")
 
     def run_daily_update_and_alerts(self):
-        """Execute daily BOE update and alert notifications as one job."""
         self.run_daily_update_scraper()
         self.trigger_alert_check()
-    
-    def monitor_status_changes(self):
-        """Monitor and update auction statuses (handles both old and new status values).
-        G4 FIX: uses DatabaseAdapter so this works with both SQLite and Postgres."""
-        self.log("Monitoring auction status changes...")
 
-        try:
-            import sys as _sys
-            _sys.path.insert(0, str(SCRIPT_DIR))
-            from database.adapter import DatabaseAdapter
-
-            db = DatabaseAdapter()
-            conn = db.connect()
-            now = datetime.now()
-
-            if db.db_type == 'sqlite':
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT id, boeId, endsAt, status
-                    FROM Auction
-                    WHERE status IN ('ACTIVE', 'CELEBRANDOSE')
-                      AND endsAt < datetime('now')
-                """)
-                expired = cursor.fetchall()
-                if expired:
-                    self.log(f"  Found {len(expired)} expired live auctions")
-                    for row in expired:
-                        cursor.execute("""
-                            UPDATE Auction
-                            SET status = 'CONCLUIDA_PORTAL',
-                                transitionedAt = CURRENT_TIMESTAMP,
-                                updatedAt = CURRENT_TIMESTAMP
-                            WHERE id = ?
-                        """, (row[0],))
-                    conn.commit()
-                    self.log(f"  Marked {len(expired)} auctions as CONCLUIDA_PORTAL")
-                cursor.execute("SELECT status, COUNT(*) FROM Auction GROUP BY status ORDER BY COUNT(*) DESC")
-                stats = cursor.fetchall()
-            else:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT id, "boeId", "endsAt", status
-                    FROM "Auction"
-                    WHERE status IN ('ACTIVE', 'CELEBRANDOSE')
-                      AND "endsAt" < %s
-                """, (now,))
-                expired = cursor.fetchall()
-                if expired:
-                    self.log(f"  Found {len(expired)} expired live auctions")
-                    ids = [row[0] for row in expired]
-                    cursor.execute("""
-                        UPDATE "Auction"
-                        SET status = 'CONCLUIDA_PORTAL',
-                            "transitionedAt" = %s,
-                            "updatedAt" = %s
-                        WHERE id = ANY(%s)
-                    """, (now, now, ids))
-                    conn.commit()
-                    self.log(f"  Marked {len(expired)} auctions as CONCLUIDA_PORTAL")
-                cursor.execute('SELECT status, COUNT(*) FROM "Auction" GROUP BY status ORDER BY COUNT(*) DESC')
-                stats = cursor.fetchall()
-
-            self.log("  Current database stats:")
-            for status, count in stats:
-                self.log(f"     {status}: {count}")
-
-        except Exception as e:
-            self.log(f"  Error: {e}")
-    
-    def daily_full_scan(self):
-        """Run a comprehensive scrape (larger page count)"""
-        self.log("🌟 Starting daily full scan...")
-        self.log("   Phase 1: Active properties")
-        self.run_scraper('active', pages=100)
-        time.sleep(60)
-        self.log("   Phase 2: Pre-auction properties")
-        self.run_scraper('pre', pages=100)
-        time.sleep(60)
-        self.log("   Phase 3: Finished properties (sample)")
-        self.run_scraper('finished', pages=50)
-    
-    def scrape_pre_auctions(self):
-        """Scrape pre-auction properties"""
-        self.log("🔮 Scraping PRE-AUCTION properties...")
-        self.run_scraper('pre', pages=50)
-    
-    def scrape_bank_portals(self):
-        """Scrape bank portals (Servihabitat, Haya, Altamira)"""
-        self.log("🏦 Scraping bank portals...")
-        
-        try:
-            # Import and run bank tasks
-            sys.path.insert(0, str(SCRIPT_DIR))
-            from tasks.bank_tasks import discover_all_banks
-            
-            result = discover_all_banks()
-            
-            for bank, stats in result.items():
-                self.log(f"  {bank.upper()}: {stats['found']} found, {stats['saved']} saved")
-        
-        except Exception as e:
-            self.log(f"  ❌ Error: {e}")
-    
-    def run_geocoding_backfill(self):
-        """Run geocoding backfill for auctions missing coordinates"""
-        self.log("🗺️ Running geocoding backfill...")
-        
-        try:
-            sys.path.insert(0, str(SCRIPT_DIR))
-            from tasks.backfill_tasks import geocode_missing_coordinates
-            
-            result = geocode_missing_coordinates(batch_size=100)
-            
-            if result:
-                self.log(f"  Geocoded: {result['geocoded']}, Failed: {result['failed']}")
-        
-        except Exception as e:
-            self.log(f"  ❌ Error: {e}")
-
-    def run_map_image_backfill(self):
-        """Update map-pinpoint images for recent property auctions."""
-        self.log("🖼️ Running map image backfill (last 30 days)...")
-
-        try:
-            script_path = PROJECT_ROOT / "scripts" / "backfill_map_images.py"
-            result = subprocess.run(
-                [PYTHON_BIN, str(script_path)],
-                cwd=str(PROJECT_ROOT),
-                capture_output=True,
-                text=True,
-                encoding='utf-8',
-                errors='replace',
-                timeout=900,
-            )
-
-            if result.returncode == 0:
-                output = (result.stdout or "").strip()
-                self.log(f"  ✅ Map image backfill complete: {output}")
-            else:
-                stderr = result.stderr if result.stderr else "No error output"
-                self.log(f"  ❌ Map image backfill failed: {stderr[:300]}")
-        except subprocess.TimeoutExpired:
-            self.log("  ⏰ Map image backfill timeout after 15 minutes")
-        except Exception as e:
-            self.log(f"  ❌ Map image backfill exception: {e}")
-    
-    def scrape_vehicles(self):
-        """Scrape vehicle auctions from BOE"""
-        self.log("🚗 Scraping vehicle auctions...")
-        
-        try:
-            sys.path.insert(0, str(SCRIPT_DIR))
-            from scrapers.boe_vehicle_scraper import scrape_all_vehicles
-            
-            result = scrape_all_vehicles(max_pages=10)
-            
-            total = sum(result.values())
-            self.log(f"  Total vehicles: {total}")
-            for vtype, count in result.items():
-                self.log(f"    {vtype}: {count}")
-        
-        except Exception as e:
-            self.log(f"  ❌ Error: {e}")
-    
-    def scrape_pulse(self):
-        """Quick bid updates for active auctions (pulse mode)"""
-        self.log("💓 Running pulse mode (bid updates)...")
-        
-        try:
-            sys.path.insert(0, str(SCRIPT_DIR))
-            from tasks.pulse_tasks import pulse_check_active
-            result = pulse_check_active()
-            if result and result.get('success'):
-                self.log(f"  ✅ Pulse updated {result.get('updated', 0)} auctions")
-            else:
-                self.log("  ⚠️  Pulse completed with no updates")
-        except Exception as e:
-            self.log(f"  ❌ Pulse error: {e}")
-    
-    def scrape_teju(self):
-        """Scrape TEJU pre-auction edicts"""
-        self.log("📜 Scraping TEJU pre-auction edicts...")
-        
-        try:
-            sys.path.insert(0, str(SCRIPT_DIR))
-            from scrapers.teju_scraper import TEJUScraper
-            
-            scraper = TEJUScraper()
-            results = scraper.scrape(max_results=50)
-            self.log(f"  Found {len(results)} TEJU pre-auctions")
-        
-        except Exception as e:
-            self.log(f"  ❌ Error: {e}")
-    
-    def run_historical_batch(self):
-        """Run historical data batch job (daily at 3 AM)"""
-        self.log("📊 Running historical data batch...")
-        
-        try:
-            sys.path.insert(0, str(SCRIPT_DIR))
-            from scrapers.boe_historical_scraper import run_historical_batch
-            
-            # Scrape last 1 month (incremental)
-            result = run_historical_batch(months=1)
-            total = sum(result.values())
-            self.log(f"  Historical auctions scraped: {total}")
-        
-        except Exception as e:
-            self.log(f"  ❌ Error: {e}")
-    
     def setup_schedule(self):
-        """Setup comprehensive scraping schedule"""
         self.log("=" * 70)
-        self.log("🤖 SUBASTAPRO SCHEDULER STARTED")
+        self.log("DNKSUBASTAS SCHEDULER STARTED")
         self.log("=" * 70)
-        self.log("🏠 Sources: BOE (Active, Pre-auction, Vehicles, Historical)")
-        self.log("           TEJU, Banks (Haya, Servihabitat, Altamira, Solvia, Anticipa, Aliseda)")
+        self.log("Sources: BOE daily scraper (last 5 days), pulse bid updates, status monitor")
+        self.log(f"Postgres: {'YES' if DATABASE_URL else 'NO (SQLite dev mode)'}")
         self.log("=" * 70)
-        
-        # === REAL-TIME UPDATES (High Priority) ===
-        
-        # Pulse mode - quick bid updates every 35 minutes
-        schedule.every(35).minutes.do(self.scrape_pulse)
-        
-        # Active auctions (EJ) - every 35 minutes
-        schedule.every(35).minutes.do(lambda: self.run_scraper('active', pages=30))
-        
-        # === REGULAR SCRAPING ===
-        
-        # Pre-auctions (PA) - every hour
-        schedule.every(1).hours.do(self.scrape_pre_auctions)
-        
-        # Vehicle auctions - every hour
-        schedule.every(1).hours.do(self.scrape_vehicles)
-        
-        # TEJU edicts - every 2 hours
-        schedule.every(2).hours.do(self.scrape_teju)
-        
-        # Bank portals - every 6 hours
-        schedule.every(6).hours.do(self.scrape_bank_portals)
-        
-        # === MAINTENANCE TASKS ===
-        
-        # Status monitoring - every 30 minutes
-        schedule.every(30).minutes.do(self.monitor_status_changes)
-        
-        # Geocoding backfill - every 2 hours
-        schedule.every(2).hours.do(self.run_geocoding_backfill)
-        
-        # === OFF-PEAK BATCH JOBS ===
 
-        # Daily BOE updates (same query strategy as 2026-today backfill)
+        # Pulse (bid updates) — every 35 min
+        schedule.every(35).minutes.do(self.scrape_pulse)
+
+        # Status monitor (expire + ending_soon) — every 30 min
+        schedule.every(30).minutes.do(self.monitor_status_changes)
+
+        # Daily BOE update + alert trigger — 08:00, 14:00, 20:00
         schedule.every().day.at("08:00").do(self.run_daily_update_and_alerts)
         schedule.every().day.at("14:00").do(self.run_daily_update_and_alerts)
         schedule.every().day.at("20:00").do(self.run_daily_update_and_alerts)
-        
-        # Daily full scan at 3 AM
-        schedule.every().day.at("03:00").do(self.daily_full_scan)
-        
-        # Historical data batch at 3:30 AM
-        schedule.every().day.at("03:30").do(self.run_historical_batch)
-        
-        # Bank portals at 4 AM
-        schedule.every().day.at("04:00").do(self.scrape_bank_portals)
 
-        # Daily property map image refresh at 5 AM
-        schedule.every().day.at("05:00").do(self.run_map_image_backfill)
-        
-        self.log("📅 Schedule configured:")
+        self.log("Schedule configured:")
+        self.log("  Pulse (bid updates):  Every 35 min")
+        self.log("  Status monitor:       Every 30 min")
+        self.log(f"  Daily BOE + alerts:   08:00, 14:00, 20:00")
+        self.log(f"  ending_soon window:   {ENDING_SOON_HOURS}h before endsAt")
         self.log("")
-        self.log("   REAL-TIME (Priority):")
-        self.log("   - Pulse (bid updates): Every 35 min ⭐")
-        self.log("   - Active auctions: Every 35 min")
-        self.log("")
-        self.log("   REGULAR:")
-        self.log("   - Pre-auctions: Every 1 hour")
-        self.log("   - Vehicle auctions: Every 1 hour")
-        self.log("   - TEJU edicts: Every 2 hours")
-        self.log("   - Bank portals: Every 6 hours")
-        self.log("")
-        self.log("   MAINTENANCE:")
-        self.log("   - Status monitor: Every 30 min")
-        self.log("   - Geocoding: Every 2 hours")
-        self.log("")
-        self.log("   OFF-PEAK (Daily):")
-        self.log("   - BOE daily update + alerts: 08:00, 14:00, 20:00")
-        self.log("   - Full scan: 03:00 AM")
-        self.log("   - Historical batch: 03:30 AM")
-        self.log("   - Bank portals: 04:00 AM")
-        self.log("   - Map image backfill: 05:00 AM")
-        self.log("")
-        
-        # Run initial scrape
-        self.log("🎬 Running initial scrape...")
-        self.log("🏠 Scraping ACTIVE auctions...")
-        self.run_scraper('active', pages=30)
-        self.log("🔮 Scraping PRE-AUCTION properties...")
-        self.run_scraper('pre', pages=30)
-        self.log("🚗 Scraping vehicle auctions...")
-        self.scrape_vehicles()
+
+        # Run initial checks immediately
+        self.log("Running initial monitor check...")
         self.monitor_status_changes()
-        self.run_geocoding_backfill()
-    
+
     def run(self):
-        """Main loop"""
         self.setup_schedule()
-        
         try:
             while True:
                 schedule.run_pending()
-                time.sleep(60)  # Check every minute
-                
+                time.sleep(60)
         except KeyboardInterrupt:
-            self.log("\n⏹️  Scheduler stopped by user")
+            self.log("Scheduler stopped by user")
         except Exception as e:
-            self.log(f"\n❌ Fatal error: {e}")
+            self.log(f"Fatal error: {e}")
+
 
 def main():
     import argparse
-    
-    parser = argparse.ArgumentParser(description='Property Scraper Scheduler')
-    parser.add_argument('--once', action='store_true', help='Run once and exit')
-    parser.add_argument('--mode', type=str, choices=['active', 'finished', 'pre'], 
-                       default='active', help='Mode for single run')
-    
+
+    parser = argparse.ArgumentParser(description='DNKSubastas Scheduler')
+    parser.add_argument('--once', action='store_true', help='Run monitor once and exit')
+    parser.add_argument('--pulse-once', action='store_true', help='Run pulse once and exit')
+
     args = parser.parse_args()
-    
     scheduler = ScraperScheduler()
-    
+
     if args.once:
-        scheduler.log(f"Running {args.mode.upper()} scraper once...")
-        scheduler.run_scraper(args.mode, pages=50)
+        scheduler.log("Running monitor once...")
         scheduler.monitor_status_changes()
+    elif args.pulse_once:
+        scheduler.log("Running pulse once...")
+        scheduler.scrape_pulse()
     else:
         scheduler.run()
+
 
 if __name__ == '__main__':
     main()
