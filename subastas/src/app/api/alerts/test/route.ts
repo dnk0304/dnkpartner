@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { createAuctionAlertEmail } from '@/lib/email-templates';
+import { requireAdmin } from '@/lib/auth-helpers';
 
 /**
- * Test API endpoint to verify email notifications are working
- * 
+ * Test API endpoint to verify email notifications are working.
+ *
+ * RBAC (Wave 2b lockdown): admin-only. Sends a REAL email via Resend, so this
+ * was a free outbound-email hose for anyone hitting the URL. Locked behind
+ * admin session.
+ *
  * Usage:
- * POST /api/alerts/test
- * Body: { "email": "test@example.com" } (optional, defaults to RESEND_FROM_EMAIL)
+ *   POST /api/alerts/test
+ *   Body: { "email": "test@example.com" } (optional, defaults to admin email)
  */
 export async function POST(request: NextRequest) {
+  const admin = await requireAdmin();
+  if (admin instanceof NextResponse) return admin;
   try {
     // Check for Resend API key
     const resendKey = process.env.RESEND_API_KEY;
@@ -95,9 +102,11 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * GET endpoint to check configuration
+ * GET endpoint to check configuration — admin-only (leaks env presence).
  */
 export async function GET() {
+  const admin = await requireAdmin();
+  if (admin instanceof NextResponse) return admin;
   const hasResendKey = Boolean(process.env.RESEND_API_KEY);
   const fromEmail = process.env.RESEND_FROM_EMAIL || 'SubastaPro <notifications@subastapro.com>';
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_URL || 'http://localhost:3005';

@@ -2,16 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { Resend } from 'resend';
 import { createAuctionAlertEmail } from '@/lib/email-templates';
+import { requireAdminOrCron } from '@/lib/auth-helpers';
 
 /**
  * API endpoint to check for new auctions matching user alerts
- * and trigger email/SMS notifications
- * 
- * This should be called:
- * 1. By a cron job every 15 minutes
- * 2. After new auctions are scraped and added to the database
+ * and trigger email/SMS notifications.
+ *
+ * RBAC (Wave 2b lockdown): requires `Authorization: Bearer <CRON_SECRET>`
+ * OR an admin session. Previously this route was OPEN to anyone with the URL —
+ * which meant any visitor could spam real outbound emails. Cron + admin only now.
+ *
+ * Designed to be called:
+ *   1. By a cron job every 15 minutes (Bearer CRON_SECRET).
+ *   2. Manually by an admin after a backfill (admin session).
  */
-export async function POST(_request: NextRequest) {
+export async function POST(request: NextRequest) {
+  const gate = await requireAdminOrCron(request);
+  if (gate instanceof NextResponse) return gate;
   try {
     // Get all active alerts with user info
     const alerts = await query(`
