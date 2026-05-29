@@ -1,0 +1,19 @@
+{
+  "started_at": "2026-01-22T16:16:32.720868",
+  "completed_combinations": [
+    "Judicial|Prox. apertura|Inmuebles",
+    "Judicial|Prox. apertura|Vehículos"
+  ],
+  "current_combination": "Judicial|Prox. apertura|Otros bienes muebles",
+  "stats": {
+    "total_new": 0,
+    "total_updated": 0,
+    "total_checked": 0,
+    "total_skipped": 0,
+    "total_combinations": 90,
+    "completed_combinations": 2
+  },
+  "batch_num": 1,
+  "total_batches": 1,
+  "last_update": "2026-01-22T16:18:14.977352"
+}

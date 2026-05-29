@@ -1,0 +1,26 @@
+{
+  "started_at": "2026-01-21T21:58:22.561171",
+  "completed_combinations": [
+    "Judicial|Prox. apertura|Inmuebles",
+    "Judicial|Prox. apertura|Vehículos",
+    "Judicial|Prox. apertura|Otros bienes muebles",
+    "Judicial|Celebrándose|Inmuebles",
+    "Judicial|Celebrándose|Vehículos",
+    "Judicial|Celebrándose|Otros bienes muebles",
+    "Judicial|Suspendida|Inmuebles",
+    "Judicial|Suspendida|Vehículos",
+    "Judicial|Suspendida|Otros bienes muebles",
+    "Judicial|Cancelada|Inmuebles",
+    "Judicial|Cancelada|Vehículos",
+    "Judicial|Cancelada|Otros bienes muebles",
+    "Judicial|Concluida en Portal de Subastas|Inmuebles"
+  ],
+  "current_combination": null,
+  "stats": {
+    "total_new": 0,
+    "total_updated": 0,
+    "total_combinations": 90,
+    "completed_combinations": 13
+  },
+  "last_update": "2026-01-21T22:36:42.247020"
+}

@@ -1,0 +1,197 @@
+[2026-02-11 20:51:37,077] INFO: [Scraper 6] Starting: 3 batches
+[2026-02-11 20:51:37,083] INFO: [Scraper 6] Range: 2026-01-01 to 2026-02-11
+[2026-02-11 20:51:37,083] INFO: [Scraper 6] 
+Batch 1/3: 2026-01-01_to_2026-01-15
+[2026-02-11 20:51:37,092] INFO: [Scraper 6]   Found 521 auctions to update
+[2026-02-11 20:51:53,577] INFO: [Scraper 6] Browser initialized
+[2026-02-11 20:53:30,074] INFO: [Scraper 6]   Progress: 10/521
+[2026-02-11 20:54:58,050] INFO: [Scraper 6]   Progress: 20/521
+[2026-02-11 20:56:30,072] INFO: [Scraper 6]   Progress: 30/521
+[2026-02-11 20:58:06,308] INFO: [Scraper 6]   Progress: 40/521
+[2026-02-11 20:59:35,065] INFO: [Scraper 6]   Progress: 50/521
+[2026-02-11 21:01:22,307] INFO: [Scraper 6]   Progress: 60/521
+[2026-02-11 21:02:58,020] INFO: [Scraper 6]   Progress: 70/521
+[2026-02-11 21:04:38,264] INFO: [Scraper 6]   Progress: 80/521
+[2026-02-11 21:06:08,116] INFO: [Scraper 6]   Progress: 90/521
+[2026-02-11 21:07:46,178] INFO: [Scraper 6]   Progress: 100/521
+[2026-02-11 21:09:13,789] INFO: [Scraper 6]   Progress: 110/521
+[2026-02-11 21:10:45,711] INFO: [Scraper 6]   Progress: 120/521
+[2026-02-11 21:12:33,646] ERROR: [Scraper 6] Error updating SUB-RC-2025-0026I20250206: Page.goto: Timeout 30000ms exceeded.
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-RC-2025-0026I20250206", waiting until "domcontentloaded"
+
+[2026-02-11 21:13:04,357] INFO: [Scraper 6]   Progress: 130/521
+[2026-02-11 21:13:57,003] ERROR: [Scraper 6] Error updating SUB-AT-2026-25R0886001467: Page.goto: Timeout 30000ms exceeded.
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-25R0886001467", waiting until "domcontentloaded"
+
+[2026-02-11 21:15:59,866] INFO: [Scraper 6]   Progress: 140/521
+[2026-02-11 21:18:43,908] INFO: [Scraper 6]   Progress: 150/521
+[2026-02-11 21:19:36,419] ERROR: [Scraper 6] Error updating SUB-AT-2026-25R3886001042: Page.goto: Timeout 30000ms exceeded.
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-25R3886001042", waiting until "domcontentloaded"
+
+[2026-02-11 21:20:38,828] ERROR: [Scraper 6] Error updating SUB-AT-2026-25R3886001049: Page.goto: Timeout 30000ms exceeded.
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-25R3886001049", waiting until "domcontentloaded"
+
+[2026-02-11 21:21:14,132] ERROR: [Scraper 6] Error updating SUB-AT-2026-25R3886001050: Page.goto: Timeout 30000ms exceeded.
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-25R3886001050", waiting until "domcontentloaded"
+
+[2026-02-11 21:21:50,425] ERROR: [Scraper 6] Error updating SUB-AT-2026-25R3886001051: Page.goto: Timeout 30000ms exceeded.
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-25R3886001051", waiting until "domcontentloaded"
+
+[2026-02-11 21:22:27,750] ERROR: [Scraper 6] Error updating SUB-AT-2026-25R3886001054: Page.goto: Timeout 30000ms exceeded.
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-25R3886001054", waiting until "domcontentloaded"
+
+[2026-02-11 21:23:04,250] ERROR: [Scraper 6] Error updating SUB-AT-2026-25R3886001055: Page.goto: Timeout 30000ms exceeded.
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-25R3886001055", waiting until "domcontentloaded"
+
+[2026-02-11 21:23:16,644] INFO: [Scraper 6]   Progress: 160/521
+[2026-02-11 21:23:51,232] ERROR: [Scraper 6] Error updating SUB-AT-2026-25R3886001058: Page.goto: Timeout 30000ms exceeded.
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-25R3886001058", waiting until "domcontentloaded"
+
+[2026-02-11 21:25:56,662] ERROR: [Scraper 6] Error updating SUB-AT-2026-25R3886002018: Page.goto: Timeout 30000ms exceeded.
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-25R3886002018", waiting until "domcontentloaded"
+
+[2026-02-11 21:27:06,867] ERROR: [Scraper 6] Error updating SUB-AT-2026-25R4786001221: Page.goto: Timeout 30000ms exceeded.
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-25R4786001221", waiting until "domcontentloaded"
+
+[2026-02-11 21:27:33,309] ERROR: [Scraper 6] Error updating SUB-AT-2026-25R4786001248: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-25R4786001248
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-25R4786001248", waiting until "domcontentloaded"
+
+[2026-02-11 21:27:37,326] INFO: [Scraper 6]   Progress: 170/521
+[2026-02-11 21:28:03,262] ERROR: [Scraper 6] Error updating SUB-AT-2026-25R4786001249: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-25R4786001249
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-25R4786001249", waiting until "domcontentloaded"
+
+[2026-02-11 21:28:30,717] ERROR: [Scraper 6] Error updating SUB-AT-2026-25R4786001263: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-25R4786001263
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-25R4786001263", waiting until "domcontentloaded"
+
+[2026-02-11 21:29:07,336] ERROR: [Scraper 6] Error updating SUB-AT-2026-25R4786001264: Page.goto: Timeout 30000ms exceeded.
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-25R4786001264", waiting until "domcontentloaded"
+
+[2026-02-11 21:29:43,168] ERROR: [Scraper 6] Error updating SUB-AT-2026-25R4786001287: Page.goto: Timeout 30000ms exceeded.
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-25R4786001287", waiting until "domcontentloaded"
+
+[2026-02-11 21:30:19,644] ERROR: [Scraper 6] Error updating SUB-AT-2026-25R4786001288: Page.goto: Timeout 30000ms exceeded.
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-25R4786001288", waiting until "domcontentloaded"
+
+[2026-02-11 21:30:38,702] ERROR: [Scraper 6] Error updating SUB-AT-2026-25R4786001312: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-25R4786001312
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-25R4786001312", waiting until "domcontentloaded"
+
+[2026-02-11 21:31:36,165] INFO: [Scraper 6]   Progress: 180/521
+[2026-02-11 21:33:18,731] INFO: [Scraper 6]   Progress: 190/521
+[2026-02-11 21:34:59,743] INFO: [Scraper 6]   Progress: 200/521
+[2026-02-11 21:36:36,483] INFO: [Scraper 6]   Progress: 210/521
+[2026-02-11 21:38:24,873] INFO: [Scraper 6]   Progress: 220/521
+[2026-02-11 21:40:03,474] INFO: [Scraper 6]   Progress: 230/521
+[2026-02-11 21:41:52,699] INFO: [Scraper 6]   Progress: 240/521
+[2026-02-11 21:43:33,047] INFO: [Scraper 6]   Progress: 250/521
+[2026-02-11 21:45:09,549] INFO: [Scraper 6]   Progress: 260/521
+[2026-02-11 21:46:31,941] ERROR: [Scraper 6] Error updating SUB-JA-2024-234250: Page.goto: net::ERR_NAME_NOT_RESOLVED at https://subastas.boe.es/detalleSubasta.php?idSub=SUB-JA-2024-234250
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-JA-2024-234250", waiting until "domcontentloaded"
+
+[2026-02-11 21:47:28,776] ERROR: [Scraper 6] Error updating SUB-JA-2025-244619: Page.goto: Timeout 30000ms exceeded.
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-JA-2025-244619", waiting until "domcontentloaded"
+
+[2026-02-11 21:47:47,828] ERROR: [Scraper 6] Error updating SUB-JA-2025-246778: Page.goto: net::ERR_NAME_NOT_RESOLVED at https://subastas.boe.es/detalleSubasta.php?idSub=SUB-JA-2025-246778
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-JA-2025-246778", waiting until "domcontentloaded"
+
+[2026-02-11 21:47:50,843] INFO: [Scraper 6]   Progress: 270/521
+[2026-02-11 21:48:16,076] ERROR: [Scraper 6] Error updating SUB-JA-2025-247478: Page.goto: net::ERR_NAME_NOT_RESOLVED at https://subastas.boe.es/detalleSubasta.php?idSub=SUB-JA-2025-247478
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-JA-2025-247478", waiting until "domcontentloaded"
+
+[2026-02-11 21:48:53,384] ERROR: [Scraper 6] Error updating SUB-JA-2025-249590: Page.goto: Timeout 30000ms exceeded.
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-JA-2025-249590", waiting until "domcontentloaded"
+
+[2026-02-11 21:49:29,105] ERROR: [Scraper 6] Error updating SUB-JA-2025-250122: Page.goto: Timeout 30000ms exceeded.
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-JA-2025-250122", waiting until "domcontentloaded"
+
+[2026-02-11 21:49:49,330] ERROR: [Scraper 6] Error updating SUB-JA-2025-250146: Page.goto: net::ERR_NETWORK_CHANGED at https://subastas.boe.es/detalleSubasta.php?idSub=SUB-JA-2025-250146
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-JA-2025-250146", waiting until "domcontentloaded"
+
+[2026-02-11 21:51:05,833] INFO: [Scraper 6]   Progress: 280/521
+[2026-02-11 21:52:50,508] INFO: [Scraper 6]   Progress: 290/521
+[2026-02-11 21:54:29,883] INFO: [Scraper 6]   Progress: 300/521
+[2026-02-11 21:56:38,213] ERROR: [Scraper 6] Error updating SUB-JC-2025-254948: Page.goto: Timeout 30000ms exceeded.
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-JC-2025-254948", waiting until "domcontentloaded"
+
+[2026-02-11 21:56:41,622] INFO: [Scraper 6]   Progress: 310/521
+[2026-02-11 21:57:07,238] ERROR: [Scraper 6] Error updating SUB-AT-2026-24R2986002008: Page.goto: net::ERR_NAME_NOT_RESOLVED at https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-24R2986002008
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-24R2986002008", waiting until "domcontentloaded"
+
+[2026-02-11 21:57:44,407] ERROR: [Scraper 6] Error updating SUB-AT-2026-25R0686001069: Page.goto: Timeout 30000ms exceeded.
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-25R0686001069", waiting until "domcontentloaded"
+
+[2026-02-11 21:58:19,169] ERROR: [Scraper 6] Error updating SUB-AT-2026-25R0686001071: Page.goto: Timeout 30000ms exceeded.
+Call log:
+navigating to "https://subastas.boe.es/detalleSubasta.php?idSub=SUB-AT-2026-25R0686001071", waiting until "domcontentloaded"
+
+[2026-02-11 21:59:49,872] INFO: [Scraper 6]   Progress: 320/521
+[2026-02-11 22:01:52,401] INFO: [Scraper 6]   Progress: 330/521
+[2026-02-11 22:03:41,011] INFO: [Scraper 6]   Progress: 340/521
+[2026-02-11 22:05:27,435] INFO: [Scraper 6]   Progress: 350/521
+[2026-02-11 22:07:09,784] INFO: [Scraper 6]   Progress: 360/521
+[2026-02-11 22:08:58,183] INFO: [Scraper 6]   Progress: 370/521
+[2026-02-11 22:10:50,840] INFO: [Scraper 6]   Progress: 380/521
+[2026-02-11 22:12:37,889] INFO: [Scraper 6]   Progress: 390/521
+[2026-02-11 22:15:03,980] INFO: [Scraper 6]   Progress: 400/521
+[2026-02-11 22:16:51,155] INFO: [Scraper 6]   Progress: 410/521
+[2026-02-11 22:18:35,072] INFO: [Scraper 6]   Progress: 420/521
+[2026-02-11 22:20:15,155] INFO: [Scraper 6]   Progress: 430/521
+[2026-02-11 22:21:54,586] INFO: [Scraper 6]   Progress: 440/521
+[2026-02-11 22:23:41,804] INFO: [Scraper 6]   Progress: 450/521
+[2026-02-11 22:25:58,443] INFO: [Scraper 6]   Progress: 460/521
+[2026-02-11 22:27:57,883] INFO: [Scraper 6]   Progress: 470/521
+[2026-02-11 22:29:45,887] INFO: [Scraper 6]   Progress: 480/521
+[2026-02-11 22:32:29,263] INFO: [Scraper 6]   Progress: 490/521
+[2026-02-11 22:35:20,886] INFO: [Scraper 6]   Progress: 500/521
+[2026-02-11 22:37:40,908] INFO: [Scraper 6]   Progress: 510/521
+[2026-02-11 22:40:02,154] INFO: [Scraper 6]   Progress: 520/521
+[2026-02-11 22:40:27,637] INFO: [Scraper 6] 
+Batch 2/3: 2026-01-16_to_2026-01-30
+[2026-02-11 22:40:27,701] INFO: [Scraper 6]   Found 3092 auctions to update
+[2026-02-11 22:42:25,750] INFO: [Scraper 6]   Progress: 10/3092
+[2026-02-11 22:44:00,264] INFO: [Scraper 6]   Progress: 20/3092
+[2026-02-11 22:45:37,051] INFO: [Scraper 6]   Progress: 30/3092
+[2026-02-11 22:47:22,575] INFO: [Scraper 6]   Progress: 40/3092
+[2026-02-11 22:49:04,429] INFO: [Scraper 6]   Progress: 50/3092
+[2026-02-11 22:50:46,478] INFO: [Scraper 6]   Progress: 60/3092
+[2026-02-11 22:52:27,124] INFO: [Scraper 6]   Progress: 70/3092
+[2026-02-11 22:58:14,356] INFO: [Scraper 6] Starting: 3 batches
+[2026-02-11 22:58:14,360] INFO: [Scraper 6] Range: 2026-01-01 to 2026-02-11
+[2026-02-11 22:58:14,364] INFO: [Scraper 6] Skipping 2026-01-01_to_2026-01-15 (completed)
+[2026-02-11 22:58:14,365] INFO: [Scraper 6] 
+Batch 2/3: 2026-01-16_to_2026-01-30
+[2026-02-11 22:58:14,554] INFO: [Scraper 6]   Found 3022 auctions to update
+[2026-02-11 22:58:15,784] INFO: [Scraper 6] Browser initialized
+[2026-02-11 22:59:59,205] INFO: [Scraper 6]   Progress: 10/3022
+[2026-02-11 23:01:46,666] INFO: [Scraper 6]   Progress: 20/3022
+[2026-02-11 23:03:25,663] INFO: [Scraper 6]   Progress: 30/3022
+[2026-02-11 23:05:10,946] INFO: [Scraper 6]   Progress: 40/3022
+[2026-02-11 23:06:47,434] INFO: [Scraper 6]   Progress: 50/3022
+[2026-02-11 23:08:36,926] INFO: [Scraper 6]   Progress: 60/3022

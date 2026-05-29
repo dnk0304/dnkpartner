@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none">
+  <defs>
+    <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E0F2FE"/>
+      <stop offset="100%" stop-color="#BAE6FD"/>
+    </linearGradient>
+    <linearGradient id="grassGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#86EFAC"/>
+      <stop offset="100%" stop-color="#4ADE80"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Sky Background -->
+  <rect width="800" height="400" fill="url(#skyGrad)"/>
+  
+  <!-- Ground -->
+  <rect y="400" width="800" height="200" fill="url(#grassGrad)"/>
+  
+  <!-- House Structure -->
+  <!-- Main Building -->
+  <rect x="280" y="250" width="240" height="180" fill="#F97316" stroke="#EA580C" stroke-width="3"/>
+  
+  <!-- Roof -->
+  <path d="M260 250 L400 150 L540 250 Z" fill="#DC2626" stroke="#B91C1C" stroke-width="3"/>
+  
+  <!-- Chimney -->
+  <rect x="440" y="180" width="30" height="70" fill="#7C2D12" stroke="#6B2C12" stroke-width="2"/>
+  
+  <!-- Door -->
+  <rect x="360" y="340" width="80" height="90" fill="#8B4513" stroke="#654321" stroke-width="2" rx="5"/>
+  <circle cx="420" cy="385" r="5" fill="#FFD700"/>
+  
+  <!-- Windows -->
+  <rect x="300" y="280" width="60" height="60" fill="#93C5FD" stroke="#3B82F6" stroke-width="2"/>
+  <line x1="330" y1="280" x2="330" y2="340" stroke="#3B82F6" stroke-width="2"/>
+  <line x1="300" y1="310" x2="360" y2="310" stroke="#3B82F6" stroke-width="2"/>
+  
+  <rect x="440" y="280" width="60" height="60" fill="#93C5FD" stroke="#3B82F6" stroke-width="2"/>
+  <line x1="470" y1="280" x2="470" y2="340" stroke="#3B82F6" stroke-width="2"/>
+  <line x1="440" y1="310" x2="500" y2="310" stroke="#3B82F6" stroke-width="2"/>
+  
+  <!-- Garden Elements -->
+  <circle cx="200" cy="450" r="30" fill="#22C55E" opacity="0.7"/>
+  <circle cx="220" cy="460" r="25" fill="#22C55E" opacity="0.7"/>
+  <circle cx="180" cy="465" r="28" fill="#22C55E" opacity="0.7"/>
+  
+  <circle cx="600" cy="455" r="28" fill="#22C55E" opacity="0.7"/>
+  <circle cx="620" cy="465" r="22" fill="#22C55E" opacity="0.7"/>
+  <circle cx="580" cy="468" r="26" fill="#22C55E" opacity="0.7"/>
+</svg>

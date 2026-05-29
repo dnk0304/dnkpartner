@@ -1,0 +1,27 @@
+{
+  "started_at": "2026-01-22T16:33:19.824676",
+  "completed_combinations": [
+    "Otras administraciones tributarias|Cancelada|Inmuebles",
+    "Otras administraciones tributarias|Cancelada|Vehículos",
+    "Otras administraciones tributarias|Cancelada|Otros bienes muebles",
+    "Otras administraciones tributarias|Concluida en Portal de Subastas|Inmuebles",
+    "Otras administraciones tributarias|Cancelada|Inmuebles",
+    "Otras administraciones tributarias|Cancelada|Vehículos",
+    "Otras administraciones tributarias|Cancelada|Otros bienes muebles",
+    "Otras administraciones tributarias|Concluida en Portal de Subastas|Inmuebles",
+    "Otras administraciones tributarias|Concluida en Portal de Subastas|Vehículos",
+    "Otras administraciones tributarias|Concluida en Portal de Subastas|Otros bienes muebles"
+  ],
+  "current_combination": "Otras administraciones tributarias|Finalizada por Autoridad Gestora|Inmuebles",
+  "stats": {
+    "total_new": 0,
+    "total_updated": 0,
+    "total_combinations": 90,
+    "completed_combinations": 10,
+    "total_checked": 0,
+    "total_skipped": 0
+  },
+  "batch_num": 8,
+  "total_batches": 10,
+  "last_update": "2026-01-22T16:55:57.461271"
+}

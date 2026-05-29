@@ -1,0 +1,30 @@
+{
+  "started_at": "2026-01-22T15:41:02.473423",
+  "completed_combinations": [
+    "AEAT|Prox. apertura|Inmuebles|Almería",
+    "AEAT|Prox. apertura|Inmuebles|Cádiz",
+    "AEAT|Prox. apertura|Inmuebles|Córdoba",
+    "AEAT|Prox. apertura|Inmuebles|Granada",
+    "AEAT|Prox. apertura|Inmuebles|Huelva",
+    "AEAT|Prox. apertura|Inmuebles|Jaén",
+    "AEAT|Prox. apertura|Inmuebles|Málaga",
+    "AEAT|Prox. apertura|Inmuebles|Sevilla",
+    "AEAT|Prox. apertura|Inmuebles|Huesca",
+    "AEAT|Prox. apertura|Inmuebles|Teruel",
+    "AEAT|Prox. apertura|Inmuebles|Zaragoza",
+    "AEAT|Prox. apertura|Inmuebles|Asturias",
+    "AEAT|Prox. apertura|Inmuebles|Illes Balears"
+  ],
+  "current_combination": null,
+  "stats": {
+    "total_new": 0,
+    "total_updated": 0,
+    "total_checked": 0,
+    "total_skipped": 0,
+    "total_combinations": 4680,
+    "completed_combinations": 13
+  },
+  "batch_num": 5,
+  "total_batches": 10,
+  "last_update": "2026-01-22T16:13:30.873187"
+}

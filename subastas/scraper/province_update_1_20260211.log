@@ -1,0 +1,304 @@
+[2026-02-11 20:51:36,236] INFO: [Scraper 1] Starting: 74 batches
+[2026-02-11 20:51:36,237] INFO: [Scraper 1] Range: 2015-01-01 to 2017-12-31
+[2026-02-11 20:51:36,238] INFO: [Scraper 1] 
+Batch 1/74: 2015-01-01_to_2015-01-15
+[2026-02-11 20:51:36,243] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:51:51,509] INFO: [Scraper 1] 
+Batch 2/74: 2015-01-16_to_2015-01-30
+[2026-02-11 20:51:51,513] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:52:03,672] INFO: [Scraper 1] 
+Batch 3/74: 2015-01-31_to_2015-02-14
+[2026-02-11 20:52:03,698] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:52:14,197] INFO: [Scraper 1] 
+Batch 4/74: 2015-02-15_to_2015-03-01
+[2026-02-11 20:52:14,218] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:52:27,544] INFO: [Scraper 1] 
+Batch 5/74: 2015-03-02_to_2015-03-16
+[2026-02-11 20:52:27,843] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:52:42,164] INFO: [Scraper 1] 
+Batch 6/74: 2015-03-17_to_2015-03-31
+[2026-02-11 20:52:43,059] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:52:54,750] INFO: [Scraper 1] 
+Batch 7/74: 2015-04-01_to_2015-04-15
+[2026-02-11 20:52:54,775] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:53:08,918] INFO: [Scraper 1] 
+Batch 8/74: 2015-04-16_to_2015-04-30
+[2026-02-11 20:53:08,921] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:53:23,237] INFO: [Scraper 1] 
+Batch 9/74: 2015-05-01_to_2015-05-15
+[2026-02-11 20:53:23,242] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:53:33,261] INFO: [Scraper 1] 
+Batch 10/74: 2015-05-16_to_2015-05-30
+[2026-02-11 20:53:33,262] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:53:47,535] INFO: [Scraper 1] 
+Batch 11/74: 2015-05-31_to_2015-06-14
+[2026-02-11 20:53:47,539] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:54:00,255] INFO: [Scraper 1] 
+Batch 12/74: 2015-06-15_to_2015-06-29
+[2026-02-11 20:54:00,269] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:54:12,069] INFO: [Scraper 1] 
+Batch 13/74: 2015-06-30_to_2015-07-14
+[2026-02-11 20:54:12,070] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:54:25,187] INFO: [Scraper 1] 
+Batch 14/74: 2015-07-15_to_2015-07-29
+[2026-02-11 20:54:25,207] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:54:36,303] INFO: [Scraper 1] 
+Batch 15/74: 2015-07-30_to_2015-08-13
+[2026-02-11 20:54:36,303] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:54:49,109] INFO: [Scraper 1] 
+Batch 16/74: 2015-08-14_to_2015-08-28
+[2026-02-11 20:54:49,110] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:55:03,086] INFO: [Scraper 1] 
+Batch 17/74: 2015-08-29_to_2015-09-12
+[2026-02-11 20:55:03,173] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:55:16,418] INFO: [Scraper 1] 
+Batch 18/74: 2015-09-13_to_2015-09-27
+[2026-02-11 20:55:16,577] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:55:27,424] INFO: [Scraper 1] 
+Batch 19/74: 2015-09-28_to_2015-10-12
+[2026-02-11 20:55:27,476] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:55:40,640] INFO: [Scraper 1] 
+Batch 20/74: 2015-10-13_to_2015-10-27
+[2026-02-11 20:55:40,641] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:55:53,080] INFO: [Scraper 1] 
+Batch 21/74: 2015-10-28_to_2015-11-11
+[2026-02-11 20:55:53,087] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:56:05,976] INFO: [Scraper 1] 
+Batch 22/74: 2015-11-12_to_2015-11-26
+[2026-02-11 20:56:05,978] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:56:18,274] INFO: [Scraper 1] 
+Batch 23/74: 2015-11-27_to_2015-12-11
+[2026-02-11 20:56:18,306] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:56:32,582] INFO: [Scraper 1] 
+Batch 24/74: 2015-12-12_to_2015-12-26
+[2026-02-11 20:56:32,605] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:56:43,758] INFO: [Scraper 1] 
+Batch 25/74: 2015-12-27_to_2016-01-10
+[2026-02-11 20:56:43,761] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:56:58,705] INFO: [Scraper 1] 
+Batch 26/74: 2016-01-11_to_2016-01-25
+[2026-02-11 20:56:58,722] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:57:11,199] INFO: [Scraper 1] 
+Batch 27/74: 2016-01-26_to_2016-02-09
+[2026-02-11 20:57:11,271] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:57:25,641] INFO: [Scraper 1] 
+Batch 28/74: 2016-02-10_to_2016-02-24
+[2026-02-11 20:57:25,661] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:57:36,094] INFO: [Scraper 1] 
+Batch 29/74: 2016-02-25_to_2016-03-10
+[2026-02-11 20:57:36,094] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:57:49,143] INFO: [Scraper 1] 
+Batch 30/74: 2016-03-11_to_2016-03-25
+[2026-02-11 20:57:49,207] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:58:01,481] INFO: [Scraper 1] 
+Batch 31/74: 2016-03-26_to_2016-04-09
+[2026-02-11 20:58:01,512] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:58:15,321] INFO: [Scraper 1] 
+Batch 32/74: 2016-04-10_to_2016-04-24
+[2026-02-11 20:58:15,340] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:58:27,845] INFO: [Scraper 1] 
+Batch 33/74: 2016-04-25_to_2016-05-09
+[2026-02-11 20:58:27,847] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:58:41,156] INFO: [Scraper 1] 
+Batch 34/74: 2016-05-10_to_2016-05-24
+[2026-02-11 20:58:41,157] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:58:55,004] INFO: [Scraper 1] 
+Batch 35/74: 2016-05-25_to_2016-06-08
+[2026-02-11 20:58:55,010] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:59:05,959] INFO: [Scraper 1] 
+Batch 36/74: 2016-06-09_to_2016-06-23
+[2026-02-11 20:59:05,960] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:59:19,157] INFO: [Scraper 1] 
+Batch 37/74: 2016-06-24_to_2016-07-08
+[2026-02-11 20:59:19,159] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:59:31,984] INFO: [Scraper 1] 
+Batch 38/74: 2016-07-09_to_2016-07-23
+[2026-02-11 20:59:32,039] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:59:45,659] INFO: [Scraper 1] 
+Batch 39/74: 2016-07-24_to_2016-08-07
+[2026-02-11 20:59:45,659] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 20:59:58,085] INFO: [Scraper 1] 
+Batch 40/74: 2016-08-08_to_2016-08-22
+[2026-02-11 20:59:58,086] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:00:10,266] INFO: [Scraper 1] 
+Batch 41/74: 2016-08-23_to_2016-09-06
+[2026-02-11 21:00:10,269] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:00:21,202] INFO: [Scraper 1] 
+Batch 42/74: 2016-09-07_to_2016-09-21
+[2026-02-11 21:00:21,210] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:00:33,915] INFO: [Scraper 1] 
+Batch 43/74: 2016-09-22_to_2016-10-06
+[2026-02-11 21:00:33,917] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:00:47,839] INFO: [Scraper 1] 
+Batch 44/74: 2016-10-07_to_2016-10-21
+[2026-02-11 21:00:47,876] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:01:00,430] INFO: [Scraper 1] 
+Batch 45/74: 2016-10-22_to_2016-11-05
+[2026-02-11 21:01:00,477] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:01:14,724] INFO: [Scraper 1] 
+Batch 46/74: 2016-11-06_to_2016-11-20
+[2026-02-11 21:01:14,726] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:01:29,578] INFO: [Scraper 1] 
+Batch 47/74: 2016-11-21_to_2016-12-05
+[2026-02-11 21:01:29,579] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:01:39,695] INFO: [Scraper 1] 
+Batch 48/74: 2016-12-06_to_2016-12-20
+[2026-02-11 21:01:39,751] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:01:51,212] INFO: [Scraper 1] 
+Batch 49/74: 2016-12-21_to_2017-01-04
+[2026-02-11 21:01:51,230] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:02:05,122] INFO: [Scraper 1] 
+Batch 50/74: 2017-01-05_to_2017-01-19
+[2026-02-11 21:02:05,180] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:02:18,539] INFO: [Scraper 1] 
+Batch 51/74: 2017-01-20_to_2017-02-03
+[2026-02-11 21:02:18,542] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:02:31,402] INFO: [Scraper 1] 
+Batch 52/74: 2017-02-04_to_2017-02-18
+[2026-02-11 21:02:31,420] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:02:45,594] INFO: [Scraper 1] 
+Batch 53/74: 2017-02-19_to_2017-03-05
+[2026-02-11 21:02:45,628] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:02:56,516] INFO: [Scraper 1] 
+Batch 54/74: 2017-03-06_to_2017-03-20
+[2026-02-11 21:02:56,532] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:03:10,417] INFO: [Scraper 1] 
+Batch 55/74: 2017-03-21_to_2017-04-04
+[2026-02-11 21:03:10,436] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:03:25,241] INFO: [Scraper 1] 
+Batch 56/74: 2017-04-05_to_2017-04-19
+[2026-02-11 21:03:25,264] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:03:39,834] INFO: [Scraper 1] 
+Batch 57/74: 2017-04-20_to_2017-05-04
+[2026-02-11 21:03:39,848] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:03:52,743] INFO: [Scraper 1] 
+Batch 58/74: 2017-05-05_to_2017-05-19
+[2026-02-11 21:03:52,760] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:04:05,680] INFO: [Scraper 1] 
+Batch 59/74: 2017-05-20_to_2017-06-03
+[2026-02-11 21:04:05,732] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:04:16,938] INFO: [Scraper 1] 
+Batch 60/74: 2017-06-04_to_2017-06-18
+[2026-02-11 21:04:16,992] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:04:27,782] INFO: [Scraper 1] 
+Batch 61/74: 2017-06-19_to_2017-07-03
+[2026-02-11 21:04:27,794] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:04:38,659] INFO: [Scraper 1] 
+Batch 62/74: 2017-07-04_to_2017-07-18
+[2026-02-11 21:04:38,674] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:04:51,473] INFO: [Scraper 1] 
+Batch 63/74: 2017-07-19_to_2017-08-02
+[2026-02-11 21:04:51,488] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:05:06,057] INFO: [Scraper 1] 
+Batch 64/74: 2017-08-03_to_2017-08-17
+[2026-02-11 21:05:06,100] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:05:16,821] INFO: [Scraper 1] 
+Batch 65/74: 2017-08-18_to_2017-09-01
+[2026-02-11 21:05:17,259] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:05:31,345] INFO: [Scraper 1] 
+Batch 66/74: 2017-09-02_to_2017-09-16
+[2026-02-11 21:05:31,365] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:05:42,694] INFO: [Scraper 1] 
+Batch 67/74: 2017-09-17_to_2017-10-01
+[2026-02-11 21:05:42,732] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:05:56,803] INFO: [Scraper 1] 
+Batch 68/74: 2017-10-02_to_2017-10-16
+[2026-02-11 21:05:56,997] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:06:08,567] INFO: [Scraper 1] 
+Batch 69/74: 2017-10-17_to_2017-10-31
+[2026-02-11 21:06:08,586] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:06:22,899] INFO: [Scraper 1] 
+Batch 70/74: 2017-11-01_to_2017-11-15
+[2026-02-11 21:06:22,923] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:06:33,296] INFO: [Scraper 1] 
+Batch 71/74: 2017-11-16_to_2017-11-30
+[2026-02-11 21:06:33,318] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:06:45,273] INFO: [Scraper 1] 
+Batch 72/74: 2017-12-01_to_2017-12-15
+[2026-02-11 21:06:45,290] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:06:57,429] INFO: [Scraper 1] 
+Batch 73/74: 2017-12-16_to_2017-12-30
+[2026-02-11 21:06:57,447] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:07:11,700] INFO: [Scraper 1] 
+Batch 74/74: 2017-12-31_to_2017-12-31
+[2026-02-11 21:07:11,941] INFO: [Scraper 1]   Found 0 auctions to update
+[2026-02-11 21:07:12,058] INFO: [Scraper 1] 
+COMPLETE: Updated 0 auctions
+[2026-02-11 22:58:13,168] INFO: [Scraper 1] Starting: 74 batches
+[2026-02-11 22:58:13,173] INFO: [Scraper 1] Range: 2015-01-01 to 2017-12-31
+[2026-02-11 22:58:13,174] INFO: [Scraper 1] Skipping 2015-01-01_to_2015-01-15 (completed)
+[2026-02-11 22:58:13,183] INFO: [Scraper 1] Skipping 2015-01-16_to_2015-01-30 (completed)
+[2026-02-11 22:58:13,183] INFO: [Scraper 1] Skipping 2015-01-31_to_2015-02-14 (completed)
+[2026-02-11 22:58:13,185] INFO: [Scraper 1] Skipping 2015-02-15_to_2015-03-01 (completed)
+[2026-02-11 22:58:13,186] INFO: [Scraper 1] Skipping 2015-03-02_to_2015-03-16 (completed)
+[2026-02-11 22:58:13,186] INFO: [Scraper 1] Skipping 2015-03-17_to_2015-03-31 (completed)
+[2026-02-11 22:58:13,186] INFO: [Scraper 1] Skipping 2015-04-01_to_2015-04-15 (completed)
+[2026-02-11 22:58:13,186] INFO: [Scraper 1] Skipping 2015-04-16_to_2015-04-30 (completed)
+[2026-02-11 22:58:13,186] INFO: [Scraper 1] Skipping 2015-05-01_to_2015-05-15 (completed)
+[2026-02-11 22:58:13,186] INFO: [Scraper 1] Skipping 2015-05-16_to_2015-05-30 (completed)
+[2026-02-11 22:58:13,186] INFO: [Scraper 1] Skipping 2015-05-31_to_2015-06-14 (completed)
+[2026-02-11 22:58:13,186] INFO: [Scraper 1] Skipping 2015-06-15_to_2015-06-29 (completed)
+[2026-02-11 22:58:13,190] INFO: [Scraper 1] Skipping 2015-06-30_to_2015-07-14 (completed)
+[2026-02-11 22:58:13,196] INFO: [Scraper 1] Skipping 2015-07-15_to_2015-07-29 (completed)
+[2026-02-11 22:58:13,201] INFO: [Scraper 1] Skipping 2015-07-30_to_2015-08-13 (completed)
+[2026-02-11 22:58:13,205] INFO: [Scraper 1] Skipping 2015-08-14_to_2015-08-28 (completed)
+[2026-02-11 22:58:13,214] INFO: [Scraper 1] Skipping 2015-08-29_to_2015-09-12 (completed)
+[2026-02-11 22:58:13,222] INFO: [Scraper 1] Skipping 2015-09-13_to_2015-09-27 (completed)
+[2026-02-11 22:58:13,224] INFO: [Scraper 1] Skipping 2015-09-28_to_2015-10-12 (completed)
+[2026-02-11 22:58:13,224] INFO: [Scraper 1] Skipping 2015-10-13_to_2015-10-27 (completed)
+[2026-02-11 22:58:13,234] INFO: [Scraper 1] Skipping 2015-10-28_to_2015-11-11 (completed)
+[2026-02-11 22:58:13,236] INFO: [Scraper 1] Skipping 2015-11-12_to_2015-11-26 (completed)
+[2026-02-11 22:58:13,252] INFO: [Scraper 1] Skipping 2015-11-27_to_2015-12-11 (completed)
+[2026-02-11 22:58:13,252] INFO: [Scraper 1] Skipping 2015-12-12_to_2015-12-26 (completed)
+[2026-02-11 22:58:13,252] INFO: [Scraper 1] Skipping 2015-12-27_to_2016-01-10 (completed)
+[2026-02-11 22:58:13,253] INFO: [Scraper 1] Skipping 2016-01-11_to_2016-01-25 (completed)
+[2026-02-11 22:58:13,253] INFO: [Scraper 1] Skipping 2016-01-26_to_2016-02-09 (completed)
+[2026-02-11 22:58:13,253] INFO: [Scraper 1] Skipping 2016-02-10_to_2016-02-24 (completed)
+[2026-02-11 22:58:13,253] INFO: [Scraper 1] Skipping 2016-02-25_to_2016-03-10 (completed)
+[2026-02-11 22:58:13,253] INFO: [Scraper 1] Skipping 2016-03-11_to_2016-03-25 (completed)
+[2026-02-11 22:58:13,253] INFO: [Scraper 1] Skipping 2016-03-26_to_2016-04-09 (completed)
+[2026-02-11 22:58:13,253] INFO: [Scraper 1] Skipping 2016-04-10_to_2016-04-24 (completed)
+[2026-02-11 22:58:13,256] INFO: [Scraper 1] Skipping 2016-04-25_to_2016-05-09 (completed)
+[2026-02-11 22:58:13,256] INFO: [Scraper 1] Skipping 2016-05-10_to_2016-05-24 (completed)
+[2026-02-11 22:58:13,262] INFO: [Scraper 1] Skipping 2016-05-25_to_2016-06-08 (completed)
+[2026-02-11 22:58:13,262] INFO: [Scraper 1] Skipping 2016-06-09_to_2016-06-23 (completed)
+[2026-02-11 22:58:13,263] INFO: [Scraper 1] Skipping 2016-06-24_to_2016-07-08 (completed)
+[2026-02-11 22:58:13,263] INFO: [Scraper 1] Skipping 2016-07-09_to_2016-07-23 (completed)
+[2026-02-11 22:58:13,264] INFO: [Scraper 1] Skipping 2016-07-24_to_2016-08-07 (completed)
+[2026-02-11 22:58:13,264] INFO: [Scraper 1] Skipping 2016-08-08_to_2016-08-22 (completed)
+[2026-02-11 22:58:13,264] INFO: [Scraper 1] Skipping 2016-08-23_to_2016-09-06 (completed)
+[2026-02-11 22:58:13,264] INFO: [Scraper 1] Skipping 2016-09-07_to_2016-09-21 (completed)
+[2026-02-11 22:58:13,265] INFO: [Scraper 1] Skipping 2016-09-22_to_2016-10-06 (completed)
+[2026-02-11 22:58:13,265] INFO: [Scraper 1] Skipping 2016-10-07_to_2016-10-21 (completed)
+[2026-02-11 22:58:13,266] INFO: [Scraper 1] Skipping 2016-10-22_to_2016-11-05 (completed)
+[2026-02-11 22:58:13,266] INFO: [Scraper 1] Skipping 2016-11-06_to_2016-11-20 (completed)
+[2026-02-11 22:58:13,266] INFO: [Scraper 1] Skipping 2016-11-21_to_2016-12-05 (completed)
+[2026-02-11 22:58:13,267] INFO: [Scraper 1] Skipping 2016-12-06_to_2016-12-20 (completed)
+[2026-02-11 22:58:13,267] INFO: [Scraper 1] Skipping 2016-12-21_to_2017-01-04 (completed)
+[2026-02-11 22:58:13,267] INFO: [Scraper 1] Skipping 2017-01-05_to_2017-01-19 (completed)
+[2026-02-11 22:58:13,268] INFO: [Scraper 1] Skipping 2017-01-20_to_2017-02-03 (completed)
+[2026-02-11 22:58:13,268] INFO: [Scraper 1] Skipping 2017-02-04_to_2017-02-18 (completed)
+[2026-02-11 22:58:13,268] INFO: [Scraper 1] Skipping 2017-02-19_to_2017-03-05 (completed)
+[2026-02-11 22:58:13,268] INFO: [Scraper 1] Skipping 2017-03-06_to_2017-03-20 (completed)
+[2026-02-11 22:58:13,268] INFO: [Scraper 1] Skipping 2017-03-21_to_2017-04-04 (completed)
+[2026-02-11 22:58:13,268] INFO: [Scraper 1] Skipping 2017-04-05_to_2017-04-19 (completed)
+[2026-02-11 22:58:13,268] INFO: [Scraper 1] Skipping 2017-04-20_to_2017-05-04 (completed)
+[2026-02-11 22:58:13,269] INFO: [Scraper 1] Skipping 2017-05-05_to_2017-05-19 (completed)
+[2026-02-11 22:58:13,269] INFO: [Scraper 1] Skipping 2017-05-20_to_2017-06-03 (completed)
+[2026-02-11 22:58:13,269] INFO: [Scraper 1] Skipping 2017-06-04_to_2017-06-18 (completed)
+[2026-02-11 22:58:13,270] INFO: [Scraper 1] Skipping 2017-06-19_to_2017-07-03 (completed)
+[2026-02-11 22:58:13,270] INFO: [Scraper 1] Skipping 2017-07-04_to_2017-07-18 (completed)
+[2026-02-11 22:58:13,270] INFO: [Scraper 1] Skipping 2017-07-19_to_2017-08-02 (completed)
+[2026-02-11 22:58:13,272] INFO: [Scraper 1] Skipping 2017-08-03_to_2017-08-17 (completed)
+[2026-02-11 22:58:13,272] INFO: [Scraper 1] Skipping 2017-08-18_to_2017-09-01 (completed)
+[2026-02-11 22:58:13,272] INFO: [Scraper 1] Skipping 2017-09-02_to_2017-09-16 (completed)
+[2026-02-11 22:58:13,272] INFO: [Scraper 1] Skipping 2017-09-17_to_2017-10-01 (completed)
+[2026-02-11 22:58:13,272] INFO: [Scraper 1] Skipping 2017-10-02_to_2017-10-16 (completed)
+[2026-02-11 22:58:13,277] INFO: [Scraper 1] Skipping 2017-10-17_to_2017-10-31 (completed)
+[2026-02-11 22:58:13,279] INFO: [Scraper 1] Skipping 2017-11-01_to_2017-11-15 (completed)
+[2026-02-11 22:58:13,279] INFO: [Scraper 1] Skipping 2017-11-16_to_2017-11-30 (completed)
+[2026-02-11 22:58:13,280] INFO: [Scraper 1] Skipping 2017-12-01_to_2017-12-15 (completed)
+[2026-02-11 22:58:13,280] INFO: [Scraper 1] Skipping 2017-12-16_to_2017-12-30 (completed)
+[2026-02-11 22:58:13,281] INFO: [Scraper 1] Skipping 2017-12-31_to_2017-12-31 (completed)
+[2026-02-11 22:58:13,282] INFO: [Scraper 1] 
+COMPLETE: Updated 0 auctions

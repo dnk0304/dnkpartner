@@ -1,0 +1,11 @@
+{
+  "started_at": "2026-01-21T20:28:01.250171",
+  "completed_provinces": [
+    "Álava",
+    "Albacete",
+    "Alicante"
+  ],
+  "failed_provinces": [],
+  "current_province": "Alicante",
+  "last_update": "2026-01-21T20:35:56.540094"
+}

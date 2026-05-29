@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none">
+  <defs>
+    <linearGradient id="wallGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#71717A"/>
+      <stop offset="100%" stop-color="#52525B"/>
+    </linearGradient>
+    <linearGradient id="floorGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#A1A1AA"/>
+      <stop offset="100%" stop-color="#71717A"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="800" height="600" fill="#3F3F46"/>
+  
+  <!-- Floor -->
+  <rect y="480" width="800" height="120" fill="url(#floorGrad)"/>
+  
+  <!-- Back Wall -->
+  <rect x="100" y="120" width="600" height="360" fill="url(#wallGrad)" stroke="#27272A" stroke-width="3"/>
+  
+  <!-- Garage Door -->
+  <rect x="150" y="180" width="500" height="280" fill="#18181B" stroke="#09090B" stroke-width="4"/>
+  
+  <!-- Door Panels (horizontal lines) -->
+  <line x1="150" y1="225" x2="650" y2="225" stroke="#3F3F46" stroke-width="2"/>
+  <line x1="150" y1="270" x2="650" y2="270" stroke="#3F3F46" stroke-width="2"/>
+  <line x1="150" y1="315" x2="650" y2="315" stroke="#3F3F46" stroke-width="2"/>
+  <line x1="150" y1="360" x2="650" y2="360" stroke="#3F3F46" stroke-width="2"/>
+  <line x1="150" y1="405" x2="650" y2="405" stroke="#3F3F46" stroke-width="2"/>
+  
+  <!-- Door Handle -->
+  <circle cx="600" cy="320" r="12" fill="#A1A1AA" stroke="#71717A" stroke-width="2"/>
+  
+  <!-- Side Wall (perspective) -->
+  <path d="M700 120 L750 150 L750 510 L700 480 Z" fill="#52525B" stroke="#27272A" stroke-width="2"/>
+  
+  <!-- Ground in front -->
+  <rect y="480" width="800" height="120" fill="#71717A" opacity="0.3"/>
+  
+  <!-- Car silhouette inside (visible through window effect) -->
+  <ellipse cx="400" cy="350" rx="120" ry="40" fill="#27272A" opacity="0.3"/>
+  <rect x="320" y="310" width="160" height="40" fill="#27272A" opacity="0.3" rx="20"/>
+</svg>

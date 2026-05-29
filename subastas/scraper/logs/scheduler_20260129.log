@@ -1,0 +1,2946 @@
+[2026-01-29 00:34:12] ======================================================================
+[2026-01-29 00:34:12] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-29 00:34:12] ======================================================================
+[2026-01-29 00:34:12] 🏠 Sources: BOE, TEJU, Banks (Servihabitat, Haya, Altamira)
+[2026-01-29 00:34:12] ======================================================================
+[2026-01-29 00:34:12] 📅 Schedule configured:
+[2026-01-29 00:34:12]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-29 00:34:12]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-29 00:34:12]    - Bank portals: Daily at 04:00 AM
+[2026-01-29 00:34:12]    - Geocoding backfill: Every 2 hours
+[2026-01-29 00:34:12]    - Status monitor: Every 30 minutes
+[2026-01-29 00:34:12]    - Full daily scan: 03:00 AM
+[2026-01-29 00:34:12] 
+[2026-01-29 00:34:12] 🎬 Running initial scrape...
+[2026-01-29 00:34:12] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-29 00:34:12] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-29 00:34:24]   Total properties: 200
+[2026-01-29 00:34:24]   New: 0
+[2026-01-29 00:34:24]   Updated: 200
+[2026-01-29 00:34:24] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-29 00:34:24] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-29 00:34:45]   Total properties: 0
+[2026-01-29 00:34:45]   New: 0
+[2026-01-29 00:34:45]   Updated: 0
+[2026-01-29 00:34:45] 👀 Monitoring auction status changes...
+[2026-01-29 00:34:45]   📊 Current database stats:
+[2026-01-29 00:34:45]      ACTIVE: 2060
+[2026-01-29 00:34:45]      FINISHED: 11282
+[2026-01-29 00:34:45]      SUSPENDED: 105
+[2026-01-29 00:35:26] ======================================================================
+[2026-01-29 00:35:26] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-29 00:35:26] ======================================================================
+[2026-01-29 00:35:26] 🏠 Sources: BOE, TEJU, Banks (Servihabitat, Haya, Altamira)
+[2026-01-29 00:35:26] ======================================================================
+[2026-01-29 00:35:26] 📅 Schedule configured:
+[2026-01-29 00:35:26]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-29 00:35:26]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-29 00:35:26]    - Bank portals: Daily at 04:00 AM
+[2026-01-29 00:35:26]    - Geocoding backfill: Every 2 hours
+[2026-01-29 00:35:26]    - Status monitor: Every 30 minutes
+[2026-01-29 00:35:26]    - Full daily scan: 03:00 AM
+[2026-01-29 00:35:26] 
+[2026-01-29 00:35:26] 🎬 Running initial scrape...
+[2026-01-29 00:35:26] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-29 00:35:26] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-29 00:35:27]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 504, in <module>
+    main()
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper
+[2026-01-29 00:35:27] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-29 00:35:27] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-29 00:35:28]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 504, in <module>
+    main()
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper
+[2026-01-29 00:35:28] 👀 Monitoring auction status changes...
+[2026-01-29 00:35:28]   📊 Current database stats:
+[2026-01-29 00:35:28]      ACTIVE: 2060
+[2026-01-29 00:35:28]      FINISHED: 11282
+[2026-01-29 00:35:28]      SUSPENDED: 105
+[2026-01-29 16:52:47] ======================================================================
+[2026-01-29 16:52:47] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-29 16:52:47] ======================================================================
+[2026-01-29 16:52:47] 🏠 Sources: BOE (Active, Pre-auction, Vehicles, Historical)
+[2026-01-29 16:52:47]            TEJU, Banks (Haya, Servihabitat, Altamira, Solvia, Anticipa, Aliseda)
+[2026-01-29 16:52:47] ======================================================================
+[2026-01-29 16:52:47] 📅 Schedule configured:
+[2026-01-29 16:52:47] 
+[2026-01-29 16:52:47]    REAL-TIME (Priority):
+[2026-01-29 16:52:47]    - Pulse (bid updates): Every 35 min ⭐
+[2026-01-29 16:52:47]    - Active auctions: Every 35 min
+[2026-01-29 16:52:47] 
+[2026-01-29 16:52:47]    REGULAR:
+[2026-01-29 16:52:47]    - Pre-auctions: Every 1 hour
+[2026-01-29 16:52:47]    - Vehicle auctions: Every 1 hour
+[2026-01-29 16:52:47]    - TEJU edicts: Every 2 hours
+[2026-01-29 16:52:47]    - Bank portals: Every 6 hours
+[2026-01-29 16:52:47] 
+[2026-01-29 16:52:47]    MAINTENANCE:
+[2026-01-29 16:52:47]    - Status monitor: Every 30 min
+[2026-01-29 16:52:47]    - Geocoding: Every 2 hours
+[2026-01-29 16:52:47] 
+[2026-01-29 16:52:47]    OFF-PEAK (Daily):
+[2026-01-29 16:52:47]    - Full scan: 03:00 AM
+[2026-01-29 16:52:47]    - Historical batch: 03:30 AM
+[2026-01-29 16:52:47]    - Bank portals: 04:00 AM
+[2026-01-29 16:52:47] 
+[2026-01-29 16:52:47] 🎬 Running initial scrape...
+[2026-01-29 16:52:47] 🏠 Scraping ACTIVE auctions...
+[2026-01-29 16:52:47] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 16:52:59]   Total properties: 200
+[2026-01-29 16:52:59]   New: 0
+[2026-01-29 16:52:59]   Updated: 200
+[2026-01-29 16:52:59] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-29 16:52:59] 🚀 Starting PRE scraper (pages=30)...
+[2026-01-29 16:53:20]   Total properties: 0
+[2026-01-29 16:53:20]   New: 0
+[2026-01-29 16:53:20]   Updated: 0
+[2026-01-29 16:53:20] 🚗 Scraping vehicle auctions...
+[2026-01-29 16:53:20] 🚗 Scraping vehicle auctions...
+[2026-01-29 16:53:20]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 16:53:20] 👀 Monitoring auction status changes...
+[2026-01-29 16:53:20]   📊 Current database stats:
+[2026-01-29 16:53:20]      CONCLUIDA_PORTAL: 11282
+[2026-01-29 16:53:20]      CELEBRANDOSE: 2060
+[2026-01-29 16:53:20]      SUSPENDIDA: 105
+[2026-01-29 16:53:20]   🏷️ Auction types:
+[2026-01-29 16:53:20]      JUDICIAL: 13447
+[2026-01-29 17:23:20] 👀 Monitoring auction status changes...
+[2026-01-29 17:23:20]   📊 Current database stats:
+[2026-01-29 17:23:20]      CONCLUIDA_PORTAL: 11282
+[2026-01-29 17:23:20]      CELEBRANDOSE: 2060
+[2026-01-29 17:23:20]      SUSPENDIDA: 105
+[2026-01-29 17:23:20]   🏷️ Auction types:
+[2026-01-29 17:23:20]      JUDICIAL: 13447
+[2026-01-29 17:28:20] 💓 Running pulse mode (bid updates)...
+[2026-01-29 17:28:20] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 17:28:22]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 17:28:22] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 17:30:14]   Total properties: 200
+[2026-01-29 17:30:14]   New: 0
+[2026-01-29 17:30:14]   Updated: 200
+[2026-01-29 17:53:14] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-29 17:53:14] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-29 17:55:15]   Total properties: 0
+[2026-01-29 17:55:15]   New: 0
+[2026-01-29 17:55:15]   Updated: 0
+[2026-01-29 17:55:15] 🚗 Scraping vehicle auctions...
+[2026-01-29 17:55:15]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 17:56:15] 👀 Monitoring auction status changes...
+[2026-01-29 17:56:15]   📊 Current database stats:
+[2026-01-29 17:56:15]      CONCLUIDA_PORTAL: 11282
+[2026-01-29 17:56:15]      CELEBRANDOSE: 2060
+[2026-01-29 17:56:15]      SUSPENDIDA: 105
+[2026-01-29 17:56:15]   🏷️ Auction types:
+[2026-01-29 17:56:15]      JUDICIAL: 13447
+[2026-01-29 18:04:15] 💓 Running pulse mode (bid updates)...
+[2026-01-29 18:04:15] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 18:04:17]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 18:05:17] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 18:07:08]   Total properties: 200
+[2026-01-29 18:07:08]   New: 0
+[2026-01-29 18:07:08]   Updated: 200
+[2026-01-29 18:27:08] 👀 Monitoring auction status changes...
+[2026-01-29 18:27:08]   📊 Current database stats:
+[2026-01-29 18:27:08]      CONCLUIDA_PORTAL: 11282
+[2026-01-29 18:27:08]      CELEBRANDOSE: 2060
+[2026-01-29 18:27:08]      SUSPENDIDA: 105
+[2026-01-29 18:27:08]   🏷️ Auction types:
+[2026-01-29 18:27:08]      JUDICIAL: 13447
+[2026-01-29 18:40:08] 💓 Running pulse mode (bid updates)...
+[2026-01-29 18:40:08] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 18:40:10]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 18:42:10] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 18:44:03]   Total properties: 200
+[2026-01-29 18:44:03]   New: 0
+[2026-01-29 18:44:03]   Updated: 200
+[2026-01-29 18:53:03] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-29 18:53:03]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 18:53:03] 🗺️ Running geocoding backfill...
+[2026-01-29 18:53:05]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 18:56:05] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-29 18:56:05] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-29 18:56:31]   Total properties: 0
+[2026-01-29 18:56:31]   New: 0
+[2026-01-29 18:56:31]   Updated: 0
+[2026-01-29 18:56:31] 🚗 Scraping vehicle auctions...
+[2026-01-29 18:56:31]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 18:57:31] 👀 Monitoring auction status changes...
+[2026-01-29 18:57:31]   📊 Current database stats:
+[2026-01-29 18:57:31]      CONCLUIDA_PORTAL: 11282
+[2026-01-29 18:57:31]      CELEBRANDOSE: 2060
+[2026-01-29 18:57:31]      SUSPENDIDA: 105
+[2026-01-29 18:57:31]   🏷️ Auction types:
+[2026-01-29 18:57:31]      JUDICIAL: 13447
+[2026-01-29 18:58:33] ======================================================================
+[2026-01-29 18:58:33] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-29 18:58:33] ======================================================================
+[2026-01-29 18:58:33] 🏠 Sources: BOE (Active, Pre-auction, Vehicles, Historical)
+[2026-01-29 18:58:33]            TEJU, Banks (Haya, Servihabitat, Altamira, Solvia, Anticipa, Aliseda)
+[2026-01-29 18:58:33] ======================================================================
+[2026-01-29 18:58:33] 📅 Schedule configured:
+[2026-01-29 18:58:33] 
+[2026-01-29 18:58:33]    REAL-TIME (Priority):
+[2026-01-29 18:58:33]    - Pulse (bid updates): Every 35 min ⭐
+[2026-01-29 18:58:33]    - Active auctions: Every 35 min
+[2026-01-29 18:58:33] 
+[2026-01-29 18:58:33]    REGULAR:
+[2026-01-29 18:58:33]    - Pre-auctions: Every 1 hour
+[2026-01-29 18:58:33]    - Vehicle auctions: Every 1 hour
+[2026-01-29 18:58:33]    - TEJU edicts: Every 2 hours
+[2026-01-29 18:58:33]    - Bank portals: Every 6 hours
+[2026-01-29 18:58:33] 
+[2026-01-29 18:58:33]    MAINTENANCE:
+[2026-01-29 18:58:33]    - Status monitor: Every 30 min
+[2026-01-29 18:58:33]    - Geocoding: Every 2 hours
+[2026-01-29 18:58:33] 
+[2026-01-29 18:58:33]    OFF-PEAK (Daily):
+[2026-01-29 18:58:33]    - Full scan: 03:00 AM
+[2026-01-29 18:58:33]    - Historical batch: 03:30 AM
+[2026-01-29 18:58:33]    - Bank portals: 04:00 AM
+[2026-01-29 18:58:33] 
+[2026-01-29 18:58:33] 🎬 Running initial scrape...
+[2026-01-29 18:58:33] 🏠 Scraping ACTIVE auctions...
+[2026-01-29 18:58:33] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 18:58:56] ======================================================================
+[2026-01-29 18:58:56] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-29 18:58:56] ======================================================================
+[2026-01-29 18:58:56] 🏠 Sources: BOE (Active, Pre-auction, Vehicles, Historical)
+[2026-01-29 18:58:56]            TEJU, Banks (Haya, Servihabitat, Altamira, Solvia, Anticipa, Aliseda)
+[2026-01-29 18:58:56] ======================================================================
+[2026-01-29 18:58:56] 📅 Schedule configured:
+[2026-01-29 18:58:56] 
+[2026-01-29 18:58:56]    REAL-TIME (Priority):
+[2026-01-29 18:58:56]    - Pulse (bid updates): Every 35 min ⭐
+[2026-01-29 18:58:56]    - Active auctions: Every 35 min
+[2026-01-29 18:58:56] 
+[2026-01-29 18:58:56]    REGULAR:
+[2026-01-29 18:58:56]    - Pre-auctions: Every 1 hour
+[2026-01-29 18:58:56]    - Vehicle auctions: Every 1 hour
+[2026-01-29 18:58:56]    - TEJU edicts: Every 2 hours
+[2026-01-29 18:58:56]    - Bank portals: Every 6 hours
+[2026-01-29 18:58:56] 
+[2026-01-29 18:58:56]    MAINTENANCE:
+[2026-01-29 18:58:56]    - Status monitor: Every 30 min
+[2026-01-29 18:58:56]    - Geocoding: Every 2 hours
+[2026-01-29 18:58:56] 
+[2026-01-29 18:58:56]    OFF-PEAK (Daily):
+[2026-01-29 18:58:56]    - Full scan: 03:00 AM
+[2026-01-29 18:58:56]    - Historical batch: 03:30 AM
+[2026-01-29 18:58:56]    - Bank portals: 04:00 AM
+[2026-01-29 18:58:56] 
+[2026-01-29 18:58:56] 🎬 Running initial scrape...
+[2026-01-29 18:58:56] 🏠 Scraping ACTIVE auctions...
+[2026-01-29 18:58:56] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 19:00:42]   Total properties: 922
+[2026-01-29 19:00:42]   New: 39
+[2026-01-29 19:00:42]   Updated: 883
+[2026-01-29 19:00:42] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-29 19:00:42] 🚀 Starting PRE scraper (pages=30)...
+[2026-01-29 19:01:04]   Total properties: 0
+[2026-01-29 19:01:04]   New: 0
+[2026-01-29 19:01:04]   Updated: 0
+[2026-01-29 19:01:04] 🚗 Scraping vehicle auctions...
+[2026-01-29 19:01:04] 🚗 Scraping vehicle auctions...
+[2026-01-29 19:01:04]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 19:01:04] 👀 Monitoring auction status changes...
+[2026-01-29 19:01:04]   📌 Found 5 expired active auctions
+[2026-01-29 19:01:04]   ✅ Marked 5 auctions as CONCLUIDA_PORTAL
+[2026-01-29 19:01:04]   📊 Current database stats:
+[2026-01-29 19:01:04]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 19:01:04]      CELEBRANDOSE: 1182
+[2026-01-29 19:01:04]      ACTIVE: 917
+[2026-01-29 19:01:04]      SUSPENDIDA: 104
+[2026-01-29 19:01:04]   🏷️ Auction types:
+[2026-01-29 19:01:04]      JUDICIAL: 13486
+[2026-01-29 19:08:33]   ⏰ Timeout after 10 minutes
+[2026-01-29 19:08:33] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-29 19:08:33] 🚀 Starting PRE scraper (pages=30)...
+[2026-01-29 19:08:56]   Total properties: 0
+[2026-01-29 19:08:56]   New: 0
+[2026-01-29 19:08:56]   Updated: 0
+[2026-01-29 19:08:56] 🚗 Scraping vehicle auctions...
+[2026-01-29 19:08:56] 🚗 Scraping vehicle auctions...
+[2026-01-29 19:08:56]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 19:08:56] 👀 Monitoring auction status changes...
+[2026-01-29 19:08:56]   📊 Current database stats:
+[2026-01-29 19:08:56]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 19:08:56]      CELEBRANDOSE: 1182
+[2026-01-29 19:08:56]      ACTIVE: 917
+[2026-01-29 19:08:56]      SUSPENDIDA: 104
+[2026-01-29 19:08:56]   🏷️ Auction types:
+[2026-01-29 19:08:56]      JUDICIAL: 13486
+[2026-01-29 19:15:31] 💓 Running pulse mode (bid updates)...
+[2026-01-29 19:15:31] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 19:15:33]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 19:19:33] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 19:21:39]   Total properties: 922
+[2026-01-29 19:21:39]   New: 0
+[2026-01-29 19:21:39]   Updated: 922
+[2026-01-29 19:27:39] 👀 Monitoring auction status changes...
+[2026-01-29 19:27:39]   📌 Found 5 expired active auctions
+[2026-01-29 19:27:39]   ✅ Marked 5 auctions as CONCLUIDA_PORTAL
+[2026-01-29 19:27:39]   📊 Current database stats:
+[2026-01-29 19:27:39]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 19:27:39]      CELEBRANDOSE: 1182
+[2026-01-29 19:27:39]      ACTIVE: 917
+[2026-01-29 19:27:39]      SUSPENDIDA: 104
+[2026-01-29 19:27:39]   🏷️ Auction types:
+[2026-01-29 19:27:39]      JUDICIAL: 13486
+[2026-01-29 19:28:56] 👀 Monitoring auction status changes...
+[2026-01-29 19:28:56]   📊 Current database stats:
+[2026-01-29 19:28:56]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 19:28:56]      CELEBRANDOSE: 1182
+[2026-01-29 19:28:56]      ACTIVE: 917
+[2026-01-29 19:28:56]      SUSPENDIDA: 104
+[2026-01-29 19:28:56]   🏷️ Auction types:
+[2026-01-29 19:28:56]      JUDICIAL: 13486
+[2026-01-29 19:29:04] 👀 Monitoring auction status changes...
+[2026-01-29 19:29:04]   📊 Current database stats:
+[2026-01-29 19:29:04]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 19:29:04]      CELEBRANDOSE: 1182
+[2026-01-29 19:29:04]      ACTIVE: 917
+[2026-01-29 19:29:04]      SUSPENDIDA: 104
+[2026-01-29 19:29:04]   🏷️ Auction types:
+[2026-01-29 19:29:04]      JUDICIAL: 13486
+[2026-01-29 19:33:56] 💓 Running pulse mode (bid updates)...
+[2026-01-29 19:33:56] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 19:33:57]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 19:33:57] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 19:34:04] 💓 Running pulse mode (bid updates)...
+[2026-01-29 19:34:04] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 19:34:06]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 19:34:06] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 19:35:48]   Total properties: 922
+[2026-01-29 19:35:48]   New: 0
+[2026-01-29 19:35:48]   Updated: 922
+[2026-01-29 19:35:51]   Total properties: 922
+[2026-01-29 19:35:51]   New: 0
+[2026-01-29 19:35:51]   Updated: 922
+[2026-01-29 19:50:39] 💓 Running pulse mode (bid updates)...
+[2026-01-29 19:50:39] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 19:50:41]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 19:56:41] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-29 19:56:41] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-29 19:57:06]   Total properties: 0
+[2026-01-29 19:57:06]   New: 0
+[2026-01-29 19:57:06]   Updated: 0
+[2026-01-29 19:57:06] 🚗 Scraping vehicle auctions...
+[2026-01-29 19:57:06]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 19:57:06] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 19:58:48] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-29 19:58:48] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-29 19:58:53]   Total properties: 922
+[2026-01-29 19:58:53]   New: 0
+[2026-01-29 19:58:53]   Updated: 922
+[2026-01-29 19:59:11]   Total properties: 0
+[2026-01-29 19:59:11]   New: 0
+[2026-01-29 19:59:11]   Updated: 0
+[2026-01-29 19:59:11] 🚗 Scraping vehicle auctions...
+[2026-01-29 19:59:11]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 19:59:51] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-29 19:59:51] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-29 19:59:53] 👀 Monitoring auction status changes...
+[2026-01-29 19:59:53]   📌 Found 5 expired active auctions
+[2026-01-29 19:59:53]   ✅ Marked 5 auctions as CONCLUIDA_PORTAL
+[2026-01-29 19:59:53]   📊 Current database stats:
+[2026-01-29 19:59:53]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 19:59:53]      CELEBRANDOSE: 1182
+[2026-01-29 19:59:53]      ACTIVE: 917
+[2026-01-29 19:59:53]      SUSPENDIDA: 104
+[2026-01-29 19:59:53]   🏷️ Auction types:
+[2026-01-29 19:59:53]      JUDICIAL: 13486
+[2026-01-29 20:00:11] 👀 Monitoring auction status changes...
+[2026-01-29 20:00:11]   📊 Current database stats:
+[2026-01-29 20:00:11]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 20:00:11]      CELEBRANDOSE: 1182
+[2026-01-29 20:00:11]      ACTIVE: 917
+[2026-01-29 20:00:11]      SUSPENDIDA: 104
+[2026-01-29 20:00:11]   🏷️ Auction types:
+[2026-01-29 20:00:11]      JUDICIAL: 13486
+[2026-01-29 20:00:15]   Total properties: 0
+[2026-01-29 20:00:15]   New: 0
+[2026-01-29 20:00:15]   Updated: 0
+[2026-01-29 20:00:15] 🚗 Scraping vehicle auctions...
+[2026-01-29 20:00:15]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 20:00:15] 👀 Monitoring auction status changes...
+[2026-01-29 20:00:15]   📊 Current database stats:
+[2026-01-29 20:00:15]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 20:00:15]      CELEBRANDOSE: 1182
+[2026-01-29 20:00:15]      ACTIVE: 917
+[2026-01-29 20:00:15]      SUSPENDIDA: 104
+[2026-01-29 20:00:15]   🏷️ Auction types:
+[2026-01-29 20:00:15]      JUDICIAL: 13486
+[2026-01-29 20:09:11] 💓 Running pulse mode (bid updates)...
+[2026-01-29 20:09:11] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 20:09:13]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 20:09:15] 💓 Running pulse mode (bid updates)...
+[2026-01-29 20:09:15] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 20:09:16]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 20:11:13] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 20:11:16] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 20:13:05]   Total properties: 922
+[2026-01-29 20:13:05]   New: 0
+[2026-01-29 20:13:05]   Updated: 922
+[2026-01-29 20:13:06]   Total properties: 922
+[2026-01-29 20:13:06]   New: 0
+[2026-01-29 20:13:06]   Updated: 922
+[2026-01-29 20:25:53] 💓 Running pulse mode (bid updates)...
+[2026-01-29 20:25:53] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 20:25:55]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 20:29:55] 👀 Monitoring auction status changes...
+[2026-01-29 20:29:55]   📌 Found 5 expired active auctions
+[2026-01-29 20:29:55]   ✅ Marked 5 auctions as CONCLUIDA_PORTAL
+[2026-01-29 20:29:55]   📊 Current database stats:
+[2026-01-29 20:29:55]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 20:29:55]      CELEBRANDOSE: 1182
+[2026-01-29 20:29:55]      ACTIVE: 917
+[2026-01-29 20:29:55]      SUSPENDIDA: 104
+[2026-01-29 20:29:55]   🏷️ Auction types:
+[2026-01-29 20:29:55]      JUDICIAL: 13486
+[2026-01-29 20:31:05] 👀 Monitoring auction status changes...
+[2026-01-29 20:31:05]   📊 Current database stats:
+[2026-01-29 20:31:05]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 20:31:05]      CELEBRANDOSE: 1182
+[2026-01-29 20:31:05]      ACTIVE: 917
+[2026-01-29 20:31:05]      SUSPENDIDA: 104
+[2026-01-29 20:31:05]   🏷️ Auction types:
+[2026-01-29 20:31:05]      JUDICIAL: 13486
+[2026-01-29 20:31:06] 👀 Monitoring auction status changes...
+[2026-01-29 20:31:06]   📊 Current database stats:
+[2026-01-29 20:31:06]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 20:31:06]      CELEBRANDOSE: 1182
+[2026-01-29 20:31:06]      ACTIVE: 917
+[2026-01-29 20:31:06]      SUSPENDIDA: 104
+[2026-01-29 20:31:06]   🏷️ Auction types:
+[2026-01-29 20:31:06]      JUDICIAL: 13486
+[2026-01-29 20:33:55] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 20:35:47]   Total properties: 922
+[2026-01-29 20:35:47]   New: 0
+[2026-01-29 20:35:47]   Updated: 922
+[2026-01-29 20:45:05] 💓 Running pulse mode (bid updates)...
+[2026-01-29 20:45:05] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 20:45:06]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 20:45:06] 💓 Running pulse mode (bid updates)...
+[2026-01-29 20:45:06] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 20:45:08]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 20:48:06] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 20:48:08] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 20:49:57]   Total properties: 922
+[2026-01-29 20:49:57]   New: 0
+[2026-01-29 20:49:57]   Updated: 922
+[2026-01-29 20:50:11]   Total properties: 922
+[2026-01-29 20:50:11]   New: 0
+[2026-01-29 20:50:11]   Updated: 922
+[2026-01-29 20:53:47] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-29 20:53:47]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 20:53:47] 🗺️ Running geocoding backfill...
+[2026-01-29 20:53:47]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 20:57:47] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-29 20:57:47] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-29 20:58:07]   Total properties: 37
+[2026-01-29 20:58:07]   New: 0
+[2026-01-29 20:58:07]   Updated: 37
+[2026-01-29 20:58:07] 🚗 Scraping vehicle auctions...
+[2026-01-29 20:58:07]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 20:58:57] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-29 20:58:57]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 20:58:57] 🗺️ Running geocoding backfill...
+[2026-01-29 20:58:58]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 20:59:11] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-29 20:59:11]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 20:59:11] 🗺️ Running geocoding backfill...
+[2026-01-29 20:59:12]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 21:00:07] 👀 Monitoring auction status changes...
+[2026-01-29 21:00:07]   📌 Found 5 expired active auctions
+[2026-01-29 21:00:07]   ✅ Marked 5 auctions as CONCLUIDA_PORTAL
+[2026-01-29 21:00:07]   📊 Current database stats:
+[2026-01-29 21:00:07]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 21:00:07]      CELEBRANDOSE: 1182
+[2026-01-29 21:00:07]      ACTIVE: 917
+[2026-01-29 21:00:07]      SUSPENDIDA: 104
+[2026-01-29 21:00:07]      PRE_AUCTION: 37
+[2026-01-29 21:00:07]   🏷️ Auction types:
+[2026-01-29 21:00:07]      JUDICIAL: 13523
+[2026-01-29 21:00:12] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-29 21:00:12] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-29 21:00:31]   Total properties: 37
+[2026-01-29 21:00:31]   New: 0
+[2026-01-29 21:00:31]   Updated: 37
+[2026-01-29 21:00:31] 🚗 Scraping vehicle auctions...
+[2026-01-29 21:00:31]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 21:00:58] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-29 21:00:58] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-29 21:01:07] 💓 Running pulse mode (bid updates)...
+[2026-01-29 21:01:07] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 21:01:09]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 21:01:24]   Total properties: 37
+[2026-01-29 21:01:24]   New: 0
+[2026-01-29 21:01:24]   Updated: 37
+[2026-01-29 21:01:24] 🚗 Scraping vehicle auctions...
+[2026-01-29 21:01:24]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 21:01:31] 👀 Monitoring auction status changes...
+[2026-01-29 21:01:31]   📊 Current database stats:
+[2026-01-29 21:01:31]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 21:01:31]      CELEBRANDOSE: 1182
+[2026-01-29 21:01:31]      ACTIVE: 917
+[2026-01-29 21:01:31]      SUSPENDIDA: 104
+[2026-01-29 21:01:31]      PRE_AUCTION: 37
+[2026-01-29 21:01:31]   🏷️ Auction types:
+[2026-01-29 21:01:31]      JUDICIAL: 13523
+[2026-01-29 21:02:24] 👀 Monitoring auction status changes...
+[2026-01-29 21:02:24]   📊 Current database stats:
+[2026-01-29 21:02:24]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 21:02:24]      CELEBRANDOSE: 1182
+[2026-01-29 21:02:24]      ACTIVE: 917
+[2026-01-29 21:02:24]      SUSPENDIDA: 104
+[2026-01-29 21:02:24]      PRE_AUCTION: 37
+[2026-01-29 21:02:24]   🏷️ Auction types:
+[2026-01-29 21:02:24]      JUDICIAL: 13523
+[2026-01-29 21:11:09] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 21:12:57]   Total properties: 922
+[2026-01-29 21:12:57]   New: 0
+[2026-01-29 21:12:57]   Updated: 922
+[2026-01-29 21:20:24] 💓 Running pulse mode (bid updates)...
+[2026-01-29 21:20:24] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 21:20:24]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 21:20:31] 💓 Running pulse mode (bid updates)...
+[2026-01-29 21:20:31] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 21:20:32]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 21:25:24] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 21:25:32] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 21:26:47]   Total properties: 922
+[2026-01-29 21:26:47]   New: 0
+[2026-01-29 21:26:47]   Updated: 922
+[2026-01-29 21:26:58]   Total properties: 922
+[2026-01-29 21:26:58]   New: 0
+[2026-01-29 21:26:58]   Updated: 922
+[2026-01-29 21:30:57] 👀 Monitoring auction status changes...
+[2026-01-29 21:30:57]   📌 Found 5 expired active auctions
+[2026-01-29 21:30:57]   ✅ Marked 5 auctions as CONCLUIDA_PORTAL
+[2026-01-29 21:30:57]   📊 Current database stats:
+[2026-01-29 21:30:57]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 21:30:57]      CELEBRANDOSE: 1182
+[2026-01-29 21:30:57]      ACTIVE: 917
+[2026-01-29 21:30:57]      SUSPENDIDA: 104
+[2026-01-29 21:30:57]      PRE_AUCTION: 37
+[2026-01-29 21:30:57]   🏷️ Auction types:
+[2026-01-29 21:30:57]      JUDICIAL: 13523
+[2026-01-29 21:31:58] 👀 Monitoring auction status changes...
+[2026-01-29 21:31:58]   📊 Current database stats:
+[2026-01-29 21:31:58]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 21:31:58]      CELEBRANDOSE: 1182
+[2026-01-29 21:31:58]      ACTIVE: 917
+[2026-01-29 21:31:58]      SUSPENDIDA: 104
+[2026-01-29 21:31:58]      PRE_AUCTION: 37
+[2026-01-29 21:31:58]   🏷️ Auction types:
+[2026-01-29 21:31:58]      JUDICIAL: 13523
+[2026-01-29 21:32:47] 👀 Monitoring auction status changes...
+[2026-01-29 21:32:47]   📊 Current database stats:
+[2026-01-29 21:32:47]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 21:32:47]      CELEBRANDOSE: 1182
+[2026-01-29 21:32:47]      ACTIVE: 917
+[2026-01-29 21:32:47]      SUSPENDIDA: 104
+[2026-01-29 21:32:47]      PRE_AUCTION: 37
+[2026-01-29 21:32:47]   🏷️ Auction types:
+[2026-01-29 21:32:47]      JUDICIAL: 13523
+[2026-01-29 21:36:57] 💓 Running pulse mode (bid updates)...
+[2026-01-29 21:36:57] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 21:36:58]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 21:47:58] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 21:49:24]   Total properties: 922
+[2026-01-29 21:49:24]   New: 0
+[2026-01-29 21:49:24]   Updated: 922
+[2026-01-29 21:55:47] 💓 Running pulse mode (bid updates)...
+[2026-01-29 21:55:47] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 21:55:48]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 21:55:58] 💓 Running pulse mode (bid updates)...
+[2026-01-29 21:55:58] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 21:55:59]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 21:58:24] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-29 21:58:24] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-29 21:58:42]   Total properties: 37
+[2026-01-29 21:58:42]   New: 0
+[2026-01-29 21:58:42]   Updated: 37
+[2026-01-29 21:58:42] 🚗 Scraping vehicle auctions...
+[2026-01-29 21:58:42]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 22:00:59] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-29 22:00:59] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-29 22:01:15]   Total properties: 37
+[2026-01-29 22:01:15]   New: 0
+[2026-01-29 22:01:15]   Updated: 37
+[2026-01-29 22:01:15] 🚗 Scraping vehicle auctions...
+[2026-01-29 22:01:15]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 22:01:42] 👀 Monitoring auction status changes...
+[2026-01-29 22:01:42]   📌 Found 5 expired active auctions
+[2026-01-29 22:01:42]   ✅ Marked 5 auctions as CONCLUIDA_PORTAL
+[2026-01-29 22:01:42]   📊 Current database stats:
+[2026-01-29 22:01:42]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 22:01:42]      CELEBRANDOSE: 1182
+[2026-01-29 22:01:42]      ACTIVE: 917
+[2026-01-29 22:01:42]      SUSPENDIDA: 104
+[2026-01-29 22:01:42]      PRE_AUCTION: 37
+[2026-01-29 22:01:42]   🏷️ Auction types:
+[2026-01-29 22:01:42]      JUDICIAL: 13523
+[2026-01-29 22:01:48] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-29 22:01:48] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-29 22:02:03]   Total properties: 37
+[2026-01-29 22:02:03]   New: 0
+[2026-01-29 22:02:03]   Updated: 37
+[2026-01-29 22:02:03] 🚗 Scraping vehicle auctions...
+[2026-01-29 22:02:03]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 22:02:03] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 22:02:15] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 22:03:26]   Total properties: 922
+[2026-01-29 22:03:26]   New: 0
+[2026-01-29 22:03:26]   Updated: 922
+[2026-01-29 22:03:42]   Total properties: 922
+[2026-01-29 22:03:42]   New: 0
+[2026-01-29 22:03:42]   Updated: 922
+[2026-01-29 22:03:42] 👀 Monitoring auction status changes...
+[2026-01-29 22:03:42]   📌 Found 5 expired active auctions
+[2026-01-29 22:03:42]   ✅ Marked 5 auctions as CONCLUIDA_PORTAL
+[2026-01-29 22:03:42]   📊 Current database stats:
+[2026-01-29 22:03:42]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 22:03:42]      CELEBRANDOSE: 1182
+[2026-01-29 22:03:42]      ACTIVE: 917
+[2026-01-29 22:03:42]      SUSPENDIDA: 104
+[2026-01-29 22:03:42]      PRE_AUCTION: 37
+[2026-01-29 22:03:42]   🏷️ Auction types:
+[2026-01-29 22:03:42]      JUDICIAL: 13523
+[2026-01-29 22:04:26] 👀 Monitoring auction status changes...
+[2026-01-29 22:04:26]   📊 Current database stats:
+[2026-01-29 22:04:26]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 22:04:26]      CELEBRANDOSE: 1182
+[2026-01-29 22:04:26]      ACTIVE: 917
+[2026-01-29 22:04:26]      SUSPENDIDA: 104
+[2026-01-29 22:04:26]      PRE_AUCTION: 37
+[2026-01-29 22:04:26]   🏷️ Auction types:
+[2026-01-29 22:04:26]      JUDICIAL: 13523
+[2026-01-29 22:12:42] 💓 Running pulse mode (bid updates)...
+[2026-01-29 22:12:42] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 22:12:43]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 22:24:43] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 22:26:07]   Total properties: 922
+[2026-01-29 22:26:07]   New: 0
+[2026-01-29 22:26:07]   Updated: 922
+[2026-01-29 22:31:26] 💓 Running pulse mode (bid updates)...
+[2026-01-29 22:31:26] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 22:31:27]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 22:31:42] 💓 Running pulse mode (bid updates)...
+[2026-01-29 22:31:42] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 22:31:43]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 22:32:07] 👀 Monitoring auction status changes...
+[2026-01-29 22:32:07]   📌 Found 5 expired active auctions
+[2026-01-29 22:32:07]   ✅ Marked 5 auctions as CONCLUIDA_PORTAL
+[2026-01-29 22:32:07]   📊 Current database stats:
+[2026-01-29 22:32:07]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 22:32:07]      CELEBRANDOSE: 1182
+[2026-01-29 22:32:07]      ACTIVE: 917
+[2026-01-29 22:32:07]      SUSPENDIDA: 104
+[2026-01-29 22:32:07]      PRE_AUCTION: 37
+[2026-01-29 22:32:07]   🏷️ Auction types:
+[2026-01-29 22:32:07]      JUDICIAL: 13523
+[2026-01-29 22:33:43] 👀 Monitoring auction status changes...
+[2026-01-29 22:33:43]   📊 Current database stats:
+[2026-01-29 22:33:43]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 22:33:43]      CELEBRANDOSE: 1182
+[2026-01-29 22:33:43]      ACTIVE: 917
+[2026-01-29 22:33:43]      SUSPENDIDA: 104
+[2026-01-29 22:33:43]      PRE_AUCTION: 37
+[2026-01-29 22:33:43]   🏷️ Auction types:
+[2026-01-29 22:33:43]      JUDICIAL: 13523
+[2026-01-29 22:34:27] 👀 Monitoring auction status changes...
+[2026-01-29 22:34:27]   📊 Current database stats:
+[2026-01-29 22:34:27]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 22:34:27]      CELEBRANDOSE: 1182
+[2026-01-29 22:34:27]      ACTIVE: 917
+[2026-01-29 22:34:27]      SUSPENDIDA: 104
+[2026-01-29 22:34:27]      PRE_AUCTION: 37
+[2026-01-29 22:34:27]   🏷️ Auction types:
+[2026-01-29 22:34:27]      JUDICIAL: 13523
+[2026-01-29 22:38:27] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 22:38:43] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 22:39:54]   Total properties: 922
+[2026-01-29 22:39:54]   New: 0
+[2026-01-29 22:39:54]   Updated: 922
+[2026-01-29 22:40:11]   Total properties: 922
+[2026-01-29 22:40:11]   New: 0
+[2026-01-29 22:40:11]   Updated: 922
+[2026-01-29 22:48:07] 💓 Running pulse mode (bid updates)...
+[2026-01-29 22:48:07] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 22:48:08]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 22:53:08] 🏦 Scraping bank portals...
+[2026-01-29 22:53:08]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 22:54:08] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-29 22:54:08]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 22:54:08] 🗺️ Running geocoding backfill...
+[2026-01-29 22:54:08]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 22:59:08] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-29 22:59:08] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-29 22:59:11] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-29 22:59:11]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 22:59:26]   Total properties: 37
+[2026-01-29 22:59:26]   New: 0
+[2026-01-29 22:59:26]   Updated: 37
+[2026-01-29 22:59:26] 🚗 Scraping vehicle auctions...
+[2026-01-29 22:59:26]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 22:59:54] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-29 22:59:54]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 22:59:54] 🗺️ Running geocoding backfill...
+[2026-01-29 22:59:54]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 23:00:11] 🗺️ Running geocoding backfill...
+[2026-01-29 23:00:11]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 23:01:26] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 23:02:11] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-29 23:02:11] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-29 23:02:26]   Total properties: 37
+[2026-01-29 23:02:26]   New: 0
+[2026-01-29 23:02:26]   Updated: 37
+[2026-01-29 23:02:26] 🚗 Scraping vehicle auctions...
+[2026-01-29 23:02:26]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 23:02:49]   Total properties: 922
+[2026-01-29 23:02:49]   New: 0
+[2026-01-29 23:02:49]   Updated: 922
+[2026-01-29 23:02:54] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-29 23:02:54] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-29 23:03:09]   Total properties: 37
+[2026-01-29 23:03:09]   New: 0
+[2026-01-29 23:03:09]   Updated: 37
+[2026-01-29 23:03:09] 🚗 Scraping vehicle auctions...
+[2026-01-29 23:03:09]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 23:03:49] 👀 Monitoring auction status changes...
+[2026-01-29 23:03:49]   📌 Found 5 expired active auctions
+[2026-01-29 23:03:49]   ✅ Marked 5 auctions as CONCLUIDA_PORTAL
+[2026-01-29 23:03:49]   📊 Current database stats:
+[2026-01-29 23:03:49]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 23:03:49]      CELEBRANDOSE: 1182
+[2026-01-29 23:03:49]      ACTIVE: 917
+[2026-01-29 23:03:49]      SUSPENDIDA: 104
+[2026-01-29 23:03:49]      PRE_AUCTION: 37
+[2026-01-29 23:03:49]   🏷️ Auction types:
+[2026-01-29 23:03:49]      JUDICIAL: 13523
+[2026-01-29 23:04:26] 👀 Monitoring auction status changes...
+[2026-01-29 23:04:27]   📊 Current database stats:
+[2026-01-29 23:04:27]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 23:04:27]      CELEBRANDOSE: 1182
+[2026-01-29 23:04:27]      ACTIVE: 917
+[2026-01-29 23:04:27]      SUSPENDIDA: 104
+[2026-01-29 23:04:27]      PRE_AUCTION: 37
+[2026-01-29 23:04:27]   🏷️ Auction types:
+[2026-01-29 23:04:27]      JUDICIAL: 13523
+[2026-01-29 23:05:09] 👀 Monitoring auction status changes...
+[2026-01-29 23:05:09]   📊 Current database stats:
+[2026-01-29 23:05:09]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 23:05:09]      CELEBRANDOSE: 1182
+[2026-01-29 23:05:09]      ACTIVE: 917
+[2026-01-29 23:05:09]      SUSPENDIDA: 104
+[2026-01-29 23:05:09]      PRE_AUCTION: 37
+[2026-01-29 23:05:09]   🏷️ Auction types:
+[2026-01-29 23:05:09]      JUDICIAL: 13523
+[2026-01-29 23:07:09] 💓 Running pulse mode (bid updates)...
+[2026-01-29 23:07:09] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 23:07:10]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 23:07:27] 💓 Running pulse mode (bid updates)...
+[2026-01-29 23:07:27] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 23:07:27]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 23:15:10] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 23:15:27] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 23:16:37]   Total properties: 922
+[2026-01-29 23:16:37]   New: 0
+[2026-01-29 23:16:37]   Updated: 922
+[2026-01-29 23:16:55]   Total properties: 922
+[2026-01-29 23:16:55]   New: 0
+[2026-01-29 23:16:55]   Updated: 922
+[2026-01-29 23:23:49] 💓 Running pulse mode (bid updates)...
+[2026-01-29 23:23:49] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 23:23:49]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 23:33:49] 👀 Monitoring auction status changes...
+[2026-01-29 23:33:49]   📌 Found 5 expired active auctions
+[2026-01-29 23:33:50]   ✅ Marked 5 auctions as CONCLUIDA_PORTAL
+[2026-01-29 23:33:50]   📊 Current database stats:
+[2026-01-29 23:33:50]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 23:33:50]      CELEBRANDOSE: 1182
+[2026-01-29 23:33:50]      ACTIVE: 917
+[2026-01-29 23:33:50]      SUSPENDIDA: 104
+[2026-01-29 23:33:50]      PRE_AUCTION: 37
+[2026-01-29 23:33:50]   🏷️ Auction types:
+[2026-01-29 23:33:50]      JUDICIAL: 13523
+[2026-01-29 23:34:55] 👀 Monitoring auction status changes...
+[2026-01-29 23:34:55]   📊 Current database stats:
+[2026-01-29 23:34:55]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 23:34:55]      CELEBRANDOSE: 1182
+[2026-01-29 23:34:55]      ACTIVE: 917
+[2026-01-29 23:34:55]      SUSPENDIDA: 104
+[2026-01-29 23:34:55]      PRE_AUCTION: 37
+[2026-01-29 23:34:55]   🏷️ Auction types:
+[2026-01-29 23:34:55]      JUDICIAL: 13523
+[2026-01-29 23:35:38] 👀 Monitoring auction status changes...
+[2026-01-29 23:35:38]   📊 Current database stats:
+[2026-01-29 23:35:38]      CONCLUIDA_PORTAL: 11283
+[2026-01-29 23:35:38]      CELEBRANDOSE: 1182
+[2026-01-29 23:35:38]      ACTIVE: 917
+[2026-01-29 23:35:38]      SUSPENDIDA: 104
+[2026-01-29 23:35:38]      PRE_AUCTION: 37
+[2026-01-29 23:35:38]   🏷️ Auction types:
+[2026-01-29 23:35:38]      JUDICIAL: 13523
+[2026-01-29 23:37:50] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 23:39:27]   Total properties: 922
+[2026-01-29 23:39:27]   New: 0
+[2026-01-29 23:39:27]   Updated: 922
+[2026-01-29 23:42:38] 💓 Running pulse mode (bid updates)...
+[2026-01-29 23:42:38] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 23:42:38]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 23:42:55] 💓 Running pulse mode (bid updates)...
+[2026-01-29 23:42:55] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 23:42:56]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 23:51:38] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 23:51:56] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-29 23:53:07]   Total properties: 922
+[2026-01-29 23:53:07]   New: 0
+[2026-01-29 23:53:07]   Updated: 922
+[2026-01-29 23:53:24]   Total properties: 922
+[2026-01-29 23:53:24]   New: 0
+[2026-01-29 23:53:24]   Updated: 922
+[2026-01-29 23:59:27] 💓 Running pulse mode (bid updates)...
+[2026-01-29 23:59:27] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-29 23:59:27]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-29 23:59:27] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-29 23:59:27] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-29 23:59:42]   Total properties: 37
+[2026-01-29 23:59:42]   New: 0
+[2026-01-29 23:59:42]   Updated: 37
+[2026-01-29 23:59:42] 🚗 Scraping vehicle auctions...
+[2026-01-29 23:59:42]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 00:03:24] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 00:03:24] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 00:03:40]   Total properties: 37
+[2026-01-30 00:03:40]   New: 0
+[2026-01-30 00:03:40]   Updated: 37
+[2026-01-30 00:03:40] 🚗 Scraping vehicle auctions...
+[2026-01-30 00:03:40]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 00:04:07] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 00:04:07] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 00:04:22]   Total properties: 37
+[2026-01-30 00:04:22]   New: 0
+[2026-01-30 00:04:22]   Updated: 37
+[2026-01-30 00:04:22] 🚗 Scraping vehicle auctions...
+[2026-01-30 00:04:22]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 00:04:42] 👀 Monitoring auction status changes...
+[2026-01-30 00:04:43]   📌 Found 5 expired active auctions
+[2026-01-30 00:04:43]   ✅ Marked 5 auctions as CONCLUIDA_PORTAL
+[2026-01-30 00:04:43]   📊 Current database stats:
+[2026-01-30 00:04:43]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 00:04:43]      CELEBRANDOSE: 1182
+[2026-01-30 00:04:43]      ACTIVE: 917
+[2026-01-30 00:04:43]      SUSPENDIDA: 104
+[2026-01-30 00:04:43]      PRE_AUCTION: 37
+[2026-01-30 00:04:43]   🏷️ Auction types:
+[2026-01-30 00:04:43]      JUDICIAL: 13523
+[2026-01-30 00:05:40] 👀 Monitoring auction status changes...
+[2026-01-30 00:05:40]   📊 Current database stats:
+[2026-01-30 00:05:40]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 00:05:40]      CELEBRANDOSE: 1182
+[2026-01-30 00:05:40]      ACTIVE: 917
+[2026-01-30 00:05:40]      SUSPENDIDA: 104
+[2026-01-30 00:05:40]      PRE_AUCTION: 37
+[2026-01-30 00:05:40]   🏷️ Auction types:
+[2026-01-30 00:05:40]      JUDICIAL: 13523
+[2026-01-30 00:06:22] 👀 Monitoring auction status changes...
+[2026-01-30 00:06:22]   📊 Current database stats:
+[2026-01-30 00:06:22]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 00:06:22]      CELEBRANDOSE: 1182
+[2026-01-30 00:06:22]      ACTIVE: 917
+[2026-01-30 00:06:22]      SUSPENDIDA: 104
+[2026-01-30 00:06:22]      PRE_AUCTION: 37
+[2026-01-30 00:06:22]   🏷️ Auction types:
+[2026-01-30 00:06:22]      JUDICIAL: 13523
+[2026-01-30 00:14:43] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 00:16:07]   Total properties: 922
+[2026-01-30 00:16:07]   New: 0
+[2026-01-30 00:16:07]   Updated: 922
+[2026-01-30 00:18:22] 💓 Running pulse mode (bid updates)...
+[2026-01-30 00:18:22] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 00:18:23]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 00:18:40] 💓 Running pulse mode (bid updates)...
+[2026-01-30 00:18:40] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 00:18:40]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 00:28:23] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 00:28:40] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 00:29:49]   Total properties: 922
+[2026-01-30 00:29:49]   New: 0
+[2026-01-30 00:29:49]   Updated: 922
+[2026-01-30 00:30:09]   Total properties: 922
+[2026-01-30 00:30:09]   New: 0
+[2026-01-30 00:30:09]   Updated: 922
+[2026-01-30 00:35:07] 💓 Running pulse mode (bid updates)...
+[2026-01-30 00:35:07] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 00:35:07]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 00:35:07] 👀 Monitoring auction status changes...
+[2026-01-30 00:35:07]   📌 Found 5 expired active auctions
+[2026-01-30 00:35:08]   ✅ Marked 5 auctions as CONCLUIDA_PORTAL
+[2026-01-30 00:35:08]   📊 Current database stats:
+[2026-01-30 00:35:08]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 00:35:08]      CELEBRANDOSE: 1182
+[2026-01-30 00:35:08]      ACTIVE: 917
+[2026-01-30 00:35:08]      SUSPENDIDA: 104
+[2026-01-30 00:35:08]      PRE_AUCTION: 37
+[2026-01-30 00:35:08]   🏷️ Auction types:
+[2026-01-30 00:35:08]      JUDICIAL: 13523
+[2026-01-30 00:36:09] 👀 Monitoring auction status changes...
+[2026-01-30 00:36:09]   📊 Current database stats:
+[2026-01-30 00:36:09]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 00:36:09]      CELEBRANDOSE: 1182
+[2026-01-30 00:36:09]      ACTIVE: 917
+[2026-01-30 00:36:09]      SUSPENDIDA: 104
+[2026-01-30 00:36:09]      PRE_AUCTION: 37
+[2026-01-30 00:36:09]   🏷️ Auction types:
+[2026-01-30 00:36:09]      JUDICIAL: 13523
+[2026-01-30 00:36:49] 👀 Monitoring auction status changes...
+[2026-01-30 00:36:49]   📊 Current database stats:
+[2026-01-30 00:36:49]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 00:36:49]      CELEBRANDOSE: 1182
+[2026-01-30 00:36:49]      ACTIVE: 917
+[2026-01-30 00:36:49]      SUSPENDIDA: 104
+[2026-01-30 00:36:49]      PRE_AUCTION: 37
+[2026-01-30 00:36:49]   🏷️ Auction types:
+[2026-01-30 00:36:49]      JUDICIAL: 13523
+[2026-01-30 00:51:08] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 00:52:34]   Total properties: 922
+[2026-01-30 00:52:34]   New: 0
+[2026-01-30 00:52:34]   Updated: 922
+[2026-01-30 00:53:49] 💓 Running pulse mode (bid updates)...
+[2026-01-30 00:53:49] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 00:53:50]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 00:54:09] 💓 Running pulse mode (bid updates)...
+[2026-01-30 00:54:09] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 00:54:10]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 00:54:34] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-30 00:54:34]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 00:54:34] 🗺️ Running geocoding backfill...
+[2026-01-30 00:54:34]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 00:59:10] 🏦 Scraping bank portals...
+[2026-01-30 00:59:10]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 00:59:50] 🏦 Scraping bank portals...
+[2026-01-30 00:59:50]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 01:00:10] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-30 01:00:10]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 01:00:34] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 01:00:34] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 01:00:49]   Total properties: 37
+[2026-01-30 01:00:49]   New: 0
+[2026-01-30 01:00:49]   Updated: 37
+[2026-01-30 01:00:49] 🚗 Scraping vehicle auctions...
+[2026-01-30 01:00:49]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 01:00:50] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-30 01:00:50]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 01:00:50] 🗺️ Running geocoding backfill...
+[2026-01-30 01:00:50]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 01:01:10] 🗺️ Running geocoding backfill...
+[2026-01-30 01:01:10]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 01:04:10] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 01:04:10] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 01:04:25]   Total properties: 37
+[2026-01-30 01:04:25]   New: 0
+[2026-01-30 01:04:25]   Updated: 37
+[2026-01-30 01:04:25] 🚗 Scraping vehicle auctions...
+[2026-01-30 01:04:25]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 01:04:50] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 01:04:50] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 01:05:05]   Total properties: 37
+[2026-01-30 01:05:05]   New: 0
+[2026-01-30 01:05:05]   Updated: 37
+[2026-01-30 01:05:05] 🚗 Scraping vehicle auctions...
+[2026-01-30 01:05:05]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 01:05:05] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 01:05:25] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 01:05:49] 👀 Monitoring auction status changes...
+[2026-01-30 01:05:49]   📌 Found 5 expired active auctions
+[2026-01-30 01:05:49]   ✅ Marked 5 auctions as CONCLUIDA_PORTAL
+[2026-01-30 01:05:49]   📊 Current database stats:
+[2026-01-30 01:05:49]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 01:05:49]      CELEBRANDOSE: 1182
+[2026-01-30 01:05:49]      ACTIVE: 917
+[2026-01-30 01:05:49]      SUSPENDIDA: 104
+[2026-01-30 01:05:49]      PRE_AUCTION: 37
+[2026-01-30 01:05:49]   🏷️ Auction types:
+[2026-01-30 01:05:49]      JUDICIAL: 13523
+[2026-01-30 01:06:29]   Total properties: 922
+[2026-01-30 01:06:29]   New: 0
+[2026-01-30 01:06:29]   Updated: 922
+[2026-01-30 01:06:54]   Total properties: 922
+[2026-01-30 01:06:54]   New: 0
+[2026-01-30 01:06:54]   ❌ Exception: [Errno 22] Invalid argument
+[2026-01-30 01:07:29] 👀 Monitoring auction status changes...
+[2026-01-30 01:07:29]   📌 Found 5 expired active auctions
+[2026-01-30 01:07:29]   ✅ Marked 5 auctions as CONCLUIDA_PORTAL
+[2026-01-30 01:07:29]   📊 Current database stats:
+[2026-01-30 01:07:29]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 01:07:29]      CELEBRANDOSE: 1182
+[2026-01-30 01:07:29]      ACTIVE: 917
+[2026-01-30 01:07:29]      SUSPENDIDA: 104
+[2026-01-30 01:07:29]      PRE_AUCTION: 37
+[2026-01-30 01:07:29]   🏷️ Auction types:
+[2026-01-30 01:07:29]      JUDICIAL: 13523
+[2026-01-30 01:07:54] 👀 Monitoring auction status changes...
+[2026-01-30 01:07:54]   📊 Current database stats:
+[2026-01-30 01:07:54]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 01:07:54]      CELEBRANDOSE: 1182
+[2026-01-30 01:07:54]      ACTIVE: 917
+[2026-01-30 01:07:54]      SUSPENDIDA: 104
+[2026-01-30 01:07:54]      PRE_AUCTION: 37
+[2026-01-30 01:07:54]   🏷️ Auction types:
+[2026-01-30 01:07:54]      JUDICIAL: 13523
+[2026-01-30 01:10:49] 💓 Running pulse mode (bid updates)...
+[2026-01-30 01:10:49] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 01:10:49]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 01:27:49] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 01:29:16]   Total properties: 922
+[2026-01-30 01:29:16]   New: 0
+[2026-01-30 01:29:16]   Updated: 922
+[2026-01-30 01:29:29] 💓 Running pulse mode (bid updates)...
+[2026-01-30 01:29:29] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 01:29:30]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 01:29:54] 💓 Running pulse mode (bid updates)...
+[2026-01-30 01:29:54] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 01:29:54]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 01:36:16] 👀 Monitoring auction status changes...
+[2026-01-30 01:36:16]   📌 Found 5 expired active auctions
+[2026-01-30 01:36:16]   ✅ Marked 5 auctions as CONCLUIDA_PORTAL
+[2026-01-30 01:36:16]   📊 Current database stats:
+[2026-01-30 01:36:16]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 01:36:16]      CELEBRANDOSE: 1182
+[2026-01-30 01:36:16]      ACTIVE: 917
+[2026-01-30 01:36:16]      SUSPENDIDA: 104
+[2026-01-30 01:36:16]      PRE_AUCTION: 37
+[2026-01-30 01:36:16]   🏷️ Auction types:
+[2026-01-30 01:36:16]      JUDICIAL: 13523
+[2026-01-30 01:37:30] 👀 Monitoring auction status changes...
+[2026-01-30 01:37:30]   📊 Current database stats:
+[2026-01-30 01:37:30]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 01:37:30]      CELEBRANDOSE: 1182
+[2026-01-30 01:37:30]      ACTIVE: 917
+[2026-01-30 01:37:30]      SUSPENDIDA: 104
+[2026-01-30 01:37:30]      PRE_AUCTION: 37
+[2026-01-30 01:37:30]   🏷️ Auction types:
+[2026-01-30 01:37:30]      JUDICIAL: 13523
+[2026-01-30 01:37:54] 👀 Monitoring auction status changes...
+[2026-01-30 01:37:55]   📊 Current database stats:
+[2026-01-30 01:37:55]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 01:37:55]      CELEBRANDOSE: 1182
+[2026-01-30 01:37:55]      ACTIVE: 917
+[2026-01-30 01:37:55]      SUSPENDIDA: 104
+[2026-01-30 01:37:55]      PRE_AUCTION: 37
+[2026-01-30 01:37:55]   🏷️ Auction types:
+[2026-01-30 01:37:55]      JUDICIAL: 13523
+[2026-01-30 01:41:30] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 01:41:55] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 01:42:57]   Total properties: 922
+[2026-01-30 01:42:57]   New: 0
+[2026-01-30 01:42:57]   Updated: 922
+[2026-01-30 01:43:26]   Total properties: 922
+[2026-01-30 01:43:26]   New: 0
+[2026-01-30 01:43:26]   Updated: 922
+[2026-01-30 01:46:16] 💓 Running pulse mode (bid updates)...
+[2026-01-30 01:46:16] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 01:46:16]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 02:01:16] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 02:01:16] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 02:01:34]   Total properties: 37
+[2026-01-30 02:01:34]   New: 0
+[2026-01-30 02:01:34]   Updated: 37
+[2026-01-30 02:01:34] 🚗 Scraping vehicle auctions...
+[2026-01-30 02:01:34]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 02:04:26] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 02:04:26] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 02:04:34] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 02:04:41]   Total properties: 37
+[2026-01-30 02:04:41]   New: 0
+[2026-01-30 02:04:41]   Updated: 37
+[2026-01-30 02:04:41] 🚗 Scraping vehicle auctions...
+[2026-01-30 02:04:41]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 02:04:57] 💓 Running pulse mode (bid updates)...
+[2026-01-30 02:04:57] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 02:04:57]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 02:05:41] 💓 Running pulse mode (bid updates)...
+[2026-01-30 02:05:41] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 02:05:42]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 02:05:56]   Total properties: 922
+[2026-01-30 02:05:56]   New: 0
+[2026-01-30 02:05:56]   Updated: 922
+[2026-01-30 02:05:57] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 02:05:57] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 02:06:13]   Total properties: 37
+[2026-01-30 02:06:13]   New: 0
+[2026-01-30 02:06:13]   Updated: 37
+[2026-01-30 02:06:13] 🚗 Scraping vehicle auctions...
+[2026-01-30 02:06:13]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 02:06:56] 👀 Monitoring auction status changes...
+[2026-01-30 02:06:56]   📌 Found 5 expired active auctions
+[2026-01-30 02:06:56]   ✅ Marked 5 auctions as CONCLUIDA_PORTAL
+[2026-01-30 02:06:56]   📊 Current database stats:
+[2026-01-30 02:06:56]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 02:06:56]      CELEBRANDOSE: 1182
+[2026-01-30 02:06:56]      ACTIVE: 917
+[2026-01-30 02:06:56]      SUSPENDIDA: 104
+[2026-01-30 02:06:56]      PRE_AUCTION: 37
+[2026-01-30 02:06:56]   🏷️ Auction types:
+[2026-01-30 02:06:56]      JUDICIAL: 13523
+[2026-01-30 02:08:13] 👀 Monitoring auction status changes...
+[2026-01-30 02:08:13]   📊 Current database stats:
+[2026-01-30 02:08:13]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 02:08:13]      CELEBRANDOSE: 1182
+[2026-01-30 02:08:13]      ACTIVE: 917
+[2026-01-30 02:08:13]      SUSPENDIDA: 104
+[2026-01-30 02:08:13]      PRE_AUCTION: 37
+[2026-01-30 02:08:13]   🏷️ Auction types:
+[2026-01-30 02:08:13]      JUDICIAL: 13523
+[2026-01-30 02:08:42] 👀 Monitoring auction status changes...
+[2026-01-30 02:08:42]   📊 Current database stats:
+[2026-01-30 02:08:42]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 02:08:42]      CELEBRANDOSE: 1182
+[2026-01-30 02:08:42]      ACTIVE: 917
+[2026-01-30 02:08:42]      SUSPENDIDA: 104
+[2026-01-30 02:08:42]      PRE_AUCTION: 37
+[2026-01-30 02:08:42]   🏷️ Auction types:
+[2026-01-30 02:08:42]      JUDICIAL: 13523
+[2026-01-30 02:18:13] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 02:18:42] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 02:19:38]   Total properties: 922
+[2026-01-30 02:19:38]   New: 0
+[2026-01-30 02:19:38]   Updated: 922
+[2026-01-30 02:20:14]   Total properties: 922
+[2026-01-30 02:20:14]   New: 0
+[2026-01-30 02:20:14]   Updated: 922
+[2026-01-30 02:21:56] 💓 Running pulse mode (bid updates)...
+[2026-01-30 02:21:56] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 02:21:56]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 02:36:56] 👀 Monitoring auction status changes...
+[2026-01-30 02:36:56]   📌 Found 5 expired active auctions
+[2026-01-30 02:36:56]   ✅ Marked 5 auctions as CONCLUIDA_PORTAL
+[2026-01-30 02:36:56]   📊 Current database stats:
+[2026-01-30 02:36:56]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 02:36:56]      CELEBRANDOSE: 1182
+[2026-01-30 02:36:56]      ACTIVE: 917
+[2026-01-30 02:36:56]      SUSPENDIDA: 104
+[2026-01-30 02:36:56]      PRE_AUCTION: 37
+[2026-01-30 02:36:56]   🏷️ Auction types:
+[2026-01-30 02:36:56]      JUDICIAL: 13523
+[2026-01-30 02:38:38] 👀 Monitoring auction status changes...
+[2026-01-30 02:38:39]   📊 Current database stats:
+[2026-01-30 02:38:39]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 02:38:39]      CELEBRANDOSE: 1182
+[2026-01-30 02:38:39]      ACTIVE: 917
+[2026-01-30 02:38:39]      SUSPENDIDA: 104
+[2026-01-30 02:38:39]      PRE_AUCTION: 37
+[2026-01-30 02:38:39]   🏷️ Auction types:
+[2026-01-30 02:38:39]      JUDICIAL: 13523
+[2026-01-30 02:39:14] 👀 Monitoring auction status changes...
+[2026-01-30 02:39:14]   📊 Current database stats:
+[2026-01-30 02:39:14]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 02:39:14]      CELEBRANDOSE: 1182
+[2026-01-30 02:39:14]      ACTIVE: 917
+[2026-01-30 02:39:14]      SUSPENDIDA: 104
+[2026-01-30 02:39:14]      PRE_AUCTION: 37
+[2026-01-30 02:39:14]   🏷️ Auction types:
+[2026-01-30 02:39:14]      JUDICIAL: 13523
+[2026-01-30 02:40:39] 💓 Running pulse mode (bid updates)...
+[2026-01-30 02:40:39] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 02:40:39]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 02:40:57] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 02:41:14] 💓 Running pulse mode (bid updates)...
+[2026-01-30 02:41:14] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 02:41:14]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 02:42:22]   Total properties: 922
+[2026-01-30 02:42:22]   New: 0
+[2026-01-30 02:42:22]   Updated: 922
+[2026-01-30 02:54:39] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 02:55:14] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 02:55:22] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-30 02:55:22]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 02:55:22] 🗺️ Running geocoding backfill...
+[2026-01-30 02:55:22]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 02:56:05]   Total properties: 922
+[2026-01-30 02:56:05]   New: 0
+[2026-01-30 02:56:05]   Updated: 922
+[2026-01-30 02:56:43]   Total properties: 922
+[2026-01-30 02:56:43]   New: 0
+[2026-01-30 02:56:43]   Updated: 922
+[2026-01-30 02:57:22] 💓 Running pulse mode (bid updates)...
+[2026-01-30 02:57:22] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 02:57:23]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 03:00:05] 🌟 Starting daily full scan...
+[2026-01-30 03:00:05]    Phase 1: Active properties
+[2026-01-30 03:00:05] 🚀 Starting ACTIVE scraper (pages=100)...
+[2026-01-30 03:00:23] 🌟 Starting daily full scan...
+[2026-01-30 03:00:23]    Phase 1: Active properties
+[2026-01-30 03:00:23] 🚀 Starting ACTIVE scraper (pages=100)...
+[2026-01-30 03:00:43] 🌟 Starting daily full scan...
+[2026-01-30 03:00:43]    Phase 1: Active properties
+[2026-01-30 03:00:43] 🚀 Starting ACTIVE scraper (pages=100)...
+[2026-01-30 03:01:21]   Total properties: 600
+[2026-01-30 03:01:21]   New: 0
+[2026-01-30 03:01:21]   Updated: 600
+[2026-01-30 03:01:26]   Total properties: 300
+[2026-01-30 03:01:26]   New: 0
+[2026-01-30 03:01:26]   Updated: 300
+[2026-01-30 03:01:26]   Total properties: 800
+[2026-01-30 03:01:26]   New: 0
+[2026-01-30 03:01:26]   Updated: 800
+[2026-01-30 03:02:21]    Phase 2: Pre-auction properties
+[2026-01-30 03:02:21] 🚀 Starting PRE scraper (pages=100)...
+[2026-01-30 03:02:26]    Phase 2: Pre-auction properties
+[2026-01-30 03:02:26] 🚀 Starting PRE scraper (pages=100)...
+[2026-01-30 03:03:48]   Total properties: 37
+[2026-01-30 03:03:48]   New: 0
+[2026-01-30 03:03:48]   Updated: 37
+[2026-01-30 03:04:09]   Total properties: 37
+[2026-01-30 03:04:09]   New: 0
+[2026-01-30 03:04:09]   Updated: 37
+[2026-01-30 03:04:13]   Total properties: 37
+[2026-01-30 03:04:13]   New: 0
+[2026-01-30 03:04:13]   Updated: 37
+[2026-01-30 03:04:48]    Phase 3: Finished properties (sample)
+[2026-01-30 03:04:48] 🚀 Starting FINISHED scraper (pages=50)...
+[2026-01-30 03:05:09]    Phase 3: Finished properties (sample)
+[2026-01-30 03:05:09] 🚀 Starting FINISHED scraper (pages=50)...
+[2026-01-30 03:05:13]    Phase 3: Finished properties (sample)
+[2026-01-30 03:05:13] 🚀 Starting FINISHED scraper (pages=50)...
+[2026-01-30 03:06:08]   Total properties: 0
+[2026-01-30 03:06:08]   New: 0
+[2026-01-30 03:06:08]   Updated: 0
+[2026-01-30 03:06:29]   Total properties: 0
+[2026-01-30 03:06:29]   New: 0
+[2026-01-30 03:06:29]   Updated: 0
+[2026-01-30 03:07:00]   Total properties: 0
+[2026-01-30 03:07:00]   New: 0
+[2026-01-30 03:07:00]   Updated: 0
+[2026-01-30 03:07:00] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-30 03:07:00]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 03:07:08] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-30 03:07:08]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 03:07:08] 🗺️ Running geocoding backfill...
+[2026-01-30 03:07:08]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 03:07:08] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 03:07:08] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 03:07:29] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 03:07:29] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 03:08:00] 🗺️ Running geocoding backfill...
+[2026-01-30 03:08:00]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 03:08:00] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 03:08:00] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 03:08:50]   Total properties: 37
+[2026-01-30 03:08:50]   New: 0
+[2026-01-30 03:08:50]   Updated: 37
+[2026-01-30 03:08:50] 🚗 Scraping vehicle auctions...
+[2026-01-30 03:08:50]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 03:08:50] 👀 Monitoring auction status changes...
+[2026-01-30 03:08:50]   📌 Found 5 expired active auctions
+[2026-01-30 03:08:50]   ✅ Marked 5 auctions as CONCLUIDA_PORTAL
+[2026-01-30 03:08:50]   📊 Current database stats:
+[2026-01-30 03:08:50]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 03:08:50]      CELEBRANDOSE: 1182
+[2026-01-30 03:08:50]      ACTIVE: 917
+[2026-01-30 03:08:50]      SUSPENDIDA: 104
+[2026-01-30 03:08:50]      PRE_AUCTION: 37
+[2026-01-30 03:08:50]   🏷️ Auction types:
+[2026-01-30 03:08:50]      JUDICIAL: 13523
+[2026-01-30 03:08:55]   Total properties: 37
+[2026-01-30 03:08:55]   New: 0
+[2026-01-30 03:08:55]   Updated: 37
+[2026-01-30 03:08:55] 🚗 Scraping vehicle auctions...
+[2026-01-30 03:08:55]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 03:09:48]   Total properties: 37
+[2026-01-30 03:09:48]   New: 0
+[2026-01-30 03:09:48]   Updated: 37
+[2026-01-30 03:09:48] 🚗 Scraping vehicle auctions...
+[2026-01-30 03:09:48]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 03:09:55] 👀 Monitoring auction status changes...
+[2026-01-30 03:09:56]   📊 Current database stats:
+[2026-01-30 03:09:56]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 03:09:56]      CELEBRANDOSE: 1182
+[2026-01-30 03:09:56]      ACTIVE: 917
+[2026-01-30 03:09:56]      SUSPENDIDA: 104
+[2026-01-30 03:09:56]      PRE_AUCTION: 37
+[2026-01-30 03:09:56]   🏷️ Auction types:
+[2026-01-30 03:09:56]      JUDICIAL: 13523
+[2026-01-30 03:10:48] 👀 Monitoring auction status changes...
+[2026-01-30 03:10:48]   📊 Current database stats:
+[2026-01-30 03:10:48]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 03:10:48]      CELEBRANDOSE: 1182
+[2026-01-30 03:10:48]      ACTIVE: 917
+[2026-01-30 03:10:48]      SUSPENDIDA: 104
+[2026-01-30 03:10:48]      PRE_AUCTION: 37
+[2026-01-30 03:10:48]   🏷️ Auction types:
+[2026-01-30 03:10:48]      JUDICIAL: 13523
+[2026-01-30 03:15:56] 💓 Running pulse mode (bid updates)...
+[2026-01-30 03:15:56] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 03:15:59]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 03:16:48] 💓 Running pulse mode (bid updates)...
+[2026-01-30 03:16:48] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 03:16:49]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 03:17:50] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 03:19:18]   Total properties: 800
+[2026-01-30 03:19:18]   New: 0
+[2026-01-30 03:19:18]   Updated: 800
+[2026-01-30 03:30:18] 📊 Running historical data batch...
+[2026-01-30 03:30:18]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 04:20:56] 📊 Running historical data batch...
+[2026-01-30 04:20:56] 📊 Running historical data batch...
+[2026-01-30 04:20:56]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 04:20:56] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 04:20:56] 💓 Running pulse mode (bid updates)...
+[2026-01-30 04:20:56] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 04:20:56]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 04:20:56] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 04:20:58]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 04:20:58] 👀 Monitoring auction status changes...
+[2026-01-30 04:20:58]   📊 Current database stats:
+[2026-01-30 04:20:58]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 04:20:58]      CELEBRANDOSE: 1182
+[2026-01-30 04:20:58]      ACTIVE: 917
+[2026-01-30 04:20:58]      SUSPENDIDA: 104
+[2026-01-30 04:20:58]      PRE_AUCTION: 37
+[2026-01-30 04:20:58]   🏷️ Auction types:
+[2026-01-30 04:20:58]      JUDICIAL: 13523
+[2026-01-30 04:20:58] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 09:57:07]   ⏰ Timeout after 10 minutes
+[2026-01-30 09:57:07] 🏦 Scraping bank portals...
+[2026-01-30 09:57:07]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 09:57:07] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 09:57:07] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 09:57:11]   ⏰ Timeout after 10 minutes
+[2026-01-30 09:57:11] 👀 Monitoring auction status changes...
+[2026-01-30 09:57:11]   📊 Current database stats:
+[2026-01-30 09:57:11]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 09:57:11]      CELEBRANDOSE: 1182
+[2026-01-30 09:57:11]      ACTIVE: 917
+[2026-01-30 09:57:11]      SUSPENDIDA: 104
+[2026-01-30 09:57:11]      PRE_AUCTION: 37
+[2026-01-30 09:57:11]   🏷️ Auction types:
+[2026-01-30 09:57:11]      JUDICIAL: 13523
+[2026-01-30 09:57:11] 💓 Running pulse mode (bid updates)...
+[2026-01-30 09:57:11] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 09:57:11]   ⏰ Timeout after 10 minutes
+[2026-01-30 09:57:11] 👀 Monitoring auction status changes...
+[2026-01-30 09:57:11]   📊 Current database stats:
+[2026-01-30 09:57:11]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 09:57:11]      CELEBRANDOSE: 1182
+[2026-01-30 09:57:11]      ACTIVE: 917
+[2026-01-30 09:57:11]      SUSPENDIDA: 104
+[2026-01-30 09:57:11]      PRE_AUCTION: 37
+[2026-01-30 09:57:11]   🏷️ Auction types:
+[2026-01-30 09:57:11]      JUDICIAL: 13523
+[2026-01-30 09:57:11] 💓 Running pulse mode (bid updates)...
+[2026-01-30 09:57:11] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 09:57:12]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 09:57:12]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 09:57:12] 🏦 Scraping bank portals...
+[2026-01-30 09:57:12] 🏦 Scraping bank portals...
+[2026-01-30 09:57:12]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 09:57:12] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 09:57:12] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 09:57:12]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 09:57:12] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 09:57:12] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 09:58:25]   Total properties: 37
+[2026-01-30 09:58:25]   New: 0
+[2026-01-30 09:58:25]   Updated: 37
+[2026-01-30 09:58:25] 🚗 Scraping vehicle auctions...
+[2026-01-30 09:58:25]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 09:58:51]   Total properties: 37
+[2026-01-30 09:58:51]   New: 0
+[2026-01-30 09:58:51]   Updated: 37
+[2026-01-30 09:58:51] 🚗 Scraping vehicle auctions...
+[2026-01-30 09:58:51]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 09:58:52]   Total properties: 37
+[2026-01-30 09:58:52]   New: 0
+[2026-01-30 09:58:52]   Updated: 37
+[2026-01-30 09:58:52] 🚗 Scraping vehicle auctions...
+[2026-01-30 09:58:52]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 09:59:25] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-30 09:59:25]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 09:59:25] 🗺️ Running geocoding backfill...
+[2026-01-30 09:59:25]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 09:59:25] 🏦 Scraping bank portals...
+[2026-01-30 09:59:25]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 09:59:51] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-30 09:59:51]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 09:59:51] 🗺️ Running geocoding backfill...
+[2026-01-30 09:59:51]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 09:59:51] 🏦 Scraping bank portals...
+[2026-01-30 09:59:51]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 09:59:52] 👀 Monitoring auction status changes...
+[2026-01-30 09:59:52]   📊 Current database stats:
+[2026-01-30 09:59:52]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 09:59:52]      CELEBRANDOSE: 1182
+[2026-01-30 09:59:52]      ACTIVE: 917
+[2026-01-30 09:59:52]      SUSPENDIDA: 104
+[2026-01-30 09:59:52]      PRE_AUCTION: 37
+[2026-01-30 09:59:52]   🏷️ Auction types:
+[2026-01-30 09:59:52]      JUDICIAL: 13523
+[2026-01-30 09:59:52] 🏦 Scraping bank portals...
+[2026-01-30 09:59:52]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 09:59:52] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-30 09:59:52]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 09:59:52] 🗺️ Running geocoding backfill...
+[2026-01-30 09:59:52]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 09:59:52] 💓 Running pulse mode (bid updates)...
+[2026-01-30 09:59:52] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 09:59:53]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 10:27:25] 
+❌ Fatal error: [Errno 22] Invalid argument
+[2026-01-30 10:27:52] 👀 Monitoring auction status changes...
+[2026-01-30 10:27:52]   📊 Current database stats:
+[2026-01-30 10:27:52]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 10:27:52]      CELEBRANDOSE: 1182
+[2026-01-30 10:27:52]      ACTIVE: 917
+[2026-01-30 10:27:52]      SUSPENDIDA: 104
+[2026-01-30 10:27:52]      PRE_AUCTION: 37
+[2026-01-30 10:27:52]   🏷️ Auction types:
+[2026-01-30 10:27:52]      JUDICIAL: 13523
+[2026-01-30 10:29:53] 👀 Monitoring auction status changes...
+[2026-01-30 10:29:53]   📊 Current database stats:
+[2026-01-30 10:29:53]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 10:29:53]      CELEBRANDOSE: 1182
+[2026-01-30 10:29:53]      ACTIVE: 917
+[2026-01-30 10:29:53]      SUSPENDIDA: 104
+[2026-01-30 10:29:53]      PRE_AUCTION: 37
+[2026-01-30 10:29:53]   🏷️ Auction types:
+[2026-01-30 10:29:53]      JUDICIAL: 13523
+[2026-01-30 10:32:52] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 10:32:53] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 10:32:58]   Total properties: 800
+[2026-01-30 10:32:58]   New: 0
+[2026-01-30 10:32:58]   Updated: 800
+[2026-01-30 10:32:58] 💓 Running pulse mode (bid updates)...
+[2026-01-30 10:32:58] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 10:32:58]   Total properties: 800
+[2026-01-30 10:32:58]   New: 0
+[2026-01-30 10:32:58]   Updated: 800
+[2026-01-30 10:32:59]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 10:34:58] 💓 Running pulse mode (bid updates)...
+[2026-01-30 10:34:58] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 10:35:00]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 10:57:59] 👀 Monitoring auction status changes...
+[2026-01-30 10:57:59]   📊 Current database stats:
+[2026-01-30 10:57:59]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 10:57:59]      CELEBRANDOSE: 1182
+[2026-01-30 10:57:59]      ACTIVE: 917
+[2026-01-30 10:57:59]      SUSPENDIDA: 104
+[2026-01-30 10:57:59]      PRE_AUCTION: 37
+[2026-01-30 10:57:59]   🏷️ Auction types:
+[2026-01-30 10:57:59]      JUDICIAL: 13523
+[2026-01-30 10:58:59] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 10:58:59] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 10:59:00] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 10:59:00] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 11:00:53]   Total properties: 37
+[2026-01-30 11:00:53]   New: 0
+[2026-01-30 11:00:53]   Updated: 37
+[2026-01-30 11:00:53] 🚗 Scraping vehicle auctions...
+[2026-01-30 11:00:53]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 11:00:53]   Total properties: 37
+[2026-01-30 11:00:53]   New: 0
+[2026-01-30 11:00:53]   Updated: 37
+[2026-01-30 11:00:53] 🚗 Scraping vehicle auctions...
+[2026-01-30 11:00:53]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 11:01:53] 👀 Monitoring auction status changes...
+[2026-01-30 11:01:53]   📊 Current database stats:
+[2026-01-30 11:01:53]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 11:01:53]      CELEBRANDOSE: 1182
+[2026-01-30 11:01:53]      ACTIVE: 917
+[2026-01-30 11:01:53]      SUSPENDIDA: 104
+[2026-01-30 11:01:53]      PRE_AUCTION: 37
+[2026-01-30 11:01:53]   🏷️ Auction types:
+[2026-01-30 11:01:53]      JUDICIAL: 13523
+[2026-01-30 11:08:53] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 11:08:53] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 11:10:20]   Total properties: 800
+[2026-01-30 11:10:20]   New: 0
+[2026-01-30 11:10:20]   Updated: 800
+[2026-01-30 11:10:20] 💓 Running pulse mode (bid updates)...
+[2026-01-30 11:10:20] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 11:10:21]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 11:10:46]   Total properties: 800
+[2026-01-30 11:10:46]   New: 0
+[2026-01-30 11:10:46]   Updated: 800
+[2026-01-30 11:11:46] 💓 Running pulse mode (bid updates)...
+[2026-01-30 11:11:46] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 11:11:48]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 11:28:21] 👀 Monitoring auction status changes...
+[2026-01-30 11:28:21]   📊 Current database stats:
+[2026-01-30 11:28:21]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 11:28:21]      CELEBRANDOSE: 1182
+[2026-01-30 11:28:21]      ACTIVE: 917
+[2026-01-30 11:28:21]      SUSPENDIDA: 104
+[2026-01-30 11:28:21]      PRE_AUCTION: 37
+[2026-01-30 11:28:21]   🏷️ Auction types:
+[2026-01-30 11:28:21]      JUDICIAL: 13523
+[2026-01-30 11:32:48] 👀 Monitoring auction status changes...
+[2026-01-30 11:32:48]   📊 Current database stats:
+[2026-01-30 11:32:48]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 11:32:48]      CELEBRANDOSE: 1182
+[2026-01-30 11:32:48]      ACTIVE: 917
+[2026-01-30 11:32:48]      SUSPENDIDA: 104
+[2026-01-30 11:32:48]      PRE_AUCTION: 37
+[2026-01-30 11:32:48]   🏷️ Auction types:
+[2026-01-30 11:32:48]      JUDICIAL: 13523
+[2026-01-30 11:45:21] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 11:45:48] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 11:47:13]   Total properties: 800
+[2026-01-30 11:47:13]   New: 0
+[2026-01-30 11:47:13]   Updated: 800
+[2026-01-30 11:47:13] 💓 Running pulse mode (bid updates)...
+[2026-01-30 11:47:13] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 11:47:15]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 11:47:38]   Total properties: 800
+[2026-01-30 11:47:38]   New: 0
+[2026-01-30 11:47:38]   Updated: 800
+[2026-01-30 11:48:38] 💓 Running pulse mode (bid updates)...
+[2026-01-30 11:48:38] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 11:48:40]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 11:59:15] 👀 Monitoring auction status changes...
+[2026-01-30 11:59:15]   📊 Current database stats:
+[2026-01-30 11:59:15]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 11:59:15]      CELEBRANDOSE: 1182
+[2026-01-30 11:59:15]      ACTIVE: 917
+[2026-01-30 11:59:15]      SUSPENDIDA: 104
+[2026-01-30 11:59:15]      PRE_AUCTION: 37
+[2026-01-30 11:59:15]   🏷️ Auction types:
+[2026-01-30 11:59:15]      JUDICIAL: 13523
+[2026-01-30 12:00:15] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-30 12:00:15]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 12:00:15] 🗺️ Running geocoding backfill...
+[2026-01-30 12:00:15]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 12:00:40] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-30 12:00:40]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 12:00:40] 🗺️ Running geocoding backfill...
+[2026-01-30 12:00:40]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 12:01:15] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 12:01:15] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 12:01:40] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 12:01:40] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 12:02:39]   Total properties: 37
+[2026-01-30 12:02:39]   New: 0
+[2026-01-30 12:02:39]   Updated: 37
+[2026-01-30 12:02:39] 🚗 Scraping vehicle auctions...
+[2026-01-30 12:02:39]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 12:03:30]   Total properties: 37
+[2026-01-30 12:03:30]   New: 0
+[2026-01-30 12:03:30]   Updated: 37
+[2026-01-30 12:03:30] 🚗 Scraping vehicle auctions...
+[2026-01-30 12:03:30]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 12:04:30] 👀 Monitoring auction status changes...
+[2026-01-30 12:04:30]   📊 Current database stats:
+[2026-01-30 12:04:30]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 12:04:30]      CELEBRANDOSE: 1182
+[2026-01-30 12:04:30]      ACTIVE: 917
+[2026-01-30 12:04:30]      SUSPENDIDA: 104
+[2026-01-30 12:04:30]      PRE_AUCTION: 37
+[2026-01-30 12:04:30]   🏷️ Auction types:
+[2026-01-30 12:04:30]      JUDICIAL: 13523
+[2026-01-30 12:22:39] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 12:23:30] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 12:24:04]   Total properties: 800
+[2026-01-30 12:24:04]   New: 0
+[2026-01-30 12:24:04]   Updated: 800
+[2026-01-30 12:24:04] 💓 Running pulse mode (bid updates)...
+[2026-01-30 12:24:04] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 12:24:05]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 12:25:19]   Total properties: 800
+[2026-01-30 12:25:19]   New: 0
+[2026-01-30 12:25:19]   Updated: 800
+[2026-01-30 12:26:19] 💓 Running pulse mode (bid updates)...
+[2026-01-30 12:26:19] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 12:26:20]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 12:30:05] 👀 Monitoring auction status changes...
+[2026-01-30 12:30:05]   📊 Current database stats:
+[2026-01-30 12:30:05]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 12:30:05]      CELEBRANDOSE: 1182
+[2026-01-30 12:30:05]      ACTIVE: 917
+[2026-01-30 12:30:05]      SUSPENDIDA: 104
+[2026-01-30 12:30:05]      PRE_AUCTION: 37
+[2026-01-30 12:30:05]   🏷️ Auction types:
+[2026-01-30 12:30:05]      JUDICIAL: 13523
+[2026-01-30 12:35:20] 👀 Monitoring auction status changes...
+[2026-01-30 12:35:20]   📊 Current database stats:
+[2026-01-30 12:35:20]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 12:35:20]      CELEBRANDOSE: 1182
+[2026-01-30 12:35:20]      ACTIVE: 917
+[2026-01-30 12:35:20]      SUSPENDIDA: 104
+[2026-01-30 12:35:20]      PRE_AUCTION: 37
+[2026-01-30 12:35:20]   🏷️ Auction types:
+[2026-01-30 12:35:20]      JUDICIAL: 13523
+[2026-01-30 12:59:05] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 13:00:05]   Total properties: 800
+[2026-01-30 13:00:05]   New: 0
+[2026-01-30 13:00:05]   Updated: 800
+[2026-01-30 13:00:05] 💓 Running pulse mode (bid updates)...
+[2026-01-30 13:00:05] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 13:00:06]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 13:00:21] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 13:01:06] 👀 Monitoring auction status changes...
+[2026-01-30 13:01:06]   📊 Current database stats:
+[2026-01-30 13:01:06]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 13:01:06]      CELEBRANDOSE: 1182
+[2026-01-30 13:01:06]      ACTIVE: 917
+[2026-01-30 13:01:06]      SUSPENDIDA: 104
+[2026-01-30 13:01:06]      PRE_AUCTION: 37
+[2026-01-30 13:01:06]   🏷️ Auction types:
+[2026-01-30 13:01:06]      JUDICIAL: 13523
+[2026-01-30 13:01:45]   Total properties: 800
+[2026-01-30 13:01:45]   New: 0
+[2026-01-30 13:01:45]   Updated: 800
+[2026-01-30 13:02:45] 💓 Running pulse mode (bid updates)...
+[2026-01-30 13:02:45] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 13:02:47]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 13:03:06] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 13:03:06] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 13:03:47] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 13:03:47] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 13:04:57]   Total properties: 37
+[2026-01-30 13:04:57]   New: 0
+[2026-01-30 13:04:57]   Updated: 37
+[2026-01-30 13:04:57] 🚗 Scraping vehicle auctions...
+[2026-01-30 13:04:57]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 13:05:37]   Total properties: 37
+[2026-01-30 13:05:37]   New: 0
+[2026-01-30 13:05:37]   Updated: 37
+[2026-01-30 13:05:37] 🚗 Scraping vehicle auctions...
+[2026-01-30 13:05:37]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 13:06:37] 👀 Monitoring auction status changes...
+[2026-01-30 13:06:37]   📊 Current database stats:
+[2026-01-30 13:06:37]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 13:06:37]      CELEBRANDOSE: 1182
+[2026-01-30 13:06:37]      ACTIVE: 917
+[2026-01-30 13:06:37]      SUSPENDIDA: 104
+[2026-01-30 13:06:37]      PRE_AUCTION: 37
+[2026-01-30 13:06:37]   🏷️ Auction types:
+[2026-01-30 13:06:37]      JUDICIAL: 13523
+[2026-01-30 13:31:57] 👀 Monitoring auction status changes...
+[2026-01-30 13:31:57]   📊 Current database stats:
+[2026-01-30 13:31:57]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 13:31:57]      CELEBRANDOSE: 1182
+[2026-01-30 13:31:57]      ACTIVE: 917
+[2026-01-30 13:31:57]      SUSPENDIDA: 104
+[2026-01-30 13:31:57]      PRE_AUCTION: 37
+[2026-01-30 13:31:57]   🏷️ Auction types:
+[2026-01-30 13:31:57]      JUDICIAL: 13523
+[2026-01-30 13:35:57] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 13:36:37] 👀 Monitoring auction status changes...
+[2026-01-30 13:36:37]   📊 Current database stats:
+[2026-01-30 13:36:37]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 13:36:37]      CELEBRANDOSE: 1182
+[2026-01-30 13:36:37]      ACTIVE: 917
+[2026-01-30 13:36:37]      SUSPENDIDA: 104
+[2026-01-30 13:36:37]      PRE_AUCTION: 37
+[2026-01-30 13:36:37]   🏷️ Auction types:
+[2026-01-30 13:36:37]      JUDICIAL: 13523
+[2026-01-30 13:36:58]   Total properties: 800
+[2026-01-30 13:36:58]   New: 0
+[2026-01-30 13:36:58]   Updated: 800
+[2026-01-30 13:36:58] 💓 Running pulse mode (bid updates)...
+[2026-01-30 13:36:58] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 13:36:59]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 13:37:37] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 13:39:27]   Total properties: 800
+[2026-01-30 13:39:27]   New: 0
+[2026-01-30 13:39:27]   Updated: 800
+[2026-01-30 13:40:27] 💓 Running pulse mode (bid updates)...
+[2026-01-30 13:40:27] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 13:40:29]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 14:00:59] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-30 14:00:59]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 14:00:59] 🗺️ Running geocoding backfill...
+[2026-01-30 14:00:59]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 14:01:29] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-30 14:01:29]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 14:01:29] 🗺️ Running geocoding backfill...
+[2026-01-30 14:01:29]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 14:01:59] 👀 Monitoring auction status changes...
+[2026-01-30 14:01:59]   📊 Current database stats:
+[2026-01-30 14:01:59]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 14:01:59]      CELEBRANDOSE: 1182
+[2026-01-30 14:01:59]      ACTIVE: 917
+[2026-01-30 14:01:59]      SUSPENDIDA: 104
+[2026-01-30 14:01:59]      PRE_AUCTION: 37
+[2026-01-30 14:01:59]   🏷️ Auction types:
+[2026-01-30 14:01:59]      JUDICIAL: 13523
+[2026-01-30 14:04:59] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 14:04:59] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 14:06:26]   Total properties: 37
+[2026-01-30 14:06:26]   New: 0
+[2026-01-30 14:06:26]   Updated: 37
+[2026-01-30 14:06:26] 🚗 Scraping vehicle auctions...
+[2026-01-30 14:06:26]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 14:06:29] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 14:06:29] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 14:08:19]   Total properties: 37
+[2026-01-30 14:08:19]   New: 0
+[2026-01-30 14:08:19]   Updated: 37
+[2026-01-30 14:08:19] 🚗 Scraping vehicle auctions...
+[2026-01-30 14:08:19]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 14:09:19] 👀 Monitoring auction status changes...
+[2026-01-30 14:09:19]   📊 Current database stats:
+[2026-01-30 14:09:19]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 14:09:19]      CELEBRANDOSE: 1182
+[2026-01-30 14:09:19]      ACTIVE: 917
+[2026-01-30 14:09:19]      SUSPENDIDA: 104
+[2026-01-30 14:09:19]      PRE_AUCTION: 37
+[2026-01-30 14:09:19]   🏷️ Auction types:
+[2026-01-30 14:09:19]      JUDICIAL: 13523
+[2026-01-30 14:12:26] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 14:13:49]   Total properties: 800
+[2026-01-30 14:13:49]   New: 0
+[2026-01-30 14:13:49]   Updated: 800
+[2026-01-30 14:13:49] 💓 Running pulse mode (bid updates)...
+[2026-01-30 14:13:49] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 14:13:50]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 14:15:19] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 14:17:08]   Total properties: 800
+[2026-01-30 14:17:08]   New: 0
+[2026-01-30 14:17:08]   Updated: 800
+[2026-01-30 14:18:08] 💓 Running pulse mode (bid updates)...
+[2026-01-30 14:18:08] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 14:18:10]   ❌ Exception: [Errno 22] Invalid argument
+[2026-01-30 14:32:50] 👀 Monitoring auction status changes...
+[2026-01-30 14:32:50]   📊 Current database stats:
+[2026-01-30 14:32:50]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 14:32:50]      CELEBRANDOSE: 1182
+[2026-01-30 14:32:50]      ACTIVE: 917
+[2026-01-30 14:32:50]      SUSPENDIDA: 104
+[2026-01-30 14:32:50]      PRE_AUCTION: 37
+[2026-01-30 14:32:50]   🏷️ Auction types:
+[2026-01-30 14:32:50]      JUDICIAL: 13523
+[2026-01-30 14:40:10] 👀 Monitoring auction status changes...
+[2026-01-30 14:40:10]   📊 Current database stats:
+[2026-01-30 14:40:10]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 14:40:10]      CELEBRANDOSE: 1182
+[2026-01-30 14:40:10]      ACTIVE: 917
+[2026-01-30 14:40:10]      SUSPENDIDA: 104
+[2026-01-30 14:40:10]      PRE_AUCTION: 37
+[2026-01-30 14:40:10]   🏷️ Auction types:
+[2026-01-30 14:40:10]      JUDICIAL: 13523
+[2026-01-30 14:48:50] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 14:50:43]   Total properties: 800
+[2026-01-30 14:50:43]   New: 0
+[2026-01-30 14:50:43]   Updated: 800
+[2026-01-30 14:50:43] 💓 Running pulse mode (bid updates)...
+[2026-01-30 14:50:43] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 14:50:44]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 14:52:10] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 14:54:00]   Total properties: 800
+[2026-01-30 14:54:00]   New: 0
+[2026-01-30 14:54:00]   Updated: 800
+[2026-01-30 14:55:00] 💓 Running pulse mode (bid updates)...
+[2026-01-30 14:55:00] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 14:55:02]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 15:03:44] 👀 Monitoring auction status changes...
+[2026-01-30 15:03:44]   📊 Current database stats:
+[2026-01-30 15:03:44]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 15:03:44]      CELEBRANDOSE: 1182
+[2026-01-30 15:03:44]      ACTIVE: 917
+[2026-01-30 15:03:44]      SUSPENDIDA: 104
+[2026-01-30 15:03:44]      PRE_AUCTION: 37
+[2026-01-30 15:03:44]   🏷️ Auction types:
+[2026-01-30 15:03:44]      JUDICIAL: 13523
+[2026-01-30 15:06:44] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 15:06:44] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 15:08:11]   Total properties: 37
+[2026-01-30 15:08:11]   New: 0
+[2026-01-30 15:08:11]   Updated: 37
+[2026-01-30 15:08:11] 🚗 Scraping vehicle auctions...
+[2026-01-30 15:08:11]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 15:09:02] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 15:09:02] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 15:10:53]   Total properties: 37
+[2026-01-30 15:10:53]   New: 0
+[2026-01-30 15:10:53]   Updated: 37
+[2026-01-30 15:10:53] 🚗 Scraping vehicle auctions...
+[2026-01-30 15:10:53]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 15:11:53] 👀 Monitoring auction status changes...
+[2026-01-30 15:11:53]   📊 Current database stats:
+[2026-01-30 15:11:53]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 15:11:53]      CELEBRANDOSE: 1182
+[2026-01-30 15:11:53]      ACTIVE: 917
+[2026-01-30 15:11:53]      SUSPENDIDA: 104
+[2026-01-30 15:11:53]      PRE_AUCTION: 37
+[2026-01-30 15:11:53]   🏷️ Auction types:
+[2026-01-30 15:11:53]      JUDICIAL: 13523
+[2026-01-30 15:26:11] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 15:27:38]   Total properties: 800
+[2026-01-30 15:27:38]   New: 0
+[2026-01-30 15:27:38]   Updated: 800
+[2026-01-30 15:27:38] 💓 Running pulse mode (bid updates)...
+[2026-01-30 15:27:38] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 15:27:39]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 15:29:53] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 15:31:42]   Total properties: 800
+[2026-01-30 15:31:42]   New: 0
+[2026-01-30 15:31:42]   Updated: 800
+[2026-01-30 15:32:42] 💓 Running pulse mode (bid updates)...
+[2026-01-30 15:32:42] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 15:32:44]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 15:34:39] 👀 Monitoring auction status changes...
+[2026-01-30 15:34:39]   📊 Current database stats:
+[2026-01-30 15:34:39]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 15:34:39]      CELEBRANDOSE: 1182
+[2026-01-30 15:34:39]      ACTIVE: 917
+[2026-01-30 15:34:39]      SUSPENDIDA: 104
+[2026-01-30 15:34:39]      PRE_AUCTION: 37
+[2026-01-30 15:34:39]   🏷️ Auction types:
+[2026-01-30 15:34:39]      JUDICIAL: 13523
+[2026-01-30 15:42:44] 👀 Monitoring auction status changes...
+[2026-01-30 15:42:44]   📊 Current database stats:
+[2026-01-30 15:42:44]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 15:42:44]      CELEBRANDOSE: 1182
+[2026-01-30 15:42:44]      ACTIVE: 917
+[2026-01-30 15:42:44]      SUSPENDIDA: 104
+[2026-01-30 15:42:44]      PRE_AUCTION: 37
+[2026-01-30 15:42:44]   🏷️ Auction types:
+[2026-01-30 15:42:44]      JUDICIAL: 13523
+[2026-01-30 16:00:40] 🏦 Scraping bank portals...
+[2026-01-30 16:00:40]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 16:00:44] 🏦 Scraping bank portals...
+[2026-01-30 16:00:44]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 16:01:40] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-30 16:01:40]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 16:01:40] 🗺️ Running geocoding backfill...
+[2026-01-30 16:01:40]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 16:01:44] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-30 16:01:44]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 16:01:44] 🗺️ Running geocoding backfill...
+[2026-01-30 16:01:44]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 16:02:40] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 16:04:32]   Total properties: 800
+[2026-01-30 16:04:32]   New: 0
+[2026-01-30 16:04:32]   Updated: 800
+[2026-01-30 16:04:32] 💓 Running pulse mode (bid updates)...
+[2026-01-30 16:04:32] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 16:04:33]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 16:05:33] 👀 Monitoring auction status changes...
+[2026-01-30 16:05:33]   📊 Current database stats:
+[2026-01-30 16:05:33]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 16:05:33]      CELEBRANDOSE: 1182
+[2026-01-30 16:05:33]      ACTIVE: 917
+[2026-01-30 16:05:33]      SUSPENDIDA: 104
+[2026-01-30 16:05:33]      PRE_AUCTION: 37
+[2026-01-30 16:05:33]   🏷️ Auction types:
+[2026-01-30 16:05:33]      JUDICIAL: 13523
+[2026-01-30 16:06:44] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 16:08:33] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 16:08:33] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 16:08:34]   Total properties: 800
+[2026-01-30 16:08:34]   New: 0
+[2026-01-30 16:08:34]   Updated: 800
+[2026-01-30 16:09:34] 💓 Running pulse mode (bid updates)...
+[2026-01-30 16:09:34] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 16:09:36]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 16:10:24]   Total properties: 37
+[2026-01-30 16:10:24]   New: 0
+[2026-01-30 16:10:24]   Updated: 37
+[2026-01-30 16:10:24] 🚗 Scraping vehicle auctions...
+[2026-01-30 16:10:24]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 16:11:36] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 16:11:36] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 16:13:27]   Total properties: 37
+[2026-01-30 16:13:27]   New: 0
+[2026-01-30 16:13:27]   Updated: 37
+[2026-01-30 16:13:27] 🚗 Scraping vehicle auctions...
+[2026-01-30 16:13:27]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 16:14:27] 👀 Monitoring auction status changes...
+[2026-01-30 16:14:27]   📊 Current database stats:
+[2026-01-30 16:14:27]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 16:14:27]      CELEBRANDOSE: 1182
+[2026-01-30 16:14:27]      ACTIVE: 917
+[2026-01-30 16:14:27]      SUSPENDIDA: 104
+[2026-01-30 16:14:27]      PRE_AUCTION: 37
+[2026-01-30 16:14:27]   🏷️ Auction types:
+[2026-01-30 16:14:27]      JUDICIAL: 13523
+[2026-01-30 16:36:24] 👀 Monitoring auction status changes...
+[2026-01-30 16:36:24]   📊 Current database stats:
+[2026-01-30 16:36:24]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 16:36:24]      CELEBRANDOSE: 1182
+[2026-01-30 16:36:24]      ACTIVE: 917
+[2026-01-30 16:36:24]      SUSPENDIDA: 104
+[2026-01-30 16:36:24]      PRE_AUCTION: 37
+[2026-01-30 16:36:24]   🏷️ Auction types:
+[2026-01-30 16:36:24]      JUDICIAL: 13523
+[2026-01-30 16:40:24] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 16:41:47]   Total properties: 800
+[2026-01-30 16:41:47]   New: 0
+[2026-01-30 16:41:47]   Updated: 800
+[2026-01-30 16:41:47] 💓 Running pulse mode (bid updates)...
+[2026-01-30 16:41:47] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 16:41:48]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 16:44:27] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 16:46:14]   Total properties: 800
+[2026-01-30 16:46:14]   New: 0
+[2026-01-30 16:46:14]   Updated: 800
+[2026-01-30 16:46:14] 👀 Monitoring auction status changes...
+[2026-01-30 16:46:14]   📊 Current database stats:
+[2026-01-30 16:46:14]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 16:46:14]      CELEBRANDOSE: 1182
+[2026-01-30 16:46:14]      ACTIVE: 917
+[2026-01-30 16:46:14]      SUSPENDIDA: 104
+[2026-01-30 16:46:14]      PRE_AUCTION: 37
+[2026-01-30 16:46:14]   🏷️ Auction types:
+[2026-01-30 16:46:14]      JUDICIAL: 13523
+[2026-01-30 16:47:14] 💓 Running pulse mode (bid updates)...
+[2026-01-30 16:47:14] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 16:47:14]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 17:06:48] 👀 Monitoring auction status changes...
+[2026-01-30 17:06:48]   📊 Current database stats:
+[2026-01-30 17:06:48]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 17:06:48]      CELEBRANDOSE: 1182
+[2026-01-30 17:06:48]      ACTIVE: 917
+[2026-01-30 17:06:48]      SUSPENDIDA: 104
+[2026-01-30 17:06:48]      PRE_AUCTION: 37
+[2026-01-30 17:06:48]   🏷️ Auction types:
+[2026-01-30 17:06:48]      JUDICIAL: 13523
+[2026-01-30 17:10:48] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 17:10:48] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 17:12:49]   Total properties: 37
+[2026-01-30 17:12:49]   New: 0
+[2026-01-30 17:12:49]   Updated: 37
+[2026-01-30 17:12:49] 🚗 Scraping vehicle auctions...
+[2026-01-30 17:12:49]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 17:14:14] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 17:14:14] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 17:16:02]   Total properties: 37
+[2026-01-30 17:16:02]   New: 0
+[2026-01-30 17:16:02]   Updated: 37
+[2026-01-30 17:16:02] 🚗 Scraping vehicle auctions...
+[2026-01-30 17:16:02]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 17:16:49] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 17:17:02] 👀 Monitoring auction status changes...
+[2026-01-30 17:17:02]   📊 Current database stats:
+[2026-01-30 17:17:02]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 17:17:02]      CELEBRANDOSE: 1182
+[2026-01-30 17:17:02]      ACTIVE: 917
+[2026-01-30 17:17:02]      SUSPENDIDA: 104
+[2026-01-30 17:17:02]      PRE_AUCTION: 37
+[2026-01-30 17:17:02]   🏷️ Auction types:
+[2026-01-30 17:17:02]      JUDICIAL: 13523
+[2026-01-30 17:18:36]   Total properties: 800
+[2026-01-30 17:18:36]   New: 0
+[2026-01-30 17:18:36]   Updated: 800
+[2026-01-30 17:18:36] 💓 Running pulse mode (bid updates)...
+[2026-01-30 17:18:36] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 17:18:37]   ❌ Exception: [Errno 22] Invalid argument
+[2026-01-30 17:22:02] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 17:23:49]   Total properties: 800
+[2026-01-30 17:23:49]   New: 0
+[2026-01-30 17:23:49]   Updated: 800
+[2026-01-30 17:24:49] 💓 Running pulse mode (bid updates)...
+[2026-01-30 17:24:49] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 17:24:49]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 17:37:37] 👀 Monitoring auction status changes...
+[2026-01-30 17:37:37]   📊 Current database stats:
+[2026-01-30 17:37:37]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 17:37:37]      CELEBRANDOSE: 1182
+[2026-01-30 17:37:37]      ACTIVE: 917
+[2026-01-30 17:37:37]      SUSPENDIDA: 104
+[2026-01-30 17:37:37]      PRE_AUCTION: 37
+[2026-01-30 17:37:37]   🏷️ Auction types:
+[2026-01-30 17:37:37]      JUDICIAL: 13523
+[2026-01-30 17:47:49] 👀 Monitoring auction status changes...
+[2026-01-30 17:47:49]   📊 Current database stats:
+[2026-01-30 17:47:49]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 17:47:49]      CELEBRANDOSE: 1182
+[2026-01-30 17:47:49]      ACTIVE: 917
+[2026-01-30 17:47:49]      SUSPENDIDA: 104
+[2026-01-30 17:47:49]      PRE_AUCTION: 37
+[2026-01-30 17:47:49]   🏷️ Auction types:
+[2026-01-30 17:47:49]      JUDICIAL: 13523
+[2026-01-30 17:53:37] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 17:55:01]   Total properties: 800
+[2026-01-30 17:55:01]   New: 0
+[2026-01-30 17:55:01]   Updated: 800
+[2026-01-30 17:55:01] 💓 Running pulse mode (bid updates)...
+[2026-01-30 17:55:01] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 17:55:02]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 17:58:49] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 18:00:36]   Total properties: 800
+[2026-01-30 18:00:36]   New: 0
+[2026-01-30 18:00:36]   Updated: 800
+[2026-01-30 18:01:36] 💓 Running pulse mode (bid updates)...
+[2026-01-30 18:01:36] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 18:01:37]   ❌ Error: usage: property_scraper.py [-h] [--mode {active,finished,pre}] [--pages PAGES]
+                           [--start-page START_PAGE] [--headless]
+property_scraper.py: error: argument --mode: invalid ch
+[2026-01-30 18:02:02] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-30 18:02:02]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 18:02:02] 🗺️ Running geocoding backfill...
+[2026-01-30 18:02:02]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 18:02:37] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-30 18:02:37]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 18:02:37] 
+❌ Fatal error: [Errno 22] Invalid argument
+[2026-01-30 18:08:03] 👀 Monitoring auction status changes...
+[2026-01-30 18:08:03]   📊 Current database stats:
+[2026-01-30 18:08:03]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 18:08:03]      CELEBRANDOSE: 1182
+[2026-01-30 18:08:03]      ACTIVE: 917
+[2026-01-30 18:08:03]      SUSPENDIDA: 104
+[2026-01-30 18:08:03]      PRE_AUCTION: 37
+[2026-01-30 18:08:03]   🏷️ Auction types:
+[2026-01-30 18:08:03]      JUDICIAL: 13523
+[2026-01-30 18:13:03] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 18:13:03] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 18:14:26]   Total properties: 37
+[2026-01-30 18:14:26]   New: 0
+[2026-01-30 18:14:26]   Updated: 37
+[2026-01-30 18:14:26] 🚗 Scraping vehicle auctions...
+[2026-01-30 18:14:26]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 18:30:27] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 18:30:27]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-30 18:30:27] 💓 Running pulse mode (bid updates)...
+[2026-01-30 18:30:27] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 18:30:27]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-30 18:38:27] 👀 Monitoring auction status changes...
+[2026-01-30 18:38:27]   📊 Current database stats:
+[2026-01-30 18:38:27]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 18:38:27]      CELEBRANDOSE: 1182
+[2026-01-30 18:38:27]      ACTIVE: 917
+[2026-01-30 18:38:27]      SUSPENDIDA: 104
+[2026-01-30 18:38:27]      PRE_AUCTION: 37
+[2026-01-30 18:38:27]   🏷️ Auction types:
+[2026-01-30 18:38:27]      JUDICIAL: 13523
+[2026-01-30 19:05:27] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 19:05:27]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-30 19:05:27] 💓 Running pulse mode (bid updates)...
+[2026-01-30 19:05:27] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 19:05:28]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-30 19:08:28] 👀 Monitoring auction status changes...
+[2026-01-30 19:08:28]   📊 Current database stats:
+[2026-01-30 19:08:28]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 19:08:28]      CELEBRANDOSE: 1182
+[2026-01-30 19:08:28]      ACTIVE: 917
+[2026-01-30 19:08:28]      SUSPENDIDA: 104
+[2026-01-30 19:08:28]      PRE_AUCTION: 37
+[2026-01-30 19:08:28]   🏷️ Auction types:
+[2026-01-30 19:08:28]      JUDICIAL: 13523
+[2026-01-30 19:14:28] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 19:14:28] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 19:14:28]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-30 19:14:28] 🚗 Scraping vehicle auctions...
+[2026-01-30 19:14:28]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 19:38:28] 👀 Monitoring auction status changes...
+[2026-01-30 19:38:28]   📊 Current database stats:
+[2026-01-30 19:38:28]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 19:38:28]      CELEBRANDOSE: 1182
+[2026-01-30 19:38:28]      ACTIVE: 917
+[2026-01-30 19:38:28]      SUSPENDIDA: 104
+[2026-01-30 19:38:28]      PRE_AUCTION: 37
+[2026-01-30 19:38:28]   🏷️ Auction types:
+[2026-01-30 19:38:28]      JUDICIAL: 13523
+[2026-01-30 19:40:28] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 19:40:28]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-30 19:40:28] 💓 Running pulse mode (bid updates)...
+[2026-01-30 19:40:28] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 19:40:28]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-30 20:02:28] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-30 20:02:28]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 20:02:29] 🗺️ Running geocoding backfill...
+[2026-01-30 20:02:29]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 20:08:29] 👀 Monitoring auction status changes...
+[2026-01-30 20:08:29]   📊 Current database stats:
+[2026-01-30 20:08:29]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 20:08:29]      CELEBRANDOSE: 1182
+[2026-01-30 20:08:29]      ACTIVE: 917
+[2026-01-30 20:08:29]      SUSPENDIDA: 104
+[2026-01-30 20:08:29]      PRE_AUCTION: 37
+[2026-01-30 20:08:29]   🏷️ Auction types:
+[2026-01-30 20:08:29]      JUDICIAL: 13523
+[2026-01-30 20:14:29] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 20:14:29] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 20:14:29]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-30 20:14:29] 🚗 Scraping vehicle auctions...
+[2026-01-30 20:14:29]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 20:15:29] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 20:15:29]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-30 20:15:29] 💓 Running pulse mode (bid updates)...
+[2026-01-30 20:15:29] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 20:15:29]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-30 20:38:29] 👀 Monitoring auction status changes...
+[2026-01-30 20:38:29]   📊 Current database stats:
+[2026-01-30 20:38:29]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 20:38:29]      CELEBRANDOSE: 1182
+[2026-01-30 20:38:29]   ❌ Error: [Errno 22] Invalid argument
+[2026-01-30 20:50:29] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 20:50:30]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-30 20:50:30] 💓 Running pulse mode (bid updates)...
+[2026-01-30 20:50:30] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 20:50:30]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-30 21:08:30] 👀 Monitoring auction status changes...
+[2026-01-30 21:08:30]   📊 Current database stats:
+[2026-01-30 21:08:30]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 21:08:30]      CELEBRANDOSE: 1182
+[2026-01-30 21:08:30]      ACTIVE: 917
+[2026-01-30 21:08:30]      SUSPENDIDA: 104
+[2026-01-30 21:08:30]      PRE_AUCTION: 37
+[2026-01-30 21:08:30]   🏷️ Auction types:
+[2026-01-30 21:08:30]      JUDICIAL: 13523
+[2026-01-30 21:14:30] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 21:14:30] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 21:14:30]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-30 21:14:30] 🚗 Scraping vehicle auctions...
+[2026-01-30 21:14:30]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 21:25:30] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 21:25:31]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-30 21:25:31] 💓 Running pulse mode (bid updates)...
+[2026-01-30 21:25:31] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 21:25:31]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-30 21:38:31] 👀 Monitoring auction status changes...
+[2026-01-30 21:38:31]   📊 Current database stats:
+[2026-01-30 21:38:31]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 21:38:31]      CELEBRANDOSE: 1182
+[2026-01-30 21:38:31]      ACTIVE: 917
+[2026-01-30 21:38:31]      SUSPENDIDA: 104
+[2026-01-30 21:38:31]      PRE_AUCTION: 37
+[2026-01-30 21:38:31]   🏷️ Auction types:
+[2026-01-30 21:38:31]      JUDICIAL: 13523
+[2026-01-30 22:00:31] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 22:00:31]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-30 22:00:31] 💓 Running pulse mode (bid updates)...
+[2026-01-30 22:00:31] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 22:00:32]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-30 22:01:32] 🏦 Scraping bank portals...
+[2026-01-30 22:01:32]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 22:02:32] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-30 22:02:32]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 22:02:32] 🗺️ Running geocoding backfill...
+[2026-01-30 22:02:32]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 22:08:32] 👀 Monitoring auction status changes...
+[2026-01-30 22:08:32]   📊 Current database stats:
+[2026-01-30 22:08:32]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 22:08:32]      CELEBRANDOSE: 1182
+[2026-01-30 22:08:32]      ACTIVE: 917
+[2026-01-30 22:08:32]      SUSPENDIDA: 104
+[2026-01-30 22:08:32]      PRE_AUCTION: 37
+[2026-01-30 22:08:32]   🏷️ Auction types:
+[2026-01-30 22:08:32]      JUDICIAL: 13523
+[2026-01-30 22:14:32] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 22:14:32] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 22:14:33]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-30 22:14:33] 🚗 Scraping vehicle auctions...
+[2026-01-30 22:14:33]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 22:35:33] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 22:35:33]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-30 22:35:33] 💓 Running pulse mode (bid updates)...
+[2026-01-30 22:35:33] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 22:35:33]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-30 22:38:33] 👀 Monitoring auction status changes...
+[2026-01-30 22:38:33]   📊 Current database stats:
+[2026-01-30 22:38:33]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 22:38:33]      CELEBRANDOSE: 1182
+[2026-01-30 22:38:33]      ACTIVE: 917
+[2026-01-30 22:38:33]      SUSPENDIDA: 104
+[2026-01-30 22:38:33]      PRE_AUCTION: 37
+[2026-01-30 22:38:33]   🏷️ Auction types:
+[2026-01-30 22:38:33]      JUDICIAL: 13523
+[2026-01-30 23:08:34] 👀 Monitoring auction status changes...
+[2026-01-30 23:08:34]   📊 Current database stats:
+[2026-01-30 23:08:34]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 23:08:34]      CELEBRANDOSE: 1182
+[2026-01-30 23:08:34]      ACTIVE: 917
+[2026-01-30 23:08:34]      SUSPENDIDA: 104
+[2026-01-30 23:08:34]      PRE_AUCTION: 37
+[2026-01-30 23:08:34]   🏷️ Auction types:
+[2026-01-30 23:08:34]      JUDICIAL: 13523
+[2026-01-30 23:10:34] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 23:10:34]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-30 23:10:34] 💓 Running pulse mode (bid updates)...
+[2026-01-30 23:10:34] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 23:10:35]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-30 23:14:35] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-30 23:14:35] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-30 23:14:35]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-30 23:14:35] 🚗 Scraping vehicle auctions...
+[2026-01-30 23:14:35]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-30 23:38:35] 👀 Monitoring auction status changes...
+[2026-01-30 23:38:35]   📊 Current database stats:
+[2026-01-30 23:38:35]      CONCLUIDA_PORTAL: 11283
+[2026-01-30 23:38:35]      CELEBRANDOSE: 1182
+[2026-01-30 23:38:35]      ACTIVE: 917
+[2026-01-30 23:38:35]      SUSPENDIDA: 104
+[2026-01-30 23:38:35]      PRE_AUCTION: 37
+[2026-01-30 23:38:35]   🏷️ Auction types:
+[2026-01-30 23:38:35]      JUDICIAL: 13523
+[2026-01-30 23:45:35] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-30 23:45:36]   ❌ Exception: [Errno 22] Invalid argument
+[2026-01-30 23:45:36] 💓 Running pulse mode (bid updates)...
+[2026-01-30 23:45:36] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-30 23:45:36]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 00:02:36] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-31 00:02:36]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 00:02:36] 🗺️ Running geocoding backfill...
+[2026-01-31 00:02:36]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 00:08:37] 👀 Monitoring auction status changes...
+[2026-01-31 00:08:37]   📊 Current database stats:
+[2026-01-31 00:08:37]      CONCLUIDA_PORTAL: 11283
+[2026-01-31 00:08:37]      CELEBRANDOSE: 1182
+[2026-01-31 00:08:37]      ACTIVE: 917
+[2026-01-31 00:08:37]      SUSPENDIDA: 104
+[2026-01-31 00:08:37]      PRE_AUCTION: 37
+[2026-01-31 00:08:37]   🏷️ Auction types:
+[2026-01-31 00:08:37]      JUDICIAL: 13523
+[2026-01-31 00:14:37] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-31 00:14:37] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-31 00:14:37]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 00:14:37] 🚗 Scraping vehicle auctions...
+[2026-01-31 00:14:37]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 00:20:37] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-31 00:20:37]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 00:20:37] 💓 Running pulse mode (bid updates)...
+[2026-01-31 00:20:37] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-31 00:20:38]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 00:38:38] 👀 Monitoring auction status changes...
+[2026-01-31 00:38:38]   📊 Current database stats:
+[2026-01-31 00:38:38]      CONCLUIDA_PORTAL: 11283
+[2026-01-31 00:38:38]      CELEBRANDOSE: 1182
+[2026-01-31 00:38:38]      ACTIVE: 917
+[2026-01-31 00:38:38]      SUSPENDIDA: 104
+[2026-01-31 00:38:38]      PRE_AUCTION: 37
+[2026-01-31 00:38:38]   🏷️ Auction types:
+[2026-01-31 00:38:38]      JUDICIAL: 13523
+[2026-01-31 00:55:38] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-31 00:55:38]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 00:55:38] 💓 Running pulse mode (bid updates)...
+[2026-01-31 00:55:38] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-31 00:55:38]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 01:08:38] 👀 Monitoring auction status changes...
+[2026-01-31 01:08:38]   📊 Current database stats:
+[2026-01-31 01:08:38]      CONCLUIDA_PORTAL: 11283
+[2026-01-31 01:08:38]      CELEBRANDOSE: 1182
+[2026-01-31 01:08:38]      ACTIVE: 917
+[2026-01-31 01:08:38]      SUSPENDIDA: 104
+[2026-01-31 01:08:38]      PRE_AUCTION: 37
+[2026-01-31 01:08:38]   🏷️ Auction types:
+[2026-01-31 01:08:38]      JUDICIAL: 13523
+[2026-01-31 01:14:38] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-31 01:14:38] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-31 01:14:39]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 01:14:39] 🚗 Scraping vehicle auctions...
+[2026-01-31 01:14:39]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 01:30:39] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-31 01:30:39]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 01:30:39] 💓 Running pulse mode (bid updates)...
+[2026-01-31 01:30:39] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-31 01:30:39]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 01:38:39] 👀 Monitoring auction status changes...
+[2026-01-31 01:38:39]   📊 Current database stats:
+[2026-01-31 01:38:39]      CONCLUIDA_PORTAL: 11283
+[2026-01-31 01:38:39]      CELEBRANDOSE: 1182
+[2026-01-31 01:38:39]      ACTIVE: 917
+[2026-01-31 01:38:39]      SUSPENDIDA: 104
+[2026-01-31 01:38:39]      PRE_AUCTION: 37
+[2026-01-31 01:38:39]   🏷️ Auction types:
+[2026-01-31 01:38:39]      JUDICIAL: 13523
+[2026-01-31 02:43:44] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-31 02:43:44]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 02:43:44] 🗺️ Running geocoding backfill...
+[2026-01-31 02:43:45]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 02:43:45] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-31 02:43:46]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 02:43:46] 💓 Running pulse mode (bid updates)...
+[2026-01-31 02:43:46] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-31 02:43:46]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 02:43:46] 👀 Monitoring auction status changes...
+[2026-01-31 02:43:46]   📊 Current database stats:
+[2026-01-31 02:43:46]      CONCLUIDA_PORTAL: 11283
+[2026-01-31 02:43:46]      CELEBRANDOSE: 1182
+[2026-01-31 02:43:46]      ACTIVE: 917
+[2026-01-31 02:43:46]      SUSPENDIDA: 104
+[2026-01-31 02:43:46]      PRE_AUCTION: 37
+[2026-01-31 02:43:46]   🏷️ Auction types:
+[2026-01-31 02:43:46]      JUDICIAL: 13523
+[2026-01-31 02:43:46] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-31 02:43:46] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-31 02:43:46]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 02:43:46] 🚗 Scraping vehicle auctions...
+[2026-01-31 02:43:46]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 03:06:52] 🌟 Starting daily full scan...
+[2026-01-31 03:06:53]    Phase 1: Active properties
+[2026-01-31 03:06:53] 🚀 Starting ACTIVE scraper (pages=100)...
+[2026-01-31 03:06:54]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 04:21:00]    Phase 2: Pre-auction properties
+[2026-01-31 04:21:00] 🚀 Starting PRE scraper (pages=100)...
+[2026-01-31 04:21:00]   ❌ Exception: [Errno 22] Invalid argument
+[2026-01-31 11:05:16]    Phase 3: Finished properties (sample)
+[2026-01-31 11:05:16] 🚀 Starting FINISHED scraper (pages=50)...
+[2026-01-31 12:27:56]   ⏰ Timeout after 10 minutes
+[2026-01-31 12:28:56] 👀 Monitoring auction status changes...
+[2026-01-31 12:28:57]   📊 Current database stats:
+[2026-01-31 12:28:57]      CONCLUIDA_PORTAL: 11283
+[2026-01-31 12:28:57]      CELEBRANDOSE: 1182
+[2026-01-31 12:28:57]      ACTIVE: 917
+[2026-01-31 12:28:57]      SUSPENDIDA: 104
+[2026-01-31 12:28:57]      PRE_AUCTION: 37
+[2026-01-31 12:28:58]   🏷️ Auction types:
+[2026-01-31 12:28:58]      JUDICIAL: 13523
+[2026-01-31 12:28:58] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-31 12:28:59]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 12:28:59] 💓 Running pulse mode (bid updates)...
+[2026-01-31 12:28:59] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-31 12:29:00]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 12:29:00] 📊 Running historical data batch...
+[2026-01-31 12:29:00]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 12:29:00] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-31 12:29:00] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-31 12:29:01]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 12:29:01] 🚗 Scraping vehicle auctions...
+[2026-01-31 12:29:01]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 12:29:01] 🏦 Scraping bank portals...
+[2026-01-31 12:29:01]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 12:29:01] 🏦 Scraping bank portals...
+[2026-01-31 12:29:01]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 12:29:01] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-31 12:29:01]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 12:29:01] 🗺️ Running geocoding backfill...
+[2026-01-31 12:29:01]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 12:59:01] 👀 Monitoring auction status changes...
+[2026-01-31 12:59:01]   📊 Current database stats:
+[2026-01-31 12:59:01]      CONCLUIDA_PORTAL: 11283
+[2026-01-31 12:59:01]      CELEBRANDOSE: 1182
+[2026-01-31 12:59:01]      ACTIVE: 917
+[2026-01-31 12:59:01]      SUSPENDIDA: 104
+[2026-01-31 12:59:01]      PRE_AUCTION: 37
+[2026-01-31 12:59:01]   🏷️ Auction types:
+[2026-01-31 12:59:01]      JUDICIAL: 13523
+[2026-01-31 13:04:01] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-31 13:04:01]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 13:04:01] 💓 Running pulse mode (bid updates)...
+[2026-01-31 13:04:01] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-31 13:04:02]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 13:29:02] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-31 13:29:02] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-31 13:29:02]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 13:29:02] 🚗 Scraping vehicle auctions...
+[2026-01-31 13:29:02]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 13:29:02] 👀 Monitoring auction status changes...
+[2026-01-31 13:29:02]   📊 Current database stats:
+[2026-01-31 13:29:02]      CONCLUIDA_PORTAL: 11283
+[2026-01-31 13:29:02]      CELEBRANDOSE: 1182
+[2026-01-31 13:29:02]      ACTIVE: 917
+[2026-01-31 13:29:02]      SUSPENDIDA: 104
+[2026-01-31 13:29:02]      PRE_AUCTION: 37
+[2026-01-31 13:29:02]   🏷️ Auction types:
+[2026-01-31 13:29:02]      JUDICIAL: 13523
+[2026-01-31 13:39:02] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-31 13:39:02]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 13:39:02] 💓 Running pulse mode (bid updates)...
+[2026-01-31 13:39:02] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-31 13:39:02]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 13:59:02] 👀 Monitoring auction status changes...
+[2026-01-31 13:59:02]   📊 Current database stats:
+[2026-01-31 13:59:02]      CONCLUIDA_PORTAL: 11283
+[2026-01-31 13:59:02]      CELEBRANDOSE: 1182
+[2026-01-31 13:59:02]      ACTIVE: 917
+[2026-01-31 13:59:02]      SUSPENDIDA: 104
+[2026-01-31 13:59:02]      PRE_AUCTION: 37
+[2026-01-31 13:59:02]   🏷️ Auction types:
+[2026-01-31 13:59:02]      JUDICIAL: 13523
+[2026-01-31 14:14:02] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-31 14:14:03]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 14:14:03] 💓 Running pulse mode (bid updates)...
+[2026-01-31 14:14:03] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-31 14:14:03]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 14:29:03] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-31 14:29:03]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 14:29:03] 🗺️ Running geocoding backfill...
+[2026-01-31 14:29:03]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 14:29:03] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-31 14:29:03] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-31 14:29:03]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 14:29:03] 🚗 Scraping vehicle auctions...
+[2026-01-31 14:29:03]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 14:29:03] 👀 Monitoring auction status changes...
+[2026-01-31 14:29:03]   📊 Current database stats:
+[2026-01-31 14:29:03]      CONCLUIDA_PORTAL: 11283
+[2026-01-31 14:29:03]      CELEBRANDOSE: 1182
+[2026-01-31 14:29:03]      ACTIVE: 917
+[2026-01-31 14:29:03]      SUSPENDIDA: 104
+[2026-01-31 14:29:03]      PRE_AUCTION: 37
+[2026-01-31 14:29:03]   🏷️ Auction types:
+[2026-01-31 14:29:03]      JUDICIAL: 13523
+[2026-01-31 14:49:03] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-31 14:49:04]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 14:49:04] 💓 Running pulse mode (bid updates)...
+[2026-01-31 14:49:04] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-31 14:49:04]   ❌ Exception: [Errno 22] Invalid argument
+[2026-01-31 14:59:04] 👀 Monitoring auction status changes...
+[2026-01-31 14:59:04]   📊 Current database stats:
+[2026-01-31 14:59:04]      CONCLUIDA_PORTAL: 11283
+[2026-01-31 14:59:04]      CELEBRANDOSE: 1182
+[2026-01-31 14:59:04]      ACTIVE: 917
+[2026-01-31 14:59:04]      SUSPENDIDA: 104
+[2026-01-31 14:59:04]      PRE_AUCTION: 37
+[2026-01-31 14:59:04]   🏷️ Auction types:
+[2026-01-31 14:59:04]      JUDICIAL: 13523
+[2026-01-31 15:24:04] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-31 15:24:04]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 15:24:04] 💓 Running pulse mode (bid updates)...
+[2026-01-31 15:24:04] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-31 15:24:04]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 15:29:04] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-31 15:29:04] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-31 15:29:05]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 15:29:05] 🚗 Scraping vehicle auctions...
+[2026-01-31 15:29:05]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 15:29:05] 👀 Monitoring auction status changes...
+[2026-01-31 15:29:05]   📊 Current database stats:
+[2026-01-31 15:29:05]      CONCLUIDA_PORTAL: 11283
+[2026-01-31 15:29:05]      CELEBRANDOSE: 1182
+[2026-01-31 15:29:05]      ACTIVE: 917
+[2026-01-31 15:29:05]      SUSPENDIDA: 104
+[2026-01-31 15:29:05]      PRE_AUCTION: 37
+[2026-01-31 15:29:05]   🏷️ Auction types:
+[2026-01-31 15:29:05]      JUDICIAL: 13523
+[2026-01-31 15:59:05] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-31 15:59:05]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 15:59:05] 💓 Running pulse mode (bid updates)...
+[2026-01-31 15:59:05] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-31 15:59:05]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 15:59:05] 👀 Monitoring auction status changes...
+[2026-01-31 15:59:05]   📊 Current database stats:
+[2026-01-31 15:59:05]      CONCLUIDA_PORTAL: 11283
+[2026-01-31 15:59:05]      CELEBRANDOSE: 1182
+[2026-01-31 15:59:05]      ACTIVE: 917
+[2026-01-31 15:59:05]      SUSPENDIDA: 104
+[2026-01-31 15:59:05]      PRE_AUCTION: 37
+[2026-01-31 15:59:05]   🏷️ Auction types:
+[2026-01-31 15:59:05]      JUDICIAL: 13523
+[2026-01-31 16:29:06] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-31 16:29:06]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 16:29:06] 🗺️ Running geocoding backfill...
+[2026-01-31 16:29:06]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 16:29:06] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-31 16:29:06] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-31 16:29:06]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 16:29:06] 🚗 Scraping vehicle auctions...
+[2026-01-31 16:29:06]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 16:29:06] 👀 Monitoring auction status changes...
+[2026-01-31 16:29:06]   📊 Current database stats:
+[2026-01-31 16:29:06]      CONCLUIDA_PORTAL: 11283
+[2026-01-31 16:29:06]      CELEBRANDOSE: 1182
+[2026-01-31 16:29:06]      ACTIVE: 917
+[2026-01-31 16:29:06]      SUSPENDIDA: 104
+[2026-01-31 16:29:06]      PRE_AUCTION: 37
+[2026-01-31 16:29:06]   🏷️ Auction types:
+[2026-01-31 16:29:06]      JUDICIAL: 13523
+[2026-01-31 16:34:06] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-31 16:34:07]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 16:34:07] 💓 Running pulse mode (bid updates)...
+[2026-01-31 16:34:07] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-31 16:34:07]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 16:59:07] 👀 Monitoring auction status changes...
+[2026-01-31 16:59:07]   📊 Current database stats:
+[2026-01-31 16:59:07]      CONCLUIDA_PORTAL: 11283
+[2026-01-31 16:59:07]      CELEBRANDOSE: 1182
+[2026-01-31 16:59:07]      ACTIVE: 917
+[2026-01-31 16:59:07]      SUSPENDIDA: 104
+[2026-01-31 16:59:07]      PRE_AUCTION: 37
+[2026-01-31 16:59:07]   🏷️ Auction types:
+[2026-01-31 16:59:07]      JUDICIAL: 13523
+[2026-01-31 17:09:07] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-31 17:09:08]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 17:09:08] 💓 Running pulse mode (bid updates)...
+[2026-01-31 17:09:08] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-31 17:09:08]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 17:29:08] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-31 17:29:08] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-31 17:29:09]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 17:29:09] 🚗 Scraping vehicle auctions...
+[2026-01-31 17:29:09]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 17:29:09] 👀 Monitoring auction status changes...
+[2026-01-31 17:29:09]   📊 Current database stats:
+[2026-01-31 17:29:09]      CONCLUIDA_PORTAL: 11283
+[2026-01-31 17:29:09]      CELEBRANDOSE: 1182
+[2026-01-31 17:29:09]      ACTIVE: 917
+[2026-01-31 17:29:09]      SUSPENDIDA: 104
+[2026-01-31 17:29:09]      PRE_AUCTION: 37
+[2026-01-31 17:29:09]   🏷️ Auction types:
+[2026-01-31 17:29:09]      JUDICIAL: 13523
+[2026-01-31 17:44:09] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-31 17:44:09]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 17:44:09] 💓 Running pulse mode (bid updates)...
+[2026-01-31 17:44:09] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-31 17:44:09]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 17:59:09] 👀 Monitoring auction status changes...
+[2026-01-31 17:59:09]   📊 Current database stats:
+[2026-01-31 17:59:09]      CONCLUIDA_PORTAL: 11283
+[2026-01-31 17:59:09]      CELEBRANDOSE: 1182
+[2026-01-31 17:59:09]      ACTIVE: 917
+[2026-01-31 17:59:09]   ❌ Error: [Errno 22] Invalid argument
+[2026-01-31 18:19:09] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-31 18:19:09]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 18:19:09] 💓 Running pulse mode (bid updates)...
+[2026-01-31 18:19:09] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-31 18:19:10]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 18:29:10] 🏦 Scraping bank portals...
+[2026-01-31 18:29:10]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 18:29:10] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-31 18:29:10]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 18:29:10] 🗺️ Running geocoding backfill...
+[2026-01-31 18:29:10]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 18:29:10] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-31 18:29:10] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-31 18:29:10]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 18:29:10] 🚗 Scraping vehicle auctions...
+[2026-01-31 18:29:10]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 18:29:10] 👀 Monitoring auction status changes...
+[2026-01-31 18:29:10]   📊 Current database stats:
+[2026-01-31 18:29:10]      CONCLUIDA_PORTAL: 11283
+[2026-01-31 18:29:10]      CELEBRANDOSE: 1182
+[2026-01-31 18:29:10]      ACTIVE: 917
+[2026-01-31 18:29:10]      PROXIMA_APERTURA: 145
+[2026-01-31 18:29:10]      SUSPENDIDA: 104
+[2026-01-31 18:29:10]      PRE_AUCTION: 37
+[2026-01-31 18:29:10]   🏷️ Auction types:
+[2026-01-31 18:29:10]      JUDICIAL: 13668
+[2026-01-31 18:54:10] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-31 18:54:11]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 18:54:11] 💓 Running pulse mode (bid updates)...
+[2026-01-31 18:54:11] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-31 18:54:12]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 18:59:12] 👀 Monitoring auction status changes...
+[2026-01-31 18:59:12]   📊 Current database stats:
+[2026-01-31 18:59:12]      CONCLUIDA_PORTAL: 11283
+[2026-01-31 18:59:12]      CELEBRANDOSE: 1182
+[2026-01-31 18:59:12]      ACTIVE: 917
+[2026-01-31 18:59:12]      PROXIMA_APERTURA: 145
+[2026-01-31 18:59:12]      SUSPENDIDA: 104
+[2026-01-31 18:59:12]      PRE_AUCTION: 37
+[2026-01-31 18:59:12]   🏷️ Auction types:
+[2026-01-31 18:59:12]      JUDICIAL: 13668
+[2026-01-31 19:29:13] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-31 19:29:13] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-31 19:29:13]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 19:29:13] 🚗 Scraping vehicle auctions...
+[2026-01-31 19:29:13]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 19:29:13] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-31 19:29:13]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 19:29:13] 💓 Running pulse mode (bid updates)...
+[2026-01-31 19:29:13] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-31 19:29:13]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 19:29:13] 👀 Monitoring auction status changes...
+[2026-01-31 19:29:13]   📊 Current database stats:
+[2026-01-31 19:29:13]      CONCLUIDA_PORTAL: 11283
+[2026-01-31 19:29:13]      CELEBRANDOSE: 1182
+[2026-01-31 19:29:13]      ACTIVE: 917
+[2026-01-31 19:29:13]      PROXIMA_APERTURA: 145
+[2026-01-31 19:29:13]      SUSPENDIDA: 104
+[2026-01-31 19:29:13]      PRE_AUCTION: 37
+[2026-01-31 19:29:13]   🏷️ Auction types:
+[2026-01-31 19:29:13]      JUDICIAL: 13668
+[2026-01-31 19:59:14] 👀 Monitoring auction status changes...
+[2026-01-31 19:59:14]   📊 Current database stats:
+[2026-01-31 19:59:14]      CONCLUIDA_PORTAL: 11283
+[2026-01-31 19:59:14]      CELEBRANDOSE: 1182
+[2026-01-31 19:59:14]      ACTIVE: 917
+[2026-01-31 19:59:14]      PROXIMA_APERTURA: 145
+[2026-01-31 19:59:14]      SUSPENDIDA: 104
+[2026-01-31 19:59:14]      PRE_AUCTION: 37
+[2026-01-31 19:59:14]   🏷️ Auction types:
+[2026-01-31 19:59:14]      JUDICIAL: 13668
+[2026-01-31 20:04:14] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-31 20:04:14]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 20:04:14] 💓 Running pulse mode (bid updates)...
+[2026-01-31 20:04:14] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-31 20:04:14]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 20:29:14] 📜 Scraping TEJU pre-auction edicts...
+[2026-01-31 20:29:14]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 20:29:14] 🗺️ Running geocoding backfill...
+[2026-01-31 20:29:14]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 20:29:14] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-31 20:29:14] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-31 20:29:14]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 20:29:14] 🚗 Scraping vehicle auctions...
+[2026-01-31 20:29:14]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-31 20:29:14] 👀 Monitoring auction status changes...
+[2026-01-31 20:29:14]   📊 Current database stats:
+[2026-01-31 20:29:14]      CONCLUIDA_PORTAL: 11283
+[2026-01-31 20:29:14]      CELEBRANDOSE: 1182
+[2026-01-31 20:29:14]      ACTIVE: 917
+[2026-01-31 20:29:14]      PROXIMA_APERTURA: 145
+[2026-01-31 20:29:14]      SUSPENDIDA: 104
+[2026-01-31 20:29:14]      PRE_AUCTION: 37
+[2026-01-31 20:29:14]   🏷️ Auction types:
+[2026-01-31 20:29:14]      JUDICIAL: 13668
+[2026-01-31 20:39:14] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-01-31 20:39:15]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 20:39:15] 💓 Running pulse mode (bid updates)...
+[2026-01-31 20:39:15] 🚀 Starting PULSE scraper (pages=20)...
+[2026-01-31 20:39:15]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-01-31 20:59:15] 
+❌ Fatal error: [Errno 22] Invalid argument

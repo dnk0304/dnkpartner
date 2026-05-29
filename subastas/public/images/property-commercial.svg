@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none">
+  <defs>
+    <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#DBEAFE"/>
+      <stop offset="100%" stop-color="#BFDBFE"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Sky Background -->
+  <rect width="800" height="450" fill="url(#skyGrad)"/>
+  
+  <!-- Ground -->
+  <rect y="450" width="800" height="150" fill="#94A3B8"/>
+  
+  <!-- Building -->
+  <rect x="200" y="150" width="400" height="300" fill="#64748B" stroke="#475569" stroke-width="4"/>
+  
+  <!-- Store Front Window -->
+  <rect x="240" y="280" width="320" height="140" fill="#E0F2FE" stroke="#3B82F6" stroke-width="3"/>
+  <line x1="400" y1="280" x2="400" y2="420" stroke="#3B82F6" stroke-width="3"/>
+  <line x1="240" y1="350" x2="560" y2="350" stroke="#3B82F6" stroke-width="3"/>
+  
+  <!-- Door -->
+  <rect x="350" y="420" width="100" height="30" fill="#1E293B" stroke="#0F172A" stroke-width="2"/>
+  
+  <!-- Awning -->
+  <path d="M220 260 L580 260 L600 280 L200 280 Z" fill="#EF4444" stroke="#DC2626" stroke-width="2"/>
+  <line x1="240" y1="260" x2="240" y2="280" stroke="#B91C1C" stroke-width="2"/>
+  <line x1="320" y1="260" x2="320" y2="280" stroke="#B91C1C" stroke-width="2"/>
+  <line x1="400" y1="260" x2="400" y2="280" stroke="#B91C1C" stroke-width="2"/>
+  <line x1="480" y1="260" x2="480" y2="280" stroke="#B91C1C" stroke-width="2"/>
+  <line x1="560" y1="260" x2="560" y2="280" stroke="#B91C1C" stroke-width="2"/>
+  
+  <!-- Upper Windows -->
+  <rect x="250" y="180" width="80" height="60" fill="#93C5FD" stroke="#3B82F6" stroke-width="2"/>
+  <line x1="290" y1="180" x2="290" y2="240" stroke="#3B82F6" stroke-width="2"/>
+  
+  <rect x="360" y="180" width="80" height="60" fill="#93C5FD" stroke="#3B82F6" stroke-width="2"/>
+  <line x1="400" y1="180" x2="400" y2="240" stroke="#3B82F6" stroke-width="2"/>
+  
+  <rect x="470" y="180" width="80" height="60" fill="#93C5FD" stroke="#3B82F6" stroke-width="2"/>
+  <line x1="510" y1="180" x2="510" y2="240" stroke="#3B82F6" stroke-width="2"/>
+  
+  <!-- Store Sign -->
+  <rect x="250" y="200" width="300" height="40" fill="#F97316" stroke="#EA580C" stroke-width="2" opacity="0.9"/>
+  <text x="400" y="225" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="white" text-anchor="middle">LOCAL COMERCIAL</text>
+</svg>

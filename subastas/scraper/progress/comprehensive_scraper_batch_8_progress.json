@@ -1,0 +1,30 @@
+{
+  "started_at": "2026-01-22T15:41:03.501457",
+  "completed_combinations": [
+    "Otras administraciones tributarias|Cancelada|Inmuebles|Almería",
+    "Otras administraciones tributarias|Cancelada|Inmuebles|Almería",
+    "Otras administraciones tributarias|Cancelada|Inmuebles|Cádiz",
+    "Otras administraciones tributarias|Cancelada|Inmuebles|Córdoba",
+    "Otras administraciones tributarias|Cancelada|Inmuebles|Granada",
+    "Otras administraciones tributarias|Cancelada|Inmuebles|Huelva",
+    "Otras administraciones tributarias|Cancelada|Inmuebles|Jaén",
+    "Otras administraciones tributarias|Cancelada|Inmuebles|Málaga",
+    "Otras administraciones tributarias|Cancelada|Inmuebles|Sevilla",
+    "Otras administraciones tributarias|Cancelada|Inmuebles|Huesca",
+    "Otras administraciones tributarias|Cancelada|Inmuebles|Teruel",
+    "Otras administraciones tributarias|Cancelada|Inmuebles|Zaragoza",
+    "Otras administraciones tributarias|Cancelada|Inmuebles|Asturias"
+  ],
+  "current_combination": "Otras administraciones tributarias|Cancelada|Inmuebles|Illes Balears",
+  "stats": {
+    "total_new": 0,
+    "total_updated": 0,
+    "total_checked": 0,
+    "total_skipped": 0,
+    "total_combinations": 4680,
+    "completed_combinations": 13
+  },
+  "batch_num": 8,
+  "total_batches": 10,
+  "last_update": "2026-01-22T16:13:20.090746"
+}

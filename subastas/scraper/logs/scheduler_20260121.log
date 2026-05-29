@@ -1,0 +1,46 @@
+[2026-01-21 20:50:41] ======================================================================
+[2026-01-21 20:50:41] 🤖 MORTGAGE PROPERTY SCRAPER SCHEDULER STARTED
+[2026-01-21 20:50:41] ======================================================================
+[2026-01-21 20:50:41] 🏠 Focus: ALL mortgage properties (houses, apartments, land, etc.)
+[2026-01-21 20:50:41] ======================================================================
+[2026-01-21 20:50:41] 📅 Schedule configured:
+[2026-01-21 20:50:41]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-21 20:50:41]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-21 20:50:41]    - Status monitor: Every 30 minutes
+[2026-01-21 20:50:41]    - Full daily scan: 03:00 AM
+[2026-01-21 20:50:41] 
+[2026-01-21 20:50:41] 🎬 Running initial scrape...
+[2026-01-21 20:50:41] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-21 20:50:41] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-21 20:51:35]   ❌ Exception: argument of type 'NoneType' is not iterable
+[2026-01-21 20:51:35] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-21 20:51:35] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-21 20:51:57]   ❌ Exception: argument of type 'NoneType' is not iterable
+[2026-01-21 20:51:57] 👀 Monitoring auction status changes...
+[2026-01-21 20:51:57]   📊 Current database stats:
+[2026-01-21 20:51:57]      ACTIVE: 521
+[2026-01-21 20:53:16] ======================================================================
+[2026-01-21 20:53:16] 🤖 MORTGAGE PROPERTY SCRAPER SCHEDULER STARTED
+[2026-01-21 20:53:16] ======================================================================
+[2026-01-21 20:53:16] 🏠 Focus: ALL mortgage properties (houses, apartments, land, etc.)
+[2026-01-21 20:53:16] ======================================================================
+[2026-01-21 20:53:16] 📅 Schedule configured:
+[2026-01-21 20:53:16]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-21 20:53:16]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-21 20:53:16]    - Status monitor: Every 30 minutes
+[2026-01-21 20:53:16]    - Full daily scan: 03:00 AM
+[2026-01-21 20:53:16] 
+[2026-01-21 20:53:16] 🎬 Running initial scrape...
+[2026-01-21 20:53:16] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-21 20:53:16] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-21 20:54:10]   Total properties: 520
+[2026-01-21 20:54:10]   New: 0
+[2026-01-21 20:54:10]   Updated: 520
+[2026-01-21 20:54:10] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-21 20:54:10] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-21 20:54:31]   Total properties: 0
+[2026-01-21 20:54:31]   New: 0
+[2026-01-21 20:54:31]   Updated: 0
+[2026-01-21 20:54:31] 👀 Monitoring auction status changes...
+[2026-01-21 20:54:31]   📊 Current database stats:
+[2026-01-21 20:54:31]      ACTIVE: 521

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none">
+  <rect width="800" height="600" fill="#f8fafc"/>
+  <circle cx="230" cy="430" r="48" fill="#1f2937"/>
+  <circle cx="570" cy="430" r="48" fill="#1f2937"/>
+  <circle cx="230" cy="430" r="22" fill="#9ca3af"/>
+  <circle cx="570" cy="430" r="22" fill="#9ca3af"/>
+  <path d="M260 410 L340 360 H470 L520 410" stroke="#94a3b8" stroke-width="14" stroke-linecap="round"/>
+  <path d="M360 360 L320 300" stroke="#cbd5f5" stroke-width="16" stroke-linecap="round"/>
+  <path d="M470 360 L520 300" stroke="#cbd5f5" stroke-width="16" stroke-linecap="round"/>
+  <rect x="330" y="285" width="90" height="28" rx="10" fill="#94a3b8"/>
+  <text x="400" y="520" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" fill="#64748b">Motocicleta</text>
+</svg>

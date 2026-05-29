@@ -1,0 +1,112 @@
+[2026-02-09 13:21:58] ======================================================================
+[2026-02-09 13:21:58] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-02-09 13:21:58] ======================================================================
+[2026-02-09 13:21:58] 🏠 Sources: BOE (Active, Pre-auction, Vehicles, Historical)
+[2026-02-09 13:21:58]            TEJU, Banks (Haya, Servihabitat, Altamira, Solvia, Anticipa, Aliseda)
+[2026-02-09 13:21:58] ======================================================================
+[2026-02-09 13:21:58] 📅 Schedule configured:
+[2026-02-09 13:21:58] 
+[2026-02-09 13:21:58]    REAL-TIME (Priority):
+[2026-02-09 13:21:58]    - Pulse (bid updates): Every 35 min ⭐
+[2026-02-09 13:21:58]    - Active auctions: Every 35 min
+[2026-02-09 13:21:58] 
+[2026-02-09 13:21:58]    REGULAR:
+[2026-02-09 13:21:58]    - Pre-auctions: Every 1 hour
+[2026-02-09 13:21:58]    - Vehicle auctions: Every 1 hour
+[2026-02-09 13:21:58]    - TEJU edicts: Every 2 hours
+[2026-02-09 13:21:58]    - Bank portals: Every 6 hours
+[2026-02-09 13:21:58] 
+[2026-02-09 13:21:58]    MAINTENANCE:
+[2026-02-09 13:21:58]    - Status monitor: Every 30 min
+[2026-02-09 13:21:58]    - Geocoding: Every 2 hours
+[2026-02-09 13:21:58] 
+[2026-02-09 13:21:58]    OFF-PEAK (Daily):
+[2026-02-09 13:21:58]    - Full scan: 03:00 AM
+[2026-02-09 13:21:58]    - Historical batch: 03:30 AM
+[2026-02-09 13:21:58]    - Bank portals: 04:00 AM
+[2026-02-09 13:21:58] 
+[2026-02-09 13:21:58] 🎬 Running initial scrape...
+[2026-02-09 13:21:58] 🏠 Scraping ACTIVE auctions...
+[2026-02-09 13:21:58] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-09 13:21:58]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-09 13:21:58] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-09 13:21:58] 🚀 Starting PRE scraper (pages=30)...
+[2026-02-09 13:21:59]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-09 13:21:59] 🚗 Scraping vehicle auctions...
+[2026-02-09 13:21:59] 🚗 Scraping vehicle auctions...
+[2026-02-09 13:21:59]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-09 13:21:59] 👀 Monitoring auction status changes...
+[2026-02-09 13:21:59]   📊 Current database stats:
+[2026-02-09 13:21:59]      CONCLUIDA_PORTAL: 11289
+[2026-02-09 13:21:59]      CELEBRANDOSE: 1182
+[2026-02-09 13:21:59]      ACTIVE: 917
+[2026-02-09 13:21:59]      PROXIMA_APERTURA: 155
+[2026-02-09 13:21:59]      SUSPENDIDA: 104
+[2026-02-09 13:21:59]      PRE_AUCTION: 37
+[2026-02-09 13:21:59]   🏷️ Auction types:
+[2026-02-09 13:21:59]      JUDICIAL: 13684
+[2026-02-09 13:21:59] 🗺️ Running geocoding backfill...
+[2026-02-09 13:22:01]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-09 13:22:12] 
+⏹️  Scheduler stopped by user
+[2026-02-09 13:22:19] ======================================================================
+[2026-02-09 13:22:19] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-02-09 13:22:19] ======================================================================
+[2026-02-09 13:22:19] 🏠 Sources: BOE (Active, Pre-auction, Vehicles, Historical)
+[2026-02-09 13:22:19]            TEJU, Banks (Haya, Servihabitat, Altamira, Solvia, Anticipa, Aliseda)
+[2026-02-09 13:22:19] ======================================================================
+[2026-02-09 13:22:19] 📅 Schedule configured:
+[2026-02-09 13:22:19] 
+[2026-02-09 13:22:19]    REAL-TIME (Priority):
+[2026-02-09 13:22:19]    - Pulse (bid updates): Every 35 min ⭐
+[2026-02-09 13:22:19]    - Active auctions: Every 35 min
+[2026-02-09 13:22:19] 
+[2026-02-09 13:22:19]    REGULAR:
+[2026-02-09 13:22:19]    - Pre-auctions: Every 1 hour
+[2026-02-09 13:22:19]    - Vehicle auctions: Every 1 hour
+[2026-02-09 13:22:19]    - TEJU edicts: Every 2 hours
+[2026-02-09 13:22:19]    - Bank portals: Every 6 hours
+[2026-02-09 13:22:19] 
+[2026-02-09 13:22:19]    MAINTENANCE:
+[2026-02-09 13:22:19]    - Status monitor: Every 30 min
+[2026-02-09 13:22:19]    - Geocoding: Every 2 hours
+[2026-02-09 13:22:19] 
+[2026-02-09 13:22:19]    OFF-PEAK (Daily):
+[2026-02-09 13:22:19]    - Full scan: 03:00 AM
+[2026-02-09 13:22:19]    - Historical batch: 03:30 AM
+[2026-02-09 13:22:19]    - Bank portals: 04:00 AM
+[2026-02-09 13:22:19] 
+[2026-02-09 13:22:19] 🎬 Running initial scrape...
+[2026-02-09 13:22:19] 🏠 Scraping ACTIVE auctions...
+[2026-02-09 13:22:19] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-09 13:22:19]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-09 13:22:19] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-09 13:22:19] 🚀 Starting PRE scraper (pages=30)...
+[2026-02-09 13:22:20]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-09 13:22:20] 🚗 Scraping vehicle auctions...
+[2026-02-09 13:22:20] 🚗 Scraping vehicle auctions...
+[2026-02-09 13:22:20]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-09 13:22:20] 👀 Monitoring auction status changes...
+[2026-02-09 13:22:20]   📊 Current database stats:
+[2026-02-09 13:22:20]      CONCLUIDA_PORTAL: 11289
+[2026-02-09 13:22:20]      CELEBRANDOSE: 1182
+[2026-02-09 13:22:20]      ACTIVE: 917
+[2026-02-09 13:22:20]      PROXIMA_APERTURA: 155
+[2026-02-09 13:22:20]      SUSPENDIDA: 104
+[2026-02-09 13:22:20]      PRE_AUCTION: 37
+[2026-02-09 13:22:20]   🏷️ Auction types:
+[2026-02-09 13:22:20]      JUDICIAL: 13684
+[2026-02-09 13:22:20] 🗺️ Running geocoding backfill...
+[2026-02-09 13:22:20]   ❌ Error: attempted relative import beyond top-level package

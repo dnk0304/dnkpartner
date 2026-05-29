@@ -1,0 +1,30 @@
+{
+  "last_run": {
+    "run_started_at": "2026-02-12T14:00:34.824603",
+    "run_finished_at": "2026-02-12T14:01:59.337427",
+    "date_range": {
+      "from": "2026-02-07",
+      "to": "2026-02-12"
+    },
+    "batches": 1,
+    "fetched": 0,
+    "inserted": 0,
+    "updated_existing": 0,
+    "errors": 0
+  },
+  "history": [
+    {
+      "run_started_at": "2026-02-12T14:00:34.824603",
+      "run_finished_at": "2026-02-12T14:01:59.337427",
+      "date_range": {
+        "from": "2026-02-07",
+        "to": "2026-02-12"
+      },
+      "batches": 1,
+      "fetched": 0,
+      "inserted": 0,
+      "updated_existing": 0,
+      "errors": 0
+    }
+  ]
+}

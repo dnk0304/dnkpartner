@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none">
+  <rect width="800" height="600" fill="#f8fafc"/>
+  <rect x="200" y="260" width="400" height="140" rx="16" fill="#cbd5f5"/>
+  <rect x="260" y="230" width="280" height="60" rx="12" fill="#94a3b8"/>
+  <circle cx="280" cy="430" r="34" fill="#1f2937"/>
+  <circle cx="520" cy="430" r="34" fill="#1f2937"/>
+  <circle cx="280" cy="430" r="14" fill="#9ca3af"/>
+  <circle cx="520" cy="430" r="14" fill="#9ca3af"/>
+  <text x="400" y="520" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" fill="#64748b">Veh�culo</text>
+</svg>

@@ -1,0 +1,10 @@
+{
+  "scraper_id": 6,
+  "completed_batches": [
+    "2026-01-01_to_2026-01-15"
+  ],
+  "total_updated": 0,
+  "total_failed": 29,
+  "total_batches": 25,
+  "last_updated": "2026-02-12T11:03:20.540250"
+}

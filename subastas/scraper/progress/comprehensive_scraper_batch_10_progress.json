@@ -1,0 +1,30 @@
+{
+  "started_at": "2026-01-22T15:41:06.010897",
+  "completed_combinations": [
+    "Subastas administrativas generales|Cancelada|Inmuebles|Almería",
+    "Subastas administrativas generales|Cancelada|Inmuebles|Almería",
+    "Subastas administrativas generales|Cancelada|Inmuebles|Cádiz",
+    "Subastas administrativas generales|Cancelada|Inmuebles|Córdoba",
+    "Subastas administrativas generales|Cancelada|Inmuebles|Granada",
+    "Subastas administrativas generales|Cancelada|Inmuebles|Huelva",
+    "Subastas administrativas generales|Cancelada|Inmuebles|Jaén",
+    "Subastas administrativas generales|Cancelada|Inmuebles|Málaga",
+    "Subastas administrativas generales|Cancelada|Inmuebles|Sevilla",
+    "Subastas administrativas generales|Cancelada|Inmuebles|Huesca",
+    "Subastas administrativas generales|Cancelada|Inmuebles|Teruel",
+    "Subastas administrativas generales|Cancelada|Inmuebles|Zaragoza",
+    "Subastas administrativas generales|Cancelada|Inmuebles|Asturias"
+  ],
+  "current_combination": "Subastas administrativas generales|Cancelada|Inmuebles|Illes Balears",
+  "stats": {
+    "total_new": 0,
+    "total_updated": 0,
+    "total_checked": 0,
+    "total_skipped": 0,
+    "total_combinations": 4680,
+    "completed_combinations": 13
+  },
+  "batch_num": 10,
+  "total_batches": 10,
+  "last_update": "2026-01-22T16:13:30.456001"
+}

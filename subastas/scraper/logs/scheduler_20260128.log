@@ -1,0 +1,937 @@
+[2026-01-28 16:15:11] ======================================================================
+[2026-01-28 16:15:11] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-28 16:15:11] ======================================================================
+[2026-01-28 16:15:11] 🏠 Sources: BOE, TEJU, Banks (Servihabitat, Haya, Altamira)
+[2026-01-28 16:15:11] ======================================================================
+[2026-01-28 16:15:11] 📅 Schedule configured:
+[2026-01-28 16:15:11]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-28 16:15:11]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-28 16:15:11]    - Bank portals: Daily at 04:00 AM
+[2026-01-28 16:15:11]    - Geocoding backfill: Every 2 hours
+[2026-01-28 16:15:11]    - Status monitor: Every 30 minutes
+[2026-01-28 16:15:11]    - Full daily scan: 03:00 AM
+[2026-01-28 16:15:11] 
+[2026-01-28 16:15:11] 🎬 Running initial scrape...
+[2026-01-28 16:15:11] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-28 16:15:11] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 16:16:49]   Total properties: 925
+[2026-01-28 16:16:49]   New: 506
+[2026-01-28 16:16:49]   Updated: 419
+[2026-01-28 16:16:49] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-28 16:16:49] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-28 16:17:11]   Total properties: 0
+[2026-01-28 16:17:11]   New: 0
+[2026-01-28 16:17:11]   Updated: 0
+[2026-01-28 16:17:11] 👀 Monitoring auction status changes...
+[2026-01-28 16:17:11]   📌 Found 4 expired active auctions
+[2026-01-28 16:17:11]   ✅ Marked 4 auctions as FINISHED
+[2026-01-28 16:17:11]   📊 Current database stats:
+[2026-01-28 16:17:11]      ACTIVE: 2060
+[2026-01-28 16:17:11]      FINISHED: 11282
+[2026-01-28 16:17:11]      SUSPENDED: 105
+[2026-01-28 16:36:02] ======================================================================
+[2026-01-28 16:36:02] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-28 16:36:02] ======================================================================
+[2026-01-28 16:36:02] 🏠 Sources: BOE, TEJU, Banks (Servihabitat, Haya, Altamira)
+[2026-01-28 16:36:02] ======================================================================
+[2026-01-28 16:36:02] 📅 Schedule configured:
+[2026-01-28 16:36:02]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-28 16:36:02]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-28 16:36:02]    - Bank portals: Daily at 04:00 AM
+[2026-01-28 16:36:02]    - Geocoding backfill: Every 2 hours
+[2026-01-28 16:36:02]    - Status monitor: Every 30 minutes
+[2026-01-28 16:36:02]    - Full daily scan: 03:00 AM
+[2026-01-28 16:36:02] 
+[2026-01-28 16:36:02] 🎬 Running initial scrape...
+[2026-01-28 16:36:02] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-28 16:36:02] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 16:37:38]   Total properties: 925
+[2026-01-28 16:37:38]   New: 0
+[2026-01-28 16:37:38]   Updated: 925
+[2026-01-28 16:37:38] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-28 16:37:38] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-28 16:38:00]   Total properties: 0
+[2026-01-28 16:38:00]   New: 0
+[2026-01-28 16:38:00]   Updated: 0
+[2026-01-28 16:38:00] 👀 Monitoring auction status changes...
+[2026-01-28 16:38:00]   📌 Found 4 expired active auctions
+[2026-01-28 16:38:00]   ✅ Marked 4 auctions as FINISHED
+[2026-01-28 16:38:00]   📊 Current database stats:
+[2026-01-28 16:38:00]      ACTIVE: 2060
+[2026-01-28 16:38:00]      FINISHED: 11282
+[2026-01-28 16:38:00]      SUSPENDED: 105
+[2026-01-28 16:40:53] 
+⏹️  Scheduler stopped by user
+[2026-01-28 16:40:53] 
+⏹️  Scheduler stopped by user
+[2026-01-28 16:40:57] ======================================================================
+[2026-01-28 16:40:57] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-28 16:40:57] ======================================================================
+[2026-01-28 16:40:57] 🏠 Sources: BOE, TEJU, Banks (Servihabitat, Haya, Altamira)
+[2026-01-28 16:40:57] ======================================================================
+[2026-01-28 16:40:57] 📅 Schedule configured:
+[2026-01-28 16:40:57]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-28 16:40:57]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-28 16:40:57]    - Bank portals: Daily at 04:00 AM
+[2026-01-28 16:40:57]    - Geocoding backfill: Every 2 hours
+[2026-01-28 16:40:57]    - Status monitor: Every 30 minutes
+[2026-01-28 16:40:57]    - Full daily scan: 03:00 AM
+[2026-01-28 16:40:57] 
+[2026-01-28 16:40:57] 🎬 Running initial scrape...
+[2026-01-28 16:40:57] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-28 16:40:57] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 16:42:24]   Total properties: 925
+[2026-01-28 16:42:24]   New: 0
+[2026-01-28 16:42:24]   Updated: 925
+[2026-01-28 16:42:24] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-28 16:42:24] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-28 16:42:54]   Total properties: 0
+[2026-01-28 16:42:54]   New: 0
+[2026-01-28 16:42:54]   Updated: 0
+[2026-01-28 16:42:54] 👀 Monitoring auction status changes...
+[2026-01-28 16:42:54]   📌 Found 4 expired active auctions
+[2026-01-28 16:42:54]   ✅ Marked 4 auctions as FINISHED
+[2026-01-28 16:42:54]   📊 Current database stats:
+[2026-01-28 16:42:54]      ACTIVE: 2060
+[2026-01-28 16:42:54]      FINISHED: 11282
+[2026-01-28 16:42:54]      SUSPENDED: 105
+[2026-01-28 16:50:54] 
+⏹️  Scheduler stopped by user
+[2026-01-28 16:50:59] ======================================================================
+[2026-01-28 16:50:59] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-28 16:50:59] ======================================================================
+[2026-01-28 16:50:59] 🏠 Sources: BOE, TEJU, Banks (Servihabitat, Haya, Altamira)
+[2026-01-28 16:50:59] ======================================================================
+[2026-01-28 16:50:59] 📅 Schedule configured:
+[2026-01-28 16:50:59]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-28 16:50:59]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-28 16:50:59]    - Bank portals: Daily at 04:00 AM
+[2026-01-28 16:50:59]    - Geocoding backfill: Every 2 hours
+[2026-01-28 16:50:59]    - Status monitor: Every 30 minutes
+[2026-01-28 16:50:59]    - Full daily scan: 03:00 AM
+[2026-01-28 16:50:59] 
+[2026-01-28 16:50:59] 🎬 Running initial scrape...
+[2026-01-28 16:50:59] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-28 16:50:59] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 16:52:41] ======================================================================
+[2026-01-28 16:52:41] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-28 16:52:41] ======================================================================
+[2026-01-28 16:52:41] 🏠 Sources: BOE, TEJU, Banks (Servihabitat, Haya, Altamira)
+[2026-01-28 16:52:41] ======================================================================
+[2026-01-28 16:52:41] 📅 Schedule configured:
+[2026-01-28 16:52:41]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-28 16:52:41]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-28 16:52:41]    - Bank portals: Daily at 04:00 AM
+[2026-01-28 16:52:41]    - Geocoding backfill: Every 2 hours
+[2026-01-28 16:52:41]    - Status monitor: Every 30 minutes
+[2026-01-28 16:52:41]    - Full daily scan: 03:00 AM
+[2026-01-28 16:52:41] 
+[2026-01-28 16:52:41] 🎬 Running initial scrape...
+[2026-01-28 16:52:41] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-28 16:52:41] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 16:54:06]   Total properties: 925
+[2026-01-28 16:54:06]   New: 0
+[2026-01-28 16:54:06]   Updated: 925
+[2026-01-28 16:54:06] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-28 16:54:06] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-28 16:54:28]   Total properties: 0
+[2026-01-28 16:54:28]   New: 0
+[2026-01-28 16:54:28]   Updated: 0
+[2026-01-28 16:54:28] 👀 Monitoring auction status changes...
+[2026-01-28 16:54:28]   📌 Found 4 expired active auctions
+[2026-01-28 16:54:28]   ✅ Marked 4 auctions as FINISHED
+[2026-01-28 16:54:28]   📊 Current database stats:
+[2026-01-28 16:54:28]      ACTIVE: 2060
+[2026-01-28 16:54:28]      FINISHED: 11282
+[2026-01-28 16:54:28]      SUSPENDED: 105
+[2026-01-28 17:23:28] 👀 Monitoring auction status changes...
+[2026-01-28 17:23:28]   📊 Current database stats:
+[2026-01-28 17:23:28]      ACTIVE: 2060
+[2026-01-28 17:23:28]      FINISHED: 11282
+[2026-01-28 17:23:28]      SUSPENDED: 105
+[2026-01-28 17:48:18] 
+⏹️  Scheduler stopped by user
+[2026-01-28 17:48:24] ======================================================================
+[2026-01-28 17:48:24] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-28 17:48:24] ======================================================================
+[2026-01-28 17:48:24] 🏠 Sources: BOE, TEJU, Banks (Servihabitat, Haya, Altamira)
+[2026-01-28 17:48:24] ======================================================================
+[2026-01-28 17:48:24] 📅 Schedule configured:
+[2026-01-28 17:48:24]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-28 17:48:24]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-28 17:48:24]    - Bank portals: Daily at 04:00 AM
+[2026-01-28 17:48:24]    - Geocoding backfill: Every 2 hours
+[2026-01-28 17:48:24]    - Status monitor: Every 30 minutes
+[2026-01-28 17:48:24]    - Full daily scan: 03:00 AM
+[2026-01-28 17:48:24] 
+[2026-01-28 17:48:24] 🎬 Running initial scrape...
+[2026-01-28 17:48:24] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-28 17:48:24] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 17:49:50]   Total properties: 925
+[2026-01-28 17:49:50]   New: 0
+[2026-01-28 17:49:50]   Updated: 925
+[2026-01-28 17:49:50] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-28 17:49:50] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-28 17:50:11]   Total properties: 0
+[2026-01-28 17:50:11]   New: 0
+[2026-01-28 17:50:11]   Updated: 0
+[2026-01-28 17:50:11] 👀 Monitoring auction status changes...
+[2026-01-28 17:50:11]   📌 Found 4 expired active auctions
+[2026-01-28 17:50:11]   ✅ Marked 4 auctions as FINISHED
+[2026-01-28 17:50:11]   📊 Current database stats:
+[2026-01-28 17:50:11]      ACTIVE: 2060
+[2026-01-28 17:50:11]      FINISHED: 11282
+[2026-01-28 17:50:11]      SUSPENDED: 105
+[2026-01-28 17:51:35] 
+⏹️  Scheduler stopped by user
+[2026-01-28 17:51:38] ======================================================================
+[2026-01-28 17:51:38] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-28 17:51:38] ======================================================================
+[2026-01-28 17:51:38] 🏠 Sources: BOE, TEJU, Banks (Servihabitat, Haya, Altamira)
+[2026-01-28 17:51:38] ======================================================================
+[2026-01-28 17:51:38] 📅 Schedule configured:
+[2026-01-28 17:51:38]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-28 17:51:38]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-28 17:51:38]    - Bank portals: Daily at 04:00 AM
+[2026-01-28 17:51:38]    - Geocoding backfill: Every 2 hours
+[2026-01-28 17:51:38]    - Status monitor: Every 30 minutes
+[2026-01-28 17:51:38]    - Full daily scan: 03:00 AM
+[2026-01-28 17:51:38] 
+[2026-01-28 17:51:38] 🎬 Running initial scrape...
+[2026-01-28 17:51:38] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-28 17:51:38] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 17:53:08]   Total properties: 925
+[2026-01-28 17:53:08]   New: 0
+[2026-01-28 17:53:08]   Updated: 925
+[2026-01-28 17:53:08] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-28 17:53:08] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-28 17:53:26] ======================================================================
+[2026-01-28 17:53:26] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-28 17:53:26] ======================================================================
+[2026-01-28 17:53:26] 🏠 Sources: BOE, TEJU, Banks (Servihabitat, Haya, Altamira)
+[2026-01-28 17:53:26] ======================================================================
+[2026-01-28 17:53:26] 📅 Schedule configured:
+[2026-01-28 17:53:26]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-28 17:53:26]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-28 17:53:26]    - Bank portals: Daily at 04:00 AM
+[2026-01-28 17:53:26]    - Geocoding backfill: Every 2 hours
+[2026-01-28 17:53:26]    - Status monitor: Every 30 minutes
+[2026-01-28 17:53:26]    - Full daily scan: 03:00 AM
+[2026-01-28 17:53:27] 
+[2026-01-28 17:53:27] 🎬 Running initial scrape...
+[2026-01-28 17:53:27] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-28 17:53:27] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 17:54:53]   Total properties: 925
+[2026-01-28 17:54:53]   New: 0
+[2026-01-28 17:54:53]   Updated: 925
+[2026-01-28 17:54:53] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-28 17:54:53] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-28 17:55:14]   Total properties: 0
+[2026-01-28 17:55:14]   New: 0
+[2026-01-28 17:55:14]   Updated: 0
+[2026-01-28 17:55:14] 👀 Monitoring auction status changes...
+[2026-01-28 17:55:14]   📌 Found 4 expired active auctions
+[2026-01-28 17:55:14]   ✅ Marked 4 auctions as FINISHED
+[2026-01-28 17:55:14]   📊 Current database stats:
+[2026-01-28 17:55:14]      ACTIVE: 2060
+[2026-01-28 17:55:14]      FINISHED: 11282
+[2026-01-28 17:55:14]      SUSPENDED: 105
+[2026-01-28 18:10:07] ======================================================================
+[2026-01-28 18:10:07] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-28 18:10:07] ======================================================================
+[2026-01-28 18:10:07] 🏠 Sources: BOE, TEJU, Banks (Servihabitat, Haya, Altamira)
+[2026-01-28 18:10:07] ======================================================================
+[2026-01-28 18:10:07] 📅 Schedule configured:
+[2026-01-28 18:10:07]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-28 18:10:07]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-28 18:10:07]    - Bank portals: Daily at 04:00 AM
+[2026-01-28 18:10:07]    - Geocoding backfill: Every 2 hours
+[2026-01-28 18:10:07]    - Status monitor: Every 30 minutes
+[2026-01-28 18:10:07]    - Full daily scan: 03:00 AM
+[2026-01-28 18:10:07] 
+[2026-01-28 18:10:07] 🎬 Running initial scrape...
+[2026-01-28 18:10:07] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-28 18:10:07] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 18:10:43] ======================================================================
+[2026-01-28 18:10:43] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-28 18:10:43] ======================================================================
+[2026-01-28 18:10:43] 🏠 Sources: BOE, TEJU, Banks (Servihabitat, Haya, Altamira)
+[2026-01-28 18:10:43] ======================================================================
+[2026-01-28 18:10:43] 📅 Schedule configured:
+[2026-01-28 18:10:43]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-28 18:10:43]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-28 18:10:43]    - Bank portals: Daily at 04:00 AM
+[2026-01-28 18:10:43]    - Geocoding backfill: Every 2 hours
+[2026-01-28 18:10:43]    - Status monitor: Every 30 minutes
+[2026-01-28 18:10:43]    - Full daily scan: 03:00 AM
+[2026-01-28 18:10:43] 
+[2026-01-28 18:10:43] 🎬 Running initial scrape...
+[2026-01-28 18:10:43] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-28 18:10:43] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 18:11:37]   Total properties: 901
+[2026-01-28 18:11:37]   New: 0
+[2026-01-28 18:11:37]   Updated: 901
+[2026-01-28 18:11:37] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-28 18:11:37] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-28 18:11:59]   Total properties: 0
+[2026-01-28 18:11:59]   New: 0
+[2026-01-28 18:11:59]   Updated: 0
+[2026-01-28 18:11:59] 👀 Monitoring auction status changes...
+[2026-01-28 18:11:59]   📌 Found 4 expired active auctions
+[2026-01-28 18:11:59]   ✅ Marked 4 auctions as FINISHED
+[2026-01-28 18:11:59]   📊 Current database stats:
+[2026-01-28 18:11:59]      ACTIVE: 2060
+[2026-01-28 18:11:59]      FINISHED: 11282
+[2026-01-28 18:11:59]      SUSPENDED: 105
+[2026-01-28 18:12:14]   Total properties: 901
+[2026-01-28 18:12:14]   New: 0
+[2026-01-28 18:12:14]   Updated: 901
+[2026-01-28 18:12:14] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-28 18:12:14] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-28 18:12:38]   Total properties: 0
+[2026-01-28 18:12:38]   New: 0
+[2026-01-28 18:12:38]   Updated: 0
+[2026-01-28 18:12:38] 👀 Monitoring auction status changes...
+[2026-01-28 18:12:38]   📌 Found 4 expired active auctions
+[2026-01-28 18:12:38]   ✅ Marked 4 auctions as FINISHED
+[2026-01-28 18:12:38]   📊 Current database stats:
+[2026-01-28 18:12:38]      ACTIVE: 2060
+[2026-01-28 18:12:38]      FINISHED: 11282
+[2026-01-28 18:12:38]      SUSPENDED: 105
+[2026-01-28 18:17:33] ======================================================================
+[2026-01-28 18:17:33] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-28 18:17:33] ======================================================================
+[2026-01-28 18:17:33] 🏠 Sources: BOE, TEJU, Banks (Servihabitat, Haya, Altamira)
+[2026-01-28 18:17:33] ======================================================================
+[2026-01-28 18:17:33] 📅 Schedule configured:
+[2026-01-28 18:17:33]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-28 18:17:33]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-28 18:17:33]    - Bank portals: Daily at 04:00 AM
+[2026-01-28 18:17:33]    - Geocoding backfill: Every 2 hours
+[2026-01-28 18:17:33]    - Status monitor: Every 30 minutes
+[2026-01-28 18:17:33]    - Full daily scan: 03:00 AM
+[2026-01-28 18:17:33] 
+[2026-01-28 18:17:33] 🎬 Running initial scrape...
+[2026-01-28 18:17:33] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-28 18:17:33] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 18:17:50] ======================================================================
+[2026-01-28 18:17:50] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-28 18:17:50] ======================================================================
+[2026-01-28 18:17:50] 🏠 Sources: BOE, TEJU, Banks (Servihabitat, Haya, Altamira)
+[2026-01-28 18:17:50] ======================================================================
+[2026-01-28 18:17:50] 📅 Schedule configured:
+[2026-01-28 18:17:50]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-28 18:17:50]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-28 18:17:50]    - Bank portals: Daily at 04:00 AM
+[2026-01-28 18:17:50]    - Geocoding backfill: Every 2 hours
+[2026-01-28 18:17:50]    - Status monitor: Every 30 minutes
+[2026-01-28 18:17:50]    - Full daily scan: 03:00 AM
+[2026-01-28 18:17:50] 
+[2026-01-28 18:17:50] 🎬 Running initial scrape...
+[2026-01-28 18:17:50] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-28 18:17:50] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 18:18:54]   Total properties: 901
+[2026-01-28 18:18:54]   New: 0
+[2026-01-28 18:18:54]   Updated: 901
+[2026-01-28 18:18:54] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-28 18:18:54] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-28 18:19:07] 
+⏹️  Scheduler stopped by user
+[2026-01-28 18:19:13] ======================================================================
+[2026-01-28 18:19:13] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-28 18:19:13] ======================================================================
+[2026-01-28 18:19:13] 🏠 Sources: BOE, TEJU, Banks (Servihabitat, Haya, Altamira)
+[2026-01-28 18:19:13] ======================================================================
+[2026-01-28 18:19:13] 📅 Schedule configured:
+[2026-01-28 18:19:13]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-28 18:19:13]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-28 18:19:13]    - Bank portals: Daily at 04:00 AM
+[2026-01-28 18:19:13]    - Geocoding backfill: Every 2 hours
+[2026-01-28 18:19:13]    - Status monitor: Every 30 minutes
+[2026-01-28 18:19:13]    - Full daily scan: 03:00 AM
+[2026-01-28 18:19:13] 
+[2026-01-28 18:19:13] 🎬 Running initial scrape...
+[2026-01-28 18:19:13] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-28 18:19:13] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 18:19:39]   Total properties: 200
+[2026-01-28 18:19:39]   New: 0
+[2026-01-28 18:19:39]   Updated: 200
+[2026-01-28 18:19:39] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-28 18:19:39] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-28 18:20:01]   Total properties: 0
+[2026-01-28 18:20:01]   New: 0
+[2026-01-28 18:20:01]   Updated: 0
+[2026-01-28 18:20:01] 👀 Monitoring auction status changes...
+[2026-01-28 18:20:01]   📌 Found 4 expired active auctions
+[2026-01-28 18:20:01]   ✅ Marked 4 auctions as FINISHED
+[2026-01-28 18:20:01]   📊 Current database stats:
+[2026-01-28 18:20:01]      ACTIVE: 2060
+[2026-01-28 18:20:01]      FINISHED: 11282
+[2026-01-28 18:20:01]      SUSPENDED: 105
+[2026-01-28 18:20:47] ======================================================================
+[2026-01-28 18:20:47] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-28 18:20:47] ======================================================================
+[2026-01-28 18:20:47] 🏠 Sources: BOE, TEJU, Banks (Servihabitat, Haya, Altamira)
+[2026-01-28 18:20:47] ======================================================================
+[2026-01-28 18:20:47] 📅 Schedule configured:
+[2026-01-28 18:20:47]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-28 18:20:47]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-28 18:20:47]    - Bank portals: Daily at 04:00 AM
+[2026-01-28 18:20:47]    - Geocoding backfill: Every 2 hours
+[2026-01-28 18:20:47]    - Status monitor: Every 30 minutes
+[2026-01-28 18:20:47]    - Full daily scan: 03:00 AM
+[2026-01-28 18:20:47] 
+[2026-01-28 18:20:47] 🎬 Running initial scrape...
+[2026-01-28 18:20:47] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-28 18:20:47] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 18:21:00]   Total properties: 200
+[2026-01-28 18:21:00]   New: 0
+[2026-01-28 18:21:00]   Updated: 200
+[2026-01-28 18:21:00] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-28 18:21:00] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-28 18:21:22]   Total properties: 0
+[2026-01-28 18:21:22]   New: 0
+[2026-01-28 18:21:22]   Updated: 0
+[2026-01-28 18:21:22] 👀 Monitoring auction status changes...
+[2026-01-28 18:21:22]   📊 Current database stats:
+[2026-01-28 18:21:22]      ACTIVE: 2060
+[2026-01-28 18:21:22]      FINISHED: 11282
+[2026-01-28 18:21:22]      SUSPENDED: 105
+[2026-01-28 18:22:11] ======================================================================
+[2026-01-28 18:22:11] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-28 18:22:11] ======================================================================
+[2026-01-28 18:22:11] 🏠 Sources: BOE, TEJU, Banks (Servihabitat, Haya, Altamira)
+[2026-01-28 18:22:11] ======================================================================
+[2026-01-28 18:22:11] 📅 Schedule configured:
+[2026-01-28 18:22:11]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-28 18:22:11]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-28 18:22:11]    - Bank portals: Daily at 04:00 AM
+[2026-01-28 18:22:11]    - Geocoding backfill: Every 2 hours
+[2026-01-28 18:22:11]    - Status monitor: Every 30 minutes
+[2026-01-28 18:22:11]    - Full daily scan: 03:00 AM
+[2026-01-28 18:22:11] 
+[2026-01-28 18:22:11] 🎬 Running initial scrape...
+[2026-01-28 18:22:11] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-28 18:22:11] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 18:22:22]   Total properties: 200
+[2026-01-28 18:22:22]   New: 0
+[2026-01-28 18:22:22]   Updated: 200
+[2026-01-28 18:22:22] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-28 18:22:22] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-28 18:40:18] ======================================================================
+[2026-01-28 18:40:18] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-28 18:40:18] ======================================================================
+[2026-01-28 18:40:18] 🏠 Sources: BOE, TEJU, Banks (Servihabitat, Haya, Altamira)
+[2026-01-28 18:40:18] ======================================================================
+[2026-01-28 18:40:18] 📅 Schedule configured:
+[2026-01-28 18:40:18]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-28 18:40:18]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-28 18:40:18]    - Bank portals: Daily at 04:00 AM
+[2026-01-28 18:40:18]    - Geocoding backfill: Every 2 hours
+[2026-01-28 18:40:18]    - Status monitor: Every 30 minutes
+[2026-01-28 18:40:18]    - Full daily scan: 03:00 AM
+[2026-01-28 18:40:18] 
+[2026-01-28 18:40:18] 🎬 Running initial scrape...
+[2026-01-28 18:40:18] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-28 18:40:18] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 18:40:32]   Total properties: 200
+[2026-01-28 18:40:32]   New: 0
+[2026-01-28 18:40:32]   Updated: 200
+[2026-01-28 18:40:32] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-28 18:40:32] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-28 18:40:52] ======================================================================
+[2026-01-28 18:40:52] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-28 18:40:52] ======================================================================
+[2026-01-28 18:40:52] 🏠 Sources: BOE, TEJU, Banks (Servihabitat, Haya, Altamira)
+[2026-01-28 18:40:52] ======================================================================
+[2026-01-28 18:40:52] 📅 Schedule configured:
+[2026-01-28 18:40:52]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-28 18:40:52]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-28 18:40:52]    - Bank portals: Daily at 04:00 AM
+[2026-01-28 18:40:52]    - Geocoding backfill: Every 2 hours
+[2026-01-28 18:40:52]    - Status monitor: Every 30 minutes
+[2026-01-28 18:40:52]    - Full daily scan: 03:00 AM
+[2026-01-28 18:40:52] 
+[2026-01-28 18:40:52] 🎬 Running initial scrape...
+[2026-01-28 18:40:52] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-28 18:40:52] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 18:40:53]   Total properties: 0
+[2026-01-28 18:40:53]   New: 0
+[2026-01-28 18:40:53]   Updated: 0
+[2026-01-28 18:40:53] 👀 Monitoring auction status changes...
+[2026-01-28 18:40:53]   📊 Current database stats:
+[2026-01-28 18:40:53]      ACTIVE: 2060
+[2026-01-28 18:40:53]      FINISHED: 11282
+[2026-01-28 18:40:53]      SUSPENDED: 105
+[2026-01-28 18:40:59] 👀 Monitoring auction status changes...
+[2026-01-28 18:40:59]   📊 Current database stats:
+[2026-01-28 18:40:59]      ACTIVE: 2060
+[2026-01-28 18:40:59]      FINISHED: 11282
+[2026-01-28 18:40:59]      SUSPENDED: 105
+[2026-01-28 18:41:04]   Total properties: 200
+[2026-01-28 18:41:04]   New: 0
+[2026-01-28 18:41:04]   Updated: 200
+[2026-01-28 18:41:04] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-28 18:41:04] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-28 18:41:25]   Total properties: 0
+[2026-01-28 18:41:25]   New: 0
+[2026-01-28 18:41:25]   Updated: 0
+[2026-01-28 18:41:25] 👀 Monitoring auction status changes...
+[2026-01-28 18:41:25]   📊 Current database stats:
+[2026-01-28 18:41:25]      ACTIVE: 2060
+[2026-01-28 18:41:25]      FINISHED: 11282
+[2026-01-28 18:41:25]      SUSPENDED: 105
+[2026-01-28 18:41:38] 👀 Monitoring auction status changes...
+[2026-01-28 18:41:38]   📊 Current database stats:
+[2026-01-28 18:41:38]      ACTIVE: 2060
+[2026-01-28 18:41:38]      FINISHED: 11282
+[2026-01-28 18:41:38]      SUSPENDED: 105
+[2026-01-28 18:49:39] ======================================================================
+[2026-01-28 18:49:39] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-28 18:49:39] ======================================================================
+[2026-01-28 18:49:39] 🏠 Sources: BOE, TEJU, Banks (Servihabitat, Haya, Altamira)
+[2026-01-28 18:49:39] ======================================================================
+[2026-01-28 18:49:39] 📅 Schedule configured:
+[2026-01-28 18:49:39]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-28 18:49:39]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-28 18:49:39]    - Bank portals: Daily at 04:00 AM
+[2026-01-28 18:49:39]    - Geocoding backfill: Every 2 hours
+[2026-01-28 18:49:39]    - Status monitor: Every 30 minutes
+[2026-01-28 18:49:39]    - Full daily scan: 03:00 AM
+[2026-01-28 18:49:39] 
+[2026-01-28 18:49:39] 🎬 Running initial scrape...
+[2026-01-28 18:49:39] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-28 18:49:39] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 18:49:53]   Total properties: 200
+[2026-01-28 18:49:53]   New: 0
+[2026-01-28 18:49:53]   Updated: 200
+[2026-01-28 18:49:53] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-28 18:49:53] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-28 18:50:15]   Total properties: 0
+[2026-01-28 18:50:15]   New: 0
+[2026-01-28 18:50:15]   Updated: 0
+[2026-01-28 18:50:15] 👀 Monitoring auction status changes...
+[2026-01-28 18:50:15]   📊 Current database stats:
+[2026-01-28 18:50:15]      ACTIVE: 2060
+[2026-01-28 18:50:15]      FINISHED: 11282
+[2026-01-28 18:50:15]      SUSPENDED: 105
+[2026-01-28 18:51:22] 👀 Monitoring auction status changes...
+[2026-01-28 18:51:22]   📊 Current database stats:
+[2026-01-28 18:51:22]      ACTIVE: 2060
+[2026-01-28 18:51:22]      FINISHED: 11282
+[2026-01-28 18:51:22]      SUSPENDED: 105
+[2026-01-28 18:57:43] ======================================================================
+[2026-01-28 18:57:43] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-28 18:57:43] ======================================================================
+[2026-01-28 18:57:43] 🏠 Sources: BOE, TEJU, Banks (Servihabitat, Haya, Altamira)
+[2026-01-28 18:57:43] ======================================================================
+[2026-01-28 18:57:43] 📅 Schedule configured:
+[2026-01-28 18:57:43]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-28 18:57:43]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-28 18:57:43]    - Bank portals: Daily at 04:00 AM
+[2026-01-28 18:57:43]    - Geocoding backfill: Every 2 hours
+[2026-01-28 18:57:43]    - Status monitor: Every 30 minutes
+[2026-01-28 18:57:43]    - Full daily scan: 03:00 AM
+[2026-01-28 18:57:43] 
+[2026-01-28 18:57:43] 🎬 Running initial scrape...
+[2026-01-28 18:57:43] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-28 18:57:43] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 18:57:54]   Total properties: 200
+[2026-01-28 18:57:54]   New: 0
+[2026-01-28 18:57:54]   Updated: 200
+[2026-01-28 18:57:54] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-28 18:57:54] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-28 18:58:16]   Total properties: 0
+[2026-01-28 18:58:16]   New: 0
+[2026-01-28 18:58:16]   Updated: 0
+[2026-01-28 18:58:16] 👀 Monitoring auction status changes...
+[2026-01-28 18:58:16]   📊 Current database stats:
+[2026-01-28 18:58:16]      ACTIVE: 2060
+[2026-01-28 18:58:16]      FINISHED: 11282
+[2026-01-28 18:58:16]      SUSPENDED: 105
+[2026-01-28 19:04:54] ======================================================================
+[2026-01-28 19:04:54] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-28 19:04:54] ======================================================================
+[2026-01-28 19:04:54] 🏠 Sources: BOE, TEJU, Banks (Servihabitat, Haya, Altamira)
+[2026-01-28 19:04:54] ======================================================================
+[2026-01-28 19:04:54] 📅 Schedule configured:
+[2026-01-28 19:04:54]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-28 19:04:54]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-28 19:04:54]    - Bank portals: Daily at 04:00 AM
+[2026-01-28 19:04:54]    - Geocoding backfill: Every 2 hours
+[2026-01-28 19:04:54]    - Status monitor: Every 30 minutes
+[2026-01-28 19:04:54]    - Full daily scan: 03:00 AM
+[2026-01-28 19:04:54] 
+[2026-01-28 19:04:54] 🎬 Running initial scrape...
+[2026-01-28 19:04:54] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-28 19:04:54] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 19:05:06]   Total properties: 200
+[2026-01-28 19:05:06]   New: 0
+[2026-01-28 19:05:06]   Updated: 200
+[2026-01-28 19:05:06] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-28 19:05:06] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-28 19:05:28]   Total properties: 0
+[2026-01-28 19:05:28]   New: 0
+[2026-01-28 19:05:28]   Updated: 0
+[2026-01-28 19:05:28] 👀 Monitoring auction status changes...
+[2026-01-28 19:05:28]   📊 Current database stats:
+[2026-01-28 19:05:28]      ACTIVE: 2060
+[2026-01-28 19:05:28]      FINISHED: 11282
+[2026-01-28 19:05:28]      SUSPENDED: 105
+[2026-01-28 19:10:53] 👀 Monitoring auction status changes...
+[2026-01-28 19:10:53]   📊 Current database stats:
+[2026-01-28 19:10:53]      ACTIVE: 2060
+[2026-01-28 19:10:53]      FINISHED: 11282
+[2026-01-28 19:10:53]      SUSPENDED: 105
+[2026-01-28 19:10:59] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 19:11:12]   Total properties: 200
+[2026-01-28 19:11:12]   New: 0
+[2026-01-28 19:11:12]   Updated: 200
+[2026-01-28 19:11:12] 👀 Monitoring auction status changes...
+[2026-01-28 19:11:12]   📊 Current database stats:
+[2026-01-28 19:11:12]      ACTIVE: 2060
+[2026-01-28 19:11:12]      FINISHED: 11282
+[2026-01-28 19:11:12]      SUSPENDED: 105
+[2026-01-28 19:11:25] 👀 Monitoring auction status changes...
+[2026-01-28 19:11:25]   📊 Current database stats:
+[2026-01-28 19:11:25]      ACTIVE: 2060
+[2026-01-28 19:11:25]      FINISHED: 11282
+[2026-01-28 19:11:25]      SUSPENDED: 105
+[2026-01-28 19:11:38] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 19:11:49]   Total properties: 200
+[2026-01-28 19:11:49]   New: 0
+[2026-01-28 19:11:49]   Updated: 200
+[2026-01-28 19:11:49] 👀 Monitoring auction status changes...
+[2026-01-28 19:11:49]   📊 Current database stats:
+[2026-01-28 19:11:49]      ACTIVE: 2060
+[2026-01-28 19:11:49]      FINISHED: 11282
+[2026-01-28 19:11:49]      SUSPENDED: 105
+[2026-01-28 19:14:58] ======================================================================
+[2026-01-28 19:14:58] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-01-28 19:14:58] ======================================================================
+[2026-01-28 19:14:58] 🏠 Sources: BOE, TEJU, Banks (Servihabitat, Haya, Altamira)
+[2026-01-28 19:14:58] ======================================================================
+[2026-01-28 19:14:58] 📅 Schedule configured:
+[2026-01-28 19:14:58]    - ACTIVE properties: Every 1 hour ⭐ PRIORITY
+[2026-01-28 19:14:58]    - PRE-AUCTION properties: Every 6 hours
+[2026-01-28 19:14:58]    - Bank portals: Daily at 04:00 AM
+[2026-01-28 19:14:58]    - Geocoding backfill: Every 2 hours
+[2026-01-28 19:14:58]    - Status monitor: Every 30 minutes
+[2026-01-28 19:14:58]    - Full daily scan: 03:00 AM
+[2026-01-28 19:14:58] 
+[2026-01-28 19:14:58] 🎬 Running initial scrape...
+[2026-01-28 19:14:58] 🏠 Scraping ACTIVE mortgage properties...
+[2026-01-28 19:14:58] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 19:15:10]   Total properties: 200
+[2026-01-28 19:15:10]   New: 0
+[2026-01-28 19:15:10]   Updated: 200
+[2026-01-28 19:15:10] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-28 19:15:10] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-28 19:15:32]   Total properties: 0
+[2026-01-28 19:15:32]   New: 0
+[2026-01-28 19:15:32]   Updated: 0
+[2026-01-28 19:15:32] 👀 Monitoring auction status changes...
+[2026-01-28 19:15:32]   📊 Current database stats:
+[2026-01-28 19:15:32]      ACTIVE: 2060
+[2026-01-28 19:15:32]      FINISHED: 11282
+[2026-01-28 19:15:32]      SUSPENDED: 105
+[2026-01-28 19:20:15] 👀 Monitoring auction status changes...
+[2026-01-28 19:20:15]   📊 Current database stats:
+[2026-01-28 19:20:15]      ACTIVE: 2060
+[2026-01-28 19:20:15]      FINISHED: 11282
+[2026-01-28 19:20:15]      SUSPENDED: 105
+[2026-01-28 19:21:22] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 19:21:33]   Total properties: 200
+[2026-01-28 19:21:33]   New: 0
+[2026-01-28 19:21:33]   Updated: 200
+[2026-01-28 19:21:33] 👀 Monitoring auction status changes...
+[2026-01-28 19:21:33]   📊 Current database stats:
+[2026-01-28 19:21:33]      ACTIVE: 2060
+[2026-01-28 19:21:33]      FINISHED: 11282
+[2026-01-28 19:21:33]      SUSPENDED: 105
+[2026-01-28 19:28:16] 👀 Monitoring auction status changes...
+[2026-01-28 19:28:16]   📊 Current database stats:
+[2026-01-28 19:28:16]      ACTIVE: 2060
+[2026-01-28 19:28:16]      FINISHED: 11282
+[2026-01-28 19:28:16]      SUSPENDED: 105
+[2026-01-28 19:35:28] 👀 Monitoring auction status changes...
+[2026-01-28 19:35:28]   📊 Current database stats:
+[2026-01-28 19:35:28]      ACTIVE: 2060
+[2026-01-28 19:35:28]      FINISHED: 11282
+[2026-01-28 19:35:28]      SUSPENDED: 105
+[2026-01-28 19:40:53] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 19:41:09]   Total properties: 200
+[2026-01-28 19:41:09]   New: 0
+[2026-01-28 19:41:09]   Updated: 200
+[2026-01-28 19:41:09] 👀 Monitoring auction status changes...
+[2026-01-28 19:41:09]   📊 Current database stats:
+[2026-01-28 19:41:09]      ACTIVE: 2060
+[2026-01-28 19:41:09]      FINISHED: 11282
+[2026-01-28 19:41:09]      SUSPENDED: 105
+[2026-01-28 19:41:12] 👀 Monitoring auction status changes...
+[2026-01-28 19:41:12]   📊 Current database stats:
+[2026-01-28 19:41:12]      ACTIVE: 2060
+[2026-01-28 19:41:12]      FINISHED: 11282
+[2026-01-28 19:41:12]      SUSPENDED: 105
+[2026-01-28 19:41:25] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 19:41:37]   Total properties: 200
+[2026-01-28 19:41:37]   New: 0
+[2026-01-28 19:41:37]   Updated: 200
+[2026-01-28 19:41:37] 👀 Monitoring auction status changes...
+[2026-01-28 19:41:37]   📊 Current database stats:
+[2026-01-28 19:41:37]      ACTIVE: 2060
+[2026-01-28 19:41:37]      FINISHED: 11282
+[2026-01-28 19:41:37]      SUSPENDED: 105
+[2026-01-28 19:41:49] 👀 Monitoring auction status changes...
+[2026-01-28 19:41:49]   📊 Current database stats:
+[2026-01-28 19:41:49]      ACTIVE: 2060
+[2026-01-28 19:41:49]      FINISHED: 11282
+[2026-01-28 19:41:49]      SUSPENDED: 105
+[2026-01-28 19:45:32] 👀 Monitoring auction status changes...
+[2026-01-28 19:45:32]   📊 Current database stats:
+[2026-01-28 19:45:32]      ACTIVE: 2060
+[2026-01-28 19:45:32]      FINISHED: 11282
+[2026-01-28 19:45:32]      SUSPENDED: 105
+[2026-01-28 19:50:15] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 19:50:29]   Total properties: 200
+[2026-01-28 19:50:29]   New: 0
+[2026-01-28 19:50:29]   Updated: 200
+[2026-01-28 19:50:29] 👀 Monitoring auction status changes...
+[2026-01-28 19:50:29]   📊 Current database stats:
+[2026-01-28 19:50:29]      ACTIVE: 2060
+[2026-01-28 19:50:29]      FINISHED: 11282
+[2026-01-28 19:50:29]      SUSPENDED: 105
+[2026-01-28 19:51:33] 👀 Monitoring auction status changes...
+[2026-01-28 19:51:33]   📊 Current database stats:
+[2026-01-28 19:51:33]      ACTIVE: 2060
+[2026-01-28 19:51:33]      FINISHED: 11282
+[2026-01-28 19:51:33]      SUSPENDED: 105
+[2026-01-28 19:58:16] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 19:58:26]   Total properties: 200
+[2026-01-28 19:58:26]   New: 0
+[2026-01-28 19:58:26]   Updated: 200
+[2026-01-28 19:58:26] 👀 Monitoring auction status changes...
+[2026-01-28 19:58:26]   📊 Current database stats:
+[2026-01-28 19:58:26]      ACTIVE: 2060
+[2026-01-28 19:58:26]      FINISHED: 11282
+[2026-01-28 19:58:26]      SUSPENDED: 105
+[2026-01-28 20:05:28] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 20:05:40]   Total properties: 200
+[2026-01-28 20:05:40]   New: 0
+[2026-01-28 20:05:40]   Updated: 200
+[2026-01-28 20:05:40] 👀 Monitoring auction status changes...
+[2026-01-28 20:05:40]   📊 Current database stats:
+[2026-01-28 20:05:40]      ACTIVE: 2060
+[2026-01-28 20:05:40]      FINISHED: 11282
+[2026-01-28 20:05:40]      SUSPENDED: 105
+[2026-01-28 20:10:12] 🗺️ Running geocoding backfill...
+[2026-01-28 20:10:13]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-28 20:10:49] 🗺️ Running geocoding backfill...
+[2026-01-28 20:10:50]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-28 20:11:09] 👀 Monitoring auction status changes...
+[2026-01-28 20:11:09]   📊 Current database stats:
+[2026-01-28 20:11:09]      ACTIVE: 2060
+[2026-01-28 20:11:09]      FINISHED: 11282
+[2026-01-28 20:11:09]      SUSPENDED: 105
+[2026-01-28 20:11:13] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 20:11:24]   Total properties: 200
+[2026-01-28 20:11:24]   New: 0
+[2026-01-28 20:11:24]   Updated: 200
+[2026-01-28 20:11:24] 👀 Monitoring auction status changes...
+[2026-01-28 20:11:24]   📊 Current database stats:
+[2026-01-28 20:11:24]      ACTIVE: 2060
+[2026-01-28 20:11:24]      FINISHED: 11282
+[2026-01-28 20:11:24]      SUSPENDED: 105
+[2026-01-28 20:11:37] 👀 Monitoring auction status changes...
+[2026-01-28 20:11:37]   📊 Current database stats:
+[2026-01-28 20:11:37]      ACTIVE: 2060
+[2026-01-28 20:11:37]      FINISHED: 11282
+[2026-01-28 20:11:37]      SUSPENDED: 105
+[2026-01-28 20:11:50] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 20:12:01]   Total properties: 200
+[2026-01-28 20:12:01]   New: 0
+[2026-01-28 20:12:01]   Updated: 200
+[2026-01-28 20:12:01] 👀 Monitoring auction status changes...
+[2026-01-28 20:12:01]   📊 Current database stats:
+[2026-01-28 20:12:01]      ACTIVE: 2060
+[2026-01-28 20:12:01]      FINISHED: 11282
+[2026-01-28 20:12:01]      SUSPENDED: 105
+[2026-01-28 20:15:32] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 20:15:43]   Total properties: 200
+[2026-01-28 20:15:43]   New: 0
+[2026-01-28 20:15:43]   Updated: 200
+[2026-01-28 20:15:43] 👀 Monitoring auction status changes...
+[2026-01-28 20:15:43]   📊 Current database stats:
+[2026-01-28 20:15:43]      ACTIVE: 2060
+[2026-01-28 20:15:43]      FINISHED: 11282
+[2026-01-28 20:15:43]      SUSPENDED: 105
+[2026-01-28 20:20:29] 👀 Monitoring auction status changes...
+[2026-01-28 20:20:29]   📊 Current database stats:
+[2026-01-28 20:20:29]      ACTIVE: 2060
+[2026-01-28 20:20:29]      FINISHED: 11282
+[2026-01-28 20:20:29]      SUSPENDED: 105
+[2026-01-28 20:21:33] 🗺️ Running geocoding backfill...
+[2026-01-28 20:21:34]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-28 20:21:34] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 20:21:44]   Total properties: 200
+[2026-01-28 20:21:44]   New: 0
+[2026-01-28 20:21:44]   Updated: 200
+[2026-01-28 20:21:44] 👀 Monitoring auction status changes...
+[2026-01-28 20:21:44]   📊 Current database stats:
+[2026-01-28 20:21:44]      ACTIVE: 2060
+[2026-01-28 20:21:44]      FINISHED: 11282
+[2026-01-28 20:21:44]      SUSPENDED: 105
+[2026-01-28 20:28:26] 👀 Monitoring auction status changes...
+[2026-01-28 20:28:26]   📊 Current database stats:
+[2026-01-28 20:28:26]      ACTIVE: 2060
+[2026-01-28 20:28:26]      FINISHED: 11282
+[2026-01-28 20:28:26]      SUSPENDED: 105
+[2026-01-28 20:35:40] 👀 Monitoring auction status changes...
+[2026-01-28 20:35:40]   📊 Current database stats:
+[2026-01-28 20:35:40]      ACTIVE: 2060
+[2026-01-28 20:35:40]      FINISHED: 11282
+[2026-01-28 20:35:40]      SUSPENDED: 105
+[2026-01-28 20:41:09] 🗺️ Running geocoding backfill...
+[2026-01-28 20:41:09]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-28 20:41:09] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 20:41:23]   Total properties: 200
+[2026-01-28 20:41:23]   New: 0
+[2026-01-28 20:41:23]   Updated: 200
+[2026-01-28 20:41:23] 👀 Monitoring auction status changes...
+[2026-01-28 20:41:23]   📊 Current database stats:
+[2026-01-28 20:41:23]      ACTIVE: 2060
+[2026-01-28 20:41:23]      FINISHED: 11282
+[2026-01-28 20:41:23]      SUSPENDED: 105
+[2026-01-28 20:41:24] 👀 Monitoring auction status changes...
+[2026-01-28 20:41:24]   📊 Current database stats:
+[2026-01-28 20:41:24]      ACTIVE: 2060
+[2026-01-28 20:41:24]      FINISHED: 11282
+[2026-01-28 20:41:24]      SUSPENDED: 105
+[2026-01-28 20:41:37] 🗺️ Running geocoding backfill...
+[2026-01-28 20:41:38]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-28 20:41:38] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-28 20:41:49]   Total properties: 200
+[2026-01-28 20:41:49]   New: 0
+[2026-01-28 20:41:49]   Updated: 200
+[2026-01-28 20:41:49] 👀 Monitoring auction status changes...
+[2026-01-28 20:41:49]   📊 Current database stats:
+[2026-01-28 20:41:49]      ACTIVE: 2060
+[2026-01-28 20:41:49]      FINISHED: 11282
+[2026-01-28 20:41:49]      SUSPENDED: 105
+[2026-01-28 20:42:01] 👀 Monitoring auction status changes...
+[2026-01-28 20:42:01]   📊 Current database stats:
+[2026-01-28 20:42:01]      ACTIVE: 2060
+[2026-01-28 20:42:01]      FINISHED: 11282
+[2026-01-28 20:42:01]      SUSPENDED: 105
+[2026-01-29 00:33:10] 👀 Monitoring auction status changes...
+
+[2026-01-29 00:33:10] 👀 Monitoring auction status changes...
+[2026-01-29 00:33:10] 🗺️ Running geocoding backfill...
+[2026-01-29 00:33:10] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-29 00:33:10] 🗺️ Running geocoding backfill...
+[2026-01-29 00:33:10] 👀 Monitoring auction status changes...
+[2026-01-29 00:33:10] 👀 Monitoring auction status changes...
+[2026-01-29 00:33:10]   📊 Current database stats:
+[2026-01-29 00:33:10]      ACTIVE: 2060
+[2026-01-29 00:33:10]   📊 Current database stats:
+[2026-01-29 00:33:10]      ACTIVE: 2060
+[2026-01-29 00:33:10]      FINISHED: 11282
+[2026-01-29 00:33:10]      SUSPENDED: 105
+[2026-01-29 00:33:10]      FINISHED: 11282
+[2026-01-29 00:33:10] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-29 00:33:10]   📊 Current database stats:
+[2026-01-29 00:33:10]   📊 Current database stats:
+[2026-01-29 00:33:10]      ACTIVE: 2060
+[2026-01-29 00:33:10]      SUSPENDED: 105
+[2026-01-29 00:33:10]      ACTIVE: 2060
+2
+[2026-01-29 00:33:10]      SUSPENDED: 105
+
+[2026-01-29 00:33:10] 🗺️ Running geocoding backfill...
+[2026-01-29 00:33:10] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-29 00:33:10] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-29 00:33:12]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 00:33:12]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 00:33:12] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-29 00:33:12] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-29 00:33:16]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 00:33:16] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-29 00:33:16]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 00:33:16] 🚀 Starting ACTIVE scraper (pages=50)...
+[2026-01-29 00:33:39]   Total properties: 200
+[2026-01-29 00:33:39]   New: 0
+[2026-01-29 00:33:39]   Updated: 200
+[2026-01-29 00:33:39] 👀 Monitoring auction status changes...
+[2026-01-29 00:33:39]   📊 Current database stats:
+[2026-01-29 00:33:39]      ACTIVE: 2060
+[2026-01-29 00:33:39]      FINISHED: 11282
+[2026-01-29 00:33:39]      SUSPENDED: 105
+[2026-01-29 00:33:39]   Total properties: 200
+[2026-01-29 00:33:39]   New: 0
+[2026-01-29 00:33:39]   Updated: 200
+[2026-01-29 00:33:39] 👀 Monitoring auction status changes...
+[2026-01-29 00:33:39]   📊 Current database stats:
+[2026-01-29 00:33:39]      ACTIVE: 2060
+[2026-01-29 00:33:39]      FINISHED: 11282
+[2026-01-29 00:33:39]      SUSPENDED: 105
+[2026-01-29 00:33:39]   Total properties: 200
+[2026-01-29 00:33:39]   New: 0
+[2026-01-29 00:33:39]   Updated: 200
+[2026-01-29 00:33:39] 🗺️ Running geocoding backfill...
+[2026-01-29 00:33:39]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 00:33:39] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-29 00:33:39] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-29 00:33:41]   Total properties: 200
+[2026-01-29 00:33:41]   New: 0
+[2026-01-29 00:33:41]   Updated: 200
+[2026-01-29 00:33:41] 👀 Monitoring auction status changes...
+[2026-01-29 00:33:41]   📊 Current database stats:
+[2026-01-29 00:33:41]      ACTIVE: 2060
+[2026-01-29 00:33:41]      FINISHED: 11282
+[2026-01-29 00:33:41]      SUSPENDED: 105
+[2026-01-29 00:33:44]   Total properties: 200
+[2026-01-29 00:33:44]   New: 0
+[2026-01-29 00:33:44]   Updated: 200
+[2026-01-29 00:33:44]   Total properties: 200
+[2026-01-29 00:33:44]   New: 0
+[2026-01-29 00:33:44]   Updated: 200
+[2026-01-29 00:33:44] 🗺️ Running geocoding backfill...
+[2026-01-29 00:33:44]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 00:33:44]   Total properties: 200
+[2026-01-29 00:33:44]   New: 0
+[2026-01-29 00:33:44]   Updated: 200
+[2026-01-29 00:33:44] 👀 Monitoring auction status changes...
+[2026-01-29 00:33:44]   📊 Current database stats:
+[2026-01-29 00:33:44]      ACTIVE: 2060
+[2026-01-29 00:33:44]      FINISHED: 11282
+[2026-01-29 00:33:44]      SUSPENDED: 105
+[2026-01-29 00:33:44] 🗺️ Running geocoding backfill...
+[2026-01-29 00:33:44]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 00:33:44] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-29 00:33:44] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-29 00:33:44]   Total properties: 200
+[2026-01-29 00:33:44]   New: 0
+[2026-01-29 00:33:44]   Updated: 200
+[2026-01-29 00:33:44] 🗺️ Running geocoding backfill...
+[2026-01-29 00:33:44]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 00:33:44]   Total properties: 200
+[2026-01-29 00:33:44]   New: 0
+[2026-01-29 00:33:44]   Updated: 200
+[2026-01-29 00:33:44] 👀 Monitoring auction status changes...
+[2026-01-29 00:33:44]   📊 Current database stats:
+[2026-01-29 00:33:44]      ACTIVE: 2060
+[2026-01-29 00:33:44]      FINISHED: 11282
+[2026-01-29 00:33:44]      SUSPENDED: 105
+[2026-01-29 00:33:44] 🗺️ Running geocoding backfill...
+[2026-01-29 00:33:44]   ❌ Error: attempted relative import beyond top-level package
+[2026-01-29 00:33:44] 🔮 Scraping PRE-AUCTION properties...
+[2026-01-29 00:33:44] 🚀 Starting PRE scraper (pages=50)...
+[2026-01-29 00:34:02]   Total properties: 0
+[2026-01-29 00:34:02]   New: 0
+[2026-01-29 00:34:02]   Updated: 0
+[2026-01-29 00:34:07]   Total properties: 0
+[2026-01-29 00:34:07]   New: 0
+[2026-01-29 00:34:07]   Updated: 0
+[2026-01-29 00:34:08]   Total properties: 0
+[2026-01-29 00:34:08]   New: 0
+[2026-01-29 00:34:08]   Updated: 0

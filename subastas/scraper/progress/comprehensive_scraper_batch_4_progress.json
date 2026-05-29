@@ -1,0 +1,30 @@
+{
+  "started_at": "2026-01-22T15:41:02.152977",
+  "completed_combinations": [
+    "Notarial|Cancelada|Inmuebles|Almería",
+    "Notarial|Cancelada|Inmuebles|Cádiz",
+    "Notarial|Cancelada|Inmuebles|Córdoba",
+    "Notarial|Cancelada|Inmuebles|Granada",
+    "Notarial|Cancelada|Inmuebles|Huelva",
+    "Notarial|Cancelada|Inmuebles|Jaén",
+    "Notarial|Cancelada|Inmuebles|Málaga",
+    "Notarial|Cancelada|Inmuebles|Sevilla",
+    "Notarial|Cancelada|Inmuebles|Huesca",
+    "Notarial|Cancelada|Inmuebles|Teruel",
+    "Notarial|Cancelada|Inmuebles|Zaragoza",
+    "Notarial|Cancelada|Inmuebles|Asturias",
+    "Notarial|Cancelada|Inmuebles|Illes Balears"
+  ],
+  "current_combination": null,
+  "stats": {
+    "total_new": 0,
+    "total_updated": 0,
+    "total_checked": 0,
+    "total_skipped": 0,
+    "total_combinations": 4680,
+    "completed_combinations": 13
+  },
+  "batch_num": 4,
+  "total_batches": 10,
+  "last_update": "2026-01-22T16:13:11.660814"
+}

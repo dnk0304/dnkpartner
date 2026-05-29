@@ -1,0 +1,31 @@
+{
+  "started_at": "2026-01-22T15:41:02.837217",
+  "completed_combinations": [
+    "Otras administraciones tributarias|Prox. apertura|Inmuebles|Almería",
+    "Otras administraciones tributarias|Prox. apertura|Inmuebles|Almería",
+    "Otras administraciones tributarias|Prox. apertura|Inmuebles|Cádiz",
+    "Otras administraciones tributarias|Prox. apertura|Inmuebles|Córdoba",
+    "Otras administraciones tributarias|Prox. apertura|Inmuebles|Granada",
+    "Otras administraciones tributarias|Prox. apertura|Inmuebles|Huelva",
+    "Otras administraciones tributarias|Prox. apertura|Inmuebles|Jaén",
+    "Otras administraciones tributarias|Prox. apertura|Inmuebles|Málaga",
+    "Otras administraciones tributarias|Prox. apertura|Inmuebles|Sevilla",
+    "Otras administraciones tributarias|Prox. apertura|Inmuebles|Huesca",
+    "Otras administraciones tributarias|Prox. apertura|Inmuebles|Teruel",
+    "Otras administraciones tributarias|Prox. apertura|Inmuebles|Zaragoza",
+    "Otras administraciones tributarias|Prox. apertura|Inmuebles|Asturias",
+    "Otras administraciones tributarias|Prox. apertura|Inmuebles|Illes Balears"
+  ],
+  "current_combination": null,
+  "stats": {
+    "total_new": 0,
+    "total_updated": 0,
+    "total_checked": 0,
+    "total_skipped": 0,
+    "total_combinations": 4680,
+    "completed_combinations": 14
+  },
+  "batch_num": 7,
+  "total_batches": 10,
+  "last_update": "2026-01-22T16:13:33.903125"
+}

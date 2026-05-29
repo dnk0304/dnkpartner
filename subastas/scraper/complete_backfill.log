@@ -1,0 +1,32 @@
+2026-02-09 13:38:54 [INFO] BrowserManager initialized
+2026-02-09 13:38:54 [INFO] DatabaseAdapter initialized with sqlite
+2026-02-09 13:38:54 [INFO] [BOE_COMPLETE_BACKFILL] === Starting complete backfill: 72 months ===
+2026-02-09 13:38:54 [INFO] [BOE_COMPLETE_BACKFILL] 
+[1/72] Scraping 2020-02
+2026-02-09 13:38:54 [INFO] [BOE_COMPLETE_BACKFILL]   [PA] Próxima apertura...
+2026-02-09 13:38:54 [INFO] Launching browser...
+2026-02-09 13:38:55 [INFO] Browser launched successfully
+2026-02-09 13:39:11 [ERROR] [BOE_COMPLETE_BACKFILL] Failed to scrape 2020-02 status PA: Page.wait_for_selector: Timeout 10000ms exceeded.
+Call log:
+waiting for locator(".resultado-busqueda, .sin-resultados") to be visible
+
+2026-02-09 13:39:11 [INFO] [BOE_COMPLETE_BACKFILL]     ✓ 0 auctions
+2026-02-09 13:39:11 [INFO] [BOE_COMPLETE_BACKFILL]   [EJ] En ejecución...
+2026-02-09 13:39:31 [ERROR] [BOE_COMPLETE_BACKFILL] Failed to scrape 2020-02 status EJ: Page.wait_for_selector: Timeout 10000ms exceeded.
+Call log:
+waiting for locator(".resultado-busqueda, .sin-resultados") to be visible
+
+2026-02-09 13:39:31 [INFO] [BOE_COMPLETE_BACKFILL]     ✓ 0 auctions
+2026-02-09 13:39:31 [INFO] [BOE_COMPLETE_BACKFILL]   [CE] Cerrada...
+2026-02-09 13:39:50 [ERROR] [BOE_COMPLETE_BACKFILL] Failed to scrape 2020-02 status CE: Page.wait_for_selector: Timeout 10000ms exceeded.
+Call log:
+waiting for locator(".resultado-busqueda, .sin-resultados") to be visible
+
+2026-02-09 13:39:50 [INFO] [BOE_COMPLETE_BACKFILL]     ✓ 0 auctions
+2026-02-09 13:39:50 [INFO] [BOE_COMPLETE_BACKFILL]   [SU] Suspendida...
+2026-02-09 13:40:08 [ERROR] [BOE_COMPLETE_BACKFILL] Failed to scrape 2020-02 status SU: Page.wait_for_selector: Timeout 10000ms exceeded.
+Call log:
+waiting for locator(".resultado-busqueda, .sin-resultados") to be visible
+
+2026-02-09 13:40:08 [INFO] [BOE_COMPLETE_BACKFILL]     ✓ 0 auctions
+2026-02-09 13:40:08 [INFO] [BOE_COMPLETE_BACKFILL]   [AN] Anulada...

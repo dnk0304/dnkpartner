@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none">
+  <defs>
+    <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E0F2FE"/>
+      <stop offset="100%" stop-color="#BAE6FD"/>
+    </linearGradient>
+    <linearGradient id="buildingGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#94A3B8"/>
+      <stop offset="100%" stop-color="#64748B"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Sky -->
+  <rect width="800" height="400" fill="url(#skyGrad)"/>
+  
+  <!-- Ground -->
+  <rect y="400" width="800" height="200" fill="#A1A1AA"/>
+  
+  <!-- Building -->
+  <rect x="250" y="200" width="300" height="200" fill="url(#buildingGrad)" stroke="#475569" stroke-width="3"/>
+  
+  <!-- Roof -->
+  <path d="M240 200 L400 140 L560 200 Z" fill="#64748B" stroke="#475569" stroke-width="3"/>
+  
+  <!-- Windows Grid -->
+  <rect x="280" y="230" width="60" height="60" fill="#93C5FD" stroke="#3B82F6" stroke-width="2"/>
+  <rect x="370" y="230" width="60" height="60" fill="#93C5FD" stroke="#3B82F6" stroke-width="2"/>
+  <rect x="460" y="230" width="60" height="60" fill="#93C5FD" stroke="#3B82F6" stroke-width="2"/>
+  
+  <rect x="280" y="320" width="60" height="60" fill="#93C5FD" stroke="#3B82F6" stroke-width="2"/>
+  <rect x="370" y="320" width="60" height="60" fill="#93C5FD" stroke="#3B82F6" stroke-width="2"/>
+  <rect x="460" y="320" width="60" height="60" fill="#93C5FD" stroke="#3B82F6" stroke-width="2"/>
+  
+  <!-- Door -->
+  <rect x="370" y="340" width="60" height="60" fill="#8B4513" stroke="#654321" stroke-width="2"/>
+  
+  <!-- Balcony -->
+  <rect x="250" y="300" width="300" height="10" fill="#475569"/>
+  
+  <!-- Side perspective -->
+  <path d="M550 200 L600 230 L600 430 L550 400 Z" fill="#52525B" stroke="#27272A" stroke-width="2"/>
+  
+  <!-- Question mark in center -->
+  <circle cx="400" cy="300" r="80" fill="#3B82F6" opacity="0.2"/>
+  <text x="400" y="330" font-family="Arial, sans-serif" font-size="100" font-weight="bold" fill="#3B82F6" text-anchor="middle" opacity="0.6">?</text>
+</svg>

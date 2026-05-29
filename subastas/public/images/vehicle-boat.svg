@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none">
+  <rect width="800" height="600" fill="#f8fafc"/>
+  <path d="M180 340 L520 340 L600 420 H200 L180 340 Z" fill="#94a3b8"/>
+  <rect x="320" y="260" width="120" height="60" rx="10" fill="#cbd5f5"/>
+  <rect x="360" y="210" width="40" height="50" rx="6" fill="#e2e8f0"/>
+  <path d="M160 450 Q260 480 360 450 Q460 420 560 450 Q640 470 720 450" stroke="#93c5fd" stroke-width="10" fill="none"/>
+  <path d="M140 480 Q260 520 380 490 Q500 460 620 490 Q700 510 760 490" stroke="#60a5fa" stroke-width="8" fill="none"/>
+  <text x="400" y="520" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" fill="#64748b">Barco</text>
+</svg>

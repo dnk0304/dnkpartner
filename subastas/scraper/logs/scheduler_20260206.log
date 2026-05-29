@@ -1,0 +1,2287 @@
+[2026-02-06 10:55:00] ======================================================================
+[2026-02-06 10:55:00] 🤖 SUBASTAPRO SCHEDULER STARTED
+[2026-02-06 10:55:00] ======================================================================
+[2026-02-06 10:55:00] 🏠 Sources: BOE (Active, Pre-auction, Vehicles, Historical)
+[2026-02-06 10:55:00]            TEJU, Banks (Haya, Servihabitat, Altamira, Solvia, Anticipa, Aliseda)
+[2026-02-06 10:55:00] ======================================================================
+[2026-02-06 10:55:00] 📅 Schedule configured:
+[2026-02-06 10:55:00] 
+[2026-02-06 10:55:00]    REAL-TIME (Priority):
+[2026-02-06 10:55:00]    - Pulse (bid updates): Every 35 min ⭐
+[2026-02-06 10:55:00]    - Active auctions: Every 35 min
+[2026-02-06 10:55:00] 
+[2026-02-06 10:55:00]    REGULAR:
+[2026-02-06 10:55:00]    - Pre-auctions: Every 1 hour
+[2026-02-06 10:55:00]    - Vehicle auctions: Every 1 hour
+[2026-02-06 10:55:00]    - TEJU edicts: Every 2 hours
+[2026-02-06 10:55:00]    - Bank portals: Every 6 hours
+[2026-02-06 10:55:00] 
+[2026-02-06 10:55:00]    MAINTENANCE:
+[2026-02-06 10:55:00]    - Status monitor: Every 30 min
+[2026-02-06 10:55:00]    - Geocoding: Every 2 hours
+[2026-02-06 10:55:00] 
+[2026-02-06 10:55:00]    OFF-PEAK (Daily):
+[2026-02-06 10:55:00]    - Full scan: 03:00 AM
+[2026-02-06 10:55:00]    - Historical batch: 03:30 AM
+[2026-02-06 10:55:00]    - Bank portals: 04:00 AM
+[2026-02-06 10:55:00] 
+[2026-02-06 10:55:00] 🎬 Running initial scrape...
+[2026-02-06 10:55:00] 🏠 Scraping ACTIVE auctions...
+[2026-02-06 10:55:00] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-06 10:55:01]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 10:55:01] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-06 10:55:01] 🚀 Starting PRE scraper (pages=30)...
+[2026-02-06 10:55:01]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 10:55:01] 🚗 Scraping vehicle auctions...
+[2026-02-06 10:55:01] 🚗 Scraping vehicle auctions...
+[2026-02-06 10:55:01]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 10:55:01] 👀 Monitoring auction status changes...
+[2026-02-06 10:55:01]   📊 Current database stats:
+[2026-02-06 10:55:01]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 10:55:01]      CELEBRANDOSE: 1182
+[2026-02-06 10:55:01]      ACTIVE: 917
+[2026-02-06 10:55:01]      PROXIMA_APERTURA: 155
+[2026-02-06 10:55:01]      SUSPENDIDA: 104
+[2026-02-06 10:55:01]      PRE_AUCTION: 37
+[2026-02-06 10:55:01]   🏷️ Auction types:
+[2026-02-06 10:55:01]      JUDICIAL: 13678
+[2026-02-06 11:25:01] 👀 Monitoring auction status changes...
+[2026-02-06 11:25:01]   📊 Current database stats:
+[2026-02-06 11:25:01]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 11:25:01]      CELEBRANDOSE: 1182
+[2026-02-06 11:25:01]      ACTIVE: 917
+[2026-02-06 11:25:01]      PROXIMA_APERTURA: 155
+[2026-02-06 11:25:01]      SUSPENDIDA: 104
+[2026-02-06 11:25:01]      PRE_AUCTION: 37
+[2026-02-06 11:25:01]   🏷️ Auction types:
+[2026-02-06 11:25:01]      JUDICIAL: 13678
+[2026-02-06 11:30:01] 💓 Running pulse mode (bid updates)...
+[2026-02-06 11:30:03]   ❌ Pulse error: attempted relative import beyond top-level package
+[2026-02-06 11:30:03] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-06 11:30:04]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 11:55:04] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-06 11:55:04] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-06 11:55:05]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 11:55:05] 🚗 Scraping vehicle auctions...
+[2026-02-06 11:55:05]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 11:55:05] 👀 Monitoring auction status changes...
+[2026-02-06 11:55:05]   📊 Current database stats:
+[2026-02-06 11:55:05]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 11:55:05]      CELEBRANDOSE: 1182
+[2026-02-06 11:55:05]      ACTIVE: 917
+[2026-02-06 11:55:05]      PROXIMA_APERTURA: 155
+[2026-02-06 11:55:05]      SUSPENDIDA: 104
+[2026-02-06 11:55:05]      PRE_AUCTION: 37
+[2026-02-06 11:55:05]   🏷️ Auction types:
+[2026-02-06 11:55:05]      JUDICIAL: 13678
+[2026-02-06 12:05:05] 💓 Running pulse mode (bid updates)...
+[2026-02-06 12:05:05]   ⚠️  Pulse completed with no updates
+[2026-02-06 12:05:05] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-06 12:05:06]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 12:25:06] 👀 Monitoring auction status changes...
+[2026-02-06 12:25:06]   📊 Current database stats:
+[2026-02-06 12:25:06]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 12:25:06]      CELEBRANDOSE: 1182
+[2026-02-06 12:25:06]      ACTIVE: 917
+[2026-02-06 12:25:06]      PROXIMA_APERTURA: 155
+[2026-02-06 12:25:06]      SUSPENDIDA: 104
+[2026-02-06 12:25:06]      PRE_AUCTION: 37
+[2026-02-06 12:25:06]   🏷️ Auction types:
+[2026-02-06 12:25:06]      JUDICIAL: 13678
+[2026-02-06 12:40:06] 💓 Running pulse mode (bid updates)...
+[2026-02-06 12:40:06]   ⚠️  Pulse completed with no updates
+[2026-02-06 12:40:06] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-06 12:40:06]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 12:55:06] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-06 12:55:06]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 12:55:06] 🗺️ Running geocoding backfill...
+[2026-02-06 12:55:06]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 12:55:06] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-06 12:55:06] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-06 12:55:06]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 12:55:06] 🚗 Scraping vehicle auctions...
+[2026-02-06 12:55:06]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 12:55:06] 👀 Monitoring auction status changes...
+[2026-02-06 12:55:06]   📊 Current database stats:
+[2026-02-06 12:55:06]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 12:55:06]      CELEBRANDOSE: 1182
+[2026-02-06 12:55:06]      ACTIVE: 917
+[2026-02-06 12:55:06]      PROXIMA_APERTURA: 155
+[2026-02-06 12:55:06]      SUSPENDIDA: 104
+[2026-02-06 12:55:06]      PRE_AUCTION: 37
+[2026-02-06 12:55:06]   🏷️ Auction types:
+[2026-02-06 12:55:06]      JUDICIAL: 13678
+[2026-02-06 13:15:06] 💓 Running pulse mode (bid updates)...
+[2026-02-06 13:15:06]   ⚠️  Pulse completed with no updates
+[2026-02-06 13:15:06] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-06 13:15:07]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 13:25:07] 👀 Monitoring auction status changes...
+[2026-02-06 13:25:07]   📊 Current database stats:
+[2026-02-06 13:25:07]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 13:25:07]      CELEBRANDOSE: 1182
+[2026-02-06 13:25:07]      ACTIVE: 917
+[2026-02-06 13:25:07]      PROXIMA_APERTURA: 155
+[2026-02-06 13:25:07]      SUSPENDIDA: 104
+[2026-02-06 13:25:07]      PRE_AUCTION: 37
+[2026-02-06 13:25:07]   🏷️ Auction types:
+[2026-02-06 13:25:07]      JUDICIAL: 13678
+[2026-02-06 13:50:07] 💓 Running pulse mode (bid updates)...
+[2026-02-06 13:50:07]   ⚠️  Pulse completed with no updates
+[2026-02-06 13:50:07] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-06 13:50:07]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 13:55:07] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-06 13:55:07] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-06 13:55:07]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 13:55:07] 🚗 Scraping vehicle auctions...
+[2026-02-06 13:55:07]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 13:55:07] 👀 Monitoring auction status changes...
+[2026-02-06 13:55:07]   📊 Current database stats:
+[2026-02-06 13:55:07]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 13:55:07]      CELEBRANDOSE: 1182
+[2026-02-06 13:55:07]      ACTIVE: 917
+[2026-02-06 13:55:07]      PROXIMA_APERTURA: 155
+[2026-02-06 13:55:07]      SUSPENDIDA: 104
+[2026-02-06 13:55:07]      PRE_AUCTION: 37
+[2026-02-06 13:55:07]   🏷️ Auction types:
+[2026-02-06 13:55:07]      JUDICIAL: 13678
+[2026-02-06 14:25:07] 💓 Running pulse mode (bid updates)...
+[2026-02-06 14:25:07]   ⚠️  Pulse completed with no updates
+[2026-02-06 14:25:07] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-06 14:25:08]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 14:25:08] 👀 Monitoring auction status changes...
+[2026-02-06 14:25:08]   📊 Current database stats:
+[2026-02-06 14:25:08]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 14:25:08]      CELEBRANDOSE: 1182
+[2026-02-06 14:25:08]      ACTIVE: 917
+[2026-02-06 14:25:08]      PROXIMA_APERTURA: 155
+[2026-02-06 14:25:08]      SUSPENDIDA: 104
+[2026-02-06 14:25:08]      PRE_AUCTION: 37
+[2026-02-06 14:25:08]   🏷️ Auction types:
+[2026-02-06 14:25:08]      JUDICIAL: 13678
+[2026-02-06 14:55:08] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-06 14:55:08]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 14:55:08] 🗺️ Running geocoding backfill...
+[2026-02-06 14:55:08]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 14:55:08] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-06 14:55:08] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-06 14:55:08]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 14:55:08] 🚗 Scraping vehicle auctions...
+[2026-02-06 14:55:08]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 14:55:08] 👀 Monitoring auction status changes...
+[2026-02-06 14:55:08]   📊 Current database stats:
+[2026-02-06 14:55:08]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 14:55:08]      CELEBRANDOSE: 1182
+[2026-02-06 14:55:08]      ACTIVE: 917
+[2026-02-06 14:55:08]      PROXIMA_APERTURA: 155
+[2026-02-06 14:55:08]      SUSPENDIDA: 104
+[2026-02-06 14:55:08]      PRE_AUCTION: 37
+[2026-02-06 14:55:08]   🏷️ Auction types:
+[2026-02-06 14:55:08]      JUDICIAL: 13678
+[2026-02-06 15:00:08] 💓 Running pulse mode (bid updates)...
+[2026-02-06 15:00:08]   ⚠️  Pulse completed with no updates
+[2026-02-06 15:00:08] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-06 15:00:08]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 15:25:08] 👀 Monitoring auction status changes...
+[2026-02-06 15:25:08]   📊 Current database stats:
+[2026-02-06 15:25:08]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 15:25:08]      CELEBRANDOSE: 1182
+[2026-02-06 15:25:08]      ACTIVE: 917
+[2026-02-06 15:25:08]      PROXIMA_APERTURA: 155
+[2026-02-06 15:25:08]      SUSPENDIDA: 104
+[2026-02-06 15:25:08]      PRE_AUCTION: 37
+[2026-02-06 15:25:08]   🏷️ Auction types:
+[2026-02-06 15:25:08]      JUDICIAL: 13678
+[2026-02-06 15:35:09] 💓 Running pulse mode (bid updates)...
+[2026-02-06 15:35:09]   ⚠️  Pulse completed with no updates
+[2026-02-06 15:35:09] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-06 15:35:09]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 15:55:09] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-06 15:55:09] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-06 15:55:09]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 15:55:09] 🚗 Scraping vehicle auctions...
+[2026-02-06 15:55:09]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 15:55:09] 👀 Monitoring auction status changes...
+[2026-02-06 15:55:09]   📊 Current database stats:
+[2026-02-06 15:55:09]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 15:55:09]      CELEBRANDOSE: 1182
+[2026-02-06 15:55:09]      ACTIVE: 917
+[2026-02-06 15:55:09]      PROXIMA_APERTURA: 155
+[2026-02-06 15:55:09]      SUSPENDIDA: 104
+[2026-02-06 15:55:09]      PRE_AUCTION: 37
+[2026-02-06 15:55:09]   🏷️ Auction types:
+[2026-02-06 15:55:09]      JUDICIAL: 13678
+[2026-02-06 16:10:09] 💓 Running pulse mode (bid updates)...
+[2026-02-06 16:10:09]   ⚠️  Pulse completed with no updates
+[2026-02-06 16:10:09] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-06 16:10:09]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 16:25:09] 👀 Monitoring auction status changes...
+[2026-02-06 16:25:09]   📊 Current database stats:
+[2026-02-06 16:25:09]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 16:25:09]      CELEBRANDOSE: 1182
+[2026-02-06 16:25:09]      ACTIVE: 917
+[2026-02-06 16:25:09]      PROXIMA_APERTURA: 155
+[2026-02-06 16:25:09]      SUSPENDIDA: 104
+[2026-02-06 16:25:09]      PRE_AUCTION: 37
+[2026-02-06 16:25:09]   🏷️ Auction types:
+[2026-02-06 16:25:09]      JUDICIAL: 13678
+[2026-02-06 16:45:09] 💓 Running pulse mode (bid updates)...
+[2026-02-06 16:45:10]   ⚠️  Pulse completed with no updates
+[2026-02-06 16:45:10] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-06 16:45:10]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 16:55:10] 🏦 Scraping bank portals...
+[2026-02-06 16:55:10]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 16:55:10] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-06 16:55:10]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 16:55:10] 🗺️ Running geocoding backfill...
+[2026-02-06 16:55:10]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 16:55:10] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-06 16:55:10] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-06 16:55:11]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 16:55:11] 🚗 Scraping vehicle auctions...
+[2026-02-06 16:55:11]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 16:55:11] 👀 Monitoring auction status changes...
+[2026-02-06 16:55:11]   📊 Current database stats:
+[2026-02-06 16:55:11]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 16:55:11]      CELEBRANDOSE: 1182
+[2026-02-06 16:55:11]      ACTIVE: 917
+[2026-02-06 16:55:11]      PROXIMA_APERTURA: 155
+[2026-02-06 16:55:11]      SUSPENDIDA: 104
+[2026-02-06 16:55:11]      PRE_AUCTION: 37
+[2026-02-06 16:55:11]   🏷️ Auction types:
+[2026-02-06 16:55:11]      JUDICIAL: 13678
+[2026-02-06 17:20:11] 💓 Running pulse mode (bid updates)...
+[2026-02-06 17:20:11]   ⚠️  Pulse completed with no updates
+[2026-02-06 17:20:11] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-06 17:20:11]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 17:25:11] 👀 Monitoring auction status changes...
+[2026-02-06 17:25:11]   📊 Current database stats:
+[2026-02-06 17:25:11]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 17:25:11]      CELEBRANDOSE: 1182
+[2026-02-06 17:25:11]      ACTIVE: 917
+[2026-02-06 17:25:11]      PROXIMA_APERTURA: 155
+[2026-02-06 17:25:11]      SUSPENDIDA: 104
+[2026-02-06 17:25:11]      PRE_AUCTION: 37
+[2026-02-06 17:25:11]   🏷️ Auction types:
+[2026-02-06 17:25:11]      JUDICIAL: 13678
+[2026-02-06 17:55:11] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-06 17:55:11] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-06 17:55:12]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 17:55:12] 🚗 Scraping vehicle auctions...
+[2026-02-06 17:55:12]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 17:55:12] 💓 Running pulse mode (bid updates)...
+[2026-02-06 17:55:12]   ⚠️  Pulse completed with no updates
+[2026-02-06 17:55:12] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-06 17:55:12]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 17:55:12] 👀 Monitoring auction status changes...
+[2026-02-06 17:55:12]   📊 Current database stats:
+[2026-02-06 17:55:12]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 17:55:12]      CELEBRANDOSE: 1182
+[2026-02-06 17:55:12]      ACTIVE: 917
+[2026-02-06 17:55:12]      PROXIMA_APERTURA: 155
+[2026-02-06 17:55:12]      SUSPENDIDA: 104
+[2026-02-06 17:55:12]      PRE_AUCTION: 37
+[2026-02-06 17:55:12]   🏷️ Auction types:
+[2026-02-06 17:55:12]      JUDICIAL: 13678
+[2026-02-06 18:25:12] 👀 Monitoring auction status changes...
+[2026-02-06 18:25:12]   📊 Current database stats:
+[2026-02-06 18:25:12]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 18:25:12]      CELEBRANDOSE: 1182
+[2026-02-06 18:25:12]      ACTIVE: 917
+[2026-02-06 18:25:12]      PROXIMA_APERTURA: 155
+[2026-02-06 18:25:12]      SUSPENDIDA: 104
+[2026-02-06 18:25:12]      PRE_AUCTION: 37
+[2026-02-06 18:25:12]   🏷️ Auction types:
+[2026-02-06 18:25:12]      JUDICIAL: 13678
+[2026-02-06 18:30:12] 💓 Running pulse mode (bid updates)...
+[2026-02-06 18:30:12]   ⚠️  Pulse completed with no updates
+[2026-02-06 18:30:12] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-06 18:30:12]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 18:55:12] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-06 18:55:12]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 18:55:12] 🗺️ Running geocoding backfill...
+[2026-02-06 18:55:12]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 18:55:12] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-06 18:55:12] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-06 18:55:13]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 18:55:13] 🚗 Scraping vehicle auctions...
+[2026-02-06 18:55:13]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 18:55:13] 👀 Monitoring auction status changes...
+[2026-02-06 18:55:13]   📊 Current database stats:
+[2026-02-06 18:55:13]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 18:55:13]      CELEBRANDOSE: 1182
+[2026-02-06 18:55:13]      ACTIVE: 917
+[2026-02-06 18:55:13]      PROXIMA_APERTURA: 155
+[2026-02-06 18:55:13]      SUSPENDIDA: 104
+[2026-02-06 18:55:13]      PRE_AUCTION: 37
+[2026-02-06 18:55:13]   🏷️ Auction types:
+[2026-02-06 18:55:13]      JUDICIAL: 13678
+[2026-02-06 19:05:13] 💓 Running pulse mode (bid updates)...
+[2026-02-06 19:05:13]   ⚠️  Pulse completed with no updates
+[2026-02-06 19:05:13] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-06 19:05:13]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 19:25:13] 👀 Monitoring auction status changes...
+[2026-02-06 19:25:13]   📊 Current database stats:
+[2026-02-06 19:25:13]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 19:25:13]      CELEBRANDOSE: 1182
+[2026-02-06 19:25:13]      ACTIVE: 917
+[2026-02-06 19:25:13]      PROXIMA_APERTURA: 155
+[2026-02-06 19:25:13]      SUSPENDIDA: 104
+[2026-02-06 19:25:13]      PRE_AUCTION: 37
+[2026-02-06 19:25:13]   🏷️ Auction types:
+[2026-02-06 19:25:13]      JUDICIAL: 13678
+[2026-02-06 19:40:13] 💓 Running pulse mode (bid updates)...
+[2026-02-06 19:40:13]   ⚠️  Pulse completed with no updates
+[2026-02-06 19:40:13] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-06 19:40:13]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 19:55:13] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-06 19:55:13] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-06 19:55:13]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 19:55:13] 🚗 Scraping vehicle auctions...
+[2026-02-06 19:55:13]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 19:55:13] 👀 Monitoring auction status changes...
+[2026-02-06 19:55:13]   📊 Current database stats:
+[2026-02-06 19:55:13]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 19:55:13]      CELEBRANDOSE: 1182
+[2026-02-06 19:55:13]      ACTIVE: 917
+[2026-02-06 19:55:13]      PROXIMA_APERTURA: 155
+[2026-02-06 19:55:13]      SUSPENDIDA: 104
+[2026-02-06 19:55:13]      PRE_AUCTION: 37
+[2026-02-06 19:55:14]   🏷️ Auction types:
+[2026-02-06 19:55:14]      JUDICIAL: 13678
+[2026-02-06 20:15:14] 💓 Running pulse mode (bid updates)...
+[2026-02-06 20:15:14]   ⚠️  Pulse completed with no updates
+[2026-02-06 20:15:14] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-06 20:15:14]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 20:25:14] 👀 Monitoring auction status changes...
+[2026-02-06 20:25:14]   📊 Current database stats:
+[2026-02-06 20:25:14]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 20:25:14]      CELEBRANDOSE: 1182
+[2026-02-06 20:25:14]      ACTIVE: 917
+[2026-02-06 20:25:14]      PROXIMA_APERTURA: 155
+[2026-02-06 20:25:14]      SUSPENDIDA: 104
+[2026-02-06 20:25:14]      PRE_AUCTION: 37
+[2026-02-06 20:25:14]   🏷️ Auction types:
+[2026-02-06 20:25:14]      JUDICIAL: 13678
+[2026-02-06 20:50:14] 💓 Running pulse mode (bid updates)...
+[2026-02-06 20:50:14]   ⚠️  Pulse completed with no updates
+[2026-02-06 20:50:14] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-06 20:50:14]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 20:55:14] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-06 20:55:14]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 20:55:14] 🗺️ Running geocoding backfill...
+[2026-02-06 20:55:14]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 20:55:14] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-06 20:55:14] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-06 20:55:15]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 20:55:15] 🚗 Scraping vehicle auctions...
+[2026-02-06 20:55:15]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 20:55:15] 👀 Monitoring auction status changes...
+[2026-02-06 20:55:15]   📊 Current database stats:
+[2026-02-06 20:55:15]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 20:55:15]      CELEBRANDOSE: 1182
+[2026-02-06 20:55:15]      ACTIVE: 917
+[2026-02-06 20:55:15]      PROXIMA_APERTURA: 155
+[2026-02-06 20:55:15]      SUSPENDIDA: 104
+[2026-02-06 20:55:15]      PRE_AUCTION: 37
+[2026-02-06 20:55:15]   🏷️ Auction types:
+[2026-02-06 20:55:15]      JUDICIAL: 13678
+[2026-02-06 21:25:15] 💓 Running pulse mode (bid updates)...
+[2026-02-06 21:25:15]   ⚠️  Pulse completed with no updates
+[2026-02-06 21:25:15] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-06 21:25:15]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 21:25:15] 👀 Monitoring auction status changes...
+[2026-02-06 21:25:15]   📊 Current database stats:
+[2026-02-06 21:25:15]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 21:25:15]      CELEBRANDOSE: 1182
+[2026-02-06 21:25:15]      ACTIVE: 917
+[2026-02-06 21:25:15]      PROXIMA_APERTURA: 155
+[2026-02-06 21:25:15]      SUSPENDIDA: 104
+[2026-02-06 21:25:15]      PRE_AUCTION: 37
+[2026-02-06 21:25:15]   🏷️ Auction types:
+[2026-02-06 21:25:15]      JUDICIAL: 13678
+[2026-02-06 21:55:15] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-06 21:55:15] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-06 21:55:15]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 21:55:15] 🚗 Scraping vehicle auctions...
+[2026-02-06 21:55:15]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 21:55:15] 👀 Monitoring auction status changes...
+[2026-02-06 21:55:15]   📊 Current database stats:
+[2026-02-06 21:55:15]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 21:55:15]      CELEBRANDOSE: 1182
+[2026-02-06 21:55:15]      ACTIVE: 917
+[2026-02-06 21:55:15]      PROXIMA_APERTURA: 155
+[2026-02-06 21:55:15]      SUSPENDIDA: 104
+[2026-02-06 21:55:15]      PRE_AUCTION: 37
+[2026-02-06 21:55:15]   🏷️ Auction types:
+[2026-02-06 21:55:15]      JUDICIAL: 13678
+[2026-02-06 22:00:15] 💓 Running pulse mode (bid updates)...
+[2026-02-06 22:00:15]   ⚠️  Pulse completed with no updates
+[2026-02-06 22:00:15] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-06 22:00:16]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 22:25:16] 👀 Monitoring auction status changes...
+[2026-02-06 22:25:16]   📊 Current database stats:
+[2026-02-06 22:25:16]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 22:25:16]      CELEBRANDOSE: 1182
+[2026-02-06 22:25:16]      ACTIVE: 917
+[2026-02-06 22:25:16]      PROXIMA_APERTURA: 155
+[2026-02-06 22:25:16]      SUSPENDIDA: 104
+[2026-02-06 22:25:16]      PRE_AUCTION: 37
+[2026-02-06 22:25:16]   🏷️ Auction types:
+[2026-02-06 22:25:16]      JUDICIAL: 13678
+[2026-02-06 22:35:16] 💓 Running pulse mode (bid updates)...
+[2026-02-06 22:35:16]   ⚠️  Pulse completed with no updates
+[2026-02-06 22:35:16] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-06 22:35:16]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 22:55:16] 🏦 Scraping bank portals...
+[2026-02-06 22:55:16]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 22:55:16] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-06 22:55:16]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 22:55:16] 🗺️ Running geocoding backfill...
+[2026-02-06 22:55:16]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 22:55:16] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-06 22:55:16] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-06 22:55:17]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 22:55:17] 🚗 Scraping vehicle auctions...
+[2026-02-06 22:55:17]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 22:55:17] 👀 Monitoring auction status changes...
+[2026-02-06 22:55:17]   📊 Current database stats:
+[2026-02-06 22:55:17]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 22:55:17]      CELEBRANDOSE: 1182
+[2026-02-06 22:55:17]      ACTIVE: 917
+[2026-02-06 22:55:17]      PROXIMA_APERTURA: 155
+[2026-02-06 22:55:17]      SUSPENDIDA: 104
+[2026-02-06 22:55:17]      PRE_AUCTION: 37
+[2026-02-06 22:55:17]   🏷️ Auction types:
+[2026-02-06 22:55:17]      JUDICIAL: 13678
+[2026-02-06 23:10:17] 💓 Running pulse mode (bid updates)...
+[2026-02-06 23:10:17]   ⚠️  Pulse completed with no updates
+[2026-02-06 23:10:17] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-06 23:10:18]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 23:25:18] 👀 Monitoring auction status changes...
+[2026-02-06 23:25:18]   📊 Current database stats:
+[2026-02-06 23:25:18]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 23:25:18]      CELEBRANDOSE: 1182
+[2026-02-06 23:25:18]      ACTIVE: 917
+[2026-02-06 23:25:18]      PROXIMA_APERTURA: 155
+[2026-02-06 23:25:18]      SUSPENDIDA: 104
+[2026-02-06 23:25:18]      PRE_AUCTION: 37
+[2026-02-06 23:25:18]   🏷️ Auction types:
+[2026-02-06 23:25:18]      JUDICIAL: 13678
+[2026-02-06 23:45:18] 💓 Running pulse mode (bid updates)...
+[2026-02-06 23:45:18]   ⚠️  Pulse completed with no updates
+[2026-02-06 23:45:18] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-06 23:45:18]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 23:55:18] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-06 23:55:18] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-06 23:55:19]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-06 23:55:19] 🚗 Scraping vehicle auctions...
+[2026-02-06 23:55:19]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-06 23:55:19] 👀 Monitoring auction status changes...
+[2026-02-06 23:55:19]   📊 Current database stats:
+[2026-02-06 23:55:19]      CONCLUIDA_PORTAL: 11283
+[2026-02-06 23:55:19]      CELEBRANDOSE: 1182
+[2026-02-06 23:55:19]      ACTIVE: 917
+[2026-02-06 23:55:19]      PROXIMA_APERTURA: 155
+[2026-02-06 23:55:19]      SUSPENDIDA: 104
+[2026-02-06 23:55:19]      PRE_AUCTION: 37
+[2026-02-06 23:55:19]   🏷️ Auction types:
+[2026-02-06 23:55:19]      JUDICIAL: 13678
+[2026-02-07 00:20:19] 💓 Running pulse mode (bid updates)...
+[2026-02-07 00:20:19]   ⚠️  Pulse completed with no updates
+[2026-02-07 00:20:19] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 00:20:20]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 00:25:20] 👀 Monitoring auction status changes...
+[2026-02-07 00:25:20]   📊 Current database stats:
+[2026-02-07 00:25:20]      CONCLUIDA_PORTAL: 11283
+[2026-02-07 00:25:20]      CELEBRANDOSE: 1182
+[2026-02-07 00:25:20]      ACTIVE: 917
+[2026-02-07 00:25:20]      PROXIMA_APERTURA: 155
+[2026-02-07 00:25:20]      SUSPENDIDA: 104
+[2026-02-07 00:25:20]      PRE_AUCTION: 37
+[2026-02-07 00:25:20]   🏷️ Auction types:
+[2026-02-07 00:25:20]      JUDICIAL: 13678
+[2026-02-07 00:55:20] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-07 00:55:20]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 00:55:20] 🗺️ Running geocoding backfill...
+[2026-02-07 00:55:20]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 00:55:20] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 00:55:20] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 00:55:20]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 00:55:20] 🚗 Scraping vehicle auctions...
+[2026-02-07 00:55:20]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 00:55:20] 💓 Running pulse mode (bid updates)...
+[2026-02-07 00:55:20]   ⚠️  Pulse completed with no updates
+[2026-02-07 00:55:20] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 00:55:20]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 00:55:20] 👀 Monitoring auction status changes...
+[2026-02-07 00:55:20]   📊 Current database stats:
+[2026-02-07 00:55:20]      CONCLUIDA_PORTAL: 11283
+[2026-02-07 00:55:20]      CELEBRANDOSE: 1182
+[2026-02-07 00:55:20]      ACTIVE: 917
+[2026-02-07 00:55:20]      PROXIMA_APERTURA: 155
+[2026-02-07 00:55:20]      SUSPENDIDA: 104
+[2026-02-07 00:55:20]      PRE_AUCTION: 37
+[2026-02-07 00:55:20]   🏷️ Auction types:
+[2026-02-07 00:55:20]      JUDICIAL: 13678
+[2026-02-07 01:25:20] 👀 Monitoring auction status changes...
+[2026-02-07 01:25:20]   📊 Current database stats:
+[2026-02-07 01:25:20]      CONCLUIDA_PORTAL: 11283
+[2026-02-07 01:25:20]      CELEBRANDOSE: 1182
+[2026-02-07 01:25:20]      ACTIVE: 917
+[2026-02-07 01:25:20]      PROXIMA_APERTURA: 155
+[2026-02-07 01:25:20]      SUSPENDIDA: 104
+[2026-02-07 01:25:20]      PRE_AUCTION: 37
+[2026-02-07 01:25:20]   🏷️ Auction types:
+[2026-02-07 01:25:20]      JUDICIAL: 13678
+[2026-02-07 01:30:20] 💓 Running pulse mode (bid updates)...
+[2026-02-07 01:30:20]   ⚠️  Pulse completed with no updates
+[2026-02-07 01:30:20] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 01:30:21]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 01:55:21] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 01:55:21] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 01:55:21]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 01:55:21] 🚗 Scraping vehicle auctions...
+[2026-02-07 01:55:21]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 01:55:21] 👀 Monitoring auction status changes...
+[2026-02-07 01:55:21]   📌 Found 1 expired active auctions
+[2026-02-07 01:55:21]   ✅ Marked 1 auctions as CONCLUIDA_PORTAL
+[2026-02-07 01:55:21]   📊 Current database stats:
+[2026-02-07 01:55:21]      CONCLUIDA_PORTAL: 11284
+[2026-02-07 01:55:21]      CELEBRANDOSE: 1182
+[2026-02-07 01:55:21]      ACTIVE: 917
+[2026-02-07 01:55:21]      PROXIMA_APERTURA: 155
+[2026-02-07 01:55:21]      SUSPENDIDA: 104
+[2026-02-07 01:55:21]      PRE_AUCTION: 37
+[2026-02-07 01:55:21]   🏷️ Auction types:
+[2026-02-07 01:55:21]      JUDICIAL: 13679
+[2026-02-07 02:05:21] 💓 Running pulse mode (bid updates)...
+[2026-02-07 02:05:21]   ⚠️  Pulse completed with no updates
+[2026-02-07 02:05:21] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 02:05:21]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 02:25:21] 👀 Monitoring auction status changes...
+[2026-02-07 02:25:21]   📊 Current database stats:
+[2026-02-07 02:25:21]      CONCLUIDA_PORTAL: 11284
+[2026-02-07 02:25:21]      CELEBRANDOSE: 1182
+[2026-02-07 02:25:21]      ACTIVE: 917
+[2026-02-07 02:25:21]      PROXIMA_APERTURA: 155
+[2026-02-07 02:25:21]      SUSPENDIDA: 104
+[2026-02-07 02:25:21]      PRE_AUCTION: 37
+[2026-02-07 02:25:21]   🏷️ Auction types:
+[2026-02-07 02:25:21]      JUDICIAL: 13679
+[2026-02-07 02:40:21] 💓 Running pulse mode (bid updates)...
+[2026-02-07 02:40:21]   ⚠️  Pulse completed with no updates
+[2026-02-07 02:40:21] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 02:40:22]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 02:55:22] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-07 02:55:22]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 02:55:22] 🗺️ Running geocoding backfill...
+[2026-02-07 02:55:22]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 02:55:22] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 02:55:22] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 02:55:22]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 02:55:22] 🚗 Scraping vehicle auctions...
+[2026-02-07 02:55:22]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 02:55:22] 👀 Monitoring auction status changes...
+[2026-02-07 02:55:22]   📊 Current database stats:
+[2026-02-07 02:55:22]      CONCLUIDA_PORTAL: 11284
+[2026-02-07 02:55:22]      CELEBRANDOSE: 1182
+[2026-02-07 02:55:22]      ACTIVE: 917
+[2026-02-07 02:55:22]      PROXIMA_APERTURA: 155
+[2026-02-07 02:55:22]      SUSPENDIDA: 104
+[2026-02-07 02:55:22]      PRE_AUCTION: 37
+[2026-02-07 02:55:22]   🏷️ Auction types:
+[2026-02-07 02:55:22]      JUDICIAL: 13679
+[2026-02-07 03:00:22] 🌟 Starting daily full scan...
+[2026-02-07 03:00:22]    Phase 1: Active properties
+[2026-02-07 03:00:22] 🚀 Starting ACTIVE scraper (pages=100)...
+[2026-02-07 03:00:22]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 03:01:22]    Phase 2: Pre-auction properties
+[2026-02-07 03:01:22] 🚀 Starting PRE scraper (pages=100)...
+[2026-02-07 03:01:22]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 03:02:23]    Phase 3: Finished properties (sample)
+[2026-02-07 03:02:23] 🚀 Starting FINISHED scraper (pages=50)...
+[2026-02-07 03:02:23]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 03:15:23] 💓 Running pulse mode (bid updates)...
+[2026-02-07 03:15:23]   ⚠️  Pulse completed with no updates
+[2026-02-07 03:15:23] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 03:15:23]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 03:25:23] 👀 Monitoring auction status changes...
+[2026-02-07 03:25:23]   📊 Current database stats:
+[2026-02-07 03:25:23]      CONCLUIDA_PORTAL: 11284
+[2026-02-07 03:25:23]      CELEBRANDOSE: 1182
+[2026-02-07 03:25:23]      ACTIVE: 917
+[2026-02-07 03:25:23]      PROXIMA_APERTURA: 155
+[2026-02-07 03:25:23]      SUSPENDIDA: 104
+[2026-02-07 03:25:23]      PRE_AUCTION: 37
+[2026-02-07 03:25:23]   🏷️ Auction types:
+[2026-02-07 03:25:23]      JUDICIAL: 13679
+[2026-02-07 03:30:23] 📊 Running historical data batch...
+[2026-02-07 03:30:23]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 03:50:23] 💓 Running pulse mode (bid updates)...
+[2026-02-07 03:50:23]   ⚠️  Pulse completed with no updates
+[2026-02-07 03:50:23] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 03:50:24]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 03:55:24] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 03:55:24] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 03:55:24]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 03:55:24] 🚗 Scraping vehicle auctions...
+[2026-02-07 03:55:24]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 03:55:24] 👀 Monitoring auction status changes...
+[2026-02-07 03:55:24]   📊 Current database stats:
+[2026-02-07 03:55:24]      CONCLUIDA_PORTAL: 11284
+[2026-02-07 03:55:24]      CELEBRANDOSE: 1182
+[2026-02-07 03:55:24]      ACTIVE: 917
+[2026-02-07 03:55:24]      PROXIMA_APERTURA: 155
+[2026-02-07 03:55:24]      SUSPENDIDA: 104
+[2026-02-07 03:55:24]      PRE_AUCTION: 37
+[2026-02-07 03:55:24]   🏷️ Auction types:
+[2026-02-07 03:55:24]      JUDICIAL: 13679
+[2026-02-07 04:00:24] 🏦 Scraping bank portals...
+[2026-02-07 04:00:24]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 04:25:24] 💓 Running pulse mode (bid updates)...
+[2026-02-07 04:25:24]   ⚠️  Pulse completed with no updates
+[2026-02-07 04:25:24] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 04:25:25]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 04:25:25] 👀 Monitoring auction status changes...
+[2026-02-07 04:25:25]   📊 Current database stats:
+[2026-02-07 04:25:25]      CONCLUIDA_PORTAL: 11284
+[2026-02-07 04:25:25]      CELEBRANDOSE: 1182
+[2026-02-07 04:25:25]      ACTIVE: 917
+[2026-02-07 04:25:25]      PROXIMA_APERTURA: 155
+[2026-02-07 04:25:25]      SUSPENDIDA: 104
+[2026-02-07 04:25:25]      PRE_AUCTION: 37
+[2026-02-07 04:25:25]   🏷️ Auction types:
+[2026-02-07 04:25:25]      JUDICIAL: 13679
+[2026-02-07 04:55:25] 🏦 Scraping bank portals...
+[2026-02-07 04:55:25]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 04:55:25] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-07 04:55:25]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 04:55:25] 🗺️ Running geocoding backfill...
+[2026-02-07 04:55:25]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 04:55:25] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 04:55:25] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 04:55:25]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 04:55:25] 🚗 Scraping vehicle auctions...
+[2026-02-07 04:55:25]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 04:55:25] 👀 Monitoring auction status changes...
+[2026-02-07 04:55:25]   📊 Current database stats:
+[2026-02-07 04:55:25]      CONCLUIDA_PORTAL: 11284
+[2026-02-07 04:55:25]      CELEBRANDOSE: 1182
+[2026-02-07 04:55:25]      ACTIVE: 917
+[2026-02-07 04:55:25]      PROXIMA_APERTURA: 155
+[2026-02-07 04:55:25]      SUSPENDIDA: 104
+[2026-02-07 04:55:25]      PRE_AUCTION: 37
+[2026-02-07 04:55:25]   🏷️ Auction types:
+[2026-02-07 04:55:25]      JUDICIAL: 13679
+[2026-02-07 05:00:25] 💓 Running pulse mode (bid updates)...
+[2026-02-07 05:00:25]   ⚠️  Pulse completed with no updates
+[2026-02-07 05:00:25] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 05:00:26]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 05:25:26] 👀 Monitoring auction status changes...
+[2026-02-07 05:25:26]   📊 Current database stats:
+[2026-02-07 05:25:26]      CONCLUIDA_PORTAL: 11284
+[2026-02-07 05:25:26]      CELEBRANDOSE: 1182
+[2026-02-07 05:25:26]      ACTIVE: 917
+[2026-02-07 05:25:26]      PROXIMA_APERTURA: 155
+[2026-02-07 05:25:26]      SUSPENDIDA: 104
+[2026-02-07 05:25:26]      PRE_AUCTION: 37
+[2026-02-07 05:25:26]   🏷️ Auction types:
+[2026-02-07 05:25:26]      JUDICIAL: 13679
+[2026-02-07 05:35:26] 💓 Running pulse mode (bid updates)...
+[2026-02-07 05:35:26]   ⚠️  Pulse completed with no updates
+[2026-02-07 05:35:26] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 05:35:26]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 05:55:26] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 05:55:26] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 05:55:26]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 05:55:26] 🚗 Scraping vehicle auctions...
+[2026-02-07 05:55:26]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 05:55:26] 👀 Monitoring auction status changes...
+[2026-02-07 05:55:26]   📊 Current database stats:
+[2026-02-07 05:55:26]      CONCLUIDA_PORTAL: 11284
+[2026-02-07 05:55:26]      CELEBRANDOSE: 1182
+[2026-02-07 05:55:26]      ACTIVE: 917
+[2026-02-07 05:55:26]      PROXIMA_APERTURA: 155
+[2026-02-07 05:55:26]      SUSPENDIDA: 104
+[2026-02-07 05:55:26]      PRE_AUCTION: 37
+[2026-02-07 05:55:26]   🏷️ Auction types:
+[2026-02-07 05:55:26]      JUDICIAL: 13679
+[2026-02-07 06:10:26] 💓 Running pulse mode (bid updates)...
+[2026-02-07 06:10:26]   ⚠️  Pulse completed with no updates
+[2026-02-07 06:10:26] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 06:10:27]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 06:25:27] 👀 Monitoring auction status changes...
+[2026-02-07 06:25:27]   📊 Current database stats:
+[2026-02-07 06:25:27]      CONCLUIDA_PORTAL: 11284
+[2026-02-07 06:25:27]      CELEBRANDOSE: 1182
+[2026-02-07 06:25:27]      ACTIVE: 917
+[2026-02-07 06:25:27]      PROXIMA_APERTURA: 155
+[2026-02-07 06:25:27]      SUSPENDIDA: 104
+[2026-02-07 06:25:27]      PRE_AUCTION: 37
+[2026-02-07 06:25:27]   🏷️ Auction types:
+[2026-02-07 06:25:27]      JUDICIAL: 13679
+[2026-02-07 06:45:27] 💓 Running pulse mode (bid updates)...
+[2026-02-07 06:45:27]   ⚠️  Pulse completed with no updates
+[2026-02-07 06:45:27] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 06:45:27]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 06:55:27] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-07 06:55:27]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 06:55:27] 🗺️ Running geocoding backfill...
+[2026-02-07 06:55:27]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 06:55:27] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 06:55:27] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 06:55:27]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 06:55:27] 🚗 Scraping vehicle auctions...
+[2026-02-07 06:55:27]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 06:55:27] 👀 Monitoring auction status changes...
+[2026-02-07 06:55:27]   📊 Current database stats:
+[2026-02-07 06:55:27]      CONCLUIDA_PORTAL: 11284
+[2026-02-07 06:55:27]      CELEBRANDOSE: 1182
+[2026-02-07 06:55:27]      ACTIVE: 917
+[2026-02-07 06:55:27]      PROXIMA_APERTURA: 155
+[2026-02-07 06:55:27]      SUSPENDIDA: 104
+[2026-02-07 06:55:27]      PRE_AUCTION: 37
+[2026-02-07 06:55:27]   🏷️ Auction types:
+[2026-02-07 06:55:27]      JUDICIAL: 13679
+[2026-02-07 07:20:27] 💓 Running pulse mode (bid updates)...
+[2026-02-07 07:20:27]   ⚠️  Pulse completed with no updates
+[2026-02-07 07:20:27] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 07:20:28]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 07:25:28] 👀 Monitoring auction status changes...
+[2026-02-07 07:25:28]   📊 Current database stats:
+[2026-02-07 07:25:28]      CONCLUIDA_PORTAL: 11284
+[2026-02-07 07:25:28]      CELEBRANDOSE: 1182
+[2026-02-07 07:25:28]      ACTIVE: 917
+[2026-02-07 07:25:28]      PROXIMA_APERTURA: 155
+[2026-02-07 07:25:28]      SUSPENDIDA: 104
+[2026-02-07 07:25:28]      PRE_AUCTION: 37
+[2026-02-07 07:25:28]   🏷️ Auction types:
+[2026-02-07 07:25:28]      JUDICIAL: 13679
+[2026-02-07 07:55:28] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 07:55:28] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 07:55:28]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 07:55:28] 🚗 Scraping vehicle auctions...
+[2026-02-07 07:55:28]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 07:55:28] 💓 Running pulse mode (bid updates)...
+[2026-02-07 07:55:28]   ⚠️  Pulse completed with no updates
+[2026-02-07 07:55:28] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 07:55:28]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 07:55:28] 👀 Monitoring auction status changes...
+[2026-02-07 07:55:28]   📌 Found 1 expired active auctions
+[2026-02-07 07:55:28]   ✅ Marked 1 auctions as CONCLUIDA_PORTAL
+[2026-02-07 07:55:28]   📊 Current database stats:
+[2026-02-07 07:55:28]      CONCLUIDA_PORTAL: 11285
+[2026-02-07 07:55:28]      CELEBRANDOSE: 1182
+[2026-02-07 07:55:28]      ACTIVE: 917
+[2026-02-07 07:55:28]      PROXIMA_APERTURA: 155
+[2026-02-07 07:55:28]      SUSPENDIDA: 104
+[2026-02-07 07:55:28]      PRE_AUCTION: 37
+[2026-02-07 07:55:28]   🏷️ Auction types:
+[2026-02-07 07:55:28]      JUDICIAL: 13680
+[2026-02-07 08:25:28] 👀 Monitoring auction status changes...
+[2026-02-07 08:25:28]   📊 Current database stats:
+[2026-02-07 08:25:28]      CONCLUIDA_PORTAL: 11285
+[2026-02-07 08:25:28]      CELEBRANDOSE: 1182
+[2026-02-07 08:25:28]      ACTIVE: 917
+[2026-02-07 08:25:28]      PROXIMA_APERTURA: 155
+[2026-02-07 08:25:28]      SUSPENDIDA: 104
+[2026-02-07 08:25:28]      PRE_AUCTION: 37
+[2026-02-07 08:25:28]   🏷️ Auction types:
+[2026-02-07 08:25:28]      JUDICIAL: 13680
+[2026-02-07 08:30:28] 💓 Running pulse mode (bid updates)...
+[2026-02-07 08:30:28]   ⚠️  Pulse completed with no updates
+[2026-02-07 08:30:28] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 08:30:29]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 08:55:29] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-07 08:55:29]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 08:55:29] 🗺️ Running geocoding backfill...
+[2026-02-07 08:55:29]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 08:55:29] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 08:55:29] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 08:55:29]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 08:55:29] 🚗 Scraping vehicle auctions...
+[2026-02-07 08:55:29]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 08:55:29] 👀 Monitoring auction status changes...
+[2026-02-07 08:55:29]   📊 Current database stats:
+[2026-02-07 08:55:29]      CONCLUIDA_PORTAL: 11285
+[2026-02-07 08:55:29]      CELEBRANDOSE: 1182
+[2026-02-07 08:55:29]      ACTIVE: 917
+[2026-02-07 08:55:29]      PROXIMA_APERTURA: 155
+[2026-02-07 08:55:29]      SUSPENDIDA: 104
+[2026-02-07 08:55:29]      PRE_AUCTION: 37
+[2026-02-07 08:55:29]   🏷️ Auction types:
+[2026-02-07 08:55:29]      JUDICIAL: 13680
+[2026-02-07 09:05:29] 💓 Running pulse mode (bid updates)...
+[2026-02-07 09:05:29]   ⚠️  Pulse completed with no updates
+[2026-02-07 09:05:29] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 09:05:29]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 09:25:29] 👀 Monitoring auction status changes...
+[2026-02-07 09:25:29]   📊 Current database stats:
+[2026-02-07 09:25:29]      CONCLUIDA_PORTAL: 11285
+[2026-02-07 09:25:29]      CELEBRANDOSE: 1182
+[2026-02-07 09:25:29]      ACTIVE: 917
+[2026-02-07 09:25:29]      PROXIMA_APERTURA: 155
+[2026-02-07 09:25:29]      SUSPENDIDA: 104
+[2026-02-07 09:25:29]      PRE_AUCTION: 37
+[2026-02-07 09:25:30]   🏷️ Auction types:
+[2026-02-07 09:25:30]      JUDICIAL: 13680
+[2026-02-07 09:40:30] 💓 Running pulse mode (bid updates)...
+[2026-02-07 09:40:30]   ⚠️  Pulse completed with no updates
+[2026-02-07 09:40:30] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 09:40:30]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 09:55:30] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 09:55:30] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 09:55:30]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 09:55:30] 🚗 Scraping vehicle auctions...
+[2026-02-07 09:55:30]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 09:55:30] 👀 Monitoring auction status changes...
+[2026-02-07 09:55:30]   📊 Current database stats:
+[2026-02-07 09:55:30]      CONCLUIDA_PORTAL: 11285
+[2026-02-07 09:55:30]      CELEBRANDOSE: 1182
+[2026-02-07 09:55:30]      ACTIVE: 917
+[2026-02-07 09:55:30]      PROXIMA_APERTURA: 155
+[2026-02-07 09:55:30]      SUSPENDIDA: 104
+[2026-02-07 09:55:30]      PRE_AUCTION: 37
+[2026-02-07 09:55:30]   🏷️ Auction types:
+[2026-02-07 09:55:30]      JUDICIAL: 13680
+[2026-02-07 10:15:30] 💓 Running pulse mode (bid updates)...
+[2026-02-07 10:15:30]   ⚠️  Pulse completed with no updates
+[2026-02-07 10:15:30] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 10:15:30]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 10:25:30] 👀 Monitoring auction status changes...
+[2026-02-07 10:25:30]   📊 Current database stats:
+[2026-02-07 10:25:30]      CONCLUIDA_PORTAL: 11285
+[2026-02-07 10:25:30]      CELEBRANDOSE: 1182
+[2026-02-07 10:25:30]      ACTIVE: 917
+[2026-02-07 10:25:30]      PROXIMA_APERTURA: 155
+[2026-02-07 10:25:30]      SUSPENDIDA: 104
+[2026-02-07 10:25:30]      PRE_AUCTION: 37
+[2026-02-07 10:25:30]   🏷️ Auction types:
+[2026-02-07 10:25:31]      JUDICIAL: 13680
+[2026-02-07 10:50:31] 💓 Running pulse mode (bid updates)...
+[2026-02-07 10:50:31]   ⚠️  Pulse completed with no updates
+[2026-02-07 10:50:31] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 10:50:31]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 10:55:31] 🏦 Scraping bank portals...
+[2026-02-07 10:55:31]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 10:55:31] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-07 10:55:31]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 10:55:31] 🗺️ Running geocoding backfill...
+[2026-02-07 10:55:31]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 10:55:31] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 10:55:31] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 10:55:32]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 10:55:32] 🚗 Scraping vehicle auctions...
+[2026-02-07 10:55:32]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 10:55:32] 👀 Monitoring auction status changes...
+[2026-02-07 10:55:32]   📊 Current database stats:
+[2026-02-07 10:55:32]      CONCLUIDA_PORTAL: 11285
+[2026-02-07 10:55:32]      CELEBRANDOSE: 1182
+[2026-02-07 10:55:32]      ACTIVE: 917
+[2026-02-07 10:55:32]      PROXIMA_APERTURA: 155
+[2026-02-07 10:55:32]      SUSPENDIDA: 104
+[2026-02-07 10:55:32]      PRE_AUCTION: 37
+[2026-02-07 10:55:32]   🏷️ Auction types:
+[2026-02-07 10:55:32]      JUDICIAL: 13680
+[2026-02-07 11:25:32] 💓 Running pulse mode (bid updates)...
+[2026-02-07 11:25:32]   ⚠️  Pulse completed with no updates
+[2026-02-07 11:25:32] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 11:25:32]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 11:25:32] 👀 Monitoring auction status changes...
+[2026-02-07 11:25:32]   📊 Current database stats:
+[2026-02-07 11:25:32]      CONCLUIDA_PORTAL: 11285
+[2026-02-07 11:25:32]      CELEBRANDOSE: 1182
+[2026-02-07 11:25:32]      ACTIVE: 917
+[2026-02-07 11:25:32]      PROXIMA_APERTURA: 155
+[2026-02-07 11:25:32]      SUSPENDIDA: 104
+[2026-02-07 11:25:32]      PRE_AUCTION: 37
+[2026-02-07 11:25:32]   🏷️ Auction types:
+[2026-02-07 11:25:32]      JUDICIAL: 13680
+[2026-02-07 11:55:32] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 11:55:32] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 11:55:32]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 11:55:32] 🚗 Scraping vehicle auctions...
+[2026-02-07 11:55:32]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 11:55:32] 👀 Monitoring auction status changes...
+[2026-02-07 11:55:32]   📊 Current database stats:
+[2026-02-07 11:55:32]      CONCLUIDA_PORTAL: 11285
+[2026-02-07 11:55:32]      CELEBRANDOSE: 1182
+[2026-02-07 11:55:32]      ACTIVE: 917
+[2026-02-07 11:55:32]      PROXIMA_APERTURA: 155
+[2026-02-07 11:55:32]      SUSPENDIDA: 104
+[2026-02-07 11:55:32]      PRE_AUCTION: 37
+[2026-02-07 11:55:32]   🏷️ Auction types:
+[2026-02-07 11:55:32]      JUDICIAL: 13680
+[2026-02-07 12:00:32] 💓 Running pulse mode (bid updates)...
+[2026-02-07 12:00:32]   ⚠️  Pulse completed with no updates
+[2026-02-07 12:00:32] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 12:00:33]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 12:25:33] 👀 Monitoring auction status changes...
+[2026-02-07 12:25:33]   📊 Current database stats:
+[2026-02-07 12:25:33]      CONCLUIDA_PORTAL: 11285
+[2026-02-07 12:25:33]      CELEBRANDOSE: 1182
+[2026-02-07 12:25:33]      ACTIVE: 917
+[2026-02-07 12:25:33]      PROXIMA_APERTURA: 155
+[2026-02-07 12:25:33]      SUSPENDIDA: 104
+[2026-02-07 12:25:33]      PRE_AUCTION: 37
+[2026-02-07 12:25:33]   🏷️ Auction types:
+[2026-02-07 12:25:33]      JUDICIAL: 13680
+[2026-02-07 12:35:33] 💓 Running pulse mode (bid updates)...
+[2026-02-07 12:35:33]   ⚠️  Pulse completed with no updates
+[2026-02-07 12:35:33] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 12:35:33]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 12:55:33] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-07 12:55:33]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 12:55:33] 🗺️ Running geocoding backfill...
+[2026-02-07 12:55:33]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 12:55:33] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 12:55:33] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 12:55:34]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 12:55:34] 🚗 Scraping vehicle auctions...
+[2026-02-07 12:55:34]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 12:55:34] 👀 Monitoring auction status changes...
+[2026-02-07 12:55:34]   📊 Current database stats:
+[2026-02-07 12:55:34]      CONCLUIDA_PORTAL: 11285
+[2026-02-07 12:55:34]      CELEBRANDOSE: 1182
+[2026-02-07 12:55:34]      ACTIVE: 917
+[2026-02-07 12:55:34]      PROXIMA_APERTURA: 155
+[2026-02-07 12:55:34]      SUSPENDIDA: 104
+[2026-02-07 12:55:34]      PRE_AUCTION: 37
+[2026-02-07 12:55:34]   🏷️ Auction types:
+[2026-02-07 12:55:34]      JUDICIAL: 13680
+[2026-02-07 13:10:34] 💓 Running pulse mode (bid updates)...
+[2026-02-07 13:10:34]   ⚠️  Pulse completed with no updates
+[2026-02-07 13:10:34] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 13:10:34]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 13:25:34] 👀 Monitoring auction status changes...
+[2026-02-07 13:25:34]   📊 Current database stats:
+[2026-02-07 13:25:34]      CONCLUIDA_PORTAL: 11285
+[2026-02-07 13:25:34]      CELEBRANDOSE: 1182
+[2026-02-07 13:25:34]      ACTIVE: 917
+[2026-02-07 13:25:34]      PROXIMA_APERTURA: 155
+[2026-02-07 13:25:34]      SUSPENDIDA: 104
+[2026-02-07 13:25:34]      PRE_AUCTION: 37
+[2026-02-07 13:25:34]   🏷️ Auction types:
+[2026-02-07 13:25:34]      JUDICIAL: 13680
+[2026-02-07 13:45:34] 💓 Running pulse mode (bid updates)...
+[2026-02-07 13:45:34]   ⚠️  Pulse completed with no updates
+[2026-02-07 13:45:34] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 13:45:34]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 13:55:34] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 13:55:34] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 13:55:35]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 13:55:35] 🚗 Scraping vehicle auctions...
+[2026-02-07 13:55:35]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 13:55:35] 👀 Monitoring auction status changes...
+[2026-02-07 13:55:35]   📊 Current database stats:
+[2026-02-07 13:55:35]      CONCLUIDA_PORTAL: 11285
+[2026-02-07 13:55:35]      CELEBRANDOSE: 1182
+[2026-02-07 13:55:35]      ACTIVE: 917
+[2026-02-07 13:55:35]      PROXIMA_APERTURA: 155
+[2026-02-07 13:55:35]      SUSPENDIDA: 104
+[2026-02-07 13:55:35]      PRE_AUCTION: 37
+[2026-02-07 13:55:35]   🏷️ Auction types:
+[2026-02-07 13:55:35]      JUDICIAL: 13680
+[2026-02-07 14:20:35] 💓 Running pulse mode (bid updates)...
+[2026-02-07 14:20:35]   ⚠️  Pulse completed with no updates
+[2026-02-07 14:20:35] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 14:20:35]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 14:25:35] 👀 Monitoring auction status changes...
+[2026-02-07 14:25:35]   📌 Found 1 expired active auctions
+[2026-02-07 14:25:35]   ✅ Marked 1 auctions as CONCLUIDA_PORTAL
+[2026-02-07 14:25:35]   📊 Current database stats:
+[2026-02-07 14:25:35]      CONCLUIDA_PORTAL: 11286
+[2026-02-07 14:25:35]      CELEBRANDOSE: 1182
+[2026-02-07 14:25:35]      ACTIVE: 917
+[2026-02-07 14:25:35]      PROXIMA_APERTURA: 155
+[2026-02-07 14:25:35]      SUSPENDIDA: 104
+[2026-02-07 14:25:35]      PRE_AUCTION: 37
+[2026-02-07 14:25:35]   🏷️ Auction types:
+[2026-02-07 14:25:35]      JUDICIAL: 13681
+[2026-02-07 14:55:35] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-07 14:55:35]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 14:55:35] 🗺️ Running geocoding backfill...
+[2026-02-07 14:55:35]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 14:55:35] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 14:55:35] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 14:55:35]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 14:55:35] 🚗 Scraping vehicle auctions...
+[2026-02-07 14:55:35]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 14:55:35] 💓 Running pulse mode (bid updates)...
+[2026-02-07 14:55:35]   ⚠️  Pulse completed with no updates
+[2026-02-07 14:55:35] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 14:55:35]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 14:55:35] 👀 Monitoring auction status changes...
+[2026-02-07 14:55:35]   📊 Current database stats:
+[2026-02-07 14:55:35]      CONCLUIDA_PORTAL: 11286
+[2026-02-07 14:55:35]      CELEBRANDOSE: 1182
+[2026-02-07 14:55:35]      ACTIVE: 917
+[2026-02-07 14:55:35]      PROXIMA_APERTURA: 155
+[2026-02-07 14:55:35]      SUSPENDIDA: 104
+[2026-02-07 14:55:35]      PRE_AUCTION: 37
+[2026-02-07 14:55:35]   🏷️ Auction types:
+[2026-02-07 14:55:35]      JUDICIAL: 13681
+[2026-02-07 15:25:35] 👀 Monitoring auction status changes...
+[2026-02-07 15:25:35]   📊 Current database stats:
+[2026-02-07 15:25:35]      CONCLUIDA_PORTAL: 11286
+[2026-02-07 15:25:35]      CELEBRANDOSE: 1182
+[2026-02-07 15:25:35]      ACTIVE: 917
+[2026-02-07 15:25:35]      PROXIMA_APERTURA: 155
+[2026-02-07 15:25:35]      SUSPENDIDA: 104
+[2026-02-07 15:25:35]      PRE_AUCTION: 37
+[2026-02-07 15:25:35]   🏷️ Auction types:
+[2026-02-07 15:25:35]      JUDICIAL: 13681
+[2026-02-07 15:30:35] 💓 Running pulse mode (bid updates)...
+[2026-02-07 15:30:35]   ⚠️  Pulse completed with no updates
+[2026-02-07 15:30:35] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 15:30:36]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 15:55:36] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 15:55:36] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 15:55:36]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 15:55:36] 🚗 Scraping vehicle auctions...
+[2026-02-07 15:55:36]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 15:55:36] 👀 Monitoring auction status changes...
+[2026-02-07 15:55:36]   📊 Current database stats:
+[2026-02-07 15:55:36]      CONCLUIDA_PORTAL: 11286
+[2026-02-07 15:55:36]      CELEBRANDOSE: 1182
+[2026-02-07 15:55:36]      ACTIVE: 917
+[2026-02-07 15:55:36]      PROXIMA_APERTURA: 155
+[2026-02-07 15:55:36]      SUSPENDIDA: 104
+[2026-02-07 15:55:36]      PRE_AUCTION: 37
+[2026-02-07 15:55:36]   🏷️ Auction types:
+[2026-02-07 15:55:36]      JUDICIAL: 13681
+[2026-02-07 16:05:36] 💓 Running pulse mode (bid updates)...
+[2026-02-07 16:05:36]   ⚠️  Pulse completed with no updates
+[2026-02-07 16:05:36] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 16:05:36]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 16:25:36] 👀 Monitoring auction status changes...
+[2026-02-07 16:25:36]   📊 Current database stats:
+[2026-02-07 16:25:36]      CONCLUIDA_PORTAL: 11286
+[2026-02-07 16:25:36]      CELEBRANDOSE: 1182
+[2026-02-07 16:25:36]      ACTIVE: 917
+[2026-02-07 16:25:36]      PROXIMA_APERTURA: 155
+[2026-02-07 16:25:36]      SUSPENDIDA: 104
+[2026-02-07 16:25:36]      PRE_AUCTION: 37
+[2026-02-07 16:25:36]   🏷️ Auction types:
+[2026-02-07 16:25:36]      JUDICIAL: 13681
+[2026-02-07 16:40:37] 💓 Running pulse mode (bid updates)...
+[2026-02-07 16:40:37]   ⚠️  Pulse completed with no updates
+[2026-02-07 16:40:37] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 16:40:37]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 16:55:37] 🏦 Scraping bank portals...
+[2026-02-07 16:55:37]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 16:55:37] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-07 16:55:37]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 16:55:37] 🗺️ Running geocoding backfill...
+[2026-02-07 16:55:37]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 16:55:37] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 16:55:37] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 16:55:37]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 16:55:37] 🚗 Scraping vehicle auctions...
+[2026-02-07 16:55:37]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 16:55:37] 👀 Monitoring auction status changes...
+[2026-02-07 16:55:37]   📊 Current database stats:
+[2026-02-07 16:55:37]      CONCLUIDA_PORTAL: 11286
+[2026-02-07 16:55:37]      CELEBRANDOSE: 1182
+[2026-02-07 16:55:37]      ACTIVE: 917
+[2026-02-07 16:55:37]      PROXIMA_APERTURA: 155
+[2026-02-07 16:55:37]      SUSPENDIDA: 104
+[2026-02-07 16:55:37]      PRE_AUCTION: 37
+[2026-02-07 16:55:37]   🏷️ Auction types:
+[2026-02-07 16:55:37]      JUDICIAL: 13681
+[2026-02-07 17:15:37] 💓 Running pulse mode (bid updates)...
+[2026-02-07 17:15:37]   ⚠️  Pulse completed with no updates
+[2026-02-07 17:15:37] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 17:15:37]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 17:25:38] 👀 Monitoring auction status changes...
+[2026-02-07 17:25:38]   📊 Current database stats:
+[2026-02-07 17:25:38]      CONCLUIDA_PORTAL: 11286
+[2026-02-07 17:25:38]      CELEBRANDOSE: 1182
+[2026-02-07 17:25:38]      ACTIVE: 917
+[2026-02-07 17:25:38]      PROXIMA_APERTURA: 155
+[2026-02-07 17:25:38]      SUSPENDIDA: 104
+[2026-02-07 17:25:38]      PRE_AUCTION: 37
+[2026-02-07 17:25:38]   🏷️ Auction types:
+[2026-02-07 17:25:38]      JUDICIAL: 13681
+[2026-02-07 17:50:38] 💓 Running pulse mode (bid updates)...
+[2026-02-07 17:50:38]   ⚠️  Pulse completed with no updates
+[2026-02-07 17:50:38] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 17:50:38]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 17:55:38] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 17:55:38] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 17:55:38]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 17:55:38] 🚗 Scraping vehicle auctions...
+[2026-02-07 17:55:38]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 17:55:38] 👀 Monitoring auction status changes...
+[2026-02-07 17:55:38]   📊 Current database stats:
+[2026-02-07 17:55:38]      CONCLUIDA_PORTAL: 11286
+[2026-02-07 17:55:38]      CELEBRANDOSE: 1182
+[2026-02-07 17:55:38]      ACTIVE: 917
+[2026-02-07 17:55:38]      PROXIMA_APERTURA: 155
+[2026-02-07 17:55:38]      SUSPENDIDA: 104
+[2026-02-07 17:55:38]      PRE_AUCTION: 37
+[2026-02-07 17:55:38]   🏷️ Auction types:
+[2026-02-07 17:55:38]      JUDICIAL: 13681
+[2026-02-07 18:25:38] 💓 Running pulse mode (bid updates)...
+[2026-02-07 18:25:38]   ⚠️  Pulse completed with no updates
+[2026-02-07 18:25:38] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 18:25:39]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 18:25:39] 👀 Monitoring auction status changes...
+[2026-02-07 18:25:39]   📊 Current database stats:
+[2026-02-07 18:25:39]      CONCLUIDA_PORTAL: 11286
+[2026-02-07 18:25:39]      CELEBRANDOSE: 1182
+[2026-02-07 18:25:39]      ACTIVE: 917
+[2026-02-07 18:25:39]      PROXIMA_APERTURA: 155
+[2026-02-07 18:25:39]      SUSPENDIDA: 104
+[2026-02-07 18:25:39]      PRE_AUCTION: 37
+[2026-02-07 18:25:39]   🏷️ Auction types:
+[2026-02-07 18:25:39]      JUDICIAL: 13681
+[2026-02-07 18:55:39] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-07 18:55:39]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 18:55:39] 🗺️ Running geocoding backfill...
+[2026-02-07 18:55:39]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 18:55:39] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 18:55:39] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 18:55:39]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 18:55:39] 🚗 Scraping vehicle auctions...
+[2026-02-07 18:55:39]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 18:55:39] 👀 Monitoring auction status changes...
+[2026-02-07 18:55:39]   📊 Current database stats:
+[2026-02-07 18:55:39]      CONCLUIDA_PORTAL: 11286
+[2026-02-07 18:55:39]      CELEBRANDOSE: 1182
+[2026-02-07 18:55:39]      ACTIVE: 917
+[2026-02-07 18:55:39]      PROXIMA_APERTURA: 155
+[2026-02-07 18:55:39]      SUSPENDIDA: 104
+[2026-02-07 18:55:39]      PRE_AUCTION: 37
+[2026-02-07 18:55:39]   🏷️ Auction types:
+[2026-02-07 18:55:39]      JUDICIAL: 13681
+[2026-02-07 19:00:39] 💓 Running pulse mode (bid updates)...
+[2026-02-07 19:00:39]   ⚠️  Pulse completed with no updates
+[2026-02-07 19:00:39] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 19:00:39]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 19:25:39] 👀 Monitoring auction status changes...
+[2026-02-07 19:25:39]   📌 Found 1 expired active auctions
+[2026-02-07 19:25:39]   ✅ Marked 1 auctions as CONCLUIDA_PORTAL
+[2026-02-07 19:25:39]   📊 Current database stats:
+[2026-02-07 19:25:39]      CONCLUIDA_PORTAL: 11287
+[2026-02-07 19:25:39]      CELEBRANDOSE: 1182
+[2026-02-07 19:25:39]      ACTIVE: 917
+[2026-02-07 19:25:39]      PROXIMA_APERTURA: 155
+[2026-02-07 19:25:39]      SUSPENDIDA: 104
+[2026-02-07 19:25:39]      PRE_AUCTION: 37
+[2026-02-07 19:25:39]   🏷️ Auction types:
+[2026-02-07 19:25:39]      JUDICIAL: 13682
+[2026-02-07 19:35:39] 💓 Running pulse mode (bid updates)...
+[2026-02-07 19:35:39]   ⚠️  Pulse completed with no updates
+[2026-02-07 19:35:39] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 19:35:40]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 19:55:40] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 19:55:40] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 19:55:40]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 19:55:40] 🚗 Scraping vehicle auctions...
+[2026-02-07 19:55:40]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 19:55:40] 👀 Monitoring auction status changes...
+[2026-02-07 19:55:41]   📊 Current database stats:
+[2026-02-07 19:55:41]      CONCLUIDA_PORTAL: 11287
+[2026-02-07 19:55:41]      CELEBRANDOSE: 1182
+[2026-02-07 19:55:41]      ACTIVE: 917
+[2026-02-07 19:55:41]      PROXIMA_APERTURA: 155
+[2026-02-07 19:55:41]      SUSPENDIDA: 104
+[2026-02-07 19:55:41]      PRE_AUCTION: 37
+[2026-02-07 19:55:41]   🏷️ Auction types:
+[2026-02-07 19:55:41]      JUDICIAL: 13682
+[2026-02-07 20:10:41] 💓 Running pulse mode (bid updates)...
+[2026-02-07 20:10:41]   ⚠️  Pulse completed with no updates
+[2026-02-07 20:10:41] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 20:10:41]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 20:25:41] 👀 Monitoring auction status changes...
+[2026-02-07 20:25:41]   📊 Current database stats:
+[2026-02-07 20:25:41]      CONCLUIDA_PORTAL: 11287
+[2026-02-07 20:25:41]      CELEBRANDOSE: 1182
+[2026-02-07 20:25:41]      ACTIVE: 917
+[2026-02-07 20:25:41]      PROXIMA_APERTURA: 155
+[2026-02-07 20:25:41]      SUSPENDIDA: 104
+[2026-02-07 20:25:41]      PRE_AUCTION: 37
+[2026-02-07 20:25:41]   🏷️ Auction types:
+[2026-02-07 20:25:41]      JUDICIAL: 13682
+[2026-02-07 20:45:41] 💓 Running pulse mode (bid updates)...
+[2026-02-07 20:45:41]   ⚠️  Pulse completed with no updates
+[2026-02-07 20:45:41] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 20:45:42]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 20:55:42] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-07 20:55:42]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 20:55:42] 🗺️ Running geocoding backfill...
+[2026-02-07 20:55:42]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 20:55:42] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 20:55:42] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 20:55:42]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 20:55:42] 🚗 Scraping vehicle auctions...
+[2026-02-07 20:55:42]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 20:55:42] 👀 Monitoring auction status changes...
+[2026-02-07 20:55:43]   📊 Current database stats:
+[2026-02-07 20:55:43]      CONCLUIDA_PORTAL: 11287
+[2026-02-07 20:55:43]      CELEBRANDOSE: 1182
+[2026-02-07 20:55:43]      ACTIVE: 917
+[2026-02-07 20:55:43]      PROXIMA_APERTURA: 155
+[2026-02-07 20:55:43]      SUSPENDIDA: 104
+[2026-02-07 20:55:43]      PRE_AUCTION: 37
+[2026-02-07 20:55:43]   🏷️ Auction types:
+[2026-02-07 20:55:43]      JUDICIAL: 13682
+[2026-02-07 21:20:43] 💓 Running pulse mode (bid updates)...
+[2026-02-07 21:20:43]   ⚠️  Pulse completed with no updates
+[2026-02-07 21:20:43] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 21:20:44]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 21:25:44] 👀 Monitoring auction status changes...
+[2026-02-07 21:25:44]   📌 Found 1 expired active auctions
+[2026-02-07 21:25:44]   ✅ Marked 1 auctions as CONCLUIDA_PORTAL
+[2026-02-07 21:25:44]   📊 Current database stats:
+[2026-02-07 21:25:44]      CONCLUIDA_PORTAL: 11288
+[2026-02-07 21:25:44]      CELEBRANDOSE: 1182
+[2026-02-07 21:25:44]      ACTIVE: 917
+[2026-02-07 21:25:44]      PROXIMA_APERTURA: 155
+[2026-02-07 21:25:44]      SUSPENDIDA: 104
+[2026-02-07 21:25:44]      PRE_AUCTION: 37
+[2026-02-07 21:25:44]   🏷️ Auction types:
+[2026-02-07 21:25:44]      JUDICIAL: 13683
+[2026-02-07 21:55:44] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 21:55:44] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 21:55:44]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 21:55:44] 🚗 Scraping vehicle auctions...
+[2026-02-07 21:55:44]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 21:55:44] 💓 Running pulse mode (bid updates)...
+[2026-02-07 21:55:44]   ⚠️  Pulse completed with no updates
+[2026-02-07 21:55:44] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 21:55:45]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 21:55:45] 👀 Monitoring auction status changes...
+[2026-02-07 21:55:45]   📊 Current database stats:
+[2026-02-07 21:55:45]      CONCLUIDA_PORTAL: 11288
+[2026-02-07 21:55:45]      CELEBRANDOSE: 1182
+[2026-02-07 21:55:45]      ACTIVE: 917
+[2026-02-07 21:55:45]      PROXIMA_APERTURA: 155
+[2026-02-07 21:55:45]      SUSPENDIDA: 104
+[2026-02-07 21:55:45]      PRE_AUCTION: 37
+[2026-02-07 21:55:45]   🏷️ Auction types:
+[2026-02-07 21:55:45]      JUDICIAL: 13683
+[2026-02-07 22:25:45] 👀 Monitoring auction status changes...
+[2026-02-07 22:25:45]   📊 Current database stats:
+[2026-02-07 22:25:45]      CONCLUIDA_PORTAL: 11288
+[2026-02-07 22:25:45]      CELEBRANDOSE: 1182
+[2026-02-07 22:25:45]      ACTIVE: 917
+[2026-02-07 22:25:45]      PROXIMA_APERTURA: 155
+[2026-02-07 22:25:45]      SUSPENDIDA: 104
+[2026-02-07 22:25:45]      PRE_AUCTION: 37
+[2026-02-07 22:25:45]   🏷️ Auction types:
+[2026-02-07 22:25:45]      JUDICIAL: 13683
+[2026-02-07 22:30:45] 💓 Running pulse mode (bid updates)...
+[2026-02-07 22:30:45]   ⚠️  Pulse completed with no updates
+[2026-02-07 22:30:45] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 22:30:45]   ❌ Exception: [Errno 22] Invalid argument
+[2026-02-07 22:55:45] 🏦 Scraping bank portals...
+[2026-02-07 22:55:45]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 22:55:45] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-07 22:55:45]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 22:55:45] 🗺️ Running geocoding backfill...
+[2026-02-07 22:55:45]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 22:55:45] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 22:55:45] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 22:55:46]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 22:55:46] 🚗 Scraping vehicle auctions...
+[2026-02-07 22:55:46]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 22:55:46] 👀 Monitoring auction status changes...
+[2026-02-07 22:55:46]   📊 Current database stats:
+[2026-02-07 22:55:46]      CONCLUIDA_PORTAL: 11288
+[2026-02-07 22:55:46]      CELEBRANDOSE: 1182
+[2026-02-07 22:55:46]      ACTIVE: 917
+[2026-02-07 22:55:46]      PROXIMA_APERTURA: 155
+[2026-02-07 22:55:46]      SUSPENDIDA: 104
+[2026-02-07 22:55:46]      PRE_AUCTION: 37
+[2026-02-07 22:55:46]   🏷️ Auction types:
+[2026-02-07 22:55:46]      JUDICIAL: 13683
+[2026-02-07 23:05:46] 💓 Running pulse mode (bid updates)...
+[2026-02-07 23:05:46]   ⚠️  Pulse completed with no updates
+[2026-02-07 23:05:46] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 23:05:46]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 23:25:46] 👀 Monitoring auction status changes...
+[2026-02-07 23:25:46]   📊 Current database stats:
+[2026-02-07 23:25:46]      CONCLUIDA_PORTAL: 11288
+[2026-02-07 23:25:46]      CELEBRANDOSE: 1182
+[2026-02-07 23:25:46]      ACTIVE: 917
+[2026-02-07 23:25:46]      PROXIMA_APERTURA: 155
+[2026-02-07 23:25:46]      SUSPENDIDA: 104
+[2026-02-07 23:25:46]      PRE_AUCTION: 37
+[2026-02-07 23:25:46]   🏷️ Auction types:
+[2026-02-07 23:25:46]      JUDICIAL: 13683
+[2026-02-07 23:40:52] 💓 Running pulse mode (bid updates)...
+[2026-02-07 23:40:52]   ⚠️  Pulse completed with no updates
+[2026-02-07 23:40:52] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-07 23:40:52]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 23:55:53] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-07 23:55:53] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-07 23:55:53]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-07 23:55:53] 🚗 Scraping vehicle auctions...
+[2026-02-07 23:55:53]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-07 23:55:53] 👀 Monitoring auction status changes...
+[2026-02-07 23:55:53]   📊 Current database stats:
+[2026-02-07 23:55:53]      CONCLUIDA_PORTAL: 11288
+[2026-02-07 23:55:53]      CELEBRANDOSE: 1182
+[2026-02-07 23:55:53]      ACTIVE: 917
+[2026-02-07 23:55:53]      PROXIMA_APERTURA: 155
+[2026-02-07 23:55:53]      SUSPENDIDA: 104
+[2026-02-07 23:55:53]      PRE_AUCTION: 37
+[2026-02-07 23:55:54]   🏷️ Auction types:
+[2026-02-07 23:55:54]      JUDICIAL: 13683
+[2026-02-08 00:15:54] 💓 Running pulse mode (bid updates)...
+[2026-02-08 00:15:54]   ⚠️  Pulse completed with no updates
+[2026-02-08 00:15:54] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 00:15:54]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 00:25:54] 👀 Monitoring auction status changes...
+[2026-02-08 00:25:54]   📊 Current database stats:
+[2026-02-08 00:25:54]      CONCLUIDA_PORTAL: 11288
+[2026-02-08 00:25:54]      CELEBRANDOSE: 1182
+[2026-02-08 00:25:54]      ACTIVE: 917
+[2026-02-08 00:25:54]      PROXIMA_APERTURA: 155
+[2026-02-08 00:25:54]      SUSPENDIDA: 104
+[2026-02-08 00:25:54]      PRE_AUCTION: 37
+[2026-02-08 00:25:54]   🏷️ Auction types:
+[2026-02-08 00:25:54]      JUDICIAL: 13683
+[2026-02-08 00:51:02] 💓 Running pulse mode (bid updates)...
+[2026-02-08 00:51:02]   ⚠️  Pulse completed with no updates
+[2026-02-08 00:51:02] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 00:51:03]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 00:56:03] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-08 00:56:03]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 00:56:03] 🗺️ Running geocoding backfill...
+[2026-02-08 00:56:03]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 00:56:03] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-08 00:56:03] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-08 00:56:03]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 00:56:03] 🚗 Scraping vehicle auctions...
+[2026-02-08 00:56:03]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 00:56:03] 👀 Monitoring auction status changes...
+[2026-02-08 00:56:03]   📊 Current database stats:
+[2026-02-08 00:56:03]      CONCLUIDA_PORTAL: 11288
+[2026-02-08 00:56:03]      CELEBRANDOSE: 1182
+[2026-02-08 00:56:03]      ACTIVE: 917
+[2026-02-08 00:56:03]      PROXIMA_APERTURA: 155
+[2026-02-08 00:56:03]      SUSPENDIDA: 104
+[2026-02-08 00:56:03]      PRE_AUCTION: 37
+[2026-02-08 00:56:03]   🏷️ Auction types:
+[2026-02-08 00:56:03]      JUDICIAL: 13683
+[2026-02-08 01:26:03] 💓 Running pulse mode (bid updates)...
+[2026-02-08 01:26:03]   ⚠️  Pulse completed with no updates
+[2026-02-08 01:26:03] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 01:26:04]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 01:26:04] 👀 Monitoring auction status changes...
+[2026-02-08 01:26:04]   📊 Current database stats:
+[2026-02-08 01:26:04]      CONCLUIDA_PORTAL: 11288
+[2026-02-08 01:26:04]      CELEBRANDOSE: 1182
+[2026-02-08 01:26:04]      ACTIVE: 917
+[2026-02-08 01:26:04]      PROXIMA_APERTURA: 155
+[2026-02-08 01:26:04]      SUSPENDIDA: 104
+[2026-02-08 01:26:04]      PRE_AUCTION: 37
+[2026-02-08 01:26:04]   🏷️ Auction types:
+[2026-02-08 01:26:04]      JUDICIAL: 13683
+[2026-02-08 01:56:04] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-08 01:56:04] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-08 01:56:04]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 01:56:04] 🚗 Scraping vehicle auctions...
+[2026-02-08 01:56:04]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 01:56:04] 👀 Monitoring auction status changes...
+[2026-02-08 01:56:04]   📊 Current database stats:
+[2026-02-08 01:56:04]      CONCLUIDA_PORTAL: 11288
+[2026-02-08 01:56:04]      CELEBRANDOSE: 1182
+[2026-02-08 01:56:04]   ❌ Error: [Errno 22] Invalid argument
+[2026-02-08 02:01:04] 💓 Running pulse mode (bid updates)...
+[2026-02-08 02:01:04]   ⚠️  Pulse completed with no updates
+[2026-02-08 02:01:04] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 02:01:05]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 02:26:05] 👀 Monitoring auction status changes...
+[2026-02-08 02:26:05]   📊 Current database stats:
+[2026-02-08 02:26:05]      CONCLUIDA_PORTAL: 11288
+[2026-02-08 02:26:05]      CELEBRANDOSE: 1182
+[2026-02-08 02:26:05]      ACTIVE: 917
+[2026-02-08 02:26:05]      PROXIMA_APERTURA: 155
+[2026-02-08 02:26:05]      SUSPENDIDA: 104
+[2026-02-08 02:26:05]      PRE_AUCTION: 37
+[2026-02-08 02:26:05]   🏷️ Auction types:
+[2026-02-08 02:26:05]      JUDICIAL: 13683
+[2026-02-08 02:36:05] 💓 Running pulse mode (bid updates)...
+[2026-02-08 02:36:05]   ⚠️  Pulse completed with no updates
+[2026-02-08 02:36:05] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 02:36:05]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 02:56:05] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-08 02:56:05]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 02:56:05] 🗺️ Running geocoding backfill...
+[2026-02-08 02:56:05]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 02:56:05] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-08 02:56:05] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-08 02:56:05]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 02:56:05] 🚗 Scraping vehicle auctions...
+[2026-02-08 02:56:05]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 02:56:05] 👀 Monitoring auction status changes...
+[2026-02-08 02:56:05]   📊 Current database stats:
+[2026-02-08 02:56:05]      CONCLUIDA_PORTAL: 11288
+[2026-02-08 02:56:05]      CELEBRANDOSE: 1182
+[2026-02-08 02:56:05]      ACTIVE: 917
+[2026-02-08 02:56:05]      PROXIMA_APERTURA: 155
+[2026-02-08 02:56:05]      SUSPENDIDA: 104
+[2026-02-08 02:56:05]      PRE_AUCTION: 37
+[2026-02-08 02:56:05]   🏷️ Auction types:
+[2026-02-08 02:56:05]      JUDICIAL: 13683
+[2026-02-08 03:00:06] 🌟 Starting daily full scan...
+[2026-02-08 03:00:06]    Phase 1: Active properties
+[2026-02-08 03:00:06] 🚀 Starting ACTIVE scraper (pages=100)...
+[2026-02-08 03:00:06]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 03:01:06]    Phase 2: Pre-auction properties
+[2026-02-08 03:01:06] 🚀 Starting PRE scraper (pages=100)...
+[2026-02-08 03:01:06]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 03:02:06]    Phase 3: Finished properties (sample)
+[2026-02-08 03:02:06] 🚀 Starting FINISHED scraper (pages=50)...
+[2026-02-08 03:02:06]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 03:11:07] 💓 Running pulse mode (bid updates)...
+[2026-02-08 03:11:07]   ⚠️  Pulse completed with no updates
+[2026-02-08 03:11:07] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 03:11:07]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 03:26:07] 👀 Monitoring auction status changes...
+[2026-02-08 03:26:07]   📊 Current database stats:
+[2026-02-08 03:26:07]      CONCLUIDA_PORTAL: 11288
+[2026-02-08 03:26:07]      CELEBRANDOSE: 1182
+[2026-02-08 03:26:07]      ACTIVE: 917
+[2026-02-08 03:26:07]      PROXIMA_APERTURA: 155
+[2026-02-08 03:26:07]      SUSPENDIDA: 104
+[2026-02-08 03:26:07]      PRE_AUCTION: 37
+[2026-02-08 03:26:07]   🏷️ Auction types:
+[2026-02-08 03:26:07]      JUDICIAL: 13683
+[2026-02-08 03:30:07] 📊 Running historical data batch...
+[2026-02-08 03:30:07]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 03:46:07] 💓 Running pulse mode (bid updates)...
+[2026-02-08 03:46:07]   ⚠️  Pulse completed with no updates
+[2026-02-08 03:46:07] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 03:46:07]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 03:56:07] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-08 03:56:07] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-08 03:56:08]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 03:56:08] 🚗 Scraping vehicle auctions...
+[2026-02-08 03:56:08]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 03:56:08] 👀 Monitoring auction status changes...
+[2026-02-08 03:56:08]   📊 Current database stats:
+[2026-02-08 03:56:08]      CONCLUIDA_PORTAL: 11288
+[2026-02-08 03:56:08]      CELEBRANDOSE: 1182
+[2026-02-08 03:56:08]      ACTIVE: 917
+[2026-02-08 03:56:08]      PROXIMA_APERTURA: 155
+[2026-02-08 03:56:08]      SUSPENDIDA: 104
+[2026-02-08 03:56:08]      PRE_AUCTION: 37
+[2026-02-08 03:56:08]   🏷️ Auction types:
+[2026-02-08 03:56:08]      JUDICIAL: 13683
+[2026-02-08 04:00:08] 🏦 Scraping bank portals...
+[2026-02-08 04:00:08]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 04:21:08] 💓 Running pulse mode (bid updates)...
+[2026-02-08 04:21:08]   ⚠️  Pulse completed with no updates
+[2026-02-08 04:21:08] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 04:21:08]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 04:26:08] 👀 Monitoring auction status changes...
+[2026-02-08 04:26:08]   📊 Current database stats:
+[2026-02-08 04:26:08]      CONCLUIDA_PORTAL: 11288
+[2026-02-08 04:26:08]      CELEBRANDOSE: 1182
+[2026-02-08 04:26:08]      ACTIVE: 917
+[2026-02-08 04:26:08]      PROXIMA_APERTURA: 155
+[2026-02-08 04:26:08]      SUSPENDIDA: 104
+[2026-02-08 04:26:08]      PRE_AUCTION: 37
+[2026-02-08 04:26:08]   🏷️ Auction types:
+[2026-02-08 04:26:08]      JUDICIAL: 13683
+[2026-02-08 04:56:08] 🏦 Scraping bank portals...
+[2026-02-08 04:56:08]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 04:56:08] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-08 04:56:08]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 04:56:08] 🗺️ Running geocoding backfill...
+[2026-02-08 04:56:08]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 04:56:08] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-08 04:56:08] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-08 04:56:09]   ❌ Exception: [Errno 22] Invalid argument
+[2026-02-08 04:56:09] 🚗 Scraping vehicle auctions...
+[2026-02-08 04:56:09]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 04:56:09] 💓 Running pulse mode (bid updates)...
+[2026-02-08 04:56:09]   ⚠️  Pulse completed with no updates
+[2026-02-08 04:56:09] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 04:56:09]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 04:56:09] 👀 Monitoring auction status changes...
+[2026-02-08 04:56:09]   📊 Current database stats:
+[2026-02-08 04:56:09]      CONCLUIDA_PORTAL: 11288
+[2026-02-08 04:56:09]      CELEBRANDOSE: 1182
+[2026-02-08 04:56:09]      ACTIVE: 917
+[2026-02-08 04:56:09]      PROXIMA_APERTURA: 155
+[2026-02-08 04:56:09]      SUSPENDIDA: 104
+[2026-02-08 04:56:09]      PRE_AUCTION: 37
+[2026-02-08 04:56:09]   🏷️ Auction types:
+[2026-02-08 04:56:09]      JUDICIAL: 13683
+[2026-02-08 05:26:09] 👀 Monitoring auction status changes...
+[2026-02-08 05:26:09]   📊 Current database stats:
+[2026-02-08 05:26:09]      CONCLUIDA_PORTAL: 11288
+[2026-02-08 05:26:09]      CELEBRANDOSE: 1182
+[2026-02-08 05:26:09]      ACTIVE: 917
+[2026-02-08 05:26:09]      PROXIMA_APERTURA: 155
+[2026-02-08 05:26:09]      SUSPENDIDA: 104
+[2026-02-08 05:26:09]      PRE_AUCTION: 37
+[2026-02-08 05:26:09]   🏷️ Auction types:
+[2026-02-08 05:26:09]      JUDICIAL: 13683
+[2026-02-08 05:31:09] 💓 Running pulse mode (bid updates)...
+[2026-02-08 05:31:09]   ⚠️  Pulse completed with no updates
+[2026-02-08 05:31:09] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 05:31:09]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 05:56:09] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-08 05:56:09] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-08 05:56:10]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 05:56:10] 🚗 Scraping vehicle auctions...
+[2026-02-08 05:56:10]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 05:56:10] 👀 Monitoring auction status changes...
+[2026-02-08 05:56:10]   📊 Current database stats:
+[2026-02-08 05:56:10]      CONCLUIDA_PORTAL: 11288
+[2026-02-08 05:56:10]      CELEBRANDOSE: 1182
+[2026-02-08 05:56:10]      ACTIVE: 917
+[2026-02-08 05:56:10]      PROXIMA_APERTURA: 155
+[2026-02-08 05:56:10]      SUSPENDIDA: 104
+[2026-02-08 05:56:10]      PRE_AUCTION: 37
+[2026-02-08 05:56:10]   🏷️ Auction types:
+[2026-02-08 05:56:10]      JUDICIAL: 13683
+[2026-02-08 06:06:10] 💓 Running pulse mode (bid updates)...
+[2026-02-08 06:06:10]   ⚠️  Pulse completed with no updates
+[2026-02-08 06:06:10] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 06:06:11]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 06:26:11] 👀 Monitoring auction status changes...
+[2026-02-08 06:26:11]   📊 Current database stats:
+[2026-02-08 06:26:11]      CONCLUIDA_PORTAL: 11288
+[2026-02-08 06:26:11]      CELEBRANDOSE: 1182
+[2026-02-08 06:26:11]      ACTIVE: 917
+[2026-02-08 06:26:11]      PROXIMA_APERTURA: 155
+[2026-02-08 06:26:11]      SUSPENDIDA: 104
+[2026-02-08 06:26:11]      PRE_AUCTION: 37
+[2026-02-08 06:26:11]   🏷️ Auction types:
+[2026-02-08 06:26:11]      JUDICIAL: 13683
+[2026-02-08 06:41:11] 💓 Running pulse mode (bid updates)...
+[2026-02-08 06:41:11]   ⚠️  Pulse completed with no updates
+[2026-02-08 06:41:11] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 06:41:11]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 06:56:11] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-08 06:56:11]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 06:56:11] 🗺️ Running geocoding backfill...
+[2026-02-08 06:56:11]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 06:56:11] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-08 06:56:11] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-08 06:56:12]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 06:56:12] 🚗 Scraping vehicle auctions...
+[2026-02-08 06:56:12]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 06:56:12] 👀 Monitoring auction status changes...
+[2026-02-08 06:56:12]   📊 Current database stats:
+[2026-02-08 06:56:12]      CONCLUIDA_PORTAL: 11288
+[2026-02-08 06:56:12]      CELEBRANDOSE: 1182
+[2026-02-08 06:56:12]      ACTIVE: 917
+[2026-02-08 06:56:12]      PROXIMA_APERTURA: 155
+[2026-02-08 06:56:12]      SUSPENDIDA: 104
+[2026-02-08 06:56:12]      PRE_AUCTION: 37
+[2026-02-08 06:56:12]   🏷️ Auction types:
+[2026-02-08 06:56:12]      JUDICIAL: 13683
+[2026-02-08 07:16:12] 💓 Running pulse mode (bid updates)...
+[2026-02-08 07:16:12]   ⚠️  Pulse completed with no updates
+[2026-02-08 07:16:12] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 07:16:13]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 07:26:13] 👀 Monitoring auction status changes...
+[2026-02-08 07:26:13]   📊 Current database stats:
+[2026-02-08 07:26:13]      CONCLUIDA_PORTAL: 11288
+[2026-02-08 07:26:13]      CELEBRANDOSE: 1182
+[2026-02-08 07:26:13]      ACTIVE: 917
+[2026-02-08 07:26:13]      PROXIMA_APERTURA: 155
+[2026-02-08 07:26:13]      SUSPENDIDA: 104
+[2026-02-08 07:26:13]      PRE_AUCTION: 37
+[2026-02-08 07:26:13]   🏷️ Auction types:
+[2026-02-08 07:26:13]      JUDICIAL: 13683
+[2026-02-08 07:51:13] 💓 Running pulse mode (bid updates)...
+[2026-02-08 07:51:13]   ⚠️  Pulse completed with no updates
+[2026-02-08 07:51:13] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 07:51:13]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 07:56:13] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-08 07:56:13] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-08 07:56:13]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 07:56:13] 🚗 Scraping vehicle auctions...
+[2026-02-08 07:56:13]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 07:56:13] 👀 Monitoring auction status changes...
+[2026-02-08 07:56:13]   📊 Current database stats:
+[2026-02-08 07:56:13]      CONCLUIDA_PORTAL: 11288
+[2026-02-08 07:56:13]      CELEBRANDOSE: 1182
+[2026-02-08 07:56:13]      ACTIVE: 917
+[2026-02-08 07:56:13]      PROXIMA_APERTURA: 155
+[2026-02-08 07:56:13]      SUSPENDIDA: 104
+[2026-02-08 07:56:13]      PRE_AUCTION: 37
+[2026-02-08 07:56:13]   🏷️ Auction types:
+[2026-02-08 07:56:13]      JUDICIAL: 13683
+[2026-02-08 08:26:13] 💓 Running pulse mode (bid updates)...
+[2026-02-08 08:26:13]   ❌ Pulse error: [Errno 22] Invalid argument
+[2026-02-08 08:26:13] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 08:26:14]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 08:26:14] 👀 Monitoring auction status changes...
+[2026-02-08 08:26:14]   📊 Current database stats:
+[2026-02-08 08:26:14]      CONCLUIDA_PORTAL: 11288
+[2026-02-08 08:26:14]      CELEBRANDOSE: 1182
+[2026-02-08 08:26:14]      ACTIVE: 917
+[2026-02-08 08:26:14]      PROXIMA_APERTURA: 155
+[2026-02-08 08:26:14]      SUSPENDIDA: 104
+[2026-02-08 08:26:14]      PRE_AUCTION: 37
+[2026-02-08 08:26:14]   🏷️ Auction types:
+[2026-02-08 08:26:14]      JUDICIAL: 13683
+[2026-02-08 08:56:14] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-08 08:56:14]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 08:56:14] 🗺️ Running geocoding backfill...
+[2026-02-08 08:56:14]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 08:56:14] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-08 08:56:14] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-08 08:56:14]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 08:56:14] 🚗 Scraping vehicle auctions...
+[2026-02-08 08:56:14]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 08:56:14] 👀 Monitoring auction status changes...
+[2026-02-08 08:56:14]   📊 Current database stats:
+[2026-02-08 08:56:14]      CONCLUIDA_PORTAL: 11288
+[2026-02-08 08:56:14]      CELEBRANDOSE: 1182
+[2026-02-08 08:56:14]      ACTIVE: 917
+[2026-02-08 08:56:14]      PROXIMA_APERTURA: 155
+[2026-02-08 08:56:14]      SUSPENDIDA: 104
+[2026-02-08 08:56:14]      PRE_AUCTION: 37
+[2026-02-08 08:56:14]   🏷️ Auction types:
+[2026-02-08 08:56:14]      JUDICIAL: 13683
+[2026-02-08 09:01:14] 💓 Running pulse mode (bid updates)...
+[2026-02-08 09:01:14]   ⚠️  Pulse completed with no updates
+[2026-02-08 09:01:14] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 09:01:15]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 09:26:15] 👀 Monitoring auction status changes...
+[2026-02-08 09:26:15]   📊 Current database stats:
+[2026-02-08 09:26:15]      CONCLUIDA_PORTAL: 11288
+[2026-02-08 09:26:15]      CELEBRANDOSE: 1182
+[2026-02-08 09:26:15]      ACTIVE: 917
+[2026-02-08 09:26:15]      PROXIMA_APERTURA: 155
+[2026-02-08 09:26:15]      SUSPENDIDA: 104
+[2026-02-08 09:26:15]      PRE_AUCTION: 37
+[2026-02-08 09:26:15]   🏷️ Auction types:
+[2026-02-08 09:26:15]      JUDICIAL: 13683
+[2026-02-08 09:36:15] 💓 Running pulse mode (bid updates)...
+[2026-02-08 09:36:15]   ⚠️  Pulse completed with no updates
+[2026-02-08 09:36:15] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 09:36:15]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 09:56:15] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-08 09:56:15] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-08 09:56:16]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 09:56:16] 🚗 Scraping vehicle auctions...
+[2026-02-08 09:56:16]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 09:56:16] 👀 Monitoring auction status changes...
+[2026-02-08 09:56:16]   📊 Current database stats:
+[2026-02-08 09:56:16]      CONCLUIDA_PORTAL: 11288
+[2026-02-08 09:56:16]      CELEBRANDOSE: 1182
+[2026-02-08 09:56:16]      ACTIVE: 917
+[2026-02-08 09:56:16]      PROXIMA_APERTURA: 155
+[2026-02-08 09:56:16]      SUSPENDIDA: 104
+[2026-02-08 09:56:16]      PRE_AUCTION: 37
+[2026-02-08 09:56:16]   🏷️ Auction types:
+[2026-02-08 09:56:16]      JUDICIAL: 13683
+[2026-02-08 10:11:16] 💓 Running pulse mode (bid updates)...
+[2026-02-08 10:11:16]   ⚠️  Pulse completed with no updates
+[2026-02-08 10:11:16] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 10:11:16]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 10:26:16] 👀 Monitoring auction status changes...
+[2026-02-08 10:26:16]   📊 Current database stats:
+[2026-02-08 10:26:16]      CONCLUIDA_PORTAL: 11288
+[2026-02-08 10:26:16]      CELEBRANDOSE: 1182
+[2026-02-08 10:26:16]      ACTIVE: 917
+[2026-02-08 10:26:16]      PROXIMA_APERTURA: 155
+[2026-02-08 10:26:16]      SUSPENDIDA: 104
+[2026-02-08 10:26:16]      PRE_AUCTION: 37
+[2026-02-08 10:26:17]   🏷️ Auction types:
+[2026-02-08 10:26:17]      JUDICIAL: 13683
+[2026-02-08 10:46:17] 💓 Running pulse mode (bid updates)...
+[2026-02-08 10:46:17]   ⚠️  Pulse completed with no updates
+[2026-02-08 10:46:17] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 10:46:17]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 10:56:17] 🏦 Scraping bank portals...
+[2026-02-08 10:56:17]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 10:56:17] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-08 10:56:17]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 10:56:17] 🗺️ Running geocoding backfill...
+[2026-02-08 10:56:17]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 10:56:17] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-08 10:56:17] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-08 10:56:18]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 10:56:18] 🚗 Scraping vehicle auctions...
+[2026-02-08 10:56:18]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 10:56:18] 👀 Monitoring auction status changes...
+[2026-02-08 10:56:18]   📊 Current database stats:
+[2026-02-08 10:56:18]      CONCLUIDA_PORTAL: 11288
+[2026-02-08 10:56:18]      CELEBRANDOSE: 1182
+[2026-02-08 10:56:18]      ACTIVE: 917
+[2026-02-08 10:56:18]      PROXIMA_APERTURA: 155
+[2026-02-08 10:56:18]      SUSPENDIDA: 104
+[2026-02-08 10:56:18]      PRE_AUCTION: 37
+[2026-02-08 10:56:18]   🏷️ Auction types:
+[2026-02-08 10:56:18]      JUDICIAL: 13683
+[2026-02-08 11:21:18] 💓 Running pulse mode (bid updates)...
+[2026-02-08 11:21:18]   ⚠️  Pulse completed with no updates
+[2026-02-08 11:21:18] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 11:21:18]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 11:26:18] 👀 Monitoring auction status changes...
+[2026-02-08 11:26:18]   📌 Found 1 expired active auctions
+[2026-02-08 11:26:18]   ✅ Marked 1 auctions as CONCLUIDA_PORTAL
+[2026-02-08 11:26:18]   📊 Current database stats:
+[2026-02-08 11:26:18]      CONCLUIDA_PORTAL: 11289
+[2026-02-08 11:26:18]      CELEBRANDOSE: 1182
+[2026-02-08 11:26:18]      ACTIVE: 917
+[2026-02-08 11:26:18]      PROXIMA_APERTURA: 155
+[2026-02-08 11:26:18]   ❌ Error: [Errno 22] Invalid argument
+[2026-02-08 11:56:18] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-08 11:56:18] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-08 11:56:19]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 11:56:19] 🚗 Scraping vehicle auctions...
+[2026-02-08 11:56:19]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 11:56:19] 💓 Running pulse mode (bid updates)...
+[2026-02-08 11:56:19]   ⚠️  Pulse completed with no updates
+[2026-02-08 11:56:19] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 11:56:20]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 11:56:20] 👀 Monitoring auction status changes...
+[2026-02-08 11:56:20]   📊 Current database stats:
+[2026-02-08 11:56:20]      CONCLUIDA_PORTAL: 11289
+[2026-02-08 11:56:20]      CELEBRANDOSE: 1182
+[2026-02-08 11:56:20]      ACTIVE: 917
+[2026-02-08 11:56:20]      PROXIMA_APERTURA: 155
+[2026-02-08 11:56:20]      SUSPENDIDA: 104
+[2026-02-08 11:56:20]      PRE_AUCTION: 37
+[2026-02-08 11:56:20]   🏷️ Auction types:
+[2026-02-08 11:56:20]      JUDICIAL: 13684
+[2026-02-08 12:26:20] 👀 Monitoring auction status changes...
+[2026-02-08 12:26:20]   📊 Current database stats:
+[2026-02-08 12:26:20]      CONCLUIDA_PORTAL: 11289
+[2026-02-08 12:26:20]      CELEBRANDOSE: 1182
+[2026-02-08 12:26:20]      ACTIVE: 917
+[2026-02-08 12:26:20]      PROXIMA_APERTURA: 155
+[2026-02-08 12:26:20]      SUSPENDIDA: 104
+[2026-02-08 12:26:20]      PRE_AUCTION: 37
+[2026-02-08 12:26:20]   🏷️ Auction types:
+[2026-02-08 12:26:20]      JUDICIAL: 13684
+[2026-02-08 12:31:20] 💓 Running pulse mode (bid updates)...
+[2026-02-08 12:31:20]   ⚠️  Pulse completed with no updates
+[2026-02-08 12:31:20] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 12:31:20]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 12:56:21] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-08 12:56:21]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 12:56:21] 🗺️ Running geocoding backfill...
+[2026-02-08 12:56:21]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 12:56:21] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-08 12:56:21] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-08 12:56:22]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 12:56:22] 🚗 Scraping vehicle auctions...
+[2026-02-08 12:56:22]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 12:56:22] 👀 Monitoring auction status changes...
+[2026-02-08 12:56:22]   📊 Current database stats:
+[2026-02-08 12:56:22]      CONCLUIDA_PORTAL: 11289
+[2026-02-08 12:56:22]      CELEBRANDOSE: 1182
+[2026-02-08 12:56:22]      ACTIVE: 917
+[2026-02-08 12:56:22]      PROXIMA_APERTURA: 155
+[2026-02-08 12:56:22]      SUSPENDIDA: 104
+[2026-02-08 12:56:22]      PRE_AUCTION: 37
+[2026-02-08 12:56:22]   🏷️ Auction types:
+[2026-02-08 12:56:22]      JUDICIAL: 13684
+[2026-02-08 13:06:22] 💓 Running pulse mode (bid updates)...
+[2026-02-08 13:06:22]   ⚠️  Pulse completed with no updates
+[2026-02-08 13:06:22] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 13:06:22]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 13:26:22] 👀 Monitoring auction status changes...
+[2026-02-08 13:26:22]   📊 Current database stats:
+[2026-02-08 13:26:22]      CONCLUIDA_PORTAL: 11289
+[2026-02-08 13:26:22]      CELEBRANDOSE: 1182
+[2026-02-08 13:26:22]      ACTIVE: 917
+[2026-02-08 13:26:22]      PROXIMA_APERTURA: 155
+[2026-02-08 13:26:22]      SUSPENDIDA: 104
+[2026-02-08 13:26:22]      PRE_AUCTION: 37
+[2026-02-08 13:26:22]   🏷️ Auction types:
+[2026-02-08 13:26:22]      JUDICIAL: 13684
+[2026-02-08 13:41:22] 💓 Running pulse mode (bid updates)...
+[2026-02-08 13:41:22]   ⚠️  Pulse completed with no updates
+[2026-02-08 13:41:22] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 13:41:23]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 13:56:23] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-08 13:56:23] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-08 13:56:24]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 13:56:24] 🚗 Scraping vehicle auctions...
+[2026-02-08 13:56:24]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 13:56:24] 👀 Monitoring auction status changes...
+[2026-02-08 13:56:24]   📊 Current database stats:
+[2026-02-08 13:56:24]      CONCLUIDA_PORTAL: 11289
+[2026-02-08 13:56:24]      CELEBRANDOSE: 1182
+[2026-02-08 13:56:24]      ACTIVE: 917
+[2026-02-08 13:56:24]      PROXIMA_APERTURA: 155
+[2026-02-08 13:56:24]      SUSPENDIDA: 104
+[2026-02-08 13:56:24]      PRE_AUCTION: 37
+[2026-02-08 13:56:24]   🏷️ Auction types:
+[2026-02-08 13:56:24]      JUDICIAL: 13684
+[2026-02-08 14:16:24] 💓 Running pulse mode (bid updates)...
+[2026-02-08 14:16:24]   ⚠️  Pulse completed with no updates
+[2026-02-08 14:16:24] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 14:16:25]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 14:26:25] 👀 Monitoring auction status changes...
+[2026-02-08 14:26:25]   📊 Current database stats:
+[2026-02-08 14:26:25]      CONCLUIDA_PORTAL: 11289
+[2026-02-08 14:26:25]      CELEBRANDOSE: 1182
+[2026-02-08 14:26:25]      ACTIVE: 917
+[2026-02-08 14:26:25]      PROXIMA_APERTURA: 155
+[2026-02-08 14:26:25]      SUSPENDIDA: 104
+[2026-02-08 14:26:25]      PRE_AUCTION: 37
+[2026-02-08 14:26:26]   🏷️ Auction types:
+[2026-02-08 14:26:26]      JUDICIAL: 13684
+[2026-02-08 14:51:26] 💓 Running pulse mode (bid updates)...
+[2026-02-08 14:51:26]   ⚠️  Pulse completed with no updates
+[2026-02-08 14:51:26] 🚀 Starting ACTIVE scraper (pages=30)...
+[2026-02-08 14:51:26]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 14:56:26] 📜 Scraping TEJU pre-auction edicts...
+[2026-02-08 14:56:26]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 14:56:26] 🗺️ Running geocoding backfill...
+[2026-02-08 14:56:26]   ❌ Error: attempted relative import beyond top-level package
+[2026-02-08 14:56:26] 🔮 Scraping PRE-AUCTION properties...
+[2026-02-08 14:56:26] 🚀 Starting PRE scraper (pages=50)...
+[2026-02-08 14:56:27]   ❌ Error: Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\property_scraper.py", line 33, in <module>
+    from database.adapter import DatabaseAdapter
+  File "C:\Users\D\Desktop
+[2026-02-08 14:56:27] 🚗 Scraping vehicle auctions...
+[2026-02-08 14:56:27] 
+❌ Fatal error: [Errno 22] Invalid argument

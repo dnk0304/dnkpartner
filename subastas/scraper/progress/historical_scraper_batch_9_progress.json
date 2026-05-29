@@ -1,0 +1,33 @@
+{
+  "started_at": "2026-01-22T15:41:10.121425",
+  "completed_combinations": [
+    "2026|Judicial|Concluida en Portal de Subastas|Inmuebles|Almería",
+    "2026|Judicial|Concluida en Portal de Subastas|Inmuebles|Almería",
+    "2026|Judicial|Concluida en Portal de Subastas|Inmuebles|Cádiz",
+    "2026|Judicial|Concluida en Portal de Subastas|Inmuebles|Córdoba",
+    "2026|Judicial|Concluida en Portal de Subastas|Inmuebles|Granada",
+    "2026|Judicial|Concluida en Portal de Subastas|Inmuebles|Huelva",
+    "2026|Judicial|Concluida en Portal de Subastas|Inmuebles|Jaén",
+    "2026|Judicial|Concluida en Portal de Subastas|Inmuebles|Málaga",
+    "2026|Judicial|Concluida en Portal de Subastas|Inmuebles|Sevilla",
+    "2026|Judicial|Concluida en Portal de Subastas|Inmuebles|Huesca",
+    "2026|Judicial|Concluida en Portal de Subastas|Inmuebles|Teruel",
+    "2026|Judicial|Concluida en Portal de Subastas|Inmuebles|Zaragoza",
+    "2026|Judicial|Concluida en Portal de Subastas|Inmuebles|Asturias",
+    "2026|Judicial|Concluida en Portal de Subastas|Inmuebles|Illes Balears",
+    "2026|Judicial|Concluida en Portal de Subastas|Inmuebles|Las Palmas",
+    "2026|Judicial|Concluida en Portal de Subastas|Inmuebles|Santa Cruz de Tenerife"
+  ],
+  "current_combination": null,
+  "stats": {
+    "total_new": 0,
+    "total_updated": 0,
+    "total_checked": 0,
+    "total_skipped": 0,
+    "total_combinations": 7800,
+    "completed_combinations": 16
+  },
+  "batch_num": 9,
+  "total_batches": 10,
+  "last_update": "2026-01-22T16:13:23.824717"
+}

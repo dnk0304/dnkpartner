@@ -1,0 +1,281 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Auction {
+  id           String        @id @default(cuid())
+  boeId        String        @unique
+  title        String
+  category     String
+  province     String
+  municipality String?
+  status       AuctionStatus @default(CELEBRANDOSE)
+  auctionType  String?       @default("JUDICIAL") // Tipo de Subasta
+
+  // Core auction values
+  appraisalValue Float // Valor subasta / Tasacion
+  currentBid     Float?
+  minimumBid     Float? // Puja minima
+  depositAmount  Float? // Deposito (5%)
+  claimedAmount  Float? // Cantidad reclamada
+  finalBid       Float? // Puja final
+  bidIncrement   Float? // Tramo entre pujas (2%)
+
+  // Court and legal info
+  courtName       String?
+  procedureNumber String? // Expediente
+  boeLink         String?
+  auctionId       String? // Identificador (e.g., SUB-JA-2025-252888)
+  lotNumber       String? // Numero de lote
+  boeAnnouncement String? // Anuncio del BOE
+
+  // Dates and times
+  publishedAt DateTime
+  endsAt      DateTime? // Date only
+  endDateTime DateTime? // Exact date and time
+
+  // Location data
+  latitude  Float?
+  longitude Float?
+  address   String?
+
+  // Property details
+  propertyType        String? // Viviendas, Garajes, Trasteros, etc.
+  lotDescription      String? // Descripcion del lote
+  propertyDescription String? // Descripcion del bien
+
+  // Legal and encumbrance details
+  charges          String? // Cargas
+  chargesDetail    String? // Detalle de las cargas
+  possessionStatus String? // Situacion posesoria
+  visitable        String? // Whether property can be visited
+
+  // Cadastral information
+  cadastralRef  String? // Referencia catastral
+  cadastralData String? // Full cadastral JSON data
+
+  // Registry information
+  registryId   String? // IDUFIR (unique registry identifier)
+  registryInfo String? // Inscription details (tomo, libro, folio)
+
+  // Contact and submission
+  contactInfo String? // Court contact details JSON
+
+  // Media
+  pdfUrl   String?
+  imageUrl String?
+
+  // Lifecycle tracking
+  source         String    @default("BOE") // BOE Judiciales, Agencia Tributaria, Seguridad Social, Notariales, etc.
+  courtReference String? // Court proceeding number (NIG)
+  edictUrl       String? // Link to original edict/document
+  originalSource String? // Where first discovered (AlertaSubastas, BOE, etc.)
+  transitionedAt DateTime? // When status last changed
+
+  // Statistics
+  viewCount     Int @default(0)
+  favoriteCount Int @default(0)
+
+  // Relations
+  favorites     Favorite[]
+  notifications Notification[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([province])
+  @@index([status])
+  @@index([publishedAt])
+  @@index([source])
+  @@index([propertyType])
+  @@index([municipality])
+}
+
+model User {
+  id                String             @id @default(cuid())
+  email             String             @unique
+  password          String? // Hashed password for credentials auth
+  name              String?
+  phone             String? // Phone number for WhatsApp notifications
+  emailVerified     DateTime?
+  image             String?
+  tier              UserTier           @default(FREE)
+  trialStartDate    DateTime? // When 15-day trial started
+  trialEndDate      DateTime? // When 15-day trial ends
+  hasUsedTrial      Boolean            @default(false) // Prevent multiple trials
+  alerts            Alert[]
+  favorites         Favorite[]
+  notifications     Notification[]
+  subscription      Subscription?
+  pushSubscriptions PushSubscription[]
+  accounts          Account[]
+  sessions          Session[]
+  createdAt         DateTime           @default(now())
+}
+
+model Alert {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // AlertaSubastas-style filters
+  source       String? // Origen: Todos, BOE Judiciales, Agencia Tributaria, etc.
+  propertyType String? // Tipo de bien: Viviendas, Garajes, etc.
+  province     String? // Provincia
+  municipality String? // Municipio
+
+  // Legacy filters
+  category String?
+  minPrice Float?
+  maxPrice Float?
+
+  // Notification preferences
+  notificationType String  @default("grouped") // individual or grouped
+  active           Boolean @default(true)
+
+  notifications Notification[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([userId])
+  @@index([active])
+}
+
+model Subscription {
+  id                   String    @id @default(cuid())
+  userId               String    @unique
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?   @unique
+  stripePriceId        String?
+  status               String // active, canceled, trialing, past_due
+  tier                 UserTier // GOLD or DIAMOND
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  email     String // Changed from userId to email
+  expiresAt DateTime // Changed from expires to expiresAt for consistency
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  auctionId String
+  notes     String? // User's private notes
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  auction   Auction  @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, auctionId])
+  @@index([userId])
+  @@index([auctionId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  alertId   String?
+  auctionId String
+  read      Boolean  @default(false)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alert     Alert?   @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  auction   Auction  @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  sentAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([alertId])
+  @@index([auctionId])
+  @@index([read])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+enum AuctionStatus {
+  // New BOE-accurate statuses
+  PROXIMA_APERTURA // Pre-auction (Prox. apertura)
+  CELEBRANDOSE // Currently active
+  SUSPENDIDA // Suspended
+  CANCELADA // Cancelled
+  CONCLUIDA_PORTAL // Concluded in Portal de Subastas
+  FINALIZADA_AUTORIDAD // Finished by Managing Authority
+  // Legacy values (keep for backward compatibility)
+  PRE_AUCTION // Found in TEJU/Sede/Registro but not yet on BOE
+  ACTIVE // Live on BOE Portal
+  FINISHED // Auction completed
+  SUSPENDED // Temporarily halted by court
+  CANCELLED // Court cancelled auction
+}
+
+enum UserTier {
+  FREE
+  GOLD
+  DIAMOND
+}

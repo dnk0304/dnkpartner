@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none">
+  <defs>
+    <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#DBEAFE"/>
+      <stop offset="100%" stop-color="#BFDBFE"/>
+    </linearGradient>
+    <linearGradient id="fieldGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#BEF264"/>
+      <stop offset="100%" stop-color="#84CC16"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Sky -->
+  <rect width="800" height="350" fill="url(#skyGrad)"/>
+  
+  <!-- Fields -->
+  <rect y="350" width="800" height="250" fill="url(#fieldGrad)"/>
+  
+  <!-- Hills in background -->
+  <ellipse cx="200" cy="350" rx="150" ry="80" fill="#65A30D" opacity="0.5"/>
+  <ellipse cx="600" cy="360" rx="180" ry="90" fill="#65A30D" opacity="0.5"/>
+  
+  <!-- Farmhouse -->
+  <rect x="520" y="280" width="120" height="90" fill="#DC2626" stroke="#B91C1C" stroke-width="2"/>
+  
+  <!-- House Roof -->
+  <path d="M510 280 L580 230 L650 280 Z" fill="#7C2D12" stroke="#6B2C12" stroke-width="2"/>
+  
+  <!-- House Window -->
+  <rect x="545" y="305" width="30" height="30" fill="#93C5FD" stroke="#3B82F6" stroke-width="2"/>
+  <rect x="595" y="305" width="30" height="30" fill="#93C5FD" stroke="#3B82F6" stroke-width="2"/>
+  
+  <!-- Barn -->
+  <rect x="150" y="260" width="150" height="110" fill="#92400E" stroke="#78350F" stroke-width="3"/>
+  
+  <!-- Barn Roof -->
+  <path d="M135 260 L225 200 L315 260 Z" fill="#7C2D12" stroke="#6B2C12" stroke-width="3"/>
+  
+  <!-- Barn Door -->
+  <rect x="190" y="300" width="70" height="70" fill="#451A03" stroke="#292524" stroke-width="2"/>
+  
+  <!-- Vineyard rows (perspective lines) -->
+  <line x1="50" y1="400" x2="200" y2="500" stroke="#16A34A" stroke-width="3"/>
+  <line x1="100" y1="410" x2="240" y2="510" stroke="#16A34A" stroke-width="3"/>
+  <line x1="150" y1="420" x2="280" y2="520" stroke="#16A34A" stroke-width="3"/>
+  
+  <line x1="550" y1="420" x2="700" y2="520" stroke="#16A34A" stroke-width="3"/>
+  <line x1="600" y1="410" x2="740" y2="510" stroke="#16A34A" stroke-width="3"/>
+  <line x1="650" y1="400" x2="780" y2="500" stroke="#16A34A" stroke-width="3"/>
+  
+  <!-- Trees -->
+  <ellipse cx="420" cy="340" rx="35" ry="50" fill="#15803D"/>
+  <rect x="410" y="340" width="20" height="60" fill="#78350F"/>
+  
+  <ellipse cx="480" cy="345" rx="30" ry="45" fill="#15803D"/>
+  <rect x="472" y="345" width="16" height="55" fill="#78350F"/>
+  
+  <!-- Fence -->
+  <line x1="0" y1="390" x2="800" y2="390" stroke="#92400E" stroke-width="3"/>
+  
+  <!-- Sun -->
+  <circle cx="700" cy="100" r="50" fill="#FBBF24" opacity="0.8"/>
+  
+  <!-- Clouds -->
+  <ellipse cx="150" cy="80" rx="50" ry="30" fill="white" opacity="0.7"/>
+  <ellipse cx="190" cy="85" rx="40" ry="25" fill="white" opacity="0.7"/>
+</svg>

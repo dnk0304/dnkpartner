@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none">
+  <defs>
+    <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#DBEAFE"/>
+      <stop offset="100%" stop-color="#BFDBFE"/>
+    </linearGradient>
+    <linearGradient id="buildingGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#71717A"/>
+      <stop offset="100%" stop-color="#52525B"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Sky -->
+  <rect width="800" height="400" fill="url(#skyGrad)"/>
+  
+  <!-- Ground -->
+  <rect y="400" width="800" height="200" fill="#A1A1AA"/>
+  
+  <!-- Main Warehouse Building -->
+  <rect x="150" y="180" width="500" height="220" fill="url(#buildingGrad)" stroke="#3F3F46" stroke-width="4"/>
+  
+  <!-- Roof -->
+  <path d="M130 180 L400 120 L670 180 Z" fill="#52525B" stroke="#27272A" stroke-width="3"/>
+  
+  <!-- Loading Bay Doors -->
+  <rect x="180" y="280" width="100" height="120" fill="#18181B" stroke="#09090B" stroke-width="3"/>
+  <rect x="310" y="280" width="100" height="120" fill="#18181B" stroke="#09090B" stroke-width="3"/>
+  <rect x="440" y="280" width="100" height="120" fill="#18181B" stroke="#09090B" stroke-width="3"/>
+  <rect x="570" y="280" width="60" height="120" fill="#27272A" stroke="#09090B" stroke-width="3"/>
+  
+  <!-- Door panels (horizontal lines) -->
+  <line x1="180" y1="310" x2="280" y2="310" stroke="#3F3F46" stroke-width="2"/>
+  <line x1="180" y1="340" x2="280" y2="340" stroke="#3F3F46" stroke-width="2"/>
+  <line x1="180" y1="370" x2="280" y2="370" stroke="#3F3F46" stroke-width="2"/>
+  
+  <line x1="310" y1="310" x2="410" y2="310" stroke="#3F3F46" stroke-width="2"/>
+  <line x1="310" y1="340" x2="410" y2="340" stroke="#3F3F46" stroke-width="2"/>
+  <line x1="310" y1="370" x2="410" y2="370" stroke="#3F3F46" stroke-width="2"/>
+  
+  <line x1="440" y1="310" x2="540" y2="310" stroke="#3F3F46" stroke-width="2"/>
+  <line x1="440" y1="340" x2="540" y2="340" stroke="#3F3F46" stroke-width="2"/>
+  <line x1="440" y1="370" x2="540" y2="370" stroke="#3F3F46" stroke-width="2"/>
+  
+  <!-- Upper Windows -->
+  <rect x="200" y="200" width="60" height="50" fill="#475569" stroke="#334155" stroke-width="2"/>
+  <rect x="280" y="200" width="60" height="50" fill="#475569" stroke="#334155" stroke-width="2"/>
+  <rect x="360" y="200" width="60" height="50" fill="#475569" stroke="#334155" stroke-width="2"/>
+  <rect x="440" y="200" width="60" height="50" fill="#475569" stroke="#334155" stroke-width="2"/>
+  <rect x="520" y="200" width="60" height="50" fill="#475569" stroke="#334155" stroke-width="2"/>
+  
+  <!-- Loading Dock Platform -->
+  <rect y="400" width="800" height="30" fill="#71717A" stroke="#52525B" stroke-width="2"/>
+  
+  <!-- Side Building Extension -->
+  <rect x="650" y="260" width="100" height="140" fill="#52525B" stroke="#27272A" stroke-width="3"/>
+  <rect x="675" y="290" width="50" height="70" fill="#18181B" stroke="#09090B" stroke-width="2"/>
+  
+  <!-- Company Sign -->
+  <rect x="300" y="150" width="200" height="40" fill="#3B82F6" stroke="#2563EB" stroke-width="2" rx="3"/>
+  <text x="400" y="175" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="white" text-anchor="middle">NAVE INDUSTRIAL</text>
+</svg>

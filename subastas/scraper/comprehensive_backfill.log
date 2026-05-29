@@ -1,0 +1,61 @@
+2026-02-09 13:34:24 [INFO] BrowserManager initialized
+2026-02-09 13:34:24 [INFO] DatabaseAdapter initialized with sqlite
+2026-02-09 13:34:24 [INFO] [BOE_COMPREHENSIVE_BACKFILL] === BOE Comprehensive Backfill: 72 months to scrape ===
+2026-02-09 13:34:24 [INFO] [BOE_COMPREHENSIVE_BACKFILL] 
+--- Month 1/72: 2020-02 ---
+2026-02-09 13:34:24 [INFO] [BOE_COMPREHENSIVE_BACKFILL] === Scraping 2020-02 (01/02/2020 - 29/02/2020) ===
+2026-02-09 13:34:24 [INFO] [BOE_COMPREHENSIVE_BACKFILL]   Fetching Próxima apertura (PA)...
+2026-02-09 13:34:24 [INFO] Launching browser...
+2026-02-09 13:34:25 [INFO] Browser launched successfully
+2026-02-09 13:34:43 [ERROR] [BOE_COMPREHENSIVE_BACKFILL] Failed to scrape status PA: Page.wait_for_selector: Timeout 10000ms exceeded.
+Call log:
+waiting for locator(".resultado-busqueda, .sin-resultados, .resultado-subasta") to be visible
+
+2026-02-09 13:34:43 [INFO] [BOE_COMPREHENSIVE_BACKFILL]     ✓ Próxima apertura: 0 auctions
+2026-02-09 13:34:48 [INFO] [BOE_COMPREHENSIVE_BACKFILL]   Fetching En ejecución (EJ)...
+2026-02-09 13:35:06 [ERROR] [BOE_COMPREHENSIVE_BACKFILL] Failed to scrape status EJ: Page.wait_for_selector: Timeout 10000ms exceeded.
+Call log:
+waiting for locator(".resultado-busqueda, .sin-resultados, .resultado-subasta") to be visible
+
+2026-02-09 13:35:06 [INFO] [BOE_COMPREHENSIVE_BACKFILL]     ✓ En ejecución: 0 auctions
+2026-02-09 13:35:11 [INFO] [BOE_COMPREHENSIVE_BACKFILL]   Fetching Suspendida (SU)...
+2026-02-09 13:35:29 [ERROR] [BOE_COMPREHENSIVE_BACKFILL] Failed to scrape status SU: Page.wait_for_selector: Timeout 10000ms exceeded.
+Call log:
+waiting for locator(".resultado-busqueda, .sin-resultados, .resultado-subasta") to be visible
+
+2026-02-09 13:35:29 [INFO] [BOE_COMPREHENSIVE_BACKFILL]     ✓ Suspendida: 0 auctions
+2026-02-09 13:35:34 [INFO] [BOE_COMPREHENSIVE_BACKFILL]   Fetching Cerrada (CE)...
+2026-02-09 13:35:51 [ERROR] [BOE_COMPREHENSIVE_BACKFILL] Failed to scrape status CE: Page.wait_for_selector: Timeout 10000ms exceeded.
+Call log:
+waiting for locator(".resultado-busqueda, .sin-resultados, .resultado-subasta") to be visible
+
+2026-02-09 13:35:51 [INFO] [BOE_COMPREHENSIVE_BACKFILL]     ✓ Cerrada: 0 auctions
+2026-02-09 13:36:03 [INFO] BrowserManager initialized
+2026-02-09 13:36:03 [INFO] DatabaseAdapter initialized with sqlite
+2026-02-09 13:36:03 [INFO] [BOE_COMPREHENSIVE_BACKFILL] === BOE Comprehensive Backfill: 72 months to scrape ===
+2026-02-09 13:36:03 [INFO] [BOE_COMPREHENSIVE_BACKFILL] 
+--- Month 1/72: 2020-02 ---
+2026-02-09 13:36:03 [INFO] [BOE_COMPREHENSIVE_BACKFILL] === Scraping 2020-02 (01/02/2020 - 29/02/2020) ===
+2026-02-09 13:36:03 [INFO] [BOE_COMPREHENSIVE_BACKFILL]   Fetching Próxima apertura (PA)...
+2026-02-09 13:36:03 [INFO] Launching browser...
+2026-02-09 13:36:03 [INFO] Browser launched successfully
+2026-02-09 13:36:27 [WARNING] [BOE_COMPREHENSIVE_BACKFILL] Primary selectors not found, trying alternatives...
+2026-02-09 13:36:27 [WARNING] [BOE_COMPREHENSIVE_BACKFILL] No auction items found on page
+2026-02-09 13:36:27 [INFO] [BOE_COMPREHENSIVE_BACKFILL]     ✓ Próxima apertura: 0 auctions
+2026-02-09 13:36:32 [INFO] [BOE_COMPREHENSIVE_BACKFILL]   Fetching En ejecución (EJ)...
+2026-02-09 13:36:55 [WARNING] [BOE_COMPREHENSIVE_BACKFILL] Primary selectors not found, trying alternatives...
+2026-02-09 13:36:55 [WARNING] [BOE_COMPREHENSIVE_BACKFILL] No auction items found on page
+2026-02-09 13:36:55 [INFO] [BOE_COMPREHENSIVE_BACKFILL]     ✓ En ejecución: 0 auctions
+2026-02-09 13:37:00 [INFO] [BOE_COMPREHENSIVE_BACKFILL]   Fetching Suspendida (SU)...
+2026-02-09 13:37:22 [WARNING] [BOE_COMPREHENSIVE_BACKFILL] Primary selectors not found, trying alternatives...
+2026-02-09 13:37:23 [WARNING] [BOE_COMPREHENSIVE_BACKFILL] No auction items found on page
+2026-02-09 13:37:23 [INFO] [BOE_COMPREHENSIVE_BACKFILL]     ✓ Suspendida: 0 auctions
+2026-02-09 13:37:28 [INFO] [BOE_COMPREHENSIVE_BACKFILL]   Fetching Cerrada (CE)...
+2026-02-09 13:37:51 [WARNING] [BOE_COMPREHENSIVE_BACKFILL] Primary selectors not found, trying alternatives...
+2026-02-09 13:37:51 [WARNING] [BOE_COMPREHENSIVE_BACKFILL] No auction items found on page
+2026-02-09 13:37:51 [INFO] [BOE_COMPREHENSIVE_BACKFILL]     ✓ Cerrada: 0 auctions
+2026-02-09 13:37:56 [INFO] [BOE_COMPREHENSIVE_BACKFILL]   Fetching Anulada (AN)...
+2026-02-09 13:38:18 [WARNING] [BOE_COMPREHENSIVE_BACKFILL] Primary selectors not found, trying alternatives...
+2026-02-09 13:38:18 [WARNING] [BOE_COMPREHENSIVE_BACKFILL] No auction items found on page
+2026-02-09 13:38:19 [INFO] [BOE_COMPREHENSIVE_BACKFILL]     ✓ Anulada: 0 auctions
+2026-02-09 13:38:24 [INFO] [BOE_COMPREHENSIVE_BACKFILL]   Fetching Finalizada (FI)...

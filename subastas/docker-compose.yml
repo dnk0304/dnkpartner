@@ -1,0 +1,112 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: subastapro-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: subastapro
+      POSTGRES_PASSWORD: subastapro_dev_password
+      POSTGRES_DB: subastapro
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U subastapro"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: subastapro-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Scraper Worker - Processes async tasks (discovery, pulse, lifecycle)
+  scraper-worker:
+    build:
+      context: ./scraper
+      dockerfile: Dockerfile
+    container_name: subastapro-scraper-worker
+    restart: unless-stopped
+    command: celery -A tasks.celeryconfig worker --loglevel=info --concurrency=4
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://subastapro:subastapro_dev_password@postgres:5432/subastapro
+      - REDIS_URL=redis://redis:6379/0
+      - SCRAPE_DELAY_SECONDS=120
+      - SCRAPE_MAX_PAGES=10
+      - LOG_LEVEL=INFO
+      - CELERY_WORKER_CONCURRENCY=4
+      - PLAYWRIGHT_HEADLESS=true
+    volumes:
+      - ./scraper:/app
+      - scraper_logs:/app/logs
+    networks:
+      - subastapro-network
+
+  # Scraper Beat - Scheduler for periodic tasks
+  scraper-beat:
+    build:
+      context: ./scraper
+      dockerfile: Dockerfile
+    container_name: subastapro-scraper-beat
+    restart: unless-stopped
+    command: celery -A tasks.celeryconfig beat --loglevel=info
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://subastapro:subastapro_dev_password@postgres:5432/subastapro
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_TIMEZONE=Atlantic/Canary
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./scraper:/app
+      - scraper_logs:/app/logs
+    networks:
+      - subastapro-network
+
+  # Flower - Celery monitoring dashboard (optional)
+  flower:
+    build:
+      context: ./scraper
+      dockerfile: Dockerfile
+    container_name: subastapro-flower
+    restart: unless-stopped
+    command: celery -A tasks.celeryconfig flower --port=5555
+    depends_on:
+      - redis
+      - scraper-worker
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    ports:
+      - "5555:5555"
+    networks:
+      - subastapro-network
+
+networks:
+  subastapro-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  scraper_logs:

@@ -1,0 +1,204 @@
+[2026-02-11 20:51:36,838] INFO: [Scraper 3] Starting: 49 batches
+[2026-02-11 20:51:36,841] INFO: [Scraper 3] Range: 2020-01-01 to 2021-12-31
+[2026-02-11 20:51:36,842] INFO: [Scraper 3] 
+Batch 1/49: 2020-01-01_to_2020-01-15
+[2026-02-11 20:51:36,859] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:51:49,396] INFO: [Scraper 3] 
+Batch 2/49: 2020-01-16_to_2020-01-30
+[2026-02-11 20:51:49,398] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:52:03,372] INFO: [Scraper 3] 
+Batch 3/49: 2020-01-31_to_2020-02-14
+[2026-02-11 20:52:03,390] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:52:18,459] INFO: [Scraper 3] 
+Batch 4/49: 2020-02-15_to_2020-02-29
+[2026-02-11 20:52:18,466] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:52:28,589] INFO: [Scraper 3] 
+Batch 5/49: 2020-03-01_to_2020-03-15
+[2026-02-11 20:52:28,594] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:52:42,686] INFO: [Scraper 3] 
+Batch 6/49: 2020-03-16_to_2020-03-30
+[2026-02-11 20:52:43,151] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:52:54,743] INFO: [Scraper 3] 
+Batch 7/49: 2020-03-31_to_2020-04-14
+[2026-02-11 20:52:54,773] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:53:06,642] INFO: [Scraper 3] 
+Batch 8/49: 2020-04-15_to_2020-04-29
+[2026-02-11 20:53:06,674] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:53:18,534] INFO: [Scraper 3] 
+Batch 9/49: 2020-04-30_to_2020-05-14
+[2026-02-11 20:53:18,551] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:53:28,573] INFO: [Scraper 3] 
+Batch 10/49: 2020-05-15_to_2020-05-29
+[2026-02-11 20:53:28,576] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:53:40,746] INFO: [Scraper 3] 
+Batch 11/49: 2020-05-30_to_2020-06-13
+[2026-02-11 20:53:40,759] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:53:51,400] INFO: [Scraper 3] 
+Batch 12/49: 2020-06-14_to_2020-06-28
+[2026-02-11 20:53:51,420] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:54:05,220] INFO: [Scraper 3] 
+Batch 13/49: 2020-06-29_to_2020-07-13
+[2026-02-11 20:54:05,304] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:54:15,990] INFO: [Scraper 3] 
+Batch 14/49: 2020-07-14_to_2020-07-28
+[2026-02-11 20:54:15,991] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:54:27,947] INFO: [Scraper 3] 
+Batch 15/49: 2020-07-29_to_2020-08-12
+[2026-02-11 20:54:27,955] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:54:42,030] INFO: [Scraper 3] 
+Batch 16/49: 2020-08-13_to_2020-08-27
+[2026-02-11 20:54:42,374] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:54:54,803] INFO: [Scraper 3] 
+Batch 17/49: 2020-08-28_to_2020-09-11
+[2026-02-11 20:54:54,805] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:55:06,373] INFO: [Scraper 3] 
+Batch 18/49: 2020-09-12_to_2020-09-26
+[2026-02-11 20:55:06,414] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:55:17,643] INFO: [Scraper 3] 
+Batch 19/49: 2020-09-27_to_2020-10-11
+[2026-02-11 20:55:17,648] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:55:30,081] INFO: [Scraper 3] 
+Batch 20/49: 2020-10-12_to_2020-10-26
+[2026-02-11 20:55:30,081] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:55:40,722] INFO: [Scraper 3] 
+Batch 21/49: 2020-10-27_to_2020-11-10
+[2026-02-11 20:55:40,723] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:55:53,112] INFO: [Scraper 3] 
+Batch 22/49: 2020-11-11_to_2020-11-25
+[2026-02-11 20:55:53,132] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:56:03,482] INFO: [Scraper 3] 
+Batch 23/49: 2020-11-26_to_2020-12-10
+[2026-02-11 20:56:03,486] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:56:16,806] INFO: [Scraper 3] 
+Batch 24/49: 2020-12-11_to_2020-12-25
+[2026-02-11 20:56:16,807] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:56:27,190] INFO: [Scraper 3] 
+Batch 25/49: 2020-12-26_to_2021-01-09
+[2026-02-11 20:56:27,199] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:56:41,523] INFO: [Scraper 3] 
+Batch 26/49: 2021-01-10_to_2021-01-24
+[2026-02-11 20:56:41,687] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:56:53,952] INFO: [Scraper 3] 
+Batch 27/49: 2021-01-25_to_2021-02-08
+[2026-02-11 20:56:53,960] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:57:05,912] INFO: [Scraper 3] 
+Batch 28/49: 2021-02-09_to_2021-02-23
+[2026-02-11 20:57:06,010] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:57:17,940] INFO: [Scraper 3] 
+Batch 29/49: 2021-02-24_to_2021-03-10
+[2026-02-11 20:57:17,941] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:57:30,532] INFO: [Scraper 3] 
+Batch 30/49: 2021-03-11_to_2021-03-25
+[2026-02-11 20:57:30,534] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:57:43,859] INFO: [Scraper 3] 
+Batch 31/49: 2021-03-26_to_2021-04-09
+[2026-02-11 20:57:43,859] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:57:56,673] INFO: [Scraper 3] 
+Batch 32/49: 2021-04-10_to_2021-04-24
+[2026-02-11 20:57:56,847] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:58:10,778] INFO: [Scraper 3] 
+Batch 33/49: 2021-04-25_to_2021-05-09
+[2026-02-11 20:58:10,780] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:58:24,041] INFO: [Scraper 3] 
+Batch 34/49: 2021-05-10_to_2021-05-24
+[2026-02-11 20:58:24,056] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:58:34,388] INFO: [Scraper 3] 
+Batch 35/49: 2021-05-25_to_2021-06-08
+[2026-02-11 20:58:34,389] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:58:46,215] INFO: [Scraper 3] 
+Batch 36/49: 2021-06-09_to_2021-06-23
+[2026-02-11 20:58:46,218] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:58:58,385] INFO: [Scraper 3] 
+Batch 37/49: 2021-06-24_to_2021-07-08
+[2026-02-11 20:58:58,774] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:59:10,075] INFO: [Scraper 3] 
+Batch 38/49: 2021-07-09_to_2021-07-23
+[2026-02-11 20:59:10,085] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:59:20,390] INFO: [Scraper 3] 
+Batch 39/49: 2021-07-24_to_2021-08-07
+[2026-02-11 20:59:20,390] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:59:32,412] INFO: [Scraper 3] 
+Batch 40/49: 2021-08-08_to_2021-08-22
+[2026-02-11 20:59:32,435] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:59:44,083] INFO: [Scraper 3] 
+Batch 41/49: 2021-08-23_to_2021-09-06
+[2026-02-11 20:59:44,099] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 20:59:56,842] INFO: [Scraper 3] 
+Batch 42/49: 2021-09-07_to_2021-09-21
+[2026-02-11 20:59:56,849] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 21:00:08,031] INFO: [Scraper 3] 
+Batch 43/49: 2021-09-22_to_2021-10-06
+[2026-02-11 21:00:08,033] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 21:00:21,204] INFO: [Scraper 3] 
+Batch 44/49: 2021-10-07_to_2021-10-21
+[2026-02-11 21:00:21,220] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 21:00:35,033] INFO: [Scraper 3] 
+Batch 45/49: 2021-10-22_to_2021-11-05
+[2026-02-11 21:00:35,042] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 21:00:49,975] INFO: [Scraper 3] 
+Batch 46/49: 2021-11-06_to_2021-11-20
+[2026-02-11 21:00:50,012] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 21:01:04,618] INFO: [Scraper 3] 
+Batch 47/49: 2021-11-21_to_2021-12-05
+[2026-02-11 21:01:04,641] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 21:01:19,675] INFO: [Scraper 3] 
+Batch 48/49: 2021-12-06_to_2021-12-20
+[2026-02-11 21:01:19,707] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 21:01:34,287] INFO: [Scraper 3] 
+Batch 49/49: 2021-12-21_to_2021-12-31
+[2026-02-11 21:01:34,964] INFO: [Scraper 3]   Found 0 auctions to update
+[2026-02-11 21:01:35,271] INFO: [Scraper 3] 
+COMPLETE: Updated 0 auctions
+[2026-02-11 22:58:13,889] INFO: [Scraper 3] Starting: 49 batches
+[2026-02-11 22:58:13,896] INFO: [Scraper 3] Range: 2020-01-01 to 2021-12-31
+[2026-02-11 22:58:13,901] INFO: [Scraper 3] Skipping 2020-01-01_to_2020-01-15 (completed)
+[2026-02-11 22:58:13,901] INFO: [Scraper 3] Skipping 2020-01-16_to_2020-01-30 (completed)
+[2026-02-11 22:58:13,902] INFO: [Scraper 3] Skipping 2020-01-31_to_2020-02-14 (completed)
+[2026-02-11 22:58:13,902] INFO: [Scraper 3] Skipping 2020-02-15_to_2020-02-29 (completed)
+[2026-02-11 22:58:13,902] INFO: [Scraper 3] Skipping 2020-03-01_to_2020-03-15 (completed)
+[2026-02-11 22:58:13,902] INFO: [Scraper 3] Skipping 2020-03-16_to_2020-03-30 (completed)
+[2026-02-11 22:58:13,902] INFO: [Scraper 3] Skipping 2020-03-31_to_2020-04-14 (completed)
+[2026-02-11 22:58:13,902] INFO: [Scraper 3] Skipping 2020-04-15_to_2020-04-29 (completed)
+[2026-02-11 22:58:13,903] INFO: [Scraper 3] Skipping 2020-04-30_to_2020-05-14 (completed)
+[2026-02-11 22:58:13,904] INFO: [Scraper 3] Skipping 2020-05-15_to_2020-05-29 (completed)
+[2026-02-11 22:58:13,904] INFO: [Scraper 3] Skipping 2020-05-30_to_2020-06-13 (completed)
+[2026-02-11 22:58:13,904] INFO: [Scraper 3] Skipping 2020-06-14_to_2020-06-28 (completed)
+[2026-02-11 22:58:13,904] INFO: [Scraper 3] Skipping 2020-06-29_to_2020-07-13 (completed)
+[2026-02-11 22:58:13,904] INFO: [Scraper 3] Skipping 2020-07-14_to_2020-07-28 (completed)
+[2026-02-11 22:58:13,904] INFO: [Scraper 3] Skipping 2020-07-29_to_2020-08-12 (completed)
+[2026-02-11 22:58:13,904] INFO: [Scraper 3] Skipping 2020-08-13_to_2020-08-27 (completed)
+[2026-02-11 22:58:13,904] INFO: [Scraper 3] Skipping 2020-08-28_to_2020-09-11 (completed)
+[2026-02-11 22:58:13,904] INFO: [Scraper 3] Skipping 2020-09-12_to_2020-09-26 (completed)
+[2026-02-11 22:58:13,904] INFO: [Scraper 3] Skipping 2020-09-27_to_2020-10-11 (completed)
+[2026-02-11 22:58:13,904] INFO: [Scraper 3] Skipping 2020-10-12_to_2020-10-26 (completed)
+[2026-02-11 22:58:13,904] INFO: [Scraper 3] Skipping 2020-10-27_to_2020-11-10 (completed)
+[2026-02-11 22:58:13,906] INFO: [Scraper 3] Skipping 2020-11-11_to_2020-11-25 (completed)
+[2026-02-11 22:58:13,906] INFO: [Scraper 3] Skipping 2020-11-26_to_2020-12-10 (completed)
+[2026-02-11 22:58:13,906] INFO: [Scraper 3] Skipping 2020-12-11_to_2020-12-25 (completed)
+[2026-02-11 22:58:13,906] INFO: [Scraper 3] Skipping 2020-12-26_to_2021-01-09 (completed)
+[2026-02-11 22:58:13,906] INFO: [Scraper 3] Skipping 2021-01-10_to_2021-01-24 (completed)
+[2026-02-11 22:58:13,906] INFO: [Scraper 3] Skipping 2021-01-25_to_2021-02-08 (completed)
+[2026-02-11 22:58:13,906] INFO: [Scraper 3] Skipping 2021-02-09_to_2021-02-23 (completed)
+[2026-02-11 22:58:13,906] INFO: [Scraper 3] Skipping 2021-02-24_to_2021-03-10 (completed)
+[2026-02-11 22:58:13,906] INFO: [Scraper 3] Skipping 2021-03-11_to_2021-03-25 (completed)
+[2026-02-11 22:58:13,906] INFO: [Scraper 3] Skipping 2021-03-26_to_2021-04-09 (completed)
+[2026-02-11 22:58:13,906] INFO: [Scraper 3] Skipping 2021-04-10_to_2021-04-24 (completed)
+[2026-02-11 22:58:13,906] INFO: [Scraper 3] Skipping 2021-04-25_to_2021-05-09 (completed)
+[2026-02-11 22:58:13,912] INFO: [Scraper 3] Skipping 2021-05-10_to_2021-05-24 (completed)
+[2026-02-11 22:58:13,914] INFO: [Scraper 3] Skipping 2021-05-25_to_2021-06-08 (completed)
+[2026-02-11 22:58:13,914] INFO: [Scraper 3] Skipping 2021-06-09_to_2021-06-23 (completed)
+[2026-02-11 22:58:13,914] INFO: [Scraper 3] Skipping 2021-06-24_to_2021-07-08 (completed)
+[2026-02-11 22:58:13,914] INFO: [Scraper 3] Skipping 2021-07-09_to_2021-07-23 (completed)
+[2026-02-11 22:58:13,914] INFO: [Scraper 3] Skipping 2021-07-24_to_2021-08-07 (completed)
+[2026-02-11 22:58:13,914] INFO: [Scraper 3] Skipping 2021-08-08_to_2021-08-22 (completed)
+[2026-02-11 22:58:13,914] INFO: [Scraper 3] Skipping 2021-08-23_to_2021-09-06 (completed)
+[2026-02-11 22:58:13,914] INFO: [Scraper 3] Skipping 2021-09-07_to_2021-09-21 (completed)
+[2026-02-11 22:58:13,914] INFO: [Scraper 3] Skipping 2021-09-22_to_2021-10-06 (completed)
+[2026-02-11 22:58:13,914] INFO: [Scraper 3] Skipping 2021-10-07_to_2021-10-21 (completed)
+[2026-02-11 22:58:13,914] INFO: [Scraper 3] Skipping 2021-10-22_to_2021-11-05 (completed)
+[2026-02-11 22:58:13,914] INFO: [Scraper 3] Skipping 2021-11-06_to_2021-11-20 (completed)
+[2026-02-11 22:58:13,914] INFO: [Scraper 3] Skipping 2021-11-21_to_2021-12-05 (completed)
+[2026-02-11 22:58:13,914] INFO: [Scraper 3] Skipping 2021-12-06_to_2021-12-20 (completed)
+[2026-02-11 22:58:13,914] INFO: [Scraper 3] Skipping 2021-12-21_to_2021-12-31 (completed)
+[2026-02-11 22:58:13,917] INFO: [Scraper 3] 
+COMPLETE: Updated 0 auctions

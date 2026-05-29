@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none">
+  <rect width="800" height="600" fill="#f8fafc"/>
+  <path d="M140 360 L220 260 C240 235 270 220 300 220 H500 C530 220 560 235 580 260 L660 360" fill="#cbd5f5"/>
+  <rect x="120" y="360" width="560" height="90" rx="16" fill="#94a3b8"/>
+  <rect x="250" y="250" width="120" height="70" rx="8" fill="#e2e8f0"/>
+  <rect x="390" y="250" width="120" height="70" rx="8" fill="#e2e8f0"/>
+  <circle cx="240" cy="460" r="34" fill="#1f2937"/>
+  <circle cx="560" cy="460" r="34" fill="#1f2937"/>
+  <circle cx="240" cy="460" r="16" fill="#9ca3af"/>
+  <circle cx="560" cy="460" r="16" fill="#9ca3af"/>
+  <text x="400" y="520" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" fill="#64748b">Turismo</text>
+</svg>

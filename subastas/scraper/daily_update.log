@@ -1,0 +1,874 @@
+2026-02-11 20:01:03 [INFO] ======================================================================
+2026-02-11 20:01:03 [INFO] DAILY BOE UPDATE (ROLLING 5 DAYS)
+2026-02-11 20:01:03 [INFO] ======================================================================
+2026-02-11 20:01:03 [INFO] Date range: 2026-02-06 to 2026-02-11
+2026-02-11 20:01:03 [INFO] Strategy: BOE form dates + 500 results/page (parallel scraper logic)
+2026-02-11 20:01:03 [INFO] ======================================================================
+2026-02-11 20:01:03 [INFO] BrowserManager initialized
+2026-02-11 20:01:03 [INFO] DatabaseAdapter initialized with sqlite
+2026-02-11 20:01:03 [INFO] [BOE_PARALLEL_99] [Scraper 99] Starting: 1 batches (15-day chunks)
+2026-02-11 20:01:03 [INFO] [BOE_PARALLEL_99] [Scraper 99] Range: 2026-02-06 to 2026-02-11
+2026-02-11 20:01:03 [INFO] [BOE_PARALLEL_99] 
+[Scraper 99] Batch 1/1: 2026-02-06_to_2026-02-11
+2026-02-11 20:01:44 [INFO] [BOE_PARALLEL_99] [Scraper 99] Launched dedicated browser
+2026-02-11 20:01:48 [INFO] [BOE_PARALLEL_99]   Navigating to BOE search page...
+2026-02-11 20:01:55 [INFO] [BOE_PARALLEL_99]   Filling dates: 2026-02-06 to 2026-02-11
+2026-02-11 20:01:59 [INFO] [BOE_PARALLEL_99]   Setting 500 results per page...
+2026-02-11 20:02:01 [INFO] [BOE_PARALLEL_99]   Submitting search...
+2026-02-11 20:02:09 [INFO] [BOE_PARALLEL_99]   Search submitted successfully
+2026-02-11 20:02:13 [INFO] [BOE_PARALLEL_99]   Page 1: 260 items
+2026-02-11 20:02:13 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2024-225938: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:13 [INFO] Connecting to SQLite: C:\Users\D\Desktop\dnksubastas\data\database\prod.db
+2026-02-11 20:02:13 [INFO] Database connection established
+2026-02-11 20:02:13 [INFO] Updated auction: SUB-JA-2024-225938
+2026-02-11 20:02:13 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-254850: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:13 [INFO] Updated auction: SUB-JA-2025-254850
+2026-02-11 20:02:13 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256011: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:13 [INFO] Updated auction: SUB-JA-2025-256011
+2026-02-11 20:02:14 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2024-24R2986001001: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:14 [INFO] Updated auction: SUB-AT-2024-24R2986001001
+2026-02-11 20:02:14 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2026-256389: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:14 [INFO] Updated auction: SUB-JA-2026-256389
+2026-02-11 20:02:14 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255816: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:14 [INFO] Updated auction: SUB-JA-2025-255816
+2026-02-11 20:02:15 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-245566: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:15 [INFO] Updated auction: SUB-JA-2025-245566
+2026-02-11 20:02:15 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-254975: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:15 [INFO] Updated auction: SUB-JA-2025-254975
+2026-02-11 20:02:15 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-253891: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:15 [INFO] Updated auction: SUB-JA-2025-253891
+2026-02-11 20:02:15 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-253826: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:15 [INFO] Updated auction: SUB-JA-2025-253826
+2026-02-11 20:02:16 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256178: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:16 [INFO] Updated auction: SUB-JA-2025-256178
+2026-02-11 20:02:17 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-252710: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:17 [INFO] Updated auction: SUB-JA-2025-252710
+2026-02-11 20:02:17 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2024-23R4586001244: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:17 [INFO] Updated auction: SUB-AT-2024-23R4586001244
+2026-02-11 20:02:17 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2024-24R0886001015: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:17 [INFO] Updated auction: SUB-AT-2024-24R0886001015
+2026-02-11 20:02:17 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R0886001576: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:17 [INFO] Updated auction: SUB-AT-2026-25R0886001576
+2026-02-11 20:02:17 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R0886001577: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:17 [INFO] Updated auction: SUB-AT-2026-25R0886001577
+2026-02-11 20:02:17 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R0886001615: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:17 [INFO] Updated auction: SUB-AT-2026-25R0886001615
+2026-02-11 20:02:17 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R1586002044: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:17 [INFO] Updated auction: SUB-AT-2026-25R1586002044
+2026-02-11 20:02:17 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R3086001160: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:17 [INFO] Updated auction: SUB-AT-2026-25R3086001160
+2026-02-11 20:02:17 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R3086001165: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:17 [INFO] Updated auction: SUB-AT-2026-25R3086001165
+2026-02-11 20:02:19 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R3086002022: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:19 [INFO] Updated auction: SUB-AT-2026-25R3086002022
+2026-02-11 20:02:19 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R3386001081: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:19 [INFO] Updated auction: SUB-AT-2026-25R3386001081
+2026-02-11 20:02:19 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R3386001083: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:19 [INFO] Updated auction: SUB-AT-2026-25R3386001083
+2026-02-11 20:02:19 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001355: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:19 [INFO] Updated auction: SUB-AT-2026-25R4686001355
+2026-02-11 20:02:19 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001406: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:19 [INFO] Updated auction: SUB-AT-2026-25R4686001406
+2026-02-11 20:02:19 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001417: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:19 [INFO] Updated auction: SUB-AT-2026-25R4686001417
+2026-02-11 20:02:19 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001437: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:19 [INFO] Updated auction: SUB-AT-2026-25R4686001437
+2026-02-11 20:02:19 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001503: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:19 [INFO] Updated auction: SUB-AT-2026-25R4686001503
+2026-02-11 20:02:19 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001521: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:19 [INFO] Updated auction: SUB-AT-2026-25R4686001521
+2026-02-11 20:02:19 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686002066: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:19 [INFO] Updated auction: SUB-AT-2026-25R4686002066
+2026-02-11 20:02:21 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686002068: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:21 [INFO] Updated auction: SUB-AT-2026-25R4686002068
+2026-02-11 20:02:21 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4786001289: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:21 [INFO] Updated auction: SUB-AT-2026-25R4786001289
+2026-02-11 20:02:21 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4786001291: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:21 [INFO] Updated auction: SUB-AT-2026-25R4786001291
+2026-02-11 20:02:21 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4786001308: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:21 [INFO] Updated auction: SUB-AT-2026-25R4786001308
+2026-02-11 20:02:21 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4786001322: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:21 [INFO] Updated auction: SUB-AT-2026-25R4786001322
+2026-02-11 20:02:21 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4886001008: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:21 [INFO] Updated auction: SUB-AT-2026-25R4886001008
+2026-02-11 20:02:21 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R5086001058: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:21 [INFO] Updated auction: SUB-AT-2026-25R5086001058
+2026-02-11 20:02:21 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R5086001076: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:21 [INFO] Updated auction: SUB-AT-2026-25R5086001076
+2026-02-11 20:02:21 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2019-129007: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:21 [INFO] Updated auction: SUB-JA-2019-129007
+2026-02-11 20:02:21 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2024-236295: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:21 [INFO] Updated auction: SUB-JA-2024-236295
+2026-02-11 20:02:23 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2024-237705: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:23 [INFO] Updated auction: SUB-JA-2024-237705
+2026-02-11 20:02:23 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-243818: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:23 [INFO] Updated auction: SUB-JA-2025-243818
+2026-02-11 20:02:24 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-247454: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:24 [INFO] Updated auction: SUB-JA-2025-247454
+2026-02-11 20:02:24 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-248259: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:24 [INFO] Updated auction: SUB-JA-2025-248259
+2026-02-11 20:02:24 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-248758: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:24 [INFO] Updated auction: SUB-JA-2025-248758
+2026-02-11 20:02:24 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-250447: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:24 [INFO] Updated auction: SUB-JA-2025-250447
+2026-02-11 20:02:24 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-252340: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:24 [INFO] Updated auction: SUB-JA-2025-252340
+2026-02-11 20:02:24 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-252403: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:24 [INFO] Updated auction: SUB-JA-2025-252403
+2026-02-11 20:02:24 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-252888: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:24 [INFO] Updated auction: SUB-JA-2025-252888
+2026-02-11 20:02:24 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-253016: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:24 [INFO] Updated auction: SUB-JA-2025-253016
+2026-02-11 20:02:26 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-253480: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:26 [INFO] Updated auction: SUB-JA-2025-253480
+2026-02-11 20:02:26 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-253504: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:26 [INFO] Updated auction: SUB-JA-2025-253504
+2026-02-11 20:02:26 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-253715: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:26 [INFO] Updated auction: SUB-JA-2025-253715
+2026-02-11 20:02:26 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-253816: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:26 [INFO] Updated auction: SUB-JA-2025-253816
+2026-02-11 20:02:26 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-254051: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:26 [INFO] Updated auction: SUB-JA-2025-254051
+2026-02-11 20:02:26 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-254130: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:26 [INFO] Updated auction: SUB-JA-2025-254130
+2026-02-11 20:02:26 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-254261: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:26 [INFO] Updated auction: SUB-JA-2025-254261
+2026-02-11 20:02:26 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-254363: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:26 [INFO] Updated auction: SUB-JA-2025-254363
+2026-02-11 20:02:26 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-254567: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:26 [INFO] Updated auction: SUB-JA-2025-254567
+2026-02-11 20:02:26 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-254584: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:26 [INFO] Updated auction: SUB-JA-2025-254584
+2026-02-11 20:02:28 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-254687: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:28 [INFO] Updated auction: SUB-JA-2025-254687
+2026-02-11 20:02:28 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-254791: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:28 [INFO] Updated auction: SUB-JA-2025-254791
+2026-02-11 20:02:28 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-254797: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:28 [INFO] Updated auction: SUB-JA-2025-254797
+2026-02-11 20:02:28 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-254815: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:28 [INFO] Updated auction: SUB-JA-2025-254815
+2026-02-11 20:02:28 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255060: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:28 [INFO] Updated auction: SUB-JA-2025-255060
+2026-02-11 20:02:28 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255108: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:28 [INFO] Updated auction: SUB-JA-2025-255108
+2026-02-11 20:02:28 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255188: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:28 [INFO] Updated auction: SUB-JA-2025-255188
+2026-02-11 20:02:28 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255343: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:28 [INFO] Updated auction: SUB-JA-2025-255343
+2026-02-11 20:02:28 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255432: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:28 [INFO] Updated auction: SUB-JA-2025-255432
+2026-02-11 20:02:28 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255464: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:28 [INFO] Updated auction: SUB-JA-2025-255464
+2026-02-11 20:02:29 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255485: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:29 [INFO] Updated auction: SUB-JA-2025-255485
+2026-02-11 20:02:29 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255537: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:29 [INFO] Updated auction: SUB-JA-2025-255537
+2026-02-11 20:02:30 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255570: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:30 [INFO] Updated auction: SUB-JA-2025-255570
+2026-02-11 20:02:30 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255607: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:30 [INFO] Updated auction: SUB-JA-2025-255607
+2026-02-11 20:02:30 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255649: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:30 [INFO] Updated auction: SUB-JA-2025-255649
+2026-02-11 20:02:30 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255741: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:30 [INFO] Updated auction: SUB-JA-2025-255741
+2026-02-11 20:02:30 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255871: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:30 [INFO] Updated auction: SUB-JA-2025-255871
+2026-02-11 20:02:30 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255946: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:30 [INFO] Updated auction: SUB-JA-2025-255946
+2026-02-11 20:02:30 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256068: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:30 [INFO] Updated auction: SUB-JA-2025-256068
+2026-02-11 20:02:30 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256163: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:30 [INFO] Updated auction: SUB-JA-2025-256163
+2026-02-11 20:02:32 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256171: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:32 [INFO] Updated auction: SUB-JA-2025-256171
+2026-02-11 20:02:32 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256193: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:32 [INFO] Updated auction: SUB-JA-2025-256193
+2026-02-11 20:02:32 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256216: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:32 [INFO] Updated auction: SUB-JA-2025-256216
+2026-02-11 20:02:32 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256222: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:32 [INFO] Updated auction: SUB-JA-2025-256222
+2026-02-11 20:02:32 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256366: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:32 [INFO] Updated auction: SUB-JA-2025-256366
+2026-02-11 20:02:32 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256391: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:32 [INFO] Updated auction: SUB-JA-2025-256391
+2026-02-11 20:02:32 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2026-255368: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:32 [INFO] Updated auction: SUB-JA-2026-255368
+2026-02-11 20:02:32 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2026-256417: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:32 [INFO] Updated auction: SUB-JA-2026-256417
+2026-02-11 20:02:32 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2026-256475: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:32 [INFO] Updated auction: SUB-JA-2026-256475
+2026-02-11 20:02:32 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2026-256503: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:32 [INFO] Updated auction: SUB-JA-2026-256503
+2026-02-11 20:02:34 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2026-256521: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:34 [INFO] Updated auction: SUB-JA-2026-256521
+2026-02-11 20:02:34 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2026-256527: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:34 [INFO] Updated auction: SUB-JA-2026-256527
+2026-02-11 20:02:34 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2026-256533: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:34 [INFO] Updated auction: SUB-JA-2026-256533
+2026-02-11 20:02:34 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2026-256623: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:34 [INFO] Updated auction: SUB-JA-2026-256623
+2026-02-11 20:02:34 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JV-2025-254980: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:34 [INFO] Updated auction: SUB-JV-2025-254980
+2026-02-11 20:02:34 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JV-2025-255909: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:34 [INFO] Updated auction: SUB-JV-2025-255909
+2026-02-11 20:02:34 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JV-2026-256539: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:34 [INFO] Updated auction: SUB-JV-2026-256539
+2026-02-11 20:02:34 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-NN-2026-1596099: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:34 [INFO] Updated auction: SUB-NN-2026-1596099
+2026-02-11 20:02:34 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-RC-2025-0025I20200033: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:34 [INFO] Updated auction: SUB-RC-2025-0025I20200033
+2026-02-11 20:02:34 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-RC-2026-1743000101014: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:34 [INFO] Updated auction: SUB-RC-2026-1743000101014
+2026-02-11 20:02:35 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-RC-2026-3100200100810: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:35 [INFO] Updated auction: SUB-RC-2026-3100200100810
+2026-02-11 20:02:35 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001470: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:35 [INFO] Updated auction: SUB-AT-2026-25R4686001470
+2026-02-11 20:02:35 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-250197: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:35 [INFO] Updated auction: SUB-JA-2025-250197
+2026-02-11 20:02:36 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R0886001547: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:36 [INFO] Updated auction: SUB-AT-2026-25R0886001547
+2026-02-11 20:02:36 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-253961: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:36 [INFO] Updated auction: SUB-JA-2025-253961
+2026-02-11 20:02:36 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255388: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:36 [INFO] Updated auction: SUB-JA-2025-255388
+2026-02-11 20:02:36 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001519: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:36 [INFO] Updated auction: SUB-AT-2026-25R4686001519
+2026-02-11 20:02:36 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001518: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:36 [INFO] Updated auction: SUB-AT-2026-25R4686001518
+2026-02-11 20:02:36 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4786001223: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:36 [INFO] Updated auction: SUB-AT-2026-25R4786001223
+2026-02-11 20:02:36 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-252399: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:36 [INFO] Updated auction: SUB-JA-2025-252399
+2026-02-11 20:02:38 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R5086001067: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:38 [INFO] Updated auction: SUB-AT-2026-25R5086001067
+2026-02-11 20:02:39 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-244895: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:39 [INFO] Updated auction: SUB-JA-2025-244895
+2026-02-11 20:02:39 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-254782: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:39 [INFO] Updated auction: SUB-JA-2025-254782
+2026-02-11 20:02:39 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R0886001702: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:39 [INFO] Updated auction: SUB-AT-2026-25R0886001702
+2026-02-11 20:02:39 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255944: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:39 [INFO] Updated auction: SUB-JA-2025-255944
+2026-02-11 20:02:40 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R3386001078: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:40 [INFO] Updated auction: SUB-AT-2026-25R3386001078
+2026-02-11 20:02:40 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256200: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:40 [INFO] Updated auction: SUB-JA-2025-256200
+2026-02-11 20:02:40 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-249933: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:40 [INFO] Updated auction: SUB-JA-2025-249933
+2026-02-11 20:02:40 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R3086001183: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:40 [INFO] Updated auction: SUB-AT-2026-25R3086001183
+2026-02-11 20:02:41 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255557: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:41 [INFO] Updated auction: SUB-JA-2025-255557
+2026-02-11 20:02:43 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001469: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:43 [INFO] Updated auction: SUB-AT-2026-25R4686001469
+2026-02-11 20:02:43 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R3086002023: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:43 [INFO] Updated auction: SUB-AT-2026-25R3086002023
+2026-02-11 20:02:44 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-251793: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:44 [INFO] Updated auction: SUB-JA-2025-251793
+2026-02-11 20:02:44 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255075: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:44 [INFO] Updated auction: SUB-JA-2025-255075
+2026-02-11 20:02:44 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-254867: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:44 [INFO] Updated auction: SUB-JA-2025-254867
+2026-02-11 20:02:44 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R1586001102: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:44 [INFO] Updated auction: SUB-AT-2026-25R1586001102
+2026-02-11 20:02:44 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2023-214477: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:44 [INFO] Updated auction: SUB-JA-2023-214477
+2026-02-11 20:02:44 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2026-256496: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:44 [INFO] Updated auction: SUB-JA-2026-256496
+2026-02-11 20:02:45 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JV-2025-254306: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:45 [INFO] Updated auction: SUB-JV-2025-254306
+2026-02-11 20:02:45 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001383: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:45 [INFO] Updated auction: SUB-AT-2026-25R4686001383
+2026-02-11 20:02:47 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-253563: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:47 [INFO] Updated auction: SUB-JA-2025-253563
+2026-02-11 20:02:47 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R5086001086: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:47 [INFO] Updated auction: SUB-AT-2026-25R5086001086
+2026-02-11 20:02:47 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R0886001661: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:47 [INFO] Updated auction: SUB-AT-2026-25R0886001661
+2026-02-11 20:02:47 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001533: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:47 [INFO] Updated auction: SUB-AT-2026-25R4686001533
+2026-02-11 20:02:47 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-208566: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:47 [INFO] Updated auction: SUB-JA-2025-208566
+2026-02-11 20:02:47 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001443: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:47 [INFO] Updated auction: SUB-AT-2026-25R4686001443
+2026-02-11 20:02:48 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001446: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:48 [INFO] Updated auction: SUB-AT-2026-25R4686001446
+2026-02-11 20:02:48 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R3086001191: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:48 [INFO] Updated auction: SUB-AT-2026-25R3086001191
+2026-02-11 20:02:48 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4786001224: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:48 [INFO] Updated auction: SUB-AT-2026-25R4786001224
+2026-02-11 20:02:48 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R1586001136: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:48 [INFO] Updated auction: SUB-AT-2026-25R1586001136
+2026-02-11 20:02:49 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R1586001138: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:49 [INFO] Updated auction: SUB-AT-2026-25R1586001138
+2026-02-11 20:02:49 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R3386001077: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:49 [INFO] Updated auction: SUB-AT-2026-25R3386001077
+2026-02-11 20:02:49 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JV-2025-256224: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:49 [INFO] Updated auction: SUB-JV-2025-256224
+2026-02-11 20:02:49 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256078: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:49 [INFO] Updated auction: SUB-JA-2025-256078
+2026-02-11 20:02:49 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001409: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:49 [INFO] Updated auction: SUB-AT-2026-25R4686001409
+2026-02-11 20:02:49 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R1586001133: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:49 [INFO] Updated auction: SUB-AT-2026-25R1586001133
+2026-02-11 20:02:50 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001431: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:50 [INFO] Updated auction: SUB-AT-2026-25R4686001431
+2026-02-11 20:02:50 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001340: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:50 [INFO] Updated auction: SUB-AT-2026-25R4686001340
+2026-02-11 20:02:51 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-250880: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:51 [INFO] Updated auction: SUB-JA-2025-250880
+2026-02-11 20:02:51 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-249608: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:51 [INFO] Updated auction: SUB-JA-2025-249608
+2026-02-11 20:02:52 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255875: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:52 [INFO] Updated auction: SUB-JA-2025-255875
+2026-02-11 20:02:52 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001401: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:52 [INFO] Updated auction: SUB-AT-2026-25R4686001401
+2026-02-11 20:02:52 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R1586001140: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:52 [INFO] Updated auction: SUB-AT-2026-25R1586001140
+2026-02-11 20:02:52 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JV-2025-255711: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:52 [INFO] Updated auction: SUB-JV-2025-255711
+2026-02-11 20:02:53 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R1586001137: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:53 [INFO] Updated auction: SUB-AT-2026-25R1586001137
+2026-02-11 20:02:53 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R1586002047: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:53 [INFO] Updated auction: SUB-AT-2026-25R1586002047
+2026-02-11 20:02:53 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255450: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:53 [INFO] Updated auction: SUB-JA-2025-255450
+2026-02-11 20:02:53 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R0886001554: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:53 [INFO] Updated auction: SUB-AT-2026-25R0886001554
+2026-02-11 20:02:53 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-24R2986002008: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:53 [INFO] Updated auction: SUB-AT-2026-24R2986002008
+2026-02-11 20:02:54 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256107: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:54 [INFO] Updated auction: SUB-JA-2025-256107
+2026-02-11 20:02:56 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4786001283: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:56 [INFO] Updated auction: SUB-AT-2026-25R4786001283
+2026-02-11 20:02:56 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JV-2025-256212: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:56 [INFO] Updated auction: SUB-JV-2025-256212
+2026-02-11 20:02:56 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4786001325: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:56 [INFO] Updated auction: SUB-AT-2026-25R4786001325
+2026-02-11 20:02:56 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001467: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:56 [INFO] Updated auction: SUB-AT-2026-25R4686001467
+2026-02-11 20:02:56 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255239: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:56 [INFO] Updated auction: SUB-JA-2025-255239
+2026-02-11 20:02:56 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R0886001579: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:56 [INFO] Updated auction: SUB-AT-2026-25R0886001579
+2026-02-11 20:02:56 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256331: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:56 [INFO] Updated auction: SUB-JA-2025-256331
+2026-02-11 20:02:56 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255654: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:56 [INFO] Updated auction: SUB-JA-2025-255654
+2026-02-11 20:02:56 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JV-2026-256478: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:56 [INFO] Updated auction: SUB-JV-2026-256478
+2026-02-11 20:02:56 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256001: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:56 [INFO] Updated auction: SUB-JA-2025-256001
+2026-02-11 20:02:58 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255372: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:58 [INFO] Updated auction: SUB-JA-2025-255372
+2026-02-11 20:02:58 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R1586001135: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:58 [INFO] Updated auction: SUB-AT-2026-25R1586001135
+2026-02-11 20:02:59 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256412: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:59 [INFO] Updated auction: SUB-JA-2025-256412
+2026-02-11 20:02:59 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001504: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:59 [INFO] Updated auction: SUB-AT-2026-25R4686001504
+2026-02-11 20:02:59 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R0686001071: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:59 [INFO] Updated auction: SUB-AT-2026-25R0686001071
+2026-02-11 20:02:59 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256230: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:59 [INFO] Updated auction: SUB-JA-2025-256230
+2026-02-11 20:02:59 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R1586001132: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:59 [INFO] Updated auction: SUB-AT-2026-25R1586001132
+2026-02-11 20:02:59 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R0886001696: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:59 [INFO] Updated auction: SUB-AT-2026-25R0886001696
+2026-02-11 20:02:59 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-RC-2026-3100200102923: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:59 [INFO] Updated auction: SUB-RC-2026-3100200102923
+2026-02-11 20:02:59 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256415: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:02:59 [INFO] Updated auction: SUB-JA-2025-256415
+2026-02-11 20:03:01 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R1586001134: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:01 [INFO] Updated auction: SUB-AT-2026-25R1586001134
+2026-02-11 20:03:01 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001532: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:01 [INFO] Updated auction: SUB-AT-2026-25R4686001532
+2026-02-11 20:03:01 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R3086002016: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:01 [INFO] Updated auction: SUB-AT-2026-25R3086002016
+2026-02-11 20:03:01 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001404: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:01 [INFO] Updated auction: SUB-AT-2026-25R4686001404
+2026-02-11 20:03:01 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R5086001081: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:01 [INFO] Updated auction: SUB-AT-2026-25R5086001081
+2026-02-11 20:03:01 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R1586001139: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:01 [INFO] Updated auction: SUB-AT-2026-25R1586001139
+2026-02-11 20:03:01 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R1586001131: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:01 [INFO] Updated auction: SUB-AT-2026-25R1586001131
+2026-02-11 20:03:02 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001396: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:02 [INFO] Updated auction: SUB-AT-2026-25R4686001396
+2026-02-11 20:03:02 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256277: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:02 [INFO] Updated auction: SUB-JA-2025-256277
+2026-02-11 20:03:02 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001381: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:02 [INFO] Updated auction: SUB-AT-2026-25R4686001381
+2026-02-11 20:03:03 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R5086001063: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:03 [INFO] Updated auction: SUB-AT-2026-25R5086001063
+2026-02-11 20:03:04 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R2986001187: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:04 [INFO] Updated auction: SUB-AT-2026-25R2986001187
+2026-02-11 20:03:04 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R1586002048: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:04 [INFO] Updated auction: SUB-AT-2026-25R1586002048
+2026-02-11 20:03:04 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001415: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:04 [INFO] Updated auction: SUB-AT-2026-25R4686001415
+2026-02-11 20:03:04 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JV-2026-256594: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:04 [INFO] Updated auction: SUB-JV-2026-256594
+2026-02-11 20:03:04 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001328: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:04 [INFO] Updated auction: SUB-AT-2026-25R4686001328
+2026-02-11 20:03:04 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2026-256438: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:04 [INFO] Updated auction: SUB-JA-2026-256438
+2026-02-11 20:03:04 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-253454: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:04 [INFO] Updated auction: SUB-JA-2025-253454
+2026-02-11 20:03:04 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-247912: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:04 [INFO] Updated auction: SUB-JA-2025-247912
+2026-02-11 20:03:04 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R5086001080: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:04 [INFO] Updated auction: SUB-AT-2026-25R5086001080
+2026-02-11 20:03:05 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R0686001078: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:05 [INFO] Updated auction: SUB-AT-2026-25R0686001078
+2026-02-11 20:03:05 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R2986001196: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:05 [INFO] Updated auction: SUB-AT-2026-25R2986001196
+2026-02-11 20:03:05 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001444: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:05 [INFO] Updated auction: SUB-AT-2026-25R4686001444
+2026-02-11 20:03:05 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255010: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:05 [INFO] Updated auction: SUB-JA-2025-255010
+2026-02-11 20:03:05 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R0686001079: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:05 [INFO] Updated auction: SUB-AT-2026-25R0686001079
+2026-02-11 20:03:05 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-RC-2026-3100200104119: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:05 [INFO] Updated auction: SUB-RC-2026-3100200104119
+2026-02-11 20:03:06 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2019-129974: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:06 [INFO] Updated auction: SUB-JA-2019-129974
+2026-02-11 20:03:06 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R0686001076: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:06 [INFO] Updated auction: SUB-AT-2026-25R0686001076
+2026-02-11 20:03:06 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R0686001077: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:06 [INFO] Updated auction: SUB-AT-2026-25R0686001077
+2026-02-11 20:03:06 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R0686001069: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:06 [INFO] Updated auction: SUB-AT-2026-25R0686001069
+2026-02-11 20:03:08 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-254769: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:08 [INFO] Updated auction: SUB-JA-2025-254769
+2026-02-11 20:03:08 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-245753: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:08 [INFO] Updated auction: SUB-JA-2025-245753
+2026-02-11 20:03:08 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-254915: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:08 [INFO] Updated auction: SUB-JA-2025-254915
+2026-02-11 20:03:08 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-254790: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:08 [INFO] Updated auction: SUB-JA-2025-254790
+2026-02-11 20:03:08 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R5086001082: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:08 [INFO] Updated auction: SUB-AT-2026-25R5086001082
+2026-02-11 20:03:08 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R5086001083: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:08 [INFO] Updated auction: SUB-AT-2026-25R5086001083
+2026-02-11 20:03:08 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JV-2026-256430: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:08 [INFO] Updated auction: SUB-JV-2026-256430
+2026-02-11 20:03:08 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R5086001084: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:08 [INFO] Updated auction: SUB-AT-2026-25R5086001084
+2026-02-11 20:03:08 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-252962: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:08 [INFO] Updated auction: SUB-JA-2025-252962
+2026-02-11 20:03:08 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-RC-2026-1743000101013: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:08 [INFO] Updated auction: SUB-RC-2026-1743000101013
+2026-02-11 20:03:09 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001375: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:09 [INFO] Updated auction: SUB-AT-2026-25R4686001375
+2026-02-11 20:03:09 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-252885: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:09 [INFO] Updated auction: SUB-JA-2025-252885
+2026-02-11 20:03:09 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R4686001466: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:09 [INFO] Updated auction: SUB-AT-2026-25R4686001466
+2026-02-11 20:03:09 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255651: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:09 [INFO] Updated auction: SUB-JA-2025-255651
+2026-02-11 20:03:09 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2026-25R3086001202: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:09 [INFO] Updated auction: SUB-AT-2026-25R3086001202
+2026-02-11 20:03:09 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-250200: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:09 [INFO] Updated auction: SUB-JA-2025-250200
+2026-02-11 20:03:09 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2025-24R4186001196: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:09 [INFO] Updated auction: SUB-AT-2025-24R4186001196
+2026-02-11 20:03:09 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2024-24R4186001487: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:09 [INFO] Updated auction: SUB-AT-2024-24R4186001487
+2026-02-11 20:03:09 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2025-25R4186001453: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:09 [INFO] Updated auction: SUB-AT-2025-25R4186001453
+2026-02-11 20:03:09 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2025-25R3086001138: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:09 [INFO] Updated auction: SUB-AT-2025-25R3086001138
+2026-02-11 20:03:11 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-254911: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:11 [INFO] Updated auction: SUB-JA-2025-254911
+2026-02-11 20:03:11 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-AT-2025-25R0886001556: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:11 [INFO] Updated auction: SUB-AT-2025-25R0886001556
+2026-02-11 20:03:11 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-250644: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:11 [INFO] Updated auction: SUB-JA-2025-250644
+2026-02-11 20:03:11 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-251678: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:11 [INFO] Updated auction: SUB-JA-2025-251678
+2026-02-11 20:03:11 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-254859: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:11 [INFO] Updated auction: SUB-JA-2025-254859
+2026-02-11 20:03:11 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255027: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:11 [INFO] Updated auction: SUB-JA-2025-255027
+2026-02-11 20:03:11 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255676: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:11 [INFO] Updated auction: SUB-JA-2025-255676
+2026-02-11 20:03:11 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255760: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:11 [INFO] Updated auction: SUB-JA-2025-255760
+2026-02-11 20:03:11 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256024: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:11 [INFO] Updated auction: SUB-JA-2025-256024
+2026-02-11 20:03:11 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256410: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:11 [INFO] Updated auction: SUB-JA-2025-256410
+2026-02-11 20:03:13 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2026-256481: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:13 [INFO] Updated auction: SUB-JA-2026-256481
+2026-02-11 20:03:13 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2026-256513: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:13 [INFO] Updated auction: SUB-JA-2026-256513
+2026-02-11 20:03:13 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2026-256585: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:13 [INFO] Updated auction: SUB-JA-2026-256585
+2026-02-11 20:03:13 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JV-2025-246902: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:13 [INFO] Updated auction: SUB-JV-2025-246902
+2026-02-11 20:03:13 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JV-2026-256543: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:13 [INFO] Updated auction: SUB-JV-2026-256543
+2026-02-11 20:03:13 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JV-2026-256567: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:13 [INFO] Updated auction: SUB-JV-2026-256567
+2026-02-11 20:03:13 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-NH-2026-1586104: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:13 [INFO] Updated auction: SUB-NH-2026-1586104
+2026-02-11 20:03:13 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255999: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:13 [INFO] Updated auction: SUB-JA-2025-255999
+2026-02-11 20:03:13 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256275: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:13 [INFO] Updated auction: SUB-JA-2025-256275
+2026-02-11 20:03:13 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JV-2025-254727: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:13 [INFO] Updated auction: SUB-JV-2025-254727
+2026-02-11 20:03:15 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JV-2026-255723: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:15 [INFO] Inserted auction: SUB-JV-2026-255723
+2026-02-11 20:03:15 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256209: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:15 [INFO] Updated auction: SUB-JA-2025-256209
+2026-02-11 20:03:15 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255627: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:15 [INFO] Updated auction: SUB-JA-2025-255627
+2026-02-11 20:03:15 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JV-2026-256654: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:15 [INFO] Updated auction: SUB-JV-2026-256654
+2026-02-11 20:03:15 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2026-256436: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:15 [INFO] Updated auction: SUB-JA-2026-256436
+2026-02-11 20:03:15 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-RC-2026-3100200103444: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:15 [INFO] Updated auction: SUB-RC-2026-3100200103444
+2026-02-11 20:03:15 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-256008: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:15 [INFO] Updated auction: SUB-JA-2025-256008
+2026-02-11 20:03:15 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-253319: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:15 [INFO] Updated auction: SUB-JA-2025-253319
+2026-02-11 20:03:15 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2025-255228: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:15 [INFO] Updated auction: SUB-JA-2025-255228
+2026-02-11 20:03:15 [WARNING] [BOE_PARALLEL_99] Failed to fetch detail info for SUB-JA-2026-256512: It looks like you are using Playwright Sync API inside the asyncio loop.
+Please use the Async API instead.
+2026-02-11 20:03:15 [INFO] Updated auction: SUB-JA-2026-256512
+2026-02-11 20:03:29 [INFO] [BOE_PARALLEL_99] [Scraper 99] ✓ Batch complete: Found 260, Fetched 260
+2026-02-11 20:03:29 [INFO] [BOE_PARALLEL_99] 
+[Scraper 99] COMPLETE: 260 auctions
+2026-02-11 20:05:39 [INFO] [BOE_PARALLEL_99] [Scraper 99] Closed browser
+2026-02-11 20:05:39 [INFO] ======================================================================
+2026-02-11 20:05:39 [INFO] DAILY UPDATE COMPLETE
+2026-02-11 20:05:39 [INFO] Fetched from BOE: 260
+2026-02-11 20:05:39 [INFO] Inserted new auctions: 1
+2026-02-11 20:05:39 [INFO] Updated existing auctions: 258
+2026-02-11 20:05:39 [INFO] Errors: 0
+2026-02-11 20:05:39 [INFO] ======================================================================
+2026-02-11 20:05:39 [INFO] Closing all browser resources...
+2026-02-11 20:05:39 [INFO] All browser resources closed
+2026-02-12 14:00:35 [INFO] ======================================================================
+2026-02-12 14:00:40 [INFO] DAILY BOE UPDATE (ROLLING 5 DAYS)
+2026-02-12 14:00:40 [INFO] ======================================================================
+2026-02-12 14:00:40 [INFO] Date range: 2026-02-07 to 2026-02-12
+2026-02-12 14:00:40 [INFO] Strategy: BOE form dates + 500 results/page (parallel scraper logic)
+2026-02-12 14:00:40 [INFO] ======================================================================
+2026-02-12 14:00:40 [INFO] BrowserManager initialized
+2026-02-12 14:00:40 [INFO] DatabaseAdapter initialized with sqlite
+2026-02-12 14:00:40 [INFO] [BOE_PARALLEL_99] [Scraper 99] Starting: 1 batches (15-day chunks)
+2026-02-12 14:00:40 [INFO] [BOE_PARALLEL_99] [Scraper 99] Range: 2026-02-07 to 2026-02-12
+2026-02-12 14:00:40 [INFO] [BOE_PARALLEL_99] 
+[Scraper 99] Batch 1/1: 2026-02-07_to_2026-02-12
+2026-02-12 14:01:15 [INFO] [BOE_PARALLEL_99] [Scraper 99] Launched dedicated browser
+2026-02-12 14:01:17 [INFO] [BOE_PARALLEL_99]   Navigating to BOE search page...
+2026-02-12 14:01:17 [ERROR] [BOE_PARALLEL_99] Failed to submit search form: Page.goto: net::ERR_NAME_NOT_RESOLVED at https://subastas.boe.es/subastas_ava.php
+Call log:
+navigating to "https://subastas.boe.es/subastas_ava.php", waiting until "domcontentloaded"
+
+2026-02-12 14:01:17 [ERROR] [BOE_PARALLEL_99] Failed to scrape batch: Page.goto: net::ERR_NAME_NOT_RESOLVED at https://subastas.boe.es/subastas_ava.php
+Call log:
+navigating to "https://subastas.boe.es/subastas_ava.php", waiting until "domcontentloaded"
+
+2026-02-12 14:01:17 [ERROR] [BOE_PARALLEL_99] Traceback (most recent call last):
+  File "C:\Users\D\Desktop\dnksubastas\scraper\scrapers\boe_parallel_scraper.py", line 210, in _scrape_batch
+    self._submit_search_form_human(page, start_str, end_str)
+  File "C:\Users\D\Desktop\dnksubastas\scraper\scrapers\boe_parallel_scraper.py", line 309, in _submit_search_form_human
+    page.goto("https://subastas.boe.es/subastas_ava.php", wait_until='domcontentloaded', timeout=30000)
+  File "C:\Users\D\AppData\Local\Programs\Python\Python311\Lib\site-packages\playwright\sync_api\_generated.py", line 9002, in goto
+    self._sync(
+  File "C:\Users\D\AppData\Local\Programs\Python\Python311\Lib\site-packages\playwright\_impl\_sync_base.py", line 115, in _sync
+    return task.result()
+           ^^^^^^^^^^^^^
+  File "C:\Users\D\AppData\Local\Programs\Python\Python311\Lib\site-packages\playwright\_impl\_page.py", line 553, in goto
+    return await self._main_frame.goto(**locals_to_params(locals()))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\D\AppData\Local\Programs\Python\Python311\Lib\site-packages\playwright\_impl\_frame.py", line 145, in goto
+    await self._channel.send("goto", locals_to_params(locals()))
+  File "C:\Users\D\AppData\Local\Programs\Python\Python311\Lib\site-packages\playwright\_impl\_connection.py", line 59, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\D\AppData\Local\Programs\Python\Python311\Lib\site-packages\playwright\_impl\_connection.py", line 520, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.Error: Page.goto: net::ERR_NAME_NOT_RESOLVED at https://subastas.boe.es/subastas_ava.php
+Call log:
+navigating to "https://subastas.boe.es/subastas_ava.php", waiting until "domcontentloaded"
+
+
+2026-02-12 14:01:17 [INFO] [BOE_PARALLEL_99] [Scraper 99] ✓ Batch complete: Found 0, Fetched 0
+2026-02-12 14:01:17 [INFO] [BOE_PARALLEL_99] 
+[Scraper 99] COMPLETE: 0 auctions
+2026-02-12 14:01:56 [INFO] [BOE_PARALLEL_99] [Scraper 99] Closed browser
+2026-02-12 14:01:59 [INFO] ======================================================================
+2026-02-12 14:01:59 [INFO] DAILY UPDATE COMPLETE
+2026-02-12 14:01:59 [INFO] Fetched from BOE: 0
+2026-02-12 14:01:59 [INFO] Inserted new auctions: 0
+2026-02-12 14:01:59 [INFO] Updated existing auctions: 0
+2026-02-12 14:01:59 [INFO] Errors: 0
+2026-02-12 14:01:59 [INFO] ======================================================================
+2026-02-12 14:01:59 [INFO] Closing all browser resources...
+2026-02-12 14:01:59 [INFO] All browser resources closed

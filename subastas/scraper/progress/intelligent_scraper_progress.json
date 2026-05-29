@@ -1,0 +1,28 @@
+{
+  "started_at": "2026-01-21T21:33:01.376774",
+  "current_group": "properties",
+  "completed_groups": {
+    "active": [
+      "properties",
+      "vehicles",
+      "other"
+    ],
+    "pre": [
+      "properties",
+      "vehicles",
+      "other"
+    ],
+    "finished": [
+      "properties",
+      "vehicles",
+      "other"
+    ]
+  },
+  "current_year": 2026,
+  "stats": {
+    "total_new": 0,
+    "total_updated": 0,
+    "by_group": {}
+  },
+  "last_update": "2026-01-21T21:40:40.912693"
+}

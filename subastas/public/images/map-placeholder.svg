@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none">
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" stroke="#d9e2ec" stroke-width="1"/>
+    </pattern>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#e2e8f0"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#bg)"/>
+  <rect width="800" height="600" fill="url(#grid)" opacity="0.85"/>
+  <path d="M120 170 C220 130, 300 210, 380 190 C460 170, 560 230, 640 210" stroke="#94a3b8" stroke-width="6" opacity="0.55" fill="none"/>
+  <path d="M140 360 C240 300, 340 400, 440 360 C520 330, 610 400, 700 370" stroke="#94a3b8" stroke-width="6" opacity="0.55" fill="none"/>
+  <path d="M200 250 L240 260 L260 230 L300 240" stroke="#a3b3c2" stroke-width="5" opacity="0.5" fill="none"/>
+  <ellipse cx="400" cy="390" rx="22" ry="8" fill="#000000" opacity="0.18"/>
+  <path d="M400 180 C355 180, 320 215, 320 260 C320 330, 400 410, 400 410 C400 410, 480 330, 480 260 C480 215, 445 180, 400 180 Z" fill="#ef4444"/>
+  <circle cx="400" cy="250" r="20" fill="white"/>
+</svg>

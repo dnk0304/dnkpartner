@@ -1,0 +1,33 @@
+{
+  "started_at": "2026-01-22T15:41:07.471174",
+  "completed_combinations": [
+    "2025|AEAT|Finalizada por Autoridad Gestora|Inmuebles|Almería",
+    "2025|AEAT|Finalizada por Autoridad Gestora|Inmuebles|Almería",
+    "2025|AEAT|Finalizada por Autoridad Gestora|Inmuebles|Cádiz",
+    "2025|AEAT|Finalizada por Autoridad Gestora|Inmuebles|Córdoba",
+    "2025|AEAT|Finalizada por Autoridad Gestora|Inmuebles|Granada",
+    "2025|AEAT|Finalizada por Autoridad Gestora|Inmuebles|Huelva",
+    "2025|AEAT|Finalizada por Autoridad Gestora|Inmuebles|Jaén",
+    "2025|AEAT|Finalizada por Autoridad Gestora|Inmuebles|Málaga",
+    "2025|AEAT|Finalizada por Autoridad Gestora|Inmuebles|Sevilla",
+    "2025|AEAT|Finalizada por Autoridad Gestora|Inmuebles|Huesca",
+    "2025|AEAT|Finalizada por Autoridad Gestora|Inmuebles|Teruel",
+    "2025|AEAT|Finalizada por Autoridad Gestora|Inmuebles|Zaragoza",
+    "2025|AEAT|Finalizada por Autoridad Gestora|Inmuebles|Asturias",
+    "2025|AEAT|Finalizada por Autoridad Gestora|Inmuebles|Illes Balears",
+    "2025|AEAT|Finalizada por Autoridad Gestora|Inmuebles|Las Palmas",
+    "2025|AEAT|Finalizada por Autoridad Gestora|Inmuebles|Santa Cruz de Tenerife"
+  ],
+  "current_combination": null,
+  "stats": {
+    "total_new": 0,
+    "total_updated": 0,
+    "total_checked": 0,
+    "total_skipped": 0,
+    "total_combinations": 7800,
+    "completed_combinations": 16
+  },
+  "batch_num": 8,
+  "total_batches": 10,
+  "last_update": "2026-01-22T16:13:17.245699"
+}
