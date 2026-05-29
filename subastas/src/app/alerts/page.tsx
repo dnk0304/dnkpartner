@@ -23,6 +23,7 @@ import {
   Euro
 } from 'lucide-react';
 import Link from 'next/link';
+import { apiFetch } from "@/lib/api-path";
 
 interface Alert {
   id: string;
@@ -120,7 +121,7 @@ export default function AlertsPage() {
   const fetchAlerts = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/user/alerts');
+      const response = await apiFetch('/api/user/alerts');
       if (!response.ok) {
         throw new Error('Failed to fetch alerts');
       }
@@ -139,7 +140,7 @@ export default function AlertsPage() {
 
   const handleCreateAlert = async () => {
     try {
-      const response = await fetch('/api/user/alerts', {
+      const response = await apiFetch('/api/user/alerts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -171,7 +172,7 @@ export default function AlertsPage() {
 
   const handleDeleteAlert = async (id: string) => {
     try {
-      const response = await fetch(`/api/user/alerts?id=${encodeURIComponent(id)}`, {
+      const response = await apiFetch(`/api/user/alerts?id=${encodeURIComponent(id)}`, {
         method: 'DELETE',
       });
       if (!response.ok) {

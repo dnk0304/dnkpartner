@@ -9,6 +9,7 @@ import { CheckCircle2, Loader2, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
+import { apiFetch } from "@/lib/api-path";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -45,7 +46,7 @@ export default function RegisterPage() {
     }
     
     try {
-      const response = await fetch('/api/auth/register', {
+      const response = await apiFetch('/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

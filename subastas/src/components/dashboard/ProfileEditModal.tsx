@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { apiFetch } from "@/lib/api-path";
 
 interface ProfileEditModalProps {
   open: boolean;
@@ -60,7 +61,7 @@ export const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ open, onClos
         }
       }
 
-      const response = await fetch('/api/user/profile', {
+      const response = await apiFetch('/api/user/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

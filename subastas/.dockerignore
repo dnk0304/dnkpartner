@@ -1,0 +1,17 @@
+node_modules
+.next
+.git
+data
+**/__pycache__
+*.log
+*.tmp
+.env
+.env.local
+.env.development
+scripts/_*.json
+scripts/_*.log
+scripts/_*.py
+scraper
+docs
+*.md
+!FORGE_PLAN.md

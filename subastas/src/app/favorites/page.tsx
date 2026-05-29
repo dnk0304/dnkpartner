@@ -8,6 +8,7 @@ import { AuctionCard } from '@/components/dashboard/AuctionCard';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Heart, Trash2, Edit2, Save, X } from 'lucide-react';
+import { apiFetch } from "@/lib/api-path";
 
 interface Favorite {
   id: string;
@@ -40,7 +41,7 @@ export default function FavoritesPage() {
   const fetchFavorites = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/favorites');
+      const response = await apiFetch('/api/favorites');
       const result = await response.json();
       
       if (result.success) {
@@ -57,7 +58,7 @@ export default function FavoritesPage() {
     if (!confirm('¿Eliminar de favoritos?')) return;
     
     try {
-      const response = await fetch(`/api/favorites?auctionId=${auctionId}`, {
+      const response = await apiFetch(`/api/favorites?auctionId=${auctionId}`, {
         method: 'DELETE',
       });
       
@@ -76,7 +77,7 @@ export default function FavoritesPage() {
 
   const handleEditSave = async (auctionId: string) => {
     try {
-      const response = await fetch('/api/favorites', {
+      const response = await apiFetch('/api/favorites', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ auctionId, notes: editNotes }),

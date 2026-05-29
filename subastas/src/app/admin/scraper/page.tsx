@@ -13,6 +13,7 @@ import {
   Clock, CheckCircle2, XCircle, Loader2, Zap, Calendar,
   Filter, LayersIcon, Activity
 } from 'lucide-react';
+import { apiFetch } from "@/lib/api-path";
 
 const CATEGORY_OPTIONS = [
   { value: 'properties', label: 'Properties (Houses, Land, Locals, Garages)', icon: '🏠' },
@@ -67,7 +68,7 @@ export default function EnhancedAdminScraperPage() {
   
   const fetchStatus = async () => {
     try {
-      const response = await fetch('/api/admin/scraper');
+      const response = await apiFetch('/api/admin/scraper');
       
       if (response.status === 401) {
         console.error('Unauthorized - redirecting to login');
@@ -95,7 +96,7 @@ export default function EnhancedAdminScraperPage() {
   const startAggressiveScraper = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/admin/scraper', {
+      const response = await apiFetch('/api/admin/scraper', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -124,7 +125,7 @@ export default function EnhancedAdminScraperPage() {
   const startPropertyScraper = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/admin/scraper', {
+      const response = await apiFetch('/api/admin/scraper', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -151,7 +152,7 @@ export default function EnhancedAdminScraperPage() {
   const startCategoryScraper = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/admin/scraper', {
+      const response = await apiFetch('/api/admin/scraper', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -178,7 +179,7 @@ export default function EnhancedAdminScraperPage() {
   const startParallelCategoryScraper = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/admin/scraper', {
+      const response = await apiFetch('/api/admin/scraper', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -206,7 +207,7 @@ export default function EnhancedAdminScraperPage() {
   const startHistoricalScraper = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/admin/scraper', {
+      const response = await apiFetch('/api/admin/scraper', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -232,7 +233,7 @@ export default function EnhancedAdminScraperPage() {
   const startParallelHistoricalScraper = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/admin/scraper', {
+      const response = await apiFetch('/api/admin/scraper', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -259,7 +260,7 @@ export default function EnhancedAdminScraperPage() {
   const startParallelFinishedScraper = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/admin/scraper', {
+      const response = await apiFetch('/api/admin/scraper', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -287,7 +288,7 @@ export default function EnhancedAdminScraperPage() {
   const startComprehensiveScraper = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/admin/scraper', {
+      const response = await apiFetch('/api/admin/scraper', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -315,7 +316,7 @@ export default function EnhancedAdminScraperPage() {
   const startScheduler = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/admin/scraper', {
+      const response = await apiFetch('/api/admin/scraper', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'start-scheduler' }),
@@ -338,7 +339,7 @@ export default function EnhancedAdminScraperPage() {
     
     setLoading(true);
     try {
-      const response = await fetch('/api/admin/scraper', {
+      const response = await apiFetch('/api/admin/scraper', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'stop-all-scrapers' }),

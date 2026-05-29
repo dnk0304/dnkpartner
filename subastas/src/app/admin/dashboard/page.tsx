@@ -19,6 +19,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { apiFetch } from "@/lib/api-path";
 
 const ADMIN_EMAIL = 'dennis.kotlenko@gmail.com';
 
@@ -94,10 +95,10 @@ export default function AdminDashboard() {
     setLoading(true);
     try {
       const [backfill, stats, users, emails] = await Promise.all([
-        fetch('/api/admin/backfill').then(r => r.json()),
-        fetch('/api/admin/stats').then(r => r.json()),
-        fetch('/api/admin/users').then(r => r.json()),
-        fetch('/api/admin/emails').then(r => r.json())
+        apiFetch('/api/admin/backfill').then(r => r.json()),
+        apiFetch('/api/admin/stats').then(r => r.json()),
+        apiFetch('/api/admin/users').then(r => r.json()),
+        apiFetch('/api/admin/emails').then(r => r.json())
       ]);
 
       setBackfillStatus(backfill);

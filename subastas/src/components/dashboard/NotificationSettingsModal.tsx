@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { OFFICIAL_CATEGORIES, ALL_PROVINCES } from '@/lib/constants';
+import { apiFetch } from "@/lib/api-path";
 
 interface Alert {
   id: string;
@@ -60,7 +61,7 @@ export const NotificationSettingsModal: React.FC<NotificationSettingsModalProps>
   const loadAlerts = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/user/alerts');
+      const response = await apiFetch('/api/user/alerts');
       const data = await response.json();
 
       if (response.ok) {
@@ -79,7 +80,7 @@ export const NotificationSettingsModal: React.FC<NotificationSettingsModalProps>
     setSuccess(false);
 
     try {
-      const response = await fetch('/api/user/alerts', {
+      const response = await apiFetch('/api/user/alerts', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

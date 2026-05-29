@@ -16,6 +16,7 @@ import { UserTier, AuctionCategory, AuctionItem, AuctionStatus, AuctionType } fr
 import { useAdminSettings } from '@/context/AdminSettingsContext';
 import { Button } from '@/components/ui/button';
 import { Bell } from 'lucide-react';
+import { apiFetch } from "@/lib/api-path";
 
 function DashboardContent() {
   // Get user session
@@ -60,6 +61,9 @@ function DashboardContent() {
     activeProperties: number;
     activeVehicles: number;
     preAuctionCount: number;
+    trueActiveCount: number;
+    trueLiveCount: number;
+    trueUpcomingCount: number;
   }>({
     totalAuctions: 0,
     oldestAuctionYear: null,
@@ -68,6 +72,9 @@ function DashboardContent() {
     activeProperties: 0,
     activeVehicles: 0,
     preAuctionCount: 0,
+    trueActiveCount: 0,
+    trueLiveCount: 0,
+    trueUpcomingCount: 0,
   });
   
   // Total status counts from database (respecting current filters)
@@ -246,7 +253,7 @@ function DashboardContent() {
           params.append('statuses', selectedStatuses.join(','));
         }
         
-        const response = await fetch(`/api/auctions/map?${params.toString()}`);
+        const response = await apiFetch(`/api/auctions/map?${params.toString()}`);
         
         if (response.ok) {
           const result = await response.json();
@@ -284,7 +291,7 @@ function DashboardContent() {
         }
         totalParams.append('groupBy', 'province');
         
-        const totalResponse = await fetch(`/api/auctions/counts?${totalParams.toString()}`);
+        const totalResponse = await apiFetch(`/api/auctions/counts?${totalParams.toString()}`);
         if (totalResponse.ok) {
           const totalData = await totalResponse.json();
           if (totalData.success) {
@@ -308,7 +315,7 @@ function DashboardContent() {
   useEffect(() => {
     const fetchDashboardStats = async () => {
       try {
-        const response = await fetch('/api/auctions/stats');
+        const response = await apiFetch('/api/auctions/stats');
         if (response.ok) {
           const result = await response.json();
           if (result.success && result.data) {
@@ -335,7 +342,7 @@ function DashboardContent() {
         // Don't filter by status - we want to show all counts with colors
         provinceParams.append('groupBy', 'province');
         
-        const provinceResponse = await fetch(`/api/auctions/counts?${provinceParams.toString()}`);
+        const provinceResponse = await apiFetch(`/api/auctions/counts?${provinceParams.toString()}`);
         if (provinceResponse.ok) {
           const provinceData = await provinceResponse.json();
           if (provinceData.success) {
@@ -361,7 +368,7 @@ function DashboardContent() {
         // Don't filter by status - we want to show all counts with colors
         categoryParams.append('groupBy', 'category');
         
-        const categoryResponse = await fetch(`/api/auctions/counts?${categoryParams.toString()}`);
+        const categoryResponse = await apiFetch(`/api/auctions/counts?${categoryParams.toString()}`);
         if (categoryResponse.ok) {
           const categoryData = await categoryResponse.json();
           if (categoryData.success) {
@@ -385,7 +392,7 @@ function DashboardContent() {
           // Don't filter by status - we want to show all counts with colors
           municipalityParams.append('groupBy', 'municipality');
           
-          const municipalityResponse = await fetch(`/api/auctions/counts?${municipalityParams.toString()}`);
+          const municipalityResponse = await apiFetch(`/api/auctions/counts?${municipalityParams.toString()}`);
           if (municipalityResponse.ok) {
             const municipalityData = await municipalityResponse.json();
             if (municipalityData.success) {
@@ -462,7 +469,7 @@ function DashboardContent() {
         params.append('page', page.toString());
         params.append('limit', '50'); // Load 50 at a time
         
-        const response = await fetch(`/api/auctions?${params.toString()}`);
+        const response = await apiFetch(`/api/auctions?${params.toString()}`);
         
         if (!response.ok) {
           throw new Error('Failed to fetch auctions');
@@ -561,7 +568,7 @@ function DashboardContent() {
           params.append('page', nextPage.toString());
           params.append('limit', '50');
           
-          const response = await fetch(`/api/auctions?${params.toString()}`);
+          const response = await apiFetch(`/api/auctions?${params.toString()}`);
           const result = await response.json();
           
           if (result.success) {
@@ -720,30 +727,32 @@ function DashboardContent() {
       <main className="flex-1 max-w-[1920px] mx-auto w-full p-4 md:p-6 space-y-8">
         
         {/* 1. Dashboard Summary */}
-        <section className="w-full rounded-2xl border border-gray-200 bg-white px-6 py-4 shadow-sm">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">
-              Total auctions since {dashboardStats.oldestAuctionYear ?? 'N/A'} - until {formattedToday}
-            </h2>
-            <p className="text-sm text-gray-500">
-              Last update: <span className="font-medium text-gray-700">{formattedLastUpdate}</span>
+        <section className="w-full rounded-2xl border border-gray-200 bg-white px-6 py-5 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
+                {dashboardStats.trueActiveCount.toLocaleString('es-ES')}
+                <span className="ml-2 align-middle text-base md:text-lg font-medium text-gray-600">
+                  subastas activas ahora
+                </span>
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                {dashboardStats.trueLiveCount.toLocaleString('es-ES')} celebrándose &middot; {dashboardStats.trueUpcomingCount.toLocaleString('es-ES')} próximas aperturas
+              </p>
+            </div>
+            <p className="text-sm text-gray-500 md:text-right">
+              Última actualización: <span className="font-medium text-gray-700">{formattedLastUpdate}</span>
             </p>
           </div>
           <div className="mt-4 flex flex-wrap gap-3 text-sm">
-            <div className="rounded-lg bg-white px-3 py-2 text-gray-700 border border-gray-200">
-              Total auctions: <span className="font-semibold text-gray-900">{dashboardStats.totalAuctions}</span>
-            </div>
-            <div className="rounded-lg bg-green-50 px-3 py-2 text-green-700">
-              Current active auctions: <span className="font-semibold">{dashboardStats.activeCount}</span>
-            </div>
             <div className="rounded-lg bg-emerald-50 px-3 py-2 text-emerald-700">
-              {dashboardStats.activeVehicles} vehicles
+              {dashboardStats.activeVehicles} vehículos (con provincia)
             </div>
             <div className="rounded-lg bg-teal-50 px-3 py-2 text-teal-700">
-              {dashboardStats.activeProperties} properties
+              {dashboardStats.activeProperties} inmuebles (con provincia)
             </div>
-            <div className="rounded-lg bg-amber-50 px-3 py-2 text-amber-700">
-              Auctions to be released: <span className="font-semibold">{dashboardStats.preAuctionCount}</span>
+            <div className="rounded-lg bg-white px-3 py-2 text-gray-700 border border-gray-200">
+              Histórico total desde {dashboardStats.oldestAuctionYear ?? 'N/A'}: <span className="font-semibold text-gray-900">{dashboardStats.totalAuctions.toLocaleString('es-ES')}</span>
             </div>
           </div>
         </section>

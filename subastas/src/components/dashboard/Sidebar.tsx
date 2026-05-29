@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { PROVINCES_BY_COMMUNITY, OFFICIAL_CATEGORIES } from '@/lib/constants';
 import { UserTier, AuctionCategory } from '@/types';
+import { apiFetch } from "@/lib/api-path";
 
 interface SidebarProps {
   userTier: UserTier;
@@ -48,7 +49,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await fetch('/api/stats');
+        const response = await apiFetch('/api/stats');
         const result = await response.json();
         
         if (result.success) {

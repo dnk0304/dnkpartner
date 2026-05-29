@@ -11,6 +11,7 @@ import { Bell, Check, Plus, Trash2, Loader2 } from 'lucide-react';
 import { ALL_PROVINCES, OFFICIAL_CATEGORIES, AUCTION_SOURCES } from '@/lib/constants';
 import { AuctionType, AuctionStatus } from '@/types';
 import { capitalizeLocation } from '@/lib/utils';
+import { apiFetch } from "@/lib/api-path";
 
 interface AlertsModalProps {
   open: boolean;
@@ -77,7 +78,7 @@ export const AlertsModal: React.FC<AlertsModalProps> = ({
   const fetchAlerts = async () => {
     setFetching(true);
     try {
-      const response = await fetch('/api/user/alerts');
+      const response = await apiFetch('/api/user/alerts');
       if (response.ok) {
         const data = await response.json();
         const normalizedAlerts = (data.alerts || []).map((alert: any) => ({
@@ -176,7 +177,7 @@ export const AlertsModal: React.FC<AlertsModalProps> = ({
         statuses: alert.statuses?.join(','),
       }));
 
-      const response = await fetch('/api/user/alerts', {
+      const response = await apiFetch('/api/user/alerts', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ alerts: payloadAlerts }),
