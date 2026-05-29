@@ -25,14 +25,14 @@ if (process.env.APPLE_ID && process.env.APPLE_SECRET) {
   );
 }
 
-function ensureUserForOAuth(email: string, name?: string | null, image?: string | null): string {
-  const existingUser = queryOne<{ id: string }>(
+async function ensureUserForOAuth(email: string, name?: string | null, image?: string | null): Promise<string> {
+  const existingUser = await queryOne<{ id: string }>(
     "SELECT id FROM User WHERE email = ?",
     [email]
   );
 
   if (existingUser?.id) {
-    execute(
+    await execute(
       `
       UPDATE User
       SET name = COALESCE(name, ?),
@@ -49,7 +49,7 @@ function ensureUserForOAuth(email: string, name?: string | null, image?: string 
   const trialEnd = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
   const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 
-  execute(
+  await execute(
     `
     INSERT INTO User (
       id, email, password, name, image, emailVerified, tier,
@@ -67,7 +67,7 @@ function ensureUserForOAuth(email: string, name?: string | null, image?: string 
       "FREE",
       now.toISOString(),
       trialEnd.toISOString(),
-      0,
+      false,
     ]
   );
 
@@ -89,7 +89,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null;
         }
 
-        const user = queryOne<{
+        const user = await queryOne<{
           id: string;
           email: string;
           password: string | null;
@@ -136,7 +136,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
 
       try {
-        const dbUserId = ensureUserForOAuth(user.email, user.name, user.image);
+        const dbUserId = await ensureUserForOAuth(user.email, user.name, user.image);
         user.id = dbUserId;
         return true;
       } catch (error) {
@@ -148,7 +148,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (user) {
         if (user.email) {
           try {
-            const dbUser = queryOne<{ id: string; name: string | null; image: string | null }>(
+            const dbUser = await queryOne<{ id: string; name: string | null; image: string | null }>(
               "SELECT id, name, image FROM User WHERE email = ?",
               [user.email]
             );
@@ -186,7 +186,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         
         // Add tier to session - wrap in try/catch to prevent session failures
         try {
-          const userWithTier = queryOne<{ tier: string }>('SELECT tier FROM User WHERE id = ?', [
+          const userWithTier = await queryOne<{ tier: string }>('SELECT tier FROM User WHERE id = ?', [
             token.id as string
           ]);
           

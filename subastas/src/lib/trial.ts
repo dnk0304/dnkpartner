@@ -3,7 +3,7 @@
  * Functions to check and manage 15-day free trial for new users
  */
 
-import { query, queryOne, execute } from './db';
+import { queryOne, execute } from './db';
 
 export interface TrialStatus {
   isActive: boolean;
@@ -13,9 +13,9 @@ export interface TrialStatus {
 }
 
 interface UserTrialData {
-  trialStartDate: string | null;
-  trialEndDate: string | null;
-  hasUsedTrial: number;
+  trialStartDate: string | Date | null;
+  trialEndDate: string | Date | null;
+  hasUsedTrial: number | boolean;
   tier: string;
 }
 
@@ -23,7 +23,7 @@ interface UserTrialData {
  * Check if a user's trial is still active
  */
 export async function checkTrialStatus(userId: string): Promise<TrialStatus> {
-  const user = queryOne<UserTrialData>(
+  const user = await queryOne<UserTrialData>(
     'SELECT trialStartDate, trialEndDate, hasUsedTrial, tier FROM User WHERE id = ?',
     [userId]
   );
@@ -62,8 +62,10 @@ export async function checkTrialStatus(userId: string): Promise<TrialStatus> {
   const hasExpired = now > endDate;
   const daysRemaining = Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
 
+  // hasUsedTrial: 0/false = unused (active eligible), 1/true = used.
+  const hasUsedTrial = user.hasUsedTrial === true || user.hasUsedTrial === 1;
   return {
-    isActive: !hasExpired && user.hasUsedTrial === 0,
+    isActive: !hasExpired && !hasUsedTrial,
     daysRemaining,
     endDate,
     hasExpired,
@@ -74,14 +76,14 @@ export async function checkTrialStatus(userId: string): Promise<TrialStatus> {
  * Mark trial as expired for a user
  */
 export async function expireTrial(userId: string): Promise<void> {
-  execute('UPDATE User SET hasUsedTrial = 1 WHERE id = ?', [userId]);
+  await execute('UPDATE User SET hasUsedTrial = ? WHERE id = ?', [true, userId]);
 }
 
 /**
  * Extend trial by additional days (admin function)
  */
 export async function extendTrial(userId: string, additionalDays: number): Promise<Date> {
-  const user = queryOne<{trialEndDate: string | null}>(
+  const user = await queryOne<{trialEndDate: string | Date | null}>(
     'SELECT trialEndDate FROM User WHERE id = ?',
     [userId]
   );
@@ -93,7 +95,7 @@ export async function extendTrial(userId: string, additionalDays: number): Promi
   const currentEndDate = new Date(user.trialEndDate);
   const newEndDate = new Date(currentEndDate.getTime() + additionalDays * 24 * 60 * 60 * 1000);
 
-  execute('UPDATE User SET trialEndDate = ? WHERE id = ?', [newEndDate.toISOString(), userId]);
+  await execute('UPDATE User SET trialEndDate = ? WHERE id = ?', [newEndDate.toISOString(), userId]);
 
   return newEndDate;
 }

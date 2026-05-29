@@ -59,7 +59,7 @@ export async function GET() {
       ...PRE_AUCTION_STATUSES,
     ];
 
-    const raw = queryOne<AuctionStatsRow>(sql, params);
+    const raw = await queryOne<AuctionStatsRow>(sql, params);
     const stats = {
       totalAuctions: Number(raw?.totalAuctions || 0),
       oldestAuctionYear: raw?.oldestAuctionYear || null,

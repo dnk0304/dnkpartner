@@ -11,8 +11,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    const favorites = query<any>(`
-      SELECT 
+    const favorites = await query<any>(`
+      SELECT
         f.id,
         f.auctionId,
         f.notes,
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
       WHERE f.userId = ?
       ORDER BY f.createdAt DESC
     `, [session.user.id]);
-    
+
     return NextResponse.json({ success: true, data: favorites });
   } catch (error) {
     console.error('Error fetching favorites:', error);
@@ -48,29 +48,29 @@ export async function POST(request: NextRequest) {
     }
     
     // Check if already favorited
-    const existing = queryOne<{ id: string }>(`
+    const existing = await queryOne<{ id: string }>(`
       SELECT id FROM Favorite WHERE userId = ? AND auctionId = ?
     `, [session.user.id, auctionId]);
-    
+
     if (existing) {
       return NextResponse.json({ error: 'Already favorited' }, { status: 400 });
     }
-    
+
     // Generate ID (simple cuid-like)
     const favoriteId = `fav_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    execute(`
+
+    await execute(`
       INSERT INTO Favorite (id, userId, auctionId, notes, createdAt)
       VALUES (?, ?, ?, ?, datetime('now'))
     `, [favoriteId, session.user.id, auctionId, notes || null]);
-    
+
     // Update favorite count on auction
-    execute(`
+    await execute(`
       UPDATE Auction SET favoriteCount = favoriteCount + 1 WHERE id = ?
     `, [auctionId]);
-    
-    const favorite = queryOne<any>(`
-      SELECT 
+
+    const favorite = await queryOne<any>(`
+      SELECT
         f.id,
         f.auctionId,
         f.notes,
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       JOIN Auction a ON f.auctionId = a.id
       WHERE f.id = ?
     `, [favoriteId]);
-    
+
     return NextResponse.json({ success: true, data: favorite });
   } catch (error) {
     console.error('Error creating favorite:', error);
@@ -104,15 +104,15 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'auctionId is required' }, { status: 400 });
     }
     
-    execute(`
+    await execute(`
       DELETE FROM Favorite WHERE userId = ? AND auctionId = ?
     `, [session.user.id, auctionId]);
-    
-    // Update favorite count on auction
-    execute(`
-      UPDATE Auction SET favoriteCount = CAST(MAX(favoriteCount - 1, 0) AS INTEGER) WHERE id = ?
+
+    // Update favorite count on auction (PG uses GREATEST, not 2-arg MAX).
+    await execute(`
+      UPDATE Auction SET favoriteCount = GREATEST(favoriteCount - 1, 0) WHERE id = ?
     `, [auctionId]);
-    
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting favorite:', error);
@@ -136,12 +136,12 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'auctionId is required' }, { status: 400 });
     }
     
-    execute(`
+    await execute(`
       UPDATE Favorite SET notes = ? WHERE userId = ? AND auctionId = ?
     `, [notes, session.user.id, auctionId]);
-    
-    const updated = queryOne<any>(`
-      SELECT 
+
+    const updated = await queryOne<any>(`
+      SELECT
         f.id,
         f.auctionId,
         f.notes,
@@ -151,7 +151,7 @@ export async function PATCH(request: NextRequest) {
       JOIN Auction a ON f.auctionId = a.id
       WHERE f.userId = ? AND f.auctionId = ?
     `, [session.user.id, auctionId]);
-    
+
     return NextResponse.json({ success: true, data: updated });
   } catch (error) {
     console.error('Error updating favorite:', error);

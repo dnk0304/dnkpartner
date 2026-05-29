@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user exists
-    const user = queryOne<{ id: string; email: string }>(`
+    const user = await queryOne<{ id: string; email: string }>(`
       SELECT id, email FROM User WHERE email = ?
     `, [email]);
 
@@ -30,11 +30,11 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date(Date.now() + 3600000); // 1 hour from now
 
     // Delete any existing reset tokens for this email
-    execute(`DELETE FROM PasswordResetToken WHERE email = ?`, [email]);
+    await execute(`DELETE FROM PasswordResetToken WHERE email = ?`, [email]);
 
     // Create new reset token
     const tokenId = `token_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    execute(`
+    await execute(`
       INSERT INTO PasswordResetToken (id, email, token, expiresAt, createdAt)
       VALUES (?, ?, ?, ?, datetime('now'))
     `, [tokenId, email, resetToken, expiresAt.toISOString()]);

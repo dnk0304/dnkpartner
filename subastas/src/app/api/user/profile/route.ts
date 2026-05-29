@@ -19,7 +19,7 @@ export async function PUT(request: NextRequest) {
 
     // Update name if provided
     if (name && name !== session.user.name) {
-      execute('UPDATE User SET name = ? WHERE id = ?', [name, session.user.id]);
+      await execute('UPDATE User SET name = ? WHERE id = ?', [name, session.user.id]);
     }
 
     // Update password if provided
@@ -32,7 +32,7 @@ export async function PUT(request: NextRequest) {
       }
 
       // Verify current password
-      const user = queryOne<{ password: string | null }>(`
+      const user = await queryOne<{ password: string | null }>(`
         SELECT password FROM User WHERE id = ?
       `, [session.user.id]);
 
@@ -54,7 +54,7 @@ export async function PUT(request: NextRequest) {
 
       // Hash new password
       const hashedPassword = await bcrypt.hash(newPassword, 12);
-      execute('UPDATE User SET password = ? WHERE id = ?', [hashedPassword, session.user.id]);
+      await execute('UPDATE User SET password = ? WHERE id = ?', [hashedPassword, session.user.id]);
     }
 
     return NextResponse.json({
@@ -81,15 +81,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const user = queryOne<{
+    const user = await queryOne<{
       id: string;
       email: string;
       name: string | null;
       tier: string;
-      trialStartDate: string | null;
-      trialEndDate: string | null;
-      hasUsedTrial: number;
-      createdAt: string;
+      trialStartDate: string | Date | null;
+      trialEndDate: string | Date | null;
+      hasUsedTrial: number | boolean;
+      createdAt: string | Date;
     }>(`
       SELECT id, email, name, tier, trialStartDate, trialEndDate, hasUsedTrial, createdAt
       FROM User WHERE id = ?

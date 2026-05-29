@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { query } from '@/lib/db';
 
 // Enhanced admin API for scraper management with configuration
 export async function POST(request: NextRequest) {
@@ -387,32 +388,36 @@ export async function POST(request: NextRequest) {
       }
       
       case 'stop-all-scrapers': {
-        // Stop all Python scraper processes
+        // Stop all Python scraper processes. POSIX (Coolify/Linux) uses pkill;
+        // Windows local-dev uses taskkill. Detect at runtime.
         try {
           const { exec } = require('child_process');
           const util = require('util');
           const execPromise = util.promisify(exec);
-          
-          // Windows: taskkill to stop Python processes
-          // This will stop all python.exe processes running scrapers
-          await execPromise('taskkill /F /IM python.exe /T');
-          
+
+          const cmd = process.platform === 'win32'
+            ? 'taskkill /F /IM python.exe /T'
+            : 'pkill -f python || pkill -f python3 || true';
+
+          await execPromise(cmd);
+
           return NextResponse.json({
             success: true,
             message: 'All Python scraper processes stopped successfully'
           });
         } catch (error: any) {
-          // If no processes found, taskkill returns an error
-          if (error.message && error.message.includes('not found')) {
+          // pkill / taskkill returning non-zero when nothing matches is normal.
+          const msg = String(error?.message || '');
+          if (msg.includes('not found') || msg.includes('no process found') || msg.includes('exit code 1')) {
             return NextResponse.json({
               success: true,
               message: 'No running scraper processes found'
             });
           }
-          
+
           return NextResponse.json({
             success: false,
-            message: 'Failed to stop processes: ' + (error.message || 'Unknown error')
+            message: 'Failed to stop processes: ' + (msg || 'Unknown error')
           });
         }
       }
@@ -562,89 +567,95 @@ export async function GET(request: NextRequest) {
       
     } catch (e) {}
     
-    // Check for running processes
+    // Check for running processes (cross-platform).
     let isRunning = false;
-    let runningProcesses: any[] = [];
-    
+    const runningProcesses: any[] = [];
+
     try {
       const { exec } = require('child_process');
       const util = require('util');
       const execPromise = util.promisify(exec);
-      
-      // Windows: Check for Python processes
+
       try {
-        const { stdout } = await execPromise('tasklist /FI "IMAGENAME eq python.exe" /FO CSV /NH');
-        const lines = stdout.trim().split('\n');
-        
-        if (lines.length > 0 && lines[0] !== '') {
-          isRunning = true;
-          
-          // Parse process info
-          for (const line of lines) {
+        let stdout = '';
+        if (process.platform === 'win32') {
+          const r = await execPromise('tasklist /FI "IMAGENAME eq python.exe" /FO CSV /NH');
+          stdout = r.stdout;
+          for (const line of stdout.trim().split('\n')) {
             if (line && line.includes('python.exe')) {
               const parts = line.split(',');
               if (parts.length >= 2) {
                 const pid = parts[1].replace(/"/g, '').trim();
-                runningProcesses.push({ 
-                  name: 'python.exe', 
-                  pid: parseInt(pid) 
-                });
+                runningProcesses.push({ name: 'python.exe', pid: parseInt(pid) });
               }
             }
           }
+        } else {
+          // Linux/macOS: list python processes via `pgrep -fl python`.
+          const r = await execPromise('pgrep -fl python || true');
+          stdout = r.stdout;
+          for (const line of stdout.trim().split('\n')) {
+            if (!line) continue;
+            const match = line.match(/^(\d+)\s+(.+)$/);
+            if (match) {
+              runningProcesses.push({ name: match[2], pid: parseInt(match[1], 10) });
+            }
+          }
         }
-      } catch (e) {
-        // No Python processes running
+        isRunning = runningProcesses.length > 0;
+      } catch {
+        // No matching processes — not an error.
       }
     } catch (e) {
       console.error('Error checking processes:', e);
     }
     
-    // Get database stats
-    let dbStats = { 
-      total: 0, 
-      by_status: { active: 0, finished: 0, pre: 0, suspended: 0, cancelled: 0 }, 
+    // Get database stats via the standard pg-backed adapter (was direct
+    // better-sqlite3 — won't work on Postgres/Coolify).
+    const dbStats = {
+      total: 0,
+      by_status: { active: 0, finished: 0, pre: 0, suspended: 0, cancelled: 0 },
       by_category: {} as Record<string, number>
     };
     try {
-      const dbPath = path.join(process.cwd(), 'data', 'database', 'prod.db');
-      const Database = require('better-sqlite3');
-      const db = new Database(dbPath, { readonly: true });
-      
-      // Get total count
-      const totalRow = db.prepare('SELECT COUNT(*) as count FROM Auction').get() as any;
-      dbStats.total = totalRow?.count || 0;
-      
-      // Get counts by status
-      const statusRows = db.prepare('SELECT status, COUNT(*) as count FROM Auction GROUP BY status').all() as any[];
+      const totalRows = await query<{ count: string | number }>('SELECT COUNT(*) as count FROM Auction');
+      dbStats.total = Number(totalRows[0]?.count || 0);
+
+      const statusRows = await query<{ status: string; count: string | number }>(
+        'SELECT status, COUNT(*) as count FROM Auction GROUP BY status'
+      );
       const statusMap: Record<string, string> = {
         'ACTIVE': 'active',
+        'CELEBRANDOSE': 'active',
         'FINISHED': 'finished',
-        'CANCELLED': 'finished', // Count CANCELLED as finished
-        'SUSPENDED': 'finished', // Count SUSPENDED as finished
-        'PRE_AUCTION': 'pre'
+        'CONCLUIDA_PORTAL': 'finished',
+        'FINALIZADA_AUTORIDAD': 'finished',
+        'CANCELLED': 'finished',
+        'CANCELADA': 'finished',
+        'SUSPENDED': 'finished',
+        'SUSPENDIDA': 'finished',
+        'PRE_AUCTION': 'pre',
+        'PROXIMA_APERTURA': 'pre',
       };
-      
-      statusRows.forEach((row: any) => {
+
+      statusRows.forEach((row) => {
+        const count = Number(row.count);
         const mappedStatus = statusMap[row.status] || 'active';
         if (mappedStatus === 'finished') {
-          dbStats.by_status.finished += row.count;
+          dbStats.by_status.finished += count;
         } else {
-          dbStats.by_status[mappedStatus as keyof typeof dbStats.by_status] = row.count;
+          dbStats.by_status[mappedStatus as keyof typeof dbStats.by_status] += count;
         }
-        
-        // Also store individual counts
-        if (row.status === 'SUSPENDED') dbStats.by_status.suspended = row.count;
-        if (row.status === 'CANCELLED') dbStats.by_status.cancelled = row.count;
+        if (row.status === 'SUSPENDED' || row.status === 'SUSPENDIDA') dbStats.by_status.suspended += count;
+        if (row.status === 'CANCELLED' || row.status === 'CANCELADA') dbStats.by_status.cancelled += count;
       });
-      
-      // Get counts by category
-      const categoryRows = db.prepare('SELECT category, COUNT(*) as count FROM Auction GROUP BY category').all() as any[];
-      categoryRows.forEach((row: any) => {
-        dbStats.by_category[row.category] = row.count;
+
+      const categoryRows = await query<{ category: string; count: string | number }>(
+        'SELECT category, COUNT(*) as count FROM Auction GROUP BY category'
+      );
+      categoryRows.forEach((row) => {
+        dbStats.by_category[row.category] = Number(row.count);
       });
-      
-      db.close();
     } catch (e) {
       console.error('Error fetching database stats:', e);
     }

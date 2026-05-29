@@ -68,7 +68,7 @@ export class NotificationService {
    */
   private async sendPush(payload: NotificationPayload): Promise<boolean> {
     // Get user's push subscriptions
-    const subscriptions = query<{id: string, endpoint: string, p256dh: string, auth: string}>(
+    const subscriptions = await query<{id: string, endpoint: string, p256dh: string, auth: string}>(
       'SELECT id, endpoint, p256dh, auth FROM PushSubscription WHERE userId = ?',
       [payload.userId]
     );
@@ -109,11 +109,11 @@ export class NotificationService {
           }
         },
         JSON.stringify(notificationPayload)
-      ).catch((error: any) => {
+      ).catch(async (error: any) => {
         console.error('Push send failed:', error);
         // Remove invalid subscriptions
         if (error.statusCode === 410) {
-          execute('DELETE FROM PushSubscription WHERE id = ?', [sub.id]);
+          await execute('DELETE FROM PushSubscription WHERE id = ?', [sub.id]);
         }
       });
     });
@@ -128,7 +128,7 @@ export class NotificationService {
    */
   private async sendWhatsApp(payload: NotificationPayload): Promise<boolean> {
     // Get user phone number
-    const user = queryOne<{phone: string | null}>(
+    const user = await queryOne<{phone: string | null}>(
       'SELECT phone FROM User WHERE id = ?',
       [payload.userId]
     );
@@ -156,10 +156,10 @@ export class NotificationService {
     try {
       const id = randomUUID();
       const now = new Date().toISOString();
-      execute(`
+      await execute(`
         INSERT INTO Notification (id, userId, auctionId, alertId, read, sentAt)
-        VALUES (?, ?, ?, ?, 0, ?)
-      `, [id, payload.userId, payload.auctionId, payload.alertId || null, now]);
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, [id, payload.userId, payload.auctionId, payload.alertId || null, false, now]);
     } catch (error) {
       console.error('Failed to log notification:', error);
     }

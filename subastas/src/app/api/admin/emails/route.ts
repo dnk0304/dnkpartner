@@ -13,47 +13,49 @@ export async function GET(request: NextRequest) {
     }
 
     // Get alert counts (proxy for email activity)
-    const alertStats = query<{ active: number; count: number }>(
-      `SELECT active, COUNT(*) as count 
-       FROM Alert 
+    const alertStats = await query<{ active: boolean; count: string | number }>(
+      `SELECT active, COUNT(*) as count
+       FROM Alert
        GROUP BY active`
     );
 
     // Get users with most alerts
-    const topAlertUsers = query<{ userId: string; email: string; count: number }>(
-      `SELECT 
-        A.userId, 
+    const topAlertUsers = await query<{ userId: string; email: string; count: string | number }>(
+      `SELECT
+        A.userId,
         U.email,
-        COUNT(*) as count 
+        COUNT(*) as count
        FROM Alert A
        JOIN User U ON A.userId = U.id
-       WHERE A.active = 1
+       WHERE A.active = ?
        GROUP BY A.userId, U.email
        ORDER BY count DESC
-       LIMIT 10`
+       LIMIT 10`,
+      [true]
     );
 
     // Get alert creation timeline (last 30 days)
-    const recentAlerts = query<{ date: string; count: number }>(
-      `SELECT 
+    const recentAlerts = await query<{ date: string; count: string | number }>(
+      `SELECT
         DATE(createdAt) as date,
-        COUNT(*) as count 
-       FROM Alert 
+        COUNT(*) as count
+       FROM Alert
        WHERE createdAt >= datetime('now', '-30 days')
        GROUP BY DATE(createdAt)
        ORDER BY date DESC`
     );
 
-    const totalAlerts = query<{ count: number }>(
+    const totalAlertsRows = await query<{ count: string | number }>(
       `SELECT COUNT(*) as count FROM Alert`
-    )[0];
+    );
 
+    const isActive = (v: unknown) => v === true || v === 1;
     return NextResponse.json({
-      totalAlerts: totalAlerts.count,
-      activeAlerts: alertStats.find(s => s.active === 1)?.count || 0,
-      inactiveAlerts: alertStats.find(s => s.active === 0)?.count || 0,
-      topUsers: topAlertUsers,
-      recentActivity: recentAlerts,
+      totalAlerts: Number(totalAlertsRows[0]?.count || 0),
+      activeAlerts: Number(alertStats.find(s => isActive(s.active))?.count || 0),
+      inactiveAlerts: Number(alertStats.find(s => !isActive(s.active))?.count || 0),
+      topUsers: topAlertUsers.map(u => ({ ...u, count: Number(u.count) })),
+      recentActivity: recentAlerts.map(a => ({ ...a, count: Number(a.count) })),
       note: 'Email logs are tracked through alert system. Each active alert triggers email notifications when matching auctions are found.'
     });
 

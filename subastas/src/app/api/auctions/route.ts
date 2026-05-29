@@ -16,6 +16,46 @@ const normalizeText = (value: string) => {
     .trim();
 };
 
+// Cached "SELECT DISTINCT province" \u2014 full scan against 229k rows on every
+// filtered request is wildly expensive. Provinces change rarely (Spain has 52);
+// 5-minute TTL is more than enough.
+let provinceCache: { values: string[]; expiresAt: number } | null = null;
+async function getCachedDistinctProvinces(): Promise<string[]> {
+  if (provinceCache && provinceCache.expiresAt > Date.now()) {
+    return provinceCache.values;
+  }
+  const rows = await query<{ province: string }>(
+    'SELECT DISTINCT province FROM Auction WHERE province IS NOT NULL',
+    []
+  );
+  provinceCache = {
+    values: rows.map((r) => r.province),
+    expiresAt: Date.now() + 5 * 60 * 1000,
+  };
+  return provinceCache.values;
+}
+
+// Streetview directory listing cache \u2014 `fs.existsSync` ran per row, per request.
+// Replace with one directory scan, cached 1 minute.
+let streetviewFileCache: { files: Set<string>; expiresAt: number } | null = null;
+function getStreetviewFileSet(): Set<string> {
+  if (streetviewFileCache && streetviewFileCache.expiresAt > Date.now()) {
+    return streetviewFileCache.files;
+  }
+  const dir = path.join(process.cwd(), 'public', 'streetview');
+  let files: string[] = [];
+  try {
+    files = fs.existsSync(dir) ? fs.readdirSync(dir) : [];
+  } catch {
+    files = [];
+  }
+  streetviewFileCache = {
+    files: new Set(files),
+    expiresAt: Date.now() + 60 * 1000,
+  };
+  return streetviewFileCache.files;
+}
+
 // New BOE-accurate status values
 type DBStatus = 
   | 'PROXIMA_APERTURA' | 'CELEBRANDOSE' | 'SUSPENDIDA' | 'CANCELADA' | 'CONCLUIDA_PORTAL' | 'FINALIZADA_AUTORIDAD'
@@ -188,10 +228,11 @@ function getAppropriateImageUrl(item: AuctionFromDB): string {
     : null;
   const isActiveOrPreAuction = ['ACTIVE', 'CELEBRANDOSE', 'PRE_AUCTION', 'PROXIMA_APERTURA'].includes(item.status);
 
+  const streetviewFiles = getStreetviewFileSet();
   const streetviewFileExists = (publicPath: string | null): boolean => {
     if (!publicPath || !publicPath.startsWith('/streetview/')) return false;
-    const absolutePath = path.join(process.cwd(), 'public', publicPath.replace(/^\/+/, ''));
-    return fs.existsSync(absolutePath);
+    const fname = publicPath.replace(/^\/streetview\//, '');
+    return streetviewFiles.has(fname);
   };
 
   const hasValidLocalImage = (publicPath: string | null): boolean => {
@@ -444,10 +485,10 @@ export async function GET(request: NextRequest) {
     let hasActiveTrial = false;
     if (tier === 'free' && userIdParam) {
       try {
-        const user = queryOne<{ trialEndDate: string | null }>(`
+        const user = await queryOne<{ trialEndDate: string | Date | null }>(`
           SELECT trialEndDate FROM User WHERE id = ?
         `, [userIdParam]);
-        
+
         if (user?.trialEndDate) {
           const trialEnd = new Date(user.trialEndDate);
           hasActiveTrial = trialEnd.getTime() > Date.now();
@@ -467,12 +508,8 @@ export async function GET(request: NextRequest) {
     // Apply filters
     if (province) {
       const normalizedProvince = normalizeText(province);
-      const dbProvinces = query<{ province: string }>(
-        'SELECT DISTINCT province FROM Auction WHERE province IS NOT NULL',
-        []
-      );
+      const dbProvinces = await getCachedDistinctProvinces();
       const provinceMatches = dbProvinces
-        .map((row) => row.province)
         .filter((value) => normalizeText(value) === normalizedProvince);
 
       if (provinceMatches.length > 0) {
@@ -569,7 +606,7 @@ export async function GET(request: NextRequest) {
     
     // Execute query
     const queryStart = Date.now();
-    const auctions = query<AuctionFromDB>(sql, params);
+    const auctions = await query<AuctionFromDB>(sql, params);
     const queryTime = Date.now() - queryStart;
     
     // Check if there are more results
@@ -586,7 +623,9 @@ export async function GET(request: NextRequest) {
                           .replace(/ORDER BY.*/, '')
                           .replace(/LIMIT.*/, '');
       const countParams = params.slice(0, -1); // Remove LIMIT param
-      totalCount = queryOne<{ count: number }>(countSql, countParams)?.count || 0;
+      const countRow = await queryOne<{ count: string | number }>(countSql, countParams);
+      // PG returns COUNT(*) as bigint -> string; coerce.
+      totalCount = countRow ? Number(countRow.count) : 0;
     }
     
     // Apply tier-based masking
@@ -597,17 +636,16 @@ export async function GET(request: NextRequest) {
     // Get teaser counts for guests
     let teaserCounts = null;
     if (tier === 'GUEST' && page === 1) {
-      const activeCount = queryOne<{ count: number }>(`
+      const activeRow = await queryOne<{ count: string | number }>(`
         SELECT COUNT(*) as count FROM Auction WHERE status IN ('ACTIVE', 'SUSPENDED', 'CELEBRANDOSE', 'SUSPENDIDA')
-      `, [])?.count || 0;
-      
-      const preAuctionCount = queryOne<{ count: number }>(`
+      `, []);
+      const preAuctionRow = await queryOne<{ count: string | number }>(`
         SELECT COUNT(*) as count FROM Auction WHERE status IN ('PRE_AUCTION', 'PROXIMA_APERTURA')
-      `, [])?.count || 0;
-      
+      `, []);
+
       teaserCounts = {
-        active: activeCount,
-        preAuction: preAuctionCount
+        active: activeRow ? Number(activeRow.count) : 0,
+        preAuction: preAuctionRow ? Number(preAuctionRow.count) : 0,
       };
     }
 

@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user already exists
-    const existingUser = queryOne<{ id: string }>(`
+    const existingUser = await queryOne<{ id: string }>(`
       SELECT id FROM User WHERE email = ?
     `, [email]);
 
@@ -45,9 +45,9 @@ export async function POST(request: NextRequest) {
     const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     // Create user with 15-day trial
-    execute(`
+    await execute(`
       INSERT INTO User (
-        id, email, password, emailVerified, tier, 
+        id, email, password, emailVerified, tier,
         trialStartDate, trialEndDate, hasUsedTrial, createdAt
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
       'FREE', // Start as FREE tier
       now.toISOString(), // Trial starts immediately
       trialEnd.toISOString(), // 15 days from now
-      0 // hasUsedTrial = false
+      false, // hasUsedTrial = false
     ]);
 
     return NextResponse.json(

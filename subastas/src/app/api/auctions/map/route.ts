@@ -152,7 +152,7 @@ export async function GET(request: NextRequest) {
       ORDER BY datetime(COALESCE(publishedAt, createdAt, updatedAt)) DESC
     `;
 
-    const auctions = query<MapAuctionFromDB>(sql, params);
+    const auctions = await query<MapAuctionFromDB>(sql, params);
 
     // Transform to frontend format
     const mapAuctions = auctions

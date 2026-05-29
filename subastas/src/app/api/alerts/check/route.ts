@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { ensureAlertSchema } from '@/lib/alerts-schema';
 import { Resend } from 'resend';
 import { createAuctionAlertEmail } from '@/lib/email-templates';
 
@@ -12,11 +11,10 @@ import { createAuctionAlertEmail } from '@/lib/email-templates';
  * 1. By a cron job every 15 minutes
  * 2. After new auctions are scraped and added to the database
  */
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
-    ensureAlertSchema();
     // Get all active alerts with user info
-    const alerts = query(`
+    const alerts = await query(`
       SELECT a.*, u.id as uId, u.email as uEmail, u.tier as uTier
       FROM Alert a
       LEFT JOIN User u ON a.userId = u.id
@@ -24,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     // Get recent auctions (last 24 hours)
     const cutoffDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const recentAuctions = query<any>(`
+    const recentAuctions = await query<any>(`
       SELECT * FROM Auction WHERE createdAt >= ?
     `, [cutoffDate]);
 
@@ -138,7 +136,8 @@ async function sendNotifications(matchesByAlert: Record<string, { alert: any; au
     const alert = entry.alert;
     const auctions = entry.auctions;
 
-    if (!alert.uEmail || alert.emailEnabled === 0) {
+    // emailEnabled may be a number (legacy SQLite) or boolean (PG). Treat 0 / false as disabled.
+    if (!alert.uEmail || alert.emailEnabled === 0 || alert.emailEnabled === false) {
       continue;
     }
 

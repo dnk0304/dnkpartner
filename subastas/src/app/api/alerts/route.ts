@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { query, queryOne, execute } from '@/lib/db';
 import { randomUUID } from 'crypto';
-import { ensureAlertSchema } from '@/lib/alerts-schema';
 
 // GET /api/alerts - Fetch the authenticated user's alerts
 export async function GET() {
@@ -16,9 +15,7 @@ export async function GET() {
       );
     }
 
-    ensureAlertSchema();
-
-    const alerts = query(`
+    const alerts = await query(`
       SELECT a.*, u.email as userEmail, u.tier as userTier
       FROM Alert a
       LEFT JOIN User u ON a.userId = u.id
@@ -51,8 +48,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    ensureAlertSchema();
-
     const body = await request.json();
     const {
       name,
@@ -73,7 +68,7 @@ export async function POST(request: NextRequest) {
     const id = randomUUID();
     const now = new Date().toISOString();
 
-    execute(`
+    await execute(`
       INSERT INTO Alert (
         id, userId, name, province, municipality, category, source, auctionType, statuses,
         minPrice, maxPrice, keywords, emailEnabled, smsEnabled, notificationType,
@@ -93,8 +88,8 @@ export async function POST(request: NextRequest) {
       minPrice ? parseFloat(minPrice) : null,
       maxPrice ? parseFloat(maxPrice) : null,
       keywords || null,
-      emailEnabled ? 1 : 0,
-      smsEnabled ? 1 : 0,
+      emailEnabled ? true : false,
+      smsEnabled ? true : false,
       notificationType || 'grouped',
       now,
       now,
@@ -141,8 +136,6 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    ensureAlertSchema();
-
     const url = new URL(request.url);
     const id = url.searchParams.get('id') || url.pathname.split('/').pop();
 
@@ -154,7 +147,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify ownership before deleting — prevent IDOR.
-    const existing = queryOne<{ id: string }>(
+    const existing = await queryOne<{ id: string }>(
       'SELECT id FROM Alert WHERE id = ? AND userId = ?',
       [id, session.user.id]
     );
@@ -166,7 +159,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    execute('DELETE FROM Alert WHERE id = ? AND userId = ?', [id, session.user.id]);
+    await execute('DELETE FROM Alert WHERE id = ? AND userId = ?', [id, session.user.id]);
 
     return NextResponse.json({ success: true });
   } catch (error) {

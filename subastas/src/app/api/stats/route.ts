@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get counts grouped by province and status
-    const auctions = query<{ province: string; status: string }>(sql, params);
+    const auctions = await query<{ province: string; status: string }>(sql, params);
 
     // Aggregate counts
     const statsByProvince: Record<string, { active: number; preAuction: number; finished: number; total: number }> = {};

@@ -22,11 +22,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Find the reset token
-    const resetToken = queryOne<{
+    const resetToken = await queryOne<{
       id: string;
       token: string;
       email: string;
-      expiresAt: string;
+      expiresAt: string | Date;
     }>('SELECT * FROM PasswordResetToken WHERE token = ?', [token]);
 
     if (!resetToken) {
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     // Check if token has expired
     if (new Date() > new Date(resetToken.expiresAt)) {
-      execute('DELETE FROM PasswordResetToken WHERE token = ?', [token]);
+      await execute('DELETE FROM PasswordResetToken WHERE token = ?', [token]);
       return NextResponse.json(
         { error: 'Reset token has expired' },
         { status: 400 }
@@ -49,14 +49,14 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await bcrypt.hash(password, 12);
 
     // Update user's password
-    execute(`
-      UPDATE User 
+    await execute(`
+      UPDATE User
       SET password = ?, emailVerified = datetime('now')
       WHERE email = ?
     `, [hashedPassword, resetToken.email]);
 
     // Delete all reset tokens for this email
-    execute('DELETE FROM PasswordResetToken WHERE email = ?', [resetToken.email]);
+    await execute('DELETE FROM PasswordResetToken WHERE email = ?', [resetToken.email]);
 
     return NextResponse.json({ success: true });
   } catch (error) {

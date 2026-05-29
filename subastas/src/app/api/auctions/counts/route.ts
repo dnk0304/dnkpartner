@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
     
     if (province) {
       const normalizedProvince = normalizeText(province);
-      const dbProvinces = query<{ province: string }>(
+      const dbProvinces = await query<{ province: string }>(
         'SELECT DISTINCT province FROM Auction WHERE province IS NOT NULL',
         []
       );
@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
     
     // Execute query
     const queryStart = Date.now();
-    const results = query<{ [key: string]: string | number }>(sql, params);
+    const results = await query<{ [key: string]: string | number }>(sql, params);
     const queryTime = Date.now() - queryStart;
     
     // Aggregate counts by status

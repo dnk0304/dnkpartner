@@ -1,13 +1,26 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// dnksubastas — Prisma schema for Postgres (Wave 1 Forge, 2026-05-29).
+//
+// Strategy: reconciled with live SQLite shape FIRST (so the baseline migration
+// matches what we're about to ETL into), THEN layered the new Wave 1 schema on
+// top (history, outbox, follow prefs, upgraded Notification, structured
+// suspension fields).
+//
+// The legacy AuctionStatus enum values (PRE_AUCTION / ACTIVE / FINISHED /
+// SUSPENDED / CANCELLED) are KEPT for now — Ghost is still writing some of
+// them and the ETL needs to land them as-is. They get dropped in a later wave
+// once Ghost stops emitting them AND the count == 0.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
+
+// ---------------------------------------------------------------------------
+// Core auction data
+// ---------------------------------------------------------------------------
 
 model Auction {
   id           String        @id @default(cuid())
@@ -17,29 +30,29 @@ model Auction {
   province     String
   municipality String?
   status       AuctionStatus @default(CELEBRANDOSE)
-  auctionType  String?       @default("JUDICIAL") // Tipo de Subasta
+  auctionType  String?       @default("JUDICIAL")
 
   // Core auction values
-  appraisalValue Float // Valor subasta / Tasacion
+  appraisalValue Float
   currentBid     Float?
-  minimumBid     Float? // Puja minima
-  depositAmount  Float? // Deposito (5%)
-  claimedAmount  Float? // Cantidad reclamada
-  finalBid       Float? // Puja final
-  bidIncrement   Float? // Tramo entre pujas (2%)
+  minimumBid     Float?
+  depositAmount  Float?
+  claimedAmount  Float?
+  finalBid       Float?
+  bidIncrement   Float?
 
   // Court and legal info
   courtName       String?
-  procedureNumber String? // Expediente
+  procedureNumber String?
   boeLink         String?
-  auctionId       String? // Identificador (e.g., SUB-JA-2025-252888)
-  lotNumber       String? // Numero de lote
-  boeAnnouncement String? // Anuncio del BOE
+  auctionId       String?
+  lotNumber       String?
+  boeAnnouncement String?
 
   // Dates and times
   publishedAt DateTime
-  endsAt      DateTime? // Date only
-  endDateTime DateTime? // Exact date and time
+  endsAt      DateTime?
+  endDateTime DateTime?
 
   // Location data
   latitude  Float?
@@ -47,45 +60,56 @@ model Auction {
   address   String?
 
   // Property details
-  propertyType        String? // Viviendas, Garajes, Trasteros, etc.
-  lotDescription      String? // Descripcion del lote
-  propertyDescription String? // Descripcion del bien
+  propertyType        String?
+  lotDescription      String?
+  propertyDescription String?
 
   // Legal and encumbrance details
-  charges          String? // Cargas
-  chargesDetail    String? // Detalle de las cargas
-  possessionStatus String? // Situacion posesoria
-  visitable        String? // Whether property can be visited
+  charges          String?
+  chargesDetail    String?
+  possessionStatus String?
+  visitable        String?
 
-  // Cadastral information
-  cadastralRef  String? // Referencia catastral
-  cadastralData String? // Full cadastral JSON data
-
-  // Registry information
-  registryId   String? // IDUFIR (unique registry identifier)
-  registryInfo String? // Inscription details (tomo, libro, folio)
-
-  // Contact and submission
-  contactInfo String? // Court contact details JSON
+  // Cadastral / registry / contact
+  cadastralRef  String?
+  cadastralData String?
+  registryId    String?
+  registryInfo  String?
+  contactInfo   String?
 
   // Media
   pdfUrl   String?
   imageUrl String?
 
   // Lifecycle tracking
-  source         String    @default("BOE") // BOE Judiciales, Agencia Tributaria, Seguridad Social, Notariales, etc.
-  courtReference String? // Court proceeding number (NIG)
-  edictUrl       String? // Link to original edict/document
-  originalSource String? // Where first discovered (AlertaSubastas, BOE, etc.)
-  transitionedAt DateTime? // When status last changed
+  source         String    @default("BOE")
+  courtReference String?
+  edictUrl       String?
+  originalSource String?
+  transitionedAt DateTime?
+
+  // Reconciled-with-live-DB columns (existed in SQLite, missing from schema).
+  mapUrl        String?
+  streetViewUrl String?
+  placeUrl      String?
+  directionsUrl String?
+
+  // Wave 1 new structured fields — feed suspension/reschedule notifications
+  // and the freshness/cleanup UI. Populated by Ghost's scrapers.
+  suspensionReason String?
+  resumeAt         DateTime?
+  lastVerifiedAt   DateTime?
 
   // Statistics
   viewCount     Int @default(0)
   favoriteCount Int @default(0)
 
   // Relations
-  favorites     Favorite[]
-  notifications Notification[]
+  favorites      Favorite[]
+  notifications  Notification[]
+  statusHistory  AuctionStatusHistory[]
+  bidHistory     AuctionBidHistory[]
+  outboxEvents   EventOutbox[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -96,20 +120,28 @@ model Auction {
   @@index([source])
   @@index([propertyType])
   @@index([municipality])
+  // Wave 1 composite/partial indexes for the live-state queries.
+  @@index([status, endsAt])
+  @@index([endsAt])
+  @@index([municipality, status])
 }
+
+// ---------------------------------------------------------------------------
+// Identity, billing, sessions
+// ---------------------------------------------------------------------------
 
 model User {
   id                String             @id @default(cuid())
   email             String             @unique
-  password          String? // Hashed password for credentials auth
+  password          String?
   name              String?
-  phone             String? // Phone number for WhatsApp notifications
+  phone             String?
   emailVerified     DateTime?
   image             String?
   tier              UserTier           @default(FREE)
-  trialStartDate    DateTime? // When 15-day trial started
-  trialEndDate      DateTime? // When 15-day trial ends
-  hasUsedTrial      Boolean            @default(false) // Prevent multiple trials
+  trialStartDate    DateTime?
+  trialEndDate      DateTime?
+  hasUsedTrial      Boolean            @default(false)
   alerts            Alert[]
   favorites         Favorite[]
   notifications     Notification[]
@@ -125,11 +157,18 @@ model Alert {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // AlertaSubastas-style filters
-  source       String? // Origen: Todos, BOE Judiciales, Agencia Tributaria, etc.
-  propertyType String? // Tipo de bien: Viviendas, Garajes, etc.
-  province     String? // Provincia
-  municipality String? // Municipio
+  // Reconciled-with-live-DB columns (existed in SQLite via the runtime
+  // ALTER TABLE hack we just deleted; now real first-class schema).
+  name         String?
+  source       String?
+  propertyType String?
+  province     String?
+  municipality String?
+  auctionType  String?
+  statuses     String? // CSV of AuctionStatus values
+  keywords     String? // CSV
+  emailEnabled Boolean @default(true)
+  smsEnabled   Boolean @default(false)
 
   // Legacy filters
   category String?
@@ -137,7 +176,7 @@ model Alert {
   maxPrice Float?
 
   // Notification preferences
-  notificationType String  @default("grouped") // individual or grouped
+  notificationType String  @default("grouped") // individual | grouped
   active           Boolean @default(true)
 
   notifications Notification[]
@@ -155,8 +194,8 @@ model Subscription {
   stripeCustomerId     String?   @unique
   stripeSubscriptionId String?   @unique
   stripePriceId        String?
-  status               String // active, canceled, trialing, past_due
-  tier                 UserTier // GOLD or DIAMOND
+  status               String
+  tier                 UserTier
   currentPeriodStart   DateTime?
   currentPeriodEnd     DateTime?
   cancelAtPeriodEnd    Boolean   @default(false)
@@ -208,20 +247,39 @@ model VerificationToken {
 model PasswordResetToken {
   id        String   @id @default(cuid())
   token     String   @unique
-  email     String // Changed from userId to email
-  expiresAt DateTime // Changed from expires to expiresAt for consistency
+  email     String
+  expiresAt DateTime
   createdAt DateTime @default(now())
 
   @@index([email])
 }
 
+// ---------------------------------------------------------------------------
+// Favorites — extended with per-event notify prefs (Wave 1)
+//
+// Decision (Dennis D5): extend Favorite rather than create a separate
+// AuctionFollow table. One relation per (user, auction), prefs sit beside.
+// ---------------------------------------------------------------------------
+
 model Favorite {
-  id        String   @id @default(cuid())
+  id        String  @id @default(cuid())
   userId    String
   auctionId String
-  notes     String? // User's private notes
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  auction   Auction  @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  notes     String?
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  auction   Auction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+
+  // Wave 1 follow / notify preferences.
+  notifyOnGoLive      Boolean @default(true)
+  notifyOnBid         Boolean @default(true)
+  notifyOnStatus      Boolean @default(true)
+  notifyOnSuspension  Boolean @default(true)
+  notifyOnResume      Boolean @default(true)
+  notifyOnFinish      Boolean @default(true)
+  channels            String  @default("email,inapp") // CSV: email,push,inapp
+  quietHoursStart     Int?
+  quietHoursEnd       Int?
+
   createdAt DateTime @default(now())
 
   @@unique([userId, auctionId])
@@ -229,21 +287,54 @@ model Favorite {
   @@index([auctionId])
 }
 
+// ---------------------------------------------------------------------------
+// Notifications — upgraded for Wave 2 dispatcher (still no worker this wave)
+// ---------------------------------------------------------------------------
+
+enum NotificationType {
+  NEW_MATCH
+  GO_LIVE
+  NEW_BID
+  STATUS_CHANGE
+  SUSPENDED
+  RESUMED
+  ENDING_SOON
+  FINISHED
+  CANCELLED
+}
+
+enum NotificationChannel {
+  email
+  push
+  inapp
+}
+
 model Notification {
-  id        String   @id @default(cuid())
+  id        String  @id @default(cuid())
   userId    String
   alertId   String?
   auctionId String
-  read      Boolean  @default(false)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  alert     Alert?   @relation(fields: [alertId], references: [id], onDelete: Cascade)
-  auction   Auction  @relation(fields: [auctionId], references: [id], onDelete: Cascade)
-  sentAt    DateTime @default(now())
+  read      Boolean @default(false)
+
+  // Wave 1 upgrade.
+  type             NotificationType    @default(NEW_MATCH)
+  channel          NotificationChannel @default(inapp)
+  payload          Json?
+  deliveredAt      DateTime?
+  failureReason    String?
+  deliveryAttempts Int                 @default(0)
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alert   Alert?  @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  auction Auction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  sentAt  DateTime @default(now())
 
   @@index([userId])
   @@index([alertId])
   @@index([auctionId])
   @@index([read])
+  // Inbox feed: latest unread first by user.
+  @@index([userId, read, sentAt(sort: Desc)])
 }
 
 model PushSubscription {
@@ -258,20 +349,80 @@ model PushSubscription {
   @@index([userId])
 }
 
+// ---------------------------------------------------------------------------
+// Wave 1 history + outbox tables (append-only; outbox has dedupe key)
+// ---------------------------------------------------------------------------
+
+model AuctionStatusHistory {
+  id          String        @id @default(cuid())
+  auctionId   String
+  auction     Auction       @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  fromStatus  AuctionStatus?
+  toStatus    AuctionStatus
+  changedAt   DateTime      @default(now())
+  source      String        @default("scraper") // scraper | manual
+  reason      String?       // suspension reason (text)
+  resumeAt    DateTime?     // reschedule target
+  detectedBy  String?       // task name that detected the change
+
+  @@index([auctionId])
+  @@index([changedAt])
+  @@index([auctionId, changedAt(sort: Desc)])
+}
+
+model AuctionBidHistory {
+  id        String   @id @default(cuid())
+  auctionId String
+  auction   Auction  @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  bid       Float
+  bidType   String   @default("current") // current | final
+  seenAt    DateTime @default(now())
+  source    String   @default("scraper")
+
+  @@index([auctionId])
+  @@index([seenAt])
+  @@index([auctionId, seenAt(sort: Desc)])
+}
+
+model EventOutbox {
+  id          String    @id @default(cuid())
+  auctionId   String?
+  auction     Auction?  @relation(fields: [auctionId], references: [id], onDelete: SetNull)
+  eventType   String    // e.g. AUCTION_BID_CHANGED, AUCTION_STATUS_CHANGED, AUCTION_SUSPENDED…
+  payload     Json
+  createdAt   DateTime  @default(now())
+  processedAt DateTime?
+  // Dedupe key: e.g. `${auctionId}:${eventType}:${bidOrStatus}`. Wave 2
+  // dispatcher uses this to skip duplicates.
+  dedupeKey   String?   @unique
+
+  @@index([auctionId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@index([processedAt, createdAt])
+
+  @@map("event_outbox")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
 enum AuctionStatus {
   // New BOE-accurate statuses
-  PROXIMA_APERTURA // Pre-auction (Prox. apertura)
-  CELEBRANDOSE // Currently active
-  SUSPENDIDA // Suspended
-  CANCELADA // Cancelled
-  CONCLUIDA_PORTAL // Concluded in Portal de Subastas
-  FINALIZADA_AUTORIDAD // Finished by Managing Authority
-  // Legacy values (keep for backward compatibility)
-  PRE_AUCTION // Found in TEJU/Sede/Registro but not yet on BOE
-  ACTIVE // Live on BOE Portal
-  FINISHED // Auction completed
-  SUSPENDED // Temporarily halted by court
-  CANCELLED // Court cancelled auction
+  PROXIMA_APERTURA
+  CELEBRANDOSE
+  SUSPENDIDA
+  CANCELADA
+  CONCLUIDA_PORTAL
+  FINALIZADA_AUTORIDAD
+  // Legacy values (kept for backward compatibility — to be dropped in a
+  // later wave once Ghost stops writing them and count == 0).
+  PRE_AUCTION
+  ACTIVE
+  FINISHED
+  SUSPENDED
+  CANCELLED
 }
 
 enum UserTier {

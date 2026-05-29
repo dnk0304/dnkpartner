@@ -8,17 +8,17 @@ import { query, queryOne } from '@/lib/db';
 export async function GET(request: NextRequest) {
   try {
     // Get database stats
-    const auctionCountResult = queryOne<{count: number}>('SELECT COUNT(*) as count FROM Auction', []);
-    const userCountResult = queryOne<{count: number}>('SELECT COUNT(*) as count FROM User', []);
-    const alertCountResult = queryOne<{count: number}>('SELECT COUNT(*) as count FROM Alert', []);
-    
-    const auctionCount = auctionCountResult?.count || 0;
-    const userCount = userCountResult?.count || 0;
-    const alertCount = alertCountResult?.count || 0;
+    const auctionCountResult = await queryOne<{count: string | number}>('SELECT COUNT(*) as count FROM Auction', []);
+    const userCountResult = await queryOne<{count: string | number}>('SELECT COUNT(*) as count FROM User', []);
+    const alertCountResult = await queryOne<{count: string | number}>('SELECT COUNT(*) as count FROM Alert', []);
+
+    const auctionCount = Number(auctionCountResult?.count || 0);
+    const userCount = Number(userCountResult?.count || 0);
+    const alertCount = Number(alertCountResult?.count || 0);
 
     // Get recent auctions (last 24 hours)
     const cutoffDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const recentAuctions = query<{id: string, createdAt: string}>(`
+    const recentAuctions = await query<{id: string, createdAt: string | Date}>(`
       SELECT id, createdAt FROM Auction WHERE createdAt >= ?
     `, [cutoffDate]);
 

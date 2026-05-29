@@ -2,11 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { query, execute } from '@/lib/db';
 import { randomUUID } from 'crypto';
-import { ensureAlertSchema } from '@/lib/alerts-schema';
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
-    ensureAlertSchema();
     const session = await auth();
 
     if (!session?.user?.id) {
@@ -16,7 +14,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const alerts = query('SELECT * FROM Alert WHERE userId = ? ORDER BY id ASC', [session.user.id]);
+    const alerts = await query('SELECT * FROM Alert WHERE userId = ? ORDER BY id ASC', [session.user.id]);
 
     return NextResponse.json({
       success: true,
@@ -33,7 +31,6 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    ensureAlertSchema();
     const session = await auth();
 
     if (!session?.user?.id) {
@@ -47,20 +44,20 @@ export async function PUT(request: NextRequest) {
     const { alerts } = body;
 
     // Delete all existing alerts for this user
-    execute('DELETE FROM Alert WHERE userId = ?', [session.user.id]);
+    await execute('DELETE FROM Alert WHERE userId = ?', [session.user.id]);
 
     // Create new alerts
     if (alerts && Array.isArray(alerts) && alerts.length > 0) {
       const now = new Date().toISOString();
       for (const alert of alerts) {
         const id = randomUUID();
-        execute(`
+        await execute(`
           INSERT INTO Alert (
             id, userId, name, province, municipality, category, source, auctionType, statuses,
             minPrice, maxPrice, keywords, emailEnabled, smsEnabled, notificationType,
             createdAt, updatedAt
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           id,
           session.user.id,
@@ -74,11 +71,11 @@ export async function PUT(request: NextRequest) {
           alert.minPrice ? parseFloat(alert.minPrice) : null,
           alert.maxPrice ? parseFloat(alert.maxPrice) : null,
           alert.keywords || null,
-          alert.emailEnabled ? 1 : 0,
-          alert.smsEnabled ? 1 : 0,
+          alert.emailEnabled ? true : false,
+          alert.smsEnabled ? true : false,
           alert.notificationType || 'grouped',
           now,
-          now
+          now,
         ]);
       }
     }
@@ -98,7 +95,6 @@ export async function PUT(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    ensureAlertSchema();
     const session = await auth();
 
     if (!session?.user?.id) {
@@ -113,13 +109,13 @@ export async function POST(request: NextRequest) {
     const id = randomUUID();
     const now = new Date().toISOString();
 
-    execute(`
+    await execute(`
       INSERT INTO Alert (
         id, userId, name, province, municipality, category, source, auctionType, statuses,
         minPrice, maxPrice, keywords, emailEnabled, smsEnabled, notificationType,
         createdAt, updatedAt
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       id,
       session.user.id,
@@ -133,11 +129,11 @@ export async function POST(request: NextRequest) {
       minPrice ? parseFloat(minPrice) : null,
       maxPrice ? parseFloat(maxPrice) : null,
       keywords || null,
-      emailEnabled ? 1 : 0,
-      smsEnabled ? 1 : 0,
+      emailEnabled ? true : false,
+      smsEnabled ? true : false,
       notificationType || 'grouped',
       now,
-      now
+      now,
     ]);
 
     return NextResponse.json({
@@ -155,7 +151,6 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    ensureAlertSchema();
     const session = await auth();
 
     if (!session?.user?.id) {
@@ -176,7 +171,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify the alert belongs to the user
-    const alerts = query('SELECT * FROM Alert WHERE id = ? AND userId = ?', [alertId, session.user.id]);
+    const alerts = await query('SELECT * FROM Alert WHERE id = ? AND userId = ?', [alertId, session.user.id]);
 
     if (alerts.length === 0) {
       return NextResponse.json(
@@ -185,7 +180,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    execute('DELETE FROM Alert WHERE id = ?', [alertId]);
+    await execute('DELETE FROM Alert WHERE id = ? AND userId = ?', [alertId, session.user.id]);
 
     return NextResponse.json({
       success: true,

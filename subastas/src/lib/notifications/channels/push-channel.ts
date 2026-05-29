@@ -31,7 +31,7 @@ export class PushChannel {
   async sendToUser(userId: string, payload: any): Promise<boolean> {
     try {
       // Get all push subscriptions for user
-      const subscriptions = query<PushSubscriptionRow>(
+      const subscriptions = await query<PushSubscriptionRow>(
         'SELECT id, endpoint, p256dh, auth FROM PushSubscription WHERE userId = ?',
         [userId]
       );
@@ -62,7 +62,7 @@ export class PushChannel {
           
           // Remove invalid subscriptions
           if (error.statusCode === 410 || error.statusCode === 404) {
-            execute('DELETE FROM PushSubscription WHERE id = ?', [sub.id]);
+            await execute('DELETE FROM PushSubscription WHERE id = ?', [sub.id]);
           }
           return false;
         }

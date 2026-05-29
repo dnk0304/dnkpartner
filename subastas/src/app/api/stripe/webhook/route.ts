@@ -93,7 +93,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   );
 
   // Check if subscription exists
-  const existing = queryOne<{ id: string }>(`
+  const existing = await queryOne<{ id: string }>(`
     SELECT id FROM Subscription WHERE userId = ?
   `, [userId]);
 
@@ -102,7 +102,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 
   if (existing) {
     // Update existing subscription
-    execute(`
+    await execute(`
       UPDATE Subscription SET
         stripeCustomerId = ?,
         stripeSubscriptionId = ?,
@@ -125,7 +125,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   } else {
     // Create new subscription
     const subId = `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    execute(`
+    await execute(`
       INSERT INTO Subscription (
         id, userId, stripeCustomerId, stripeSubscriptionId, stripePriceId,
         status, tier, currentPeriodStart, currentPeriodEnd, createdAt
@@ -145,7 +145,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   }
 
   // Update user tier
-  execute('UPDATE User SET tier = ? WHERE id = ?', [tier.toUpperCase(), userId]);
+  await execute('UPDATE User SET tier = ? WHERE id = ?', [tier.toUpperCase(), userId]);
 
   console.log(`✅ Subscription created for user ${userId} - ${tier}`);
 }
@@ -158,7 +158,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     return;
   }
 
-  execute(`
+  await execute(`
     UPDATE Subscription SET
       status = ?,
       currentPeriodStart = ?,
@@ -169,7 +169,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     subscription.status,
     new Date(subscription.current_period_start * 1000).toISOString(),
     new Date(subscription.current_period_end * 1000).toISOString(),
-    subscription.cancel_at_period_end ? 1 : 0,
+    !!subscription.cancel_at_period_end,
     subscription.id
   ]);
 
@@ -185,12 +185,12 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   }
 
   // Update subscription status
-  execute(`
+  await execute(`
     UPDATE Subscription SET status = 'canceled' WHERE stripeSubscriptionId = ?
   `, [subscription.id]);
 
   // Downgrade user to FREE tier
-  execute('UPDATE User SET tier = ? WHERE id = ?', ['FREE', userId]);
+  await execute('UPDATE User SET tier = ? WHERE id = ?', ['FREE', userId]);
 
   console.log(`✅ Subscription canceled for user ${userId}`);
 }
@@ -200,7 +200,7 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
 
   if (!subscriptionId) return;
 
-  execute(`
+  await execute(`
     UPDATE Subscription SET status = 'past_due' WHERE stripeSubscriptionId = ?
   `, [subscriptionId]);
 
@@ -212,7 +212,7 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
 
   if (!subscriptionId) return;
 
-  execute(`
+  await execute(`
     UPDATE Subscription SET status = 'active' WHERE stripeSubscriptionId = ?
   `, [subscriptionId]);
 
