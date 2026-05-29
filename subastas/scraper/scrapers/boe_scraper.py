@@ -515,19 +515,10 @@ class BOEScraper(BaseScraper):
             current_bid = self._extract_currency_from_page(page, ['Puja actual', 'Puja', 'Licitación actual'])
             
             if current_bid:
-                # Update in database
-                auction_data = {
-                    'boe_id': boe_id,
-                    'current_bid': current_bid,
-                    'status': 'ACTIVE',
-                    'title': 'Updated',
-                    'category': 'Viviendas',
-                    'province': self.province or 'Unknown',
-                    'appraisal_value': None,
-                    'published_at': datetime.now(),
-                    'ends_at': datetime.now(),
-                }
-                self.db_adapter.upsert_auction(auction_data)
+                # G2 FIX: use bid-only update — do NOT call upsert_auction with placeholder
+                # fields (title='Updated', category='Viviendas', ends_at=now(), status='ACTIVE')
+                # which overwrites the real row and corrupts status/endsAt on every bid scrape.
+                self.db_adapter.update_auction_bid(boe_id, current_bid)
                 self.log_info(f"Updated bid: €{current_bid:,.2f}")
             
             return current_bid

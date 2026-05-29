@@ -2,7 +2,19 @@
 # -*- coding: utf-8 -*-
 """
 PROPERTY SCRAPER SCHEDULER
-Runs periodic scraping and monitors auction status changes
+Runs periodic scraping and monitors auction status changes.
+
+G4 FIX: hardened for Linux/Coolify container deployment.
+- PYTHON_BIN env var replaces hardcoded 'python' (use 'python3' on Linux)
+- DB_PATH/LOG_DIR/APP_BASE_URL all env-configurable
+- monitor_status_changes uses DatabaseAdapter (Postgres + SQLite compatible)
+- Windows-only sys.stdout.reconfigure removed (was crashing on Linux)
+- Scheduler choice: schedule.py over Celery
+  Justification: Celery requires Redis infra + worker processes which adds
+  operational complexity for a single-container Coolify deploy. schedule.py
+  runs in-process, has zero external dependencies, and is sufficient for the
+  current scrape cadence (sub-hourly pulse, daily full scan). Migrate to Celery
+  if/when parallel worker isolation or distributed retries are needed.
 """
 
 import sys
@@ -10,21 +22,24 @@ import os
 import time
 import subprocess
 import schedule
-import sqlite3
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-import json
 
+# G4: Linux/Coolify compat — do NOT call reconfigure on non-Windows
 if sys.platform == 'win32':
     sys.stdout.reconfigure(encoding='utf-8')
 
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent
-DB_PATH = SCRIPT_DIR.parent / "data" / "database" / "prod.db"
-LOG_DIR = SCRIPT_DIR / "logs"
+
+# G4: all paths env-configurable for container deployment
+DB_PATH = Path(os.getenv("DB_PATH", str(SCRIPT_DIR.parent / "data" / "database" / "prod.db")))
+LOG_DIR = Path(os.getenv("LOG_DIR", str(SCRIPT_DIR / "logs")))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 APP_BASE_URL = os.getenv("NEXT_PUBLIC_APP_URL", "http://localhost:3005").rstrip("/")
+# G4: use 'python3' on Linux; override via PYTHON_BIN env var
+PYTHON_BIN = os.getenv("PYTHON_BIN", "python3" if sys.platform != "win32" else "python")
 
 class ScraperScheduler:
     def __init__(self):
@@ -47,7 +62,7 @@ class ScraperScheduler:
                 self.log(f"  ⚠️  Unsupported mode: {mode}")
                 return
             result = subprocess.run(
-                ['python', 'property_scraper.py', '--mode', mode, '--pages', str(pages), '--headless'],
+                [PYTHON_BIN, 'property_scraper.py', '--mode', mode, '--pages', str(pages), '--headless'],
                 cwd=str(SCRIPT_DIR),
                 capture_output=True,
                 text=True,
@@ -81,7 +96,7 @@ class ScraperScheduler:
         try:
             script_path = PROJECT_ROOT / "scripts" / "run_daily_update.py"
             result = subprocess.run(
-                ['python', str(script_path)],
+                [PYTHON_BIN, str(script_path)],
                 cwd=str(PROJECT_ROOT),
                 capture_output=True,
                 text=True,
@@ -128,61 +143,72 @@ class ScraperScheduler:
         self.trigger_alert_check()
     
     def monitor_status_changes(self):
-        """Monitor and update auction statuses (handles both old and new status values)"""
-        self.log("👀 Monitoring auction status changes...")
-        
+        """Monitor and update auction statuses (handles both old and new status values).
+        G4 FIX: uses DatabaseAdapter so this works with both SQLite and Postgres."""
+        self.log("Monitoring auction status changes...")
+
         try:
-            conn = sqlite3.connect(DB_PATH)
-            cursor = conn.cursor()
-            
-            # Check for auctions that should have ended (both old and new status values)
-            cursor.execute("""
-                SELECT id, boeId, title, endsAt, status
-                FROM Auction
-                WHERE (status IN ('ACTIVE', 'CELEBRANDOSE')) 
-                  AND endsAt < datetime('now')
-            """)
-            
-            expired = cursor.fetchall()
-            
-            if expired:
-                self.log(f"  📌 Found {len(expired)} expired active auctions")
-                
-                # Mark them as finished with new status value
-                for auction in expired:
-                    auction_id = auction[0]
+            import sys as _sys
+            _sys.path.insert(0, str(SCRIPT_DIR))
+            from database.adapter import DatabaseAdapter
+
+            db = DatabaseAdapter()
+            conn = db.connect()
+            now = datetime.now()
+
+            if db.db_type == 'sqlite':
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, boeId, endsAt, status
+                    FROM Auction
+                    WHERE status IN ('ACTIVE', 'CELEBRANDOSE')
+                      AND endsAt < datetime('now')
+                """)
+                expired = cursor.fetchall()
+                if expired:
+                    self.log(f"  Found {len(expired)} expired live auctions")
+                    for row in expired:
+                        cursor.execute("""
+                            UPDATE Auction
+                            SET status = 'CONCLUIDA_PORTAL',
+                                transitionedAt = CURRENT_TIMESTAMP,
+                                updatedAt = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                        """, (row[0],))
+                    conn.commit()
+                    self.log(f"  Marked {len(expired)} auctions as CONCLUIDA_PORTAL")
+                cursor.execute("SELECT status, COUNT(*) FROM Auction GROUP BY status ORDER BY COUNT(*) DESC")
+                stats = cursor.fetchall()
+            else:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, "boeId", "endsAt", status
+                    FROM "Auction"
+                    WHERE status IN ('ACTIVE', 'CELEBRANDOSE')
+                      AND "endsAt" < %s
+                """, (now,))
+                expired = cursor.fetchall()
+                if expired:
+                    self.log(f"  Found {len(expired)} expired live auctions")
+                    ids = [row[0] for row in expired]
                     cursor.execute("""
-                        UPDATE Auction 
-                        SET status = 'CONCLUIDA_PORTAL', 
-                            transitionedAt = CURRENT_TIMESTAMP,
-                            updatedAt = CURRENT_TIMESTAMP
-                        WHERE id = ?
-                    """, (auction_id,))
-                
-                conn.commit()
-                self.log(f"  ✅ Marked {len(expired)} auctions as CONCLUIDA_PORTAL")
-            
-            # Get stats
-            cursor.execute("SELECT status, COUNT(*) FROM Auction GROUP BY status ORDER BY COUNT(*) DESC")
-            stats = cursor.fetchall()
-            
-            self.log("  📊 Current database stats:")
+                        UPDATE "Auction"
+                        SET status = 'CONCLUIDA_PORTAL',
+                            "transitionedAt" = %s,
+                            "updatedAt" = %s
+                        WHERE id = ANY(%s)
+                    """, (now, now, ids))
+                    conn.commit()
+                    self.log(f"  Marked {len(expired)} auctions as CONCLUIDA_PORTAL")
+                cursor.execute('SELECT status, COUNT(*) FROM "Auction" GROUP BY status ORDER BY COUNT(*) DESC')
+                stats = cursor.fetchall()
+
+            self.log("  Current database stats:")
             for status, count in stats:
                 self.log(f"     {status}: {count}")
-            
-            # Also show auction type distribution
-            cursor.execute("SELECT auctionType, COUNT(*) FROM Auction WHERE auctionType IS NOT NULL GROUP BY auctionType ORDER BY COUNT(*) DESC")
-            type_stats = cursor.fetchall()
-            
-            if type_stats:
-                self.log("  🏷️ Auction types:")
-                for atype, count in type_stats:
-                    self.log(f"     {atype}: {count}")
-            
-            conn.close()
-            
+
         except Exception as e:
-            self.log(f"  ❌ Error: {e}")
+            self.log(f"  Error: {e}")
     
     def daily_full_scan(self):
         """Run a comprehensive scrape (larger page count)"""
@@ -241,7 +267,7 @@ class ScraperScheduler:
         try:
             script_path = PROJECT_ROOT / "scripts" / "backfill_map_images.py"
             result = subprocess.run(
-                ['python', str(script_path)],
+                [PYTHON_BIN, str(script_path)],
                 cwd=str(PROJECT_ROOT),
                 capture_output=True,
                 text=True,
