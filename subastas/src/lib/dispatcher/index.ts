@@ -446,6 +446,11 @@ async function dispatchEvent(
   stats.followersFanned += followers.length;
   if (followers.length === 0) return;
 
+  // Ghost packs everything except auctionId into payload (auctionId lives in
+  // the event_outbox column). Renderers want it for URL construction, so
+  // enrich here once.
+  const enrichedPayload: DispatchPayload = { ...outboxRow.payload, auctionId };
+
   const now = new Date();
   for (const f of followers) {
     if (inQuietHours(f.quietHoursStart, f.quietHoursEnd, now)) {
@@ -462,15 +467,15 @@ async function dispatchEvent(
     // Always create the in-app row when 'inapp' is enabled — this is the
     // user-facing inbox source.
     if (channels.includes('inapp')) {
-      const r = await recordInApp(f, auctionId, outboxRow.eventType, outboxRow.payload, dedupeKey);
+      const r = await recordInApp(f, auctionId, outboxRow.eventType, enrichedPayload, dedupeKey);
       if (r.created) stats.inAppCreated++;
       if (r.duplicate) stats.duplicatesSkipped++;
     }
     if (channels.includes('email')) {
-      await deliverEmail(f, auctionId, outboxRow.eventType, outboxRow.payload, dedupeKey, stats);
+      await deliverEmail(f, auctionId, outboxRow.eventType, enrichedPayload, dedupeKey, stats);
     }
     if (channels.includes('push')) {
-      await deliverPush(f, auctionId, outboxRow.eventType, outboxRow.payload, dedupeKey, stats);
+      await deliverPush(f, auctionId, outboxRow.eventType, enrichedPayload, dedupeKey, stats);
     }
   }
 }
