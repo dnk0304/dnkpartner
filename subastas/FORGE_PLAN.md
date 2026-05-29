@@ -165,3 +165,12 @@ TASK-009 (verify + commit)
 
 ## Progress
 - 2026-05-29 — Plan written. Beginning TASK-001.
+- 2026-05-29 — TASK-001 DONE. PG container `jidtaj7dlaho5km6zru1dbi5` running, extensions installed, reachable from coolify network. Secret KEY name: `DATABASE_URL_SUBASTAS`.
+- 2026-05-29 — TASK-002 DONE. db.ts rewritten as pg.Pool adapter with auto-translation; prisma.ts singleton added; alerts-schema.ts deleted; 3 routes drop the ensureAlertSchema call.
+- 2026-05-29 — TASK-003 DONE. All 22 raw-SQL routes await-fixed + boolean/number coercions; province cache + streetview Set cache replace the per-request scans.
+- 2026-05-29 — TASK-004 DONE. Schema reconciled with live DB; migration `20260529190807_init_baseline_wave1` applied.
+- 2026-05-29 — TASK-005 DONE. AuctionStatusHistory, AuctionBidHistory, EventOutbox, Favorite prefs, upgraded Notification, Auction structured fields all in the same baseline migration.
+- 2026-05-29 — TASK-006 DONE. Migration `20260529190904_pg_trgm_gin_indexes` applied; both GIN trgm indexes created.
+- 2026-05-29 — TASK-007 DONE. ETL ran in 20s via COPY FROM. Counts: Auction 229,217 == 229,217 (MATCH), User 1 == 1 (MATCH). 4 garbage dates clamped to NULL. 20/20 spot-check matched. prod.db kept + duplicated to prod.db.backup.20260529-wave1.
+- 2026-05-29 — TASK-008 DONE. admin/scraper/route.ts now branches on process.platform for pkill/pgrep, and uses query() instead of opening better-sqlite3. DEPLOY-COOLIFY.md documents the target layout.
+- 2026-05-29 — TASK-009 DONE. tsc --noEmit clean; prisma migrate status "Database schema is up to date!"; npm run build green; 6/6 smoke tests pass. Commit f63b20b on branch dnksubastas (NOT pushed, NOT deployed).
