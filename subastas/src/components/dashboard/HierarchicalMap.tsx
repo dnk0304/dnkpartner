@@ -135,45 +135,58 @@ const getProvinceCoordKey = (province: string) => {
   return normalizeText(province);
 };
 
-// Custom province marker with split colors
+// Province/municipality cluster marker. Size grows with the active-count
+// so a glance shows where activity is concentrated. Zero-count clusters
+// render in muted grey so empty regions don't pop visually.
+//
+// Note: previous version had two `display: flex` declarations and the
+// invalid CSS token `flex-col;` (a Tailwind class, not a CSS property).
+// Browsers silently dropped both and the rendered layout was
+// non-deterministic across engines. Reduced to a single clean flex
+// container with semantic markup. The shell carries an aria-label so SR
+// users hear "N subastas activas" instead of a bare number.
 const createProvinceIcon = (active: number) => {
-  const total = active;
-  const size = Math.min(60, Math.max(34, 34 + Math.log(total) * 4));
-  
+  const size = Math.min(64, Math.max(34, 34 + Math.log(Math.max(active, 1)) * 4));
+  const ring = active > 0 ? '#16a34a' : '#94a3b8'; // green-600 / slate-400
+  const labelColor = active > 0 ? '#15803d' : '#475569'; // green-700 / slate-600
+
   return L.divIcon({
     html: `
-      <div style="
-        position: relative;
-        width: ${size}px;
-        height: ${size}px;
-        border-radius: 50%;
-        background: #22c55e;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border: 2px solid white;
-        cursor: pointer;
-        transition: transform 0.2s;
-      " onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
-        <div style="
-          width: ${size - 8}px;
-          height: ${size - 8}px;
-          background: white;
-          border-radius: 50%;
-          display: flex;
-          flex-col;
-          align-items: center;
-          justify-content: center;
-          font-weight: bold;
-          font-size: ${size > 40 ? '12px' : '10px'};
-          color: #1f2937;
-          display: flex;
-          flex-direction: column;
-          line-height: 1;
-        ">
-          <span style="color: #22c55e;">${active}</span>
-        </div>
+      <div
+        class="province-marker-shell"
+        role="button"
+        aria-label="${active} subastas activas"
+        style="
+          width:${size}px;
+          height:${size}px;
+          border-radius:50%;
+          background:${ring};
+          box-shadow:0 4px 12px rgba(0,0,0,0.3);
+          border:2px solid #ffffff;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          cursor:pointer;
+          transition:transform 0.18s ease-out;
+        "
+        onmouseover="this.style.transform='scale(1.08)'"
+        onmouseout="this.style.transform='scale(1)'"
+        onfocus="this.style.transform='scale(1.08)'"
+        onblur="this.style.transform='scale(1)'"
+      >
+        <span style="
+          width:${size - 8}px;
+          height:${size - 8}px;
+          background:#ffffff;
+          border-radius:50%;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          font-weight:700;
+          font-size:${size > 44 ? '13px' : '11px'};
+          color:${labelColor};
+          line-height:1;
+        ">${active}</span>
       </div>
     `,
     className: 'province-marker',
@@ -721,14 +734,37 @@ export const HierarchicalMap: React.FC<HierarchicalMapProps> = ({ items, onMarke
       </MapContainer>
       
       {/* Legend Overlay */}
-      <div className="absolute bottom-4 left-4 z-[1000] bg-white/95 backdrop-blur-sm rounded-lg p-3 border border-gray-300 shadow-lg">
+      <div
+        className="absolute bottom-4 left-4 z-[1000] bg-white/95 backdrop-blur-sm rounded-lg p-3 border border-gray-300 shadow-lg"
+        role="note"
+        aria-label="Leyenda del mapa"
+      >
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-green-500" />
-            <span className="text-xs text-gray-700 font-medium">Activas</span>
+            <div className="w-3 h-3 rounded-full bg-green-600" aria-hidden="true" />
+            <span className="text-xs text-gray-700 font-medium">Subastas activas</span>
           </div>
         </div>
       </div>
+
+      {/* Empty-state overlay — surfaced when the API returns no pins (data
+          gap, request error, or filters that exclude every coord). Without
+          this the map just shows a blank Spain and looks broken. */}
+      {items.length === 0 && viewLevel === 'province' && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="absolute top-1/2 left-1/2 z-[1000] -translate-x-1/2 -translate-y-1/2 max-w-xs rounded-xl border border-gray-200 bg-white/95 px-5 py-4 text-center shadow-lg backdrop-blur"
+        >
+          <p className="text-sm font-semibold text-gray-900">
+            Sin subastas geolocalizadas
+          </p>
+          <p className="mt-1 text-xs text-gray-600">
+            No hay subastas con coordenadas para los filtros activos. Prueba a
+            ampliar las categorías o estados.
+          </p>
+        </div>
+      )}
 
       {/* Back buttons */}
       {viewLevel === 'municipality' && (

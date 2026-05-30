@@ -11,11 +11,24 @@ import { capitalizeLocation } from '@/lib/utils';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 
-// Dynamically import map to avoid SSR issues
-const MapInner = dynamic(() => import('./MapInner').then(mod => mod.MapInner), {
-  ssr: false,
-  loading: () => <div className="h-64 bg-gray-100 animate-pulse rounded-lg"></div>,
-});
+// Dynamically import the per-auction location map (Leaflet needs `window`).
+// Use AuctionLocationMap (single-property focus) rather than the Spain-wide
+// HierarchicalMap — the modal needs a tight property pin, not the whole
+// country panned out around a single province bubble.
+const AuctionLocationMap = dynamic(
+  () =>
+    import('./AuctionLocationMap').then(mod => mod.AuctionLocationMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        className="h-full w-full animate-pulse rounded-lg bg-gray-100"
+        aria-label="Cargando mapa"
+        role="status"
+      />
+    ),
+  }
+);
 
 interface AuctionDetailModalProps {
   auction: AuctionItem | null;
@@ -389,14 +402,26 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
                 </div>
               )}
 
-              {auction.latitude && auction.longitude && (
+              {auction.latitude && auction.longitude ? (
                 <div className="space-y-4">
-                  <div className="h-72 rounded-lg overflow-hidden border-2">
-                    <MapInner items={[auction]} />
+                  <div className="h-72">
+                    <AuctionLocationMap auction={auction} />
                   </div>
                   <div className="text-base text-gray-600 text-center">
                     Coordenadas: {auction.latitude.toFixed(6)}, {auction.longitude.toFixed(6)}
                   </div>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
+                  <MapPin className="mx-auto h-7 w-7 text-gray-400" aria-hidden="true" />
+                  <p className="mt-2 text-sm font-medium text-gray-700">
+                    Sin coordenadas precisas para esta subasta
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {auction.address
+                      ? 'Usa "Cómo Llegar" o "Ver en Mapa" arriba para abrir la dirección en Google Maps.'
+                      : 'El edicto original no incluye una ubicación geolocalizable.'}
+                  </p>
                 </div>
               )}
             </div>

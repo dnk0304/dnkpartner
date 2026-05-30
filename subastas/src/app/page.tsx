@@ -235,26 +235,31 @@ function DashboardContent() {
     }
   }, [session]);
 
-  // Fetch map auctions separately (ALL auctions with coordinates for map display)
+  // Fetch map auctions separately (ALL auctions with coordinates for map
+  // display).
+  //
+  // IMPORTANT: do NOT filter by selectedProvinces — the map's own drilldown
+  // (Spain -> province -> municipality) needs the whole-country dataset so
+  // the "Volver a provincias" back-button still has data to render. Clicking
+  // a province on the map only updates the listing filter below; the map
+  // keeps its full dataset. Category + statuses can still scope the markers
+  // since those are global filters that change what pins make sense at every
+  // drilldown level.
   useEffect(() => {
     const fetchMapAuctions = async () => {
       try {
         const params = new URLSearchParams();
-        
-        if (selectedProvinces.length === 1) {
-          params.append('province', selectedProvinces[0]);
-        }
-        
+
         if (selectedCategories.length === 1) {
           params.append('category', selectedCategories[0]);
         }
-        
+
         if (selectedStatuses.length > 0) {
           params.append('statuses', selectedStatuses.join(','));
         }
-        
+
         const response = await apiFetch(`/api/auctions/map?${params.toString()}`);
-        
+
         if (response.ok) {
           const result = await response.json();
           if (result.success && result.data) {
@@ -268,14 +273,21 @@ function DashboardContent() {
             }));
             setMapAuctions(mapAuctionsData);
           }
+        } else {
+          // basePath / 404 / 500 — empty the map so we render the
+          // empty-state instead of stale data from a previous fetch.
+          setMapAuctions([]);
         }
       } catch (err) {
         console.error('Error fetching map auctions:', err);
+        setMapAuctions([]);
       }
     };
-    
+
     fetchMapAuctions();
-  }, [selectedCategories.join(','), selectedProvinces.join(','), selectedStatuses.join(','), refreshTick]);
+    // Intentionally excludes selectedProvinces — see comment above. Province
+    // clicks on the map are local drilldown state; they must not refetch.
+  }, [selectedCategories.join(','), selectedStatuses.join(','), refreshTick]);
 
   // Fetch total status counts (unfiltered - for the status toggle buttons)
   useEffect(() => {
