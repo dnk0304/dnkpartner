@@ -53,6 +53,58 @@ BOE_STATUS_TEXT_MAP = {
 }
 
 
+# Spanish Referencia Catastral: 20-char alphanumeric, structure
+# [0-9]{4}[A-Z]{2}[0-9]{4}[A-Z][0-9]{4}[A-Z]{2} (e.g. 9872023VH5797S0001WX).
+# We anchor on the "Referencia catastral" / "Ref. catastral" label to avoid
+# false-positives on other 14-20 char codes (postal/registry numbers). The
+# value may sit on the same line ("Referencia catastral: 9872023VH...") or
+# on the next non-empty line in the Bienes block.
+_RC_TOKEN = r'[0-9]{7}[A-Z]{2}[0-9]{4}[A-Z][0-9]{4}[A-Z]{2}'
+_RC_LABEL_INLINE_RE = re.compile(
+    r'(?:Referencia\s+catastral|Ref\.?\s*catastral)\s*[:\-]?\s*(' + _RC_TOKEN + r')',
+    re.IGNORECASE,
+)
+_RC_LABEL_NEXT_LINE_RE = re.compile(
+    r'(?:Referencia\s+catastral|Ref\.?\s*catastral)\s*[:\-]?\s*\n+\s*(' + _RC_TOKEN + r')',
+    re.IGNORECASE,
+)
+
+
+def extract_cadastral_refs(bienes_text: Optional[str]) -> tuple:
+    """
+    Extract Referencia Catastral values from a Bienes-section text blob.
+
+    Returns (first_rc, all_rcs_joined) where:
+      - first_rc: the first RC found (what the Catastro fetch path consumes), or None
+      - all_rcs_joined: newline-joined list of all distinct RCs found
+        (multi-property lots), or None
+
+    Anchors on the label "Referencia catastral" / "Ref. catastral" — does NOT
+    blind-grep the page for any 20-char alphanumeric token (would false-positive
+    on other ids in the same block).
+    """
+    if not bienes_text:
+        return (None, None)
+    text = bienes_text.upper()
+    found = []
+    seen = set()
+    # Inline label: "Referencia catastral: 9872023VH5797S0001WX"
+    for m in _RC_LABEL_INLINE_RE.finditer(text):
+        rc = m.group(1)
+        if rc not in seen:
+            seen.add(rc)
+            found.append(rc)
+    # Next-line label: "Referencia catastral\n9872023VH5797S0001WX"
+    for m in _RC_LABEL_NEXT_LINE_RE.finditer(text):
+        rc = m.group(1)
+        if rc not in seen:
+            seen.add(rc)
+            found.append(rc)
+    if not found:
+        return (None, None)
+    return (found[0], '\n'.join(found))
+
+
 class BOEScraper(BaseScraper):
     """
     BOE Portal de Subastas scraper
@@ -278,6 +330,10 @@ class BOEScraper(BaseScraper):
                     auction_data['charges_detail'] = detail_info['warning']
                 if detail_info.get('detail_url'):
                     auction_data['boe_link'] = detail_info['detail_url']
+                if detail_info.get('cadastral_ref'):
+                    auction_data['cadastral_ref'] = detail_info['cadastral_ref']
+                if detail_info.get('cadastral_data'):
+                    auction_data['cadastral_data'] = detail_info['cadastral_data']
                 # Province enrichment from detail page text if still Unknown
                 if auction_data.get('province') == 'Unknown':
                     detail_text = " ".join(filter(None, [
@@ -646,6 +702,8 @@ class BOEScraper(BaseScraper):
                 self._extract_warning_banner(page)
             )
 
+            cadastral_ref, cadastral_data = extract_cadastral_refs(bienes)
+
             return {
                 'general_info': general_info,
                 'autoridad_gestora': autoridad,
@@ -653,6 +711,8 @@ class BOEScraper(BaseScraper):
                 'pujas_info': pujas,
                 'warning': warning,
                 'detail_url': detail_url,
+                'cadastral_ref': cadastral_ref,
+                'cadastral_data': cadastral_data,
             }
         except Exception as e:
             self.log_warning(f"Failed to fetch detail info for {boe_id}: {e}")
@@ -663,6 +723,8 @@ class BOEScraper(BaseScraper):
                 'pujas_info': None,
                 'warning': None,
                 'detail_url': f"{self.DETAIL_URL}?idSub={boe_id}",
+                'cadastral_ref': None,
+                'cadastral_data': None,
             }
         finally:
             if page:

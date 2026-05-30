@@ -12,9 +12,13 @@
  * minimum to make the Catastro path do useful work once RC values arrive.
  */
 
-// 20-char Spanish refcatastral. Anchors enforce a word boundary so we don't
+// 20-char Spanish refcatastral, structure: 7d 2L 4d 1L 4d 2L
+// e.g. 9872023VH5797S0001WX. Anchors enforce a word boundary so we don't
 // match the middle of a longer hex string.
-export const RC_PATTERN = /\b([0-9]{4}[A-Z]{2}[0-9]{4}[A-Z][0-9]{4}[A-Z]{2})\b/g;
+// (Earlier draft used 4 leading digits — that's only 17 chars total and the
+// leading-\b never fires between digits, so it never matched a real RC.
+// Fixed 2026-05-30 alongside the Python scraper-side parser.)
+export const RC_PATTERN = /\b([0-9]{7}[A-Z]{2}[0-9]{4}[A-Z][0-9]{4}[A-Z]{2})\b/g;
 
 export function extractFirstRC(text: string | null | undefined): string | null {
   if (!text) return null;
