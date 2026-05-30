@@ -22,7 +22,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
-import { LayoutList, LayoutGrid, Map as MapIcon, Loader2 } from "lucide-react";
+import { LayoutList, LayoutGrid, Map as MapIcon, Loader2, SlidersHorizontal } from "lucide-react";
 import { AuctionItem } from "@/types";
 import { apiFetch } from "@/lib/api-path";
 import { ObservatoryHeader } from "@/components/observatory/ObservatoryHeader";
@@ -30,6 +30,8 @@ import { SimpleFilters, ActiveFilterChips } from "@/components/observatory/Simpl
 import { AdvancedFiltersSheet } from "@/components/observatory/AdvancedFiltersSheet";
 import { AuctionListRow } from "@/components/observatory/AuctionListRow";
 import { AuctionListCard } from "@/components/observatory/AuctionListCard";
+import { PresetRow } from "@/components/observatory/PresetRow";
+import { SortDropdown } from "@/components/observatory/SortDropdown";
 import {
   ObservatoryFilters,
   DEFAULT_FILTERS,
@@ -214,54 +216,77 @@ export default function SubastasListClient() {
   // Client-side post-filter (search keyword, multi-category buckets, price, municipality).
   const filtered = React.useMemo(() => applyClientFilters(items, filters), [items, filters]);
 
+  const advanced = filters.advanced;
+  const toggleAdvanced = () => updateFilters({ advanced: !advanced });
+
   return (
     <div className="min-h-screen bg-[--color-page]">
       <ObservatoryHeader />
 
-      <main className="mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8 grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6 md:gap-8 items-start">
-        {/* Sidebar */}
-        <div className="hidden lg:block sticky top-24">
-          <SimpleFilters
-            filters={filters}
-            provinces={provinces}
-            municipalities={municipalities}
-            onChange={updateFilters}
-            onClear={clearFilters}
-            onMoreClick={() => setAdvOpen(true)}
-            resultCount={totalCount}
-          />
-        </div>
+      <main
+        className={cn(
+          "mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8 grid grid-cols-1 gap-6 md:gap-8 items-start",
+          // Sidebar only in Advanced mode on desktop.
+          advanced ? "lg:grid-cols-[260px_1fr]" : "lg:grid-cols-1",
+        )}
+      >
+        {/* Sidebar — only in Advanced mode */}
+        {advanced && (
+          <div className="hidden lg:block sticky top-24">
+            <SimpleFilters
+              filters={filters}
+              provinces={provinces}
+              municipalities={municipalities}
+              onChange={updateFilters}
+              onClear={clearFilters}
+              onMoreClick={() => setAdvOpen(true)}
+              resultCount={totalCount}
+            />
+          </div>
+        )}
 
         <div className="min-w-0">
-          {/* Mobile filter trigger */}
-          <div className="lg:hidden mb-4 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setAdvOpen(true)}
-              className="rounded-md border border-[--color-brand]/30 px-3 py-1.5 text-sm font-medium text-[--color-brand]"
-            >
-              Filtros
-              {filters.kind !== "todo" ||
-              filters.province ||
-              filters.when !== "activas" ||
-              filters.categories.length ||
-              filters.statuses.length ||
-              filters.types.length
-                ? " (activos)"
-                : ""}
-            </button>
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="text-xs text-[--color-ink-tertiary]"
-            >
-              Limpiar
-            </button>
+          {/* Preset shortcuts — always visible (Simple mode = full attention, Advanced = de-emphasized) */}
+          <div className="mb-5">
+            <PresetRow
+              filters={filters}
+              provinces={provinces}
+              onApplyPreset={(patch) => updateFilters(patch)}
+              muted={advanced}
+            />
           </div>
+
+          {/* Mobile: filter trigger only in Advanced mode (otherwise presets cover the simple case) */}
+          {advanced && (
+            <div className="lg:hidden mb-4 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setAdvOpen(true)}
+                className="rounded-md border border-[--color-brand]/30 px-3 py-1.5 text-sm font-medium text-[--color-brand]"
+              >
+                Filtros
+                {filters.kind !== "todo" ||
+                filters.province ||
+                filters.when !== "activas" ||
+                filters.categories.length ||
+                filters.statuses.length ||
+                filters.types.length
+                  ? " (activos)"
+                  : ""}
+              </button>
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="text-xs text-[--color-ink-tertiary]"
+              >
+                Limpiar
+              </button>
+            </div>
+          )}
 
           {/* Result header */}
           <header className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div>
+            <div className="min-w-0 flex-1">
               <h1 className="font-serif text-2xl md:text-3xl text-[--color-ink-primary]">
                 {totalCount != null ? (
                   <span className="tnum">{totalCount.toLocaleString("es-ES")}</span>
@@ -279,7 +304,30 @@ export default function SubastasListClient() {
               />
             </div>
 
-            <ViewToggle current={viewMode} onChange={setView} />
+            <div className="flex flex-wrap items-center gap-3">
+              <SortDropdown
+                value={filters.sort}
+                onChange={(v) => updateFilters({ sort: v })}
+              />
+              <button
+                type="button"
+                onClick={toggleAdvanced}
+                aria-pressed={advanced}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40",
+                  advanced
+                    ? "border-[--color-brand] bg-[--color-brand] text-white"
+                    : "border-[--color-hairline] bg-[--color-surface] text-[--color-ink-secondary] hover:border-[--color-brand]/40 hover:text-[--color-brand]",
+                )}
+                title={advanced ? "Volver a filtros simples" : "Mostrar filtros avanzados"}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+                {advanced ? "Filtros avanzados" : "Filtros avanzados"}
+                <span aria-hidden="true" className="text-[10px]">{advanced ? "▴" : "▾"}</span>
+              </button>
+              <ViewToggle current={viewMode} onChange={setView} />
+            </div>
           </header>
 
           {/* Body */}

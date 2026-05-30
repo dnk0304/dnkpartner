@@ -73,6 +73,17 @@ export const ALL_TYPES: Array<{ id: AuctionType; label: string }> = [
   { id: "bancaria", label: "Bancaria" },
 ];
 
+/** Sort options — match Forge's whitelisted values on /api/auctions. */
+export type SortValue = "endsAt_asc" | "published_desc" | "price_asc" | "price_desc";
+export const SORT_OPTIONS: Array<{ id: SortValue; label: string }> = [
+  { id: "endsAt_asc", label: "Termina antes" },
+  { id: "published_desc", label: "Más recientes" },
+  { id: "price_asc", label: "Precio: menor a mayor" },
+  { id: "price_desc", label: "Precio: mayor a menor" },
+];
+/** Server default — must match Forge's API default so SSR/CSR agree. */
+export const DEFAULT_SORT: SortValue = "endsAt_asc";
+
 /** All precise categories. */
 export const ALL_CATEGORIES: AuctionCategory[] = [
   "Viviendas",
@@ -112,6 +123,10 @@ export type ObservatoryFilters = {
   statuses: AuctionStatus[];
   /** Auction type list. */
   types: AuctionType[];
+  /** Sort order — defaults to endsAt_asc (server default too). */
+  sort: SortValue;
+  /** When true, show the full SimpleFilters/AdvancedFilters surface; when false, only PresetRow + ActiveFilterChips. */
+  advanced: boolean;
 };
 
 export const DEFAULT_FILTERS: ObservatoryFilters = {
@@ -125,7 +140,11 @@ export const DEFAULT_FILTERS: ObservatoryFilters = {
   categories: [],
   statuses: [],
   types: [],
+  sort: DEFAULT_SORT,
+  advanced: false,
 };
+
+const VALID_SORTS: SortValue[] = ["endsAt_asc", "published_desc", "price_asc", "price_desc"];
 
 /** Read an ObservatoryFilters from URLSearchParams. */
 export function filtersFromParams(p: URLSearchParams): ObservatoryFilters {
@@ -145,6 +164,11 @@ export function filtersFromParams(p: URLSearchParams): ObservatoryFilters {
     categories: (p.get("categories")?.split(",").filter(Boolean) as AuctionCategory[]) ?? [],
     statuses: (p.get("statuses")?.split(",").filter(Boolean) as AuctionStatus[]) ?? [],
     types: (p.get("types")?.split(",").filter(Boolean) as AuctionType[]) ?? [],
+    sort: ((): SortValue => {
+      const raw = p.get("sort");
+      return raw && (VALID_SORTS as string[]).includes(raw) ? (raw as SortValue) : DEFAULT_SORT;
+    })(),
+    advanced: p.get("advanced") === "1",
   };
 }
 
@@ -161,6 +185,8 @@ export function paramsFromFilters(f: ObservatoryFilters): URLSearchParams {
   if (f.categories.length) p.set("categories", f.categories.join(","));
   if (f.statuses.length) p.set("statuses", f.statuses.join(","));
   if (f.types.length) p.set("types", f.types.join(","));
+  if (f.sort && f.sort !== DEFAULT_SORT) p.set("sort", f.sort);
+  if (f.advanced) p.set("advanced", "1");
   return p;
 }
 
@@ -213,6 +239,9 @@ export function filtersToApiParams(f: ObservatoryFilters): URLSearchParams {
     p.set("auctionTypes", f.types.join(","));
   }
 
+  // Sort — always send so SSR/CSR stay deterministic. Server default matches DEFAULT_SORT.
+  if (f.sort) p.set("sort", f.sort);
+
   return p;
 }
 
@@ -228,8 +257,72 @@ export function isDefaultFilters(f: ObservatoryFilters): boolean {
     f.priceMax == null &&
     f.categories.length === 0 &&
     f.statuses.length === 0 &&
-    f.types.length === 0
+    f.types.length === 0 &&
+    f.sort === DEFAULT_SORT
   );
+}
+
+/** P0 preset identifiers. */
+export type PresetId = "viviendas-activas" | "coches" | "por-provincia" | "judiciales-boe";
+
+/** Bundle applied when a preset is clicked. All other filter dims reset to defaults. */
+export function presetFilters(id: PresetId, opts?: { province?: string }): Partial<ObservatoryFilters> {
+  // Common reset — every preset starts from defaults, then overrides.
+  const base: Partial<ObservatoryFilters> = {
+    search: "",
+    kind: "todo",
+    province: "",
+    municipality: "",
+    when: "activas",
+    priceMin: null,
+    priceMax: null,
+    categories: [],
+    statuses: [],
+    types: [],
+  };
+  switch (id) {
+    case "viviendas-activas":
+      return {
+        ...base,
+        categories: ["Viviendas"],
+        statuses: ["celebrandose", "proxima-apertura"],
+      };
+    case "coches":
+      // P0: Turismos only (API category is single-value exact match). Multi-vehicle rollup = P1.
+      return {
+        ...base,
+        categories: ["Turismos"],
+        statuses: ["celebrandose", "proxima-apertura"],
+      };
+    case "por-provincia":
+      return {
+        ...base,
+        province: opts?.province ?? "",
+        statuses: ["celebrandose"],
+      };
+    case "judiciales-boe":
+      return {
+        ...base,
+        types: ["judicial"],
+        statuses: ["celebrandose", "proxima-apertura"],
+      };
+  }
+}
+
+/** True if the current filter state matches the preset's bundled patch (for active highlight). */
+export function isPresetActive(f: ObservatoryFilters, id: PresetId, opts?: { province?: string }): boolean {
+  const target = presetFilters(id, opts);
+  return (Object.keys(target) as Array<keyof ObservatoryFilters>).every((k) => {
+    const a = (f as any)[k];
+    const b = (target as any)[k];
+    if (Array.isArray(a) && Array.isArray(b)) {
+      if (a.length !== b.length) return false;
+      const sa = [...a].sort();
+      const sb = [...b].sort();
+      return sa.every((v, i) => v === sb[i]);
+    }
+    return a === b;
+  });
 }
 
 /**

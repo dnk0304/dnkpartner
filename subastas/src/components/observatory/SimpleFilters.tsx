@@ -21,6 +21,9 @@ import {
   ObservatoryFilters,
   SIMPLE_KIND_OPTIONS,
   SIMPLE_WHEN_OPTIONS,
+  ALL_STATUSES,
+  SORT_OPTIONS,
+  DEFAULT_SORT,
 } from "./filters";
 import { cn } from "@/lib/utils";
 
@@ -285,9 +288,18 @@ export function ActiveFilterChips({
       onRemove: () => onChange({ municipality: "" }),
     });
   }
-  if (filters.when !== "activas" && filters.statuses.length === 0) {
+  // ¿Cuándo? — always surface a chip when no explicit statuses[] is set, INCLUDING
+  // the default "Activas ahora". This makes the invisible default visible. Removing
+  // it expands to all 6 statuses (effectively disabling the implicit status filter).
+  if (filters.statuses.length === 0) {
     const opt = SIMPLE_WHEN_OPTIONS.find((o) => o.id === filters.when);
-    if (opt) chips.push({ key: "when", label: opt.label, onRemove: () => onChange({ when: "activas" }) });
+    if (opt) {
+      chips.push({
+        key: "when",
+        label: opt.label,
+        onRemove: () => onChange({ statuses: ALL_STATUSES.map((s) => s.id), when: "activas" }),
+      });
+    }
   }
   if (filters.priceMin != null) {
     chips.push({
@@ -330,6 +342,16 @@ export function ActiveFilterChips({
       label: `"${filters.search}"`,
       onRemove: () => onChange({ search: "" }),
     });
+  }
+  if (filters.sort && filters.sort !== DEFAULT_SORT) {
+    const opt = SORT_OPTIONS.find((o) => o.id === filters.sort);
+    if (opt) {
+      chips.push({
+        key: "sort",
+        label: `Orden: ${opt.label}`,
+        onRemove: () => onChange({ sort: DEFAULT_SORT }),
+      });
+    }
   }
 
   if (chips.length === 0) return null;
