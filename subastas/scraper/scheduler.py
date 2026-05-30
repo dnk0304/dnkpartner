@@ -47,6 +47,16 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 # Wave 2a: ending_soon threshold (hours before endsAt to emit the event)
 ENDING_SOON_HOURS = int(os.getenv("ENDING_SOON_HOURS", "24"))
 
+# Wave 2b: dispatcher cron trigger — POST to /api/dispatch/run on schedule.
+# DISPATCH_ENDPOINT overrides the URL (use http://dnksubastas-app:3005/subastas/api/dispatch/run
+# inside docker network so we don't bounce through Traefik + auth gate).
+DISPATCH_ENDPOINT = os.getenv(
+    "DISPATCH_ENDPOINT",
+    f"{APP_BASE_URL}/api/dispatch/run",
+)
+CRON_SECRET = os.getenv("CRON_SECRET", "")
+DISPATCH_INTERVAL_MIN = int(os.getenv("DISPATCH_INTERVAL_MIN", "1"))
+
 
 class ScraperScheduler:
     def __init__(self):
@@ -397,6 +407,29 @@ class ScraperScheduler:
         self.run_daily_update_scraper()
         self.trigger_alert_check()
 
+    # Wave 2b: dispatcher cron trigger — drains event_outbox by POSTing the
+    # cron-authed dispatch endpoint inside the docker network. Returns the
+    # processed/failed/skipped counts the route reports.
+    def dispatch_outbox(self):
+        if not CRON_SECRET:
+            self.log("  dispatch_outbox: skipped (CRON_SECRET not set)")
+            return
+        try:
+            req = urllib.request.Request(
+                DISPATCH_ENDPOINT,
+                method="POST",
+                headers={
+                    "Authorization": f"Bearer {CRON_SECRET}",
+                    "Content-Type": "application/json",
+                },
+                data=b"{}",
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                body = resp.read().decode("utf-8", errors="replace")[:300]
+                self.log(f"  dispatch_outbox: {resp.status} {body}")
+        except Exception as e:
+            self.log(f"  dispatch_outbox: error {type(e).__name__}: {e}")
+
     def setup_schedule(self):
         self.log("=" * 70)
         self.log("DNKSUBASTAS SCHEDULER STARTED")
@@ -416,16 +449,25 @@ class ScraperScheduler:
         schedule.every().day.at("14:00").do(self.run_daily_update_and_alerts)
         schedule.every().day.at("20:00").do(self.run_daily_update_and_alerts)
 
+        # Wave 2b: dispatcher drain — every DISPATCH_INTERVAL_MIN minutes
+        schedule.every(DISPATCH_INTERVAL_MIN).minutes.do(self.dispatch_outbox)
+
         self.log("Schedule configured:")
         self.log("  Pulse (bid updates):  Every 35 min")
         self.log("  Status monitor:       Every 30 min")
         self.log(f"  Daily BOE + alerts:   08:00, 14:00, 20:00")
+        self.log(f"  Dispatch outbox:      Every {DISPATCH_INTERVAL_MIN} min")
         self.log(f"  ending_soon window:   {ENDING_SOON_HOURS}h before endsAt")
+        self.log(f"  dispatch endpoint:    {DISPATCH_ENDPOINT}")
         self.log("")
 
         # Run initial checks immediately
         self.log("Running initial monitor check...")
         self.monitor_status_changes()
+        # Initial dispatcher drain so anything queued before scheduler started
+        # gets picked up on boot.
+        self.log("Running initial dispatcher drain...")
+        self.dispatch_outbox()
 
     def run(self):
         self.setup_schedule()
