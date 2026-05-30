@@ -477,6 +477,44 @@ export async function GET(request: NextRequest) {
     const auctionTypes = searchParams.get('auctionTypes'); // Support multiple types
     const tierParam = searchParams.get('tier');
     const userIdParam = searchParams.get('userId');
+
+    // --- P1 advanced filter params (Dennis decision F, all FREE) ----------
+    // Whitelisted, parameterized, backward-compatible (absent => no constraint).
+    // Powers Pixel's 4 advanced presets + hasImage filter.
+    const priceMaxRaw = searchParams.get('priceMax');
+    const pctTasacionMaxRaw = searchParams.get('pctTasacionMax');
+    const endsBeforeRaw = searchParams.get('endsBefore');
+    const hasImageRaw = searchParams.get('hasImage');
+    const categoriesRaw = searchParams.get('categories'); // multi-value rollup (e.g. "Coches")
+
+    // priceMax: positive finite number, else ignored.
+    const priceMax = (() => {
+      if (priceMaxRaw == null) return null;
+      const n = Number(priceMaxRaw);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    })();
+    // pctTasacionMax: 0 < n <= 1000 (allow generous ceiling; UI passes 70 etc.)
+    const pctTasacionMax = (() => {
+      if (pctTasacionMaxRaw == null) return null;
+      const n = Number(pctTasacionMaxRaw);
+      return Number.isFinite(n) && n > 0 && n <= 1000 ? n : null;
+    })();
+    // endsBefore: accept ISO date or ISO datetime. Validate via Date parse.
+    const endsBefore = (() => {
+      if (!endsBeforeRaw) return null;
+      const t = Date.parse(endsBeforeRaw);
+      if (Number.isNaN(t)) return null;
+      return new Date(t).toISOString();
+    })();
+    // hasImage: only the literal "true" engages the filter (any other value => no constraint).
+    const hasImage = hasImageRaw === 'true';
+    // categories: comma-separated list; trim, dedupe, drop empties.
+    const categoriesList = (() => {
+      if (!categoriesRaw) return null;
+      const list = categoriesRaw.split(',').map(s => s.trim()).filter(Boolean);
+      const unique = [...new Set(list)];
+      return unique.length > 0 ? unique : null;
+    })();
     
     // Pagination params
     const page = parseInt(searchParams.get('page') || '1');
@@ -530,7 +568,13 @@ export async function GET(request: NextRequest) {
       page,
       limit: safeLimit,
       cursor: cursor || 'none',
-      sort: normalizedSort
+      sort: normalizedSort,
+      // P1 advanced filters — must be in cache key to avoid cross-filter collisions.
+      priceMax: priceMax ?? 'none',
+      pctTasacionMax: pctTasacionMax ?? 'none',
+      endsBefore: endsBefore ?? 'none',
+      hasImage: hasImage ? 'true' : 'none',
+      categories: categoriesList ? categoriesList.join('|') : 'none'
     };
     
     // Try cache first (30 second TTL)
@@ -579,9 +623,37 @@ export async function GET(request: NextRequest) {
         params.push(province);
       }
     }
-    if (category) {
+    if (categoriesList && categoriesList.length > 0) {
+      // P1: multi-value category rollup (e.g. "Coches" = Turismos,Motocicletas,...)
+      // Takes precedence over single `category` if both are provided.
+      sql += ` AND category IN (${categoriesList.map(() => '?').join(', ')})`;
+      params.push(...categoriesList);
+    } else if (category) {
       sql += ' AND category = ?';
       params.push(category);
+    }
+
+    // --- P1 advanced filters (parameterized, never interpolated) ---------
+    // priceMax: same COALESCE expression used by price sort (currentBid -> minimumBid -> appraisalValue).
+    if (priceMax != null) {
+      sql += ` AND ${EFFECTIVE_PRICE} <= ?`;
+      params.push(priceMax);
+    }
+    // pctTasacionMax: rows where effective price is <= (pct/100) * appraisalValue.
+    // Exclude rows with null/zero appraisalValue (cannot compute a meaningful ratio).
+    if (pctTasacionMax != null) {
+      sql += ` AND "appraisalValue" IS NOT NULL AND "appraisalValue" > 0 AND ${EFFECTIVE_PRICE} IS NOT NULL AND ${EFFECTIVE_PRICE} <= (? / 100.0) * "appraisalValue"`;
+      params.push(pctTasacionMax);
+    }
+    // endsBefore: future-but-soon window — endsAt between now and the supplied bound.
+    if (endsBefore) {
+      sql += ' AND "endsAt" IS NOT NULL AND "endsAt" >= NOW() AND "endsAt" <= ?';
+      params.push(endsBefore);
+    }
+    // hasImage=true: real photo only (resolver-populated /api/auction-image/ OR legacy /streetview/).
+    // Category placeholders must NOT satisfy this filter — mirrors isRealAuctionImage().
+    if (hasImage) {
+      sql += ` AND "imageUrl" IS NOT NULL AND ("imageUrl" LIKE '/api/auction-image/%' OR "imageUrl" LIKE '/streetview/%')`;
     }
     
     // Filter by status at SQL level for better performance
