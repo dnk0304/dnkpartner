@@ -409,24 +409,38 @@ export function SiteBuilder() {
   };
 
   // ─────────────────────────────────────────────────────────
-  // Publish — saves a `published: true` flag into project_data so the
-  // existing storage API records intent. A real "publish to live URL"
-  // endpoint (separate from the editor's autosave) is FLAGGED to Forge.
+  // Publish — saves current canvas, then POSTs the rendered HTML+CSS to the
+  // publish endpoint which freezes a snapshot and exposes it at a public
+  // /api/site-builder/public/<siteSlug>/<pagePath> URL (served by the studio
+  // Express container, no editor chrome).
   // ─────────────────────────────────────────────────────────
   const handlePublish = async () => {
     const editor = editorRef.current;
-    if (!editor) return;
+    if (!editor || !site || !pageId) return;
     try {
-      // Stamp publish metadata onto the editor's data
-      // grapesjs stores arbitrary data via editor.set — but we want it
-      // persisted through storageManager, so save then notify.
       await editor.store();
-      showToast(
-        'Saved. Publishing to a public URL needs the Publish backend (FLAGGED to Forge).',
-        'info',
+      const html = editor.getHtml();
+      const css = editor.getCss() ?? '';
+      const res = await fetch(
+        `/api/site-builder/sites/${site.id}/publish`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pageId, html, css }),
+        },
       );
-    } catch {
-      showToast('Publish failed — could not save first', 'error');
+      if (!res.ok) throw new Error(`publish ${res.status}`);
+      const { publicPath } = (await res.json()) as { publicPath: string };
+      showToast(`Published. Live at ${publicPath}`, 'success');
+      // Best-effort: open the public URL in a new tab so the owner sees it.
+      try {
+        window.open(publicPath, '_blank', 'noopener,noreferrer');
+      } catch {
+        /* popup blocked — toast already shows the URL */
+      }
+    } catch (err) {
+      console.error('[SiteBuilder] publish failed:', err);
+      showToast('Publish failed', 'error');
     }
   };
 

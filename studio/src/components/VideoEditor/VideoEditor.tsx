@@ -110,7 +110,12 @@ interface SourceClip {
    CONSTANTS
    ═══════════════════════════════════════════════════════════════ */
 
-const API_BASE = 'http://localhost:3001'
+// API_BASE — empty string in prod (same-origin; main.tsx fetch shim prepends
+// the /studio basename for /api/* paths under the dnkpartner monorepo deploy).
+// In dev with `vite dev` the studio runs at :5173 and Vite proxies /api → :3001,
+// so empty also works locally. Override via VITE_API_BASE only for unusual
+// split-deploy setups (separate front and back hosts).
+const API_BASE = (import.meta.env.VITE_API_BASE ?? '') as string
 
 const TEMPLATES: TemplatePreset[] = [
   {
@@ -327,6 +332,18 @@ export function VideoEditor() {
   const [waveformBars, setWaveformBars] = useState<number[]>([])
   const [showShortcutsModal, setShowShortcutsModal] = useState(false)
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null)
+
+  // ─── Server-persisted project autosave (replaces JSON file download/upload) ──
+  // We keep a single active project per editor session. On first edit (any
+  // dispatch that mutates state.current), if no projectId is set we create
+  // one server-side. Subsequent changes debounce-PUT the timeline state.
+  const [projectId, setProjectId] = useState<string | null>(null)
+  const [projectName, setProjectName] = useState<string>('Untitled project')
+  const [projectSavedAt, setProjectSavedAt] = useState<Date | null>(null)
+  const [projectListOpen, setProjectListOpen] = useState(false)
+  const [projectList, setProjectList] = useState<Array<{ id: string; name: string; updated_at: string }>>([])
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const initialMountRef = useRef(true)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -733,11 +750,100 @@ export function VideoEditor() {
     }
   }
 
-  /* ─── Project Save ─────────────────────────────────────── */
+  /* ─── Project Save (server-persisted, autosave + manual) ─────── */
+  // Manual save: creates the project on first save if none exists, then
+  // PUTs full state. Autosave (useEffect below) wraps this with debounce.
+  const saveProjectToServer = useCallback(async (): Promise<void> => {
+    const snapshot = state.current
+    try {
+      if (!projectId) {
+        const res = await fetch(`${API_BASE}/api/video-projects`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: projectName, state: snapshot }),
+        })
+        if (!res.ok) throw new Error(`create ${res.status}`)
+        const { id } = await res.json() as { id: string }
+        setProjectId(id)
+        setProjectSavedAt(new Date())
+      } else {
+        const res = await fetch(`${API_BASE}/api/video-projects/${projectId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ state: snapshot, name: projectName }),
+        })
+        if (!res.ok) throw new Error(`save ${res.status}`)
+        setProjectSavedAt(new Date())
+      }
+    } catch (err) {
+      console.error('[VideoEditor] autosave failed:', err)
+    }
+  }, [projectId, projectName, state])
+
+  // Debounced autosave on any state.current change.
+  useEffect(() => {
+    if (initialMountRef.current) {
+      initialMountRef.current = false
+      return
+    }
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
+    autosaveTimer.current = setTimeout(() => {
+      void saveProjectToServer()
+    }, 1200)
+    return () => {
+      if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
+    }
+  }, [state.current, saveProjectToServer])
+
+  // Load a server-persisted project by id, swapping the timeline state in.
+  const loadProjectFromServer = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/video-projects/${id}`)
+      if (!res.ok) throw new Error(`load ${res.status}`)
+      const { name, state: loadedState } = await res.json() as {
+        name: string; state: TimelineState
+      }
+      if (loadedState?.clips) {
+        dispatch({ type: 'SET_CLIPS', clips: loadedState.clips })
+      }
+      if (loadedState?.musicTrack !== undefined) {
+        dispatch({ type: 'SET_MUSIC', track: loadedState.musicTrack })
+      }
+      if (loadedState?.aspectRatio) {
+        dispatch({ type: 'SET_ASPECT_RATIO', ratio: loadedState.aspectRatio })
+      }
+      setProjectId(id)
+      setProjectName(name)
+      setProjectSavedAt(new Date())
+      setProjectListOpen(false)
+      // Suppress the autosave fire-back from the dispatches we just made.
+      initialMountRef.current = true
+    } catch (err) {
+      console.error('[VideoEditor] load failed:', err)
+      alert('Could not load project')
+    }
+  }, [])
+
+  const openProjectPicker = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/video-projects`)
+      if (!res.ok) throw new Error(`list ${res.status}`)
+      const list = await res.json() as Array<{ id: string; name: string; updated_at: string }>
+      setProjectList(list)
+      setProjectListOpen(true)
+    } catch (err) {
+      console.error('[VideoEditor] list failed:', err)
+      alert('Could not list projects')
+    }
+  }, [])
+
+  // Kept as a SECONDARY export path: download the current timeline as JSON.
+  // Server autosave is now the primary persistence.
   function saveProject() {
     const projectData = {
       version: '1.0',
       savedAt: new Date().toISOString(),
+      name: projectName,
       state: state.current,
     }
     const json = JSON.stringify(projectData, null, 2)
@@ -745,12 +851,12 @@ export function VideoEditor() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `panini-pano-project-${Date.now()}.json`
+    a.download = `${projectName.replace(/[^\w.-]+/g, '_') || 'project'}-${Date.now()}.json`
     a.click()
     URL.revokeObjectURL(url)
   }
 
-  /* ─── Project Load ─────────────────────────────────────── */
+  /* ─── Project Load (kept for legacy JSON file imports) ───────── */
   function handleProjectLoad(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -768,6 +874,9 @@ export function VideoEditor() {
         if (loadedState.aspectRatio) {
           dispatch({ type: 'SET_ASPECT_RATIO', ratio: loadedState.aspectRatio })
         }
+        if (projectData.name) setProjectName(projectData.name)
+        // Imported file → new server project on next autosave.
+        setProjectId(null)
       } catch {
         alert('Invalid project file')
       }
@@ -1008,21 +1117,46 @@ export function VideoEditor() {
           ⊞ Snap
         </button>
 
-        {/* Save / Load project */}
+        {/* Project — autosaves to server. Save = force-flush, Open = picker.
+            "Export JSON" remains as a secondary download for offline backup. */}
+        <input
+          value={projectName}
+          onChange={(e) => setProjectName(e.target.value)}
+          className="px-2 py-1 text-xs bg-[#1c1c2a] rounded border border-transparent focus:border-violet-600 outline-none w-32"
+          aria-label="Project name"
+          title="Project name (autosaved)"
+        />
+        <span className="text-[10px] text-slate-500 min-w-[60px]">
+          {projectSavedAt ? `Saved ${projectSavedAt.toLocaleTimeString()}` : 'Not saved'}
+        </span>
         <button
-          onClick={saveProject}
-          disabled={clips.length === 0}
-          className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded hover:bg-[#1c1c2a] transition-colors disabled:opacity-40"
-          title="Save project as JSON"
+          onClick={() => { void saveProjectToServer() }}
+          className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded hover:bg-[#1c1c2a] transition-colors"
+          title="Save now (also autosaves on edit)"
         >
           💾 Save
         </button>
         <button
-          onClick={() => projectFileInputRef.current?.click()}
+          onClick={() => { void openProjectPicker() }}
           className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded hover:bg-[#1c1c2a] transition-colors"
-          title="Load project from JSON"
+          title="Open saved project"
         >
-          📂 Load
+          📂 Open
+        </button>
+        <button
+          onClick={saveProject}
+          disabled={clips.length === 0}
+          className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded hover:bg-[#1c1c2a] transition-colors disabled:opacity-40 text-slate-500"
+          title="Export project as JSON (offline backup)"
+        >
+          ⤓ JSON
+        </button>
+        <button
+          onClick={() => projectFileInputRef.current?.click()}
+          className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded hover:bg-[#1c1c2a] transition-colors text-slate-500"
+          title="Import project from JSON file"
+        >
+          ⤒ Import
         </button>
         <input
           ref={projectFileInputRef}
@@ -1032,6 +1166,42 @@ export function VideoEditor() {
           onChange={handleProjectLoad}
           aria-label="Load project file"
         />
+        {projectListOpen && (
+          <div
+            className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center"
+            onClick={() => setProjectListOpen(false)}
+          >
+            <div
+              className="bg-[#1c1c2a] rounded-lg p-4 w-[400px] max-h-[60vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-sm font-semibold mb-3 text-slate-200">Open project</h3>
+              {projectList.length === 0 ? (
+                <p className="text-xs text-slate-500">No saved projects yet.</p>
+              ) : (
+                <ul className="space-y-1">
+                  {projectList.map(p => (
+                    <li key={p.id}>
+                      <button
+                        onClick={() => { void loadProjectFromServer(p.id) }}
+                        className="w-full text-left px-3 py-2 text-xs rounded hover:bg-[#2a2a3a] transition-colors"
+                      >
+                        <div className="text-slate-200">{p.name}</div>
+                        <div className="text-[10px] text-slate-500">{new Date(p.updated_at).toLocaleString()}</div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <button
+                onClick={() => setProjectListOpen(false)}
+                className="mt-3 px-3 py-1.5 text-xs rounded bg-[#2a2a3a] hover:bg-[#3a3a4a] transition-colors w-full"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Keyboard shortcuts help */}
         <button

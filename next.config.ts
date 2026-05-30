@@ -41,11 +41,10 @@ const nextConfig: NextConfig = {
   // STUDIO_INTERNAL_URL env example (Coolify): http://dnkstudio:3100
   //   (or http://127.0.0.1:3100 if Coolify maps the studio port to the host).
   //
-  // The /studio/editor path is excluded from the proxy because that route
-  // is implemented natively in this Next.js app (app/(studio)/studio/editor/
-  // — a "Coming soon" stub for the future drag-and-drop builder). The
-  // negative-lookahead in the source pattern keeps `/studio/editor` and
-  // `/studio/editor/anything` resolving locally instead of forwarding.
+  // Previously /studio/editor was a native "Coming soon" stub here; that
+  // stub was removed (2026-05-30, Dennis decision H) — the real editors
+  // (site builder + video editor) live inside the studio container under
+  // /studio/site-builder and /studio/video-editor, both proxied below.
   // ─────────────────────────────────────────────────────────────────────────
   async rewrites() {
     const studioUrl = process.env.STUDIO_INTERNAL_URL;
@@ -58,7 +57,7 @@ const nextConfig: NextConfig = {
     }
     return [
       {
-        source: '/studio/:path((?!editor$|editor/).*)?',
+        source: '/studio/:path*',
         destination: `${studioUrl}/studio/:path*`,
       },
       {

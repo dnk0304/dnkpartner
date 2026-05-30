@@ -11,10 +11,19 @@
  *   studio_tenant (id, name, created_at)
  *   studio_site   (id, tenant_id -> studio_tenant, name, slug, created_at, updated_at)
  *   studio_page   (id, site_id -> studio_site, name, path, project_data JSONB, updated_at)
+ *   studio_asset  (id, tenant_id -> studio_tenant, mime, byte_size, filename, storage_path, created_at)
+ *   studio_video_project (id, tenant_id -> studio_tenant, name, state JSONB, created_at, updated_at)
  *
  * `project_data` holds the GrapesJS `editor.getProjectData()` JSON
  * (components, styles, assets, pages) — the lossless structured model,
  * NOT raw HTML/CSS.
+ *
+ * Publish pipeline: `studio_page` adds `published_html` / `published_css` /
+ * `published_at` so the public render route can serve a frozen snapshot
+ * without re-executing the GrapesJS runtime server-side.
+ *
+ * Assets: actual bytes live on the volume at `STUDIO_DATA_DIR/site-assets/`
+ * (filesystem — see siteBuilder.ts). The DB row tracks metadata and ownership.
  */
 import { getPool, hasDatabaseUrl } from './pool.js';
 
@@ -50,6 +59,32 @@ CREATE TABLE IF NOT EXISTS studio_page (
   UNIQUE (site_id, path)
 );
 CREATE INDEX IF NOT EXISTS studio_page_site_idx ON studio_page (site_id);
+
+-- Publish snapshot columns (additive; safe on re-run).
+ALTER TABLE studio_page ADD COLUMN IF NOT EXISTS published_html TEXT;
+ALTER TABLE studio_page ADD COLUMN IF NOT EXISTS published_css  TEXT;
+ALTER TABLE studio_page ADD COLUMN IF NOT EXISTS published_at   TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS studio_asset (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id     UUID NOT NULL REFERENCES studio_tenant(id) ON DELETE CASCADE,
+  filename      TEXT NOT NULL,           -- sanitized original filename, for download disposition
+  mime          TEXT NOT NULL,
+  byte_size     INTEGER NOT NULL,
+  storage_path  TEXT NOT NULL,           -- absolute path on the volume
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS studio_asset_tenant_idx ON studio_asset (tenant_id);
+
+CREATE TABLE IF NOT EXISTS studio_video_project (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id   UUID NOT NULL REFERENCES studio_tenant(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,
+  state       JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS studio_video_project_tenant_idx ON studio_video_project (tenant_id);
 `;
 
 const SEED_DEFAULT_TENANT = `

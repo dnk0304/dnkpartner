@@ -43,6 +43,7 @@ import { proxyManager } from './trends/proxyManager.js';
 import videoRemotionRouter from './videoRemotion.js';
 // Site Builder
 import { siteBuilderRouter } from './siteBuilder.js';
+import { videoProjectsRouter } from './videoProjects.js';
 import { runStudioMigrations } from './db/studioMigrations.js';
 
 // KDP Mode imports
@@ -8235,6 +8236,10 @@ console.log('[Server] ✅ Remotion render endpoints registered (/api/video/rende
 // ==================== SITE BUILDER ====================
 app.use('/api/site-builder', siteBuilderRouter);
 console.log('[Server] ✅ Site Builder endpoints registered (/api/site-builder)');
+
+// ==================== VIDEO PROJECTS (autosave) ====================
+app.use('/api/video-projects', videoProjectsRouter);
+console.log('[Server] ✅ Video Project endpoints registered (/api/video-projects)');
 
 // Studio Postgres schema bootstrap — idempotent CREATE TABLE IF NOT EXISTS.
 // Runs once at startup; logs and continues if DATABASE_URL is unset.
