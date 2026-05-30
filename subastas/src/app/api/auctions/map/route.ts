@@ -130,9 +130,10 @@ export async function GET(request: NextRequest) {
           municipality,
           category,
           appraisalValue,
+          COALESCE(publishedAt, createdAt, updatedAt) AS sortat,
           ROW_NUMBER() OVER (
             PARTITION BY LOWER(TRIM(COALESCE(province, '')))
-            ORDER BY datetime(COALESCE(publishedAt, createdAt, updatedAt)) DESC
+            ORDER BY COALESCE(publishedAt, createdAt, updatedAt) DESC
           ) AS region_rank
         FROM Auction
         ${whereClause}
@@ -149,7 +150,7 @@ export async function GET(request: NextRequest) {
         appraisalValue
       FROM ranked_auctions
       WHERE region_rank <= 50
-      ORDER BY datetime(COALESCE(publishedAt, createdAt, updatedAt)) DESC
+      ORDER BY sortat DESC
     `;
 
     const auctions = await query<MapAuctionFromDB>(sql, params);
