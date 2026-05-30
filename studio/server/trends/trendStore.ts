@@ -144,7 +144,10 @@ class TrendStore {
     this.ensureDataDir();
     
     try {
-      fs.writeFileSync(this.dataFile, JSON.stringify(this.data, null, 2));
+      // Atomic write: write to temp file then rename to avoid truncation on crash
+      const tmpFile = this.dataFile + '.tmp';
+      fs.writeFileSync(tmpFile, JSON.stringify(this.data, null, 2));
+      fs.renameSync(tmpFile, this.dataFile);
       this.isDirty = false;
       console.log('[TrendStore] Data saved successfully');
     } catch (error) {
