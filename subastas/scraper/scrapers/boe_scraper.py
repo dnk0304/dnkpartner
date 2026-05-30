@@ -315,6 +315,15 @@ class BOEScraper(BaseScraper):
                 'ends_at': ends_at or datetime.now() + timedelta(days=7),
             }
 
+            # Persist the portal idSub explicitly into `auctionId` whenever
+            # we have one. The portal scraper extracts boe_id from an `?idSub=`
+            # href, so for portal rows boe_id IS the portal idSub
+            # (format: SUB-XX-YYYY-NNNNNN). Storing it in `auctionId` lets the
+            # RC backfill (and downstream Catastro fetch) reach the Bienes tab
+            # without re-deriving it. TEJU rows do NOT carry this column.
+            if boe_id.startswith('SUB-'):
+                auction_data['auction_id'] = boe_id
+
             if os.getenv('BOE_FETCH_DETAIL', '1') != '0':
                 detail_info = self._fetch_detail_info(boe_id)
                 if detail_info.get('general_info'):

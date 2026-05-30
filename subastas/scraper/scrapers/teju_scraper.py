@@ -360,6 +360,12 @@ class TEJUScraper(BaseScraper):
 
         auction_type = self._detect_auction_type(court_name or '')
 
+        # BOE judicial edicts conventionally include the portal "subasta"
+        # identifier (format SUB-XX-YYYY-NNNNNN). Capture it so the
+        # RC-enrichment backfill can reach the portal Bienes tab directly.
+        portal_idsub_match = re.search(r'\b(SUB-[A-Z]{2}-\d{4}-\d+)\b', text)
+        portal_idsub = portal_idsub_match.group(1) if portal_idsub_match else None
+
         return {
             'boe_id': boe_ref,
             'title': title or f"TEJU Pre-Subasta {municipality or self.province or 'España'}",
@@ -376,6 +382,7 @@ class TEJUScraper(BaseScraper):
             'boe_link': source_url,
             'edict_url': source_url,
             'pdf_url': pdf_url,
+            'auction_id': portal_idsub,
             'published_at': datetime.now(),
             'ends_at': datetime.now() + timedelta(days=60),
             'address': address,

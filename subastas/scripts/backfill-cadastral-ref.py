@@ -3,36 +3,32 @@
 """
 backfill-cadastral-ref.py
 
-One-shot enrichment that populates Auction.cadastralRef / cadastralData for
-ACTIVE rows missing it. The BOE search/summary HTML we scrape on the listing
-page does NOT carry the Referencia Catastral — only the deep detail page's
-"Bienes" tab does. This script revisits each active auction's detail page,
-parses the RC out of the Bienes block, and UPDATEs the row.
+Populates Auction.cadastralRef / cadastralData / auctionId for ACTIVE rows
+missing RC. Multi-source resolution (in order, first hit wins):
 
-Once cadastralRef is populated, the existing image resolver
-(`subastas/src/lib/auction-images/resolver.ts`) automatically fetches the
-Catastro facade photo on first request and caches it to the Hetzner volume.
+  1. PORTAL Bienes tab — if the row has a portal idSub (either already in
+     `auctionId`, or `boeId` itself starts with SUB-). This is the highest-
+     quality RC source.
+  2. GAZETTE edict (`https://www.boe.es/diario_boe/txt.php?id=<boeId>`):
+     - Scan the body for an embedded portal idSub (BOE judicial edicts
+       conventionally print "Identificador único en el Portal de Subastas:
+       SUB-XX-YYYY-NNNNNN" or link to the portal). If discovered → also
+       persist to `auctionId` and re-try step 1 on the freshly-found id.
+     - Else scan the gazette body text for the RC label/token directly.
+  3. PDF EDICTO fallback — follow the gazette page's PDF link (if pypdf is
+     available), text-extract, regex for RC.
+
+The script is idempotent. Active-only (Dennis decision C). Status whitelist
+defaults to CELEBRANDOSE + PROXIMA_APERTURA (the only two with real volume).
 
 USAGE (run inside the dnksubastas-app or scheduler container so DATABASE_URL
 and DNS resolve correctly to the PG container):
 
-    # Test slice (default 20 rows)
-    python scripts/backfill-cadastral-ref.py --limit 20
+    python scripts/backfill-cadastral-ref.py --limit 20      # test slice
+    python scripts/backfill-cadastral-ref.py --all           # full pass
 
-    # Full active backfill (~2,028 rows, ~2.5s each => ~85 min)
-    python scripts/backfill-cadastral-ref.py --all
-
-    # Resume after a crash — the checkpoint file is read automatically.
-    python scripts/backfill-cadastral-ref.py --all
-
-    # Reset checkpoint and re-run from scratch
-    rm scripts/_cadastral_backfill_checkpoint.json
-    python scripts/backfill-cadastral-ref.py --all
-
-The script reads the same DATABASE_URL the app uses. It is idempotent and safe
-to re-run — it only targets rows where cadastralRef IS NULL OR ''.
-
-Active-only by Dennis decision (c): NO historical (CONCLUIDA_PORTAL) backfill.
+Resume via checkpoint file in scripts/_cadastral_backfill_checkpoint.json.
+Remove that file or pass --ignore-checkpoint to re-run from scratch.
 """
 
 from __future__ import annotations
@@ -50,24 +46,32 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 import psycopg2
-from psycopg2.extras import RealDictCursor
 from playwright.sync_api import sync_playwright
+
+# Optional PDF text extraction. pypdf is light and pure-python; if missing we
+# skip the PDF fallback rather than fail the whole backfill.
+try:
+    from pypdf import PdfReader  # type: ignore
+    _PYPDF_AVAILABLE = True
+except Exception:  # pragma: no cover
+    try:
+        from PyPDF2 import PdfReader  # type: ignore
+        _PYPDF_AVAILABLE = True
+    except Exception:
+        _PYPDF_AVAILABLE = False
+
+import urllib.request
 
 if sys.platform == "win32":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
 
-BASE_URL = "https://subastas.boe.es/detalleSubasta.php?idSub="
+PORTAL_DETAIL_URL = "https://subastas.boe.es/detalleSubasta.php?idSub="
+GAZETTE_URL = "https://www.boe.es/diario_boe/txt.php?id="
 CHECKPOINT_PATH = Path(__file__).resolve().parent / "_cadastral_backfill_checkpoint.json"
 DEFAULT_STATUSES = ("CELEBRANDOSE", "PROXIMA_APERTURA", "ACTIVE", "PRE_AUCTION")
 
 # Spanish Referencia Catastral: 20-char alphanumeric.
-# Structure: 7 digits + 2 letters + 4 digits + 1 letter + 4 digits + 2 letters
-# (e.g. 9872023VH5797S0001WX). Anchored on the label "Referencia catastral" /
-# "Ref. catastral" so we don't false-positive on other 14-20 char ids in the
-# same block (postal/registry numbers). Mirrors the helper in
-# subastas/scraper/scrapers/boe_scraper.py — duplicated here so this script is
-# self-contained (no scraper-package import needed at runtime).
 _RC_TOKEN = r"[0-9]{7}[A-Z]{2}[0-9]{4}[A-Z][0-9]{4}[A-Z]{2}"
 _RC_LABEL_INLINE_RE = re.compile(
     r"(?:Referencia\s+catastral|Ref\.?\s*catastral)\s*[:\-]?\s*(" + _RC_TOKEN + r")",
@@ -78,20 +82,24 @@ _RC_LABEL_NEXT_LINE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Portal idSub format: SUB-{JA|JC|NO|AC|TR|XX}-YYYY-NNNNNN
+# Examples observed in scraper logs: SUB-JC-2020-144534, SUB-JA-2018-113171.
+_PORTAL_IDSUB_RE = re.compile(r"\b(SUB-[A-Z]{2}-\d{4}-\d+)\b")
 
-def extract_cadastral_refs(bienes_text: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
-    """Return (first_rc, all_rcs_joined) parsed from a Bienes-section blob, or (None, None)."""
-    if not bienes_text:
+
+def extract_cadastral_refs(text: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+    """Return (first_rc, all_rcs_joined) parsed from any text blob, or (None, None)."""
+    if not text:
         return (None, None)
-    text = bienes_text.upper()
+    upper = text.upper()
     found: List[str] = []
     seen = set()
-    for m in _RC_LABEL_INLINE_RE.finditer(text):
+    for m in _RC_LABEL_INLINE_RE.finditer(upper):
         rc = m.group(1)
         if rc not in seen:
             seen.add(rc)
             found.append(rc)
-    for m in _RC_LABEL_NEXT_LINE_RE.finditer(text):
+    for m in _RC_LABEL_NEXT_LINE_RE.finditer(upper):
         rc = m.group(1)
         if rc not in seen:
             seen.add(rc)
@@ -101,8 +109,16 @@ def extract_cadastral_refs(bienes_text: Optional[str]) -> Tuple[Optional[str], O
     return (found[0], "\n".join(found))
 
 
+def extract_portal_idsub(text: Optional[str]) -> Optional[str]:
+    """First SUB-XX-YYYY-NNNNNN token in the blob, or None."""
+    if not text:
+        return None
+    m = _PORTAL_IDSUB_RE.search(text)
+    return m.group(1) if m else None
+
+
 def extract_section_text(page, title: str) -> Optional[str]:
-    """Pull the text under a heading whose name contains `title` (case-insensitive)."""
+    """Pull text under an h2/h3/h4 whose name contains `title` (ci)."""
     try:
         return page.evaluate(
             """
@@ -128,13 +144,72 @@ def extract_section_text(page, title: str) -> Optional[str]:
         return None
 
 
+def get_page_text(page) -> Optional[str]:
+    """Whole-body text (used when there's no Bienes heading, e.g. gazette pages)."""
+    try:
+        return page.inner_text("body")
+    except Exception:
+        return None
+
+
+def extract_pdf_link(page) -> Optional[str]:
+    """Find a PDF/edicto link on the current page. Prefers anchors whose
+    text/href mentions PDF or EDICTO."""
+    try:
+        return page.evaluate(
+            """
+            () => {
+              const anchors = Array.from(document.querySelectorAll('a[href]'));
+              for (const a of anchors) {
+                const h = (a.getAttribute('href') || '');
+                const t = (a.textContent || '').toUpperCase();
+                if (h.toLowerCase().endsWith('.pdf')) return a.href;
+                if (t.includes('PDF') && h) return a.href;
+                if (t.includes('EDICTO') && h.toLowerCase().includes('.pdf')) return a.href;
+              }
+              return null;
+            }
+            """
+        )
+    except Exception:
+        return None
+
+
+def fetch_pdf_text(pdf_url: str, timeout: int = 20) -> Optional[str]:
+    """Download a PDF and extract its text. Returns None if pypdf is missing
+    or the download/extract fails."""
+    if not _PYPDF_AVAILABLE:
+        return None
+    try:
+        req = urllib.request.Request(
+            pdf_url,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; dnksubastas-backfill/1.0)"},
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = resp.read()
+        reader = PdfReader(io.BytesIO(data))
+        out = []
+        for pg in reader.pages:
+            try:
+                t = pg.extract_text() or ""
+            except Exception:
+                t = ""
+            if t:
+                out.append(t)
+        return "\n".join(out) if out else None
+    except Exception:
+        return None
+
+
 def get_db_url() -> str:
     url = os.environ.get("DATABASE_URL")
     if not url:
-        print("FATAL: DATABASE_URL not set. Run this script inside the app container "
-              "where the env is already populated (docker exec dnksubastas-app sh -c "
-              "'cd /app && python scripts/backfill-cadastral-ref.py ...').",
-              file=sys.stderr)
+        print(
+            "FATAL: DATABASE_URL not set. Run this script inside the app container "
+            "where the env is already populated (docker exec dnksubastas-app sh -c "
+            "'cd /app && python scripts/backfill-cadastral-ref.py ...').",
+            file=sys.stderr,
+        )
         sys.exit(2)
     return url
 
@@ -153,19 +228,22 @@ def load_checkpoint() -> set:
 def save_checkpoint(processed: set) -> None:
     try:
         CHECKPOINT_PATH.write_text(
-            json.dumps({"processed": sorted(processed),
-                        "savedAt": datetime.now(timezone.utc).isoformat()}),
+            json.dumps(
+                {"processed": sorted(processed), "savedAt": datetime.now(timezone.utc).isoformat()}
+            ),
             encoding="utf-8",
         )
     except Exception as e:
         print(f"WARN: checkpoint write failed: {e}", file=sys.stderr)
 
 
-def load_targets(conn, statuses: tuple, limit: Optional[int]) -> List[str]:
+def load_targets(conn, statuses: tuple, limit: Optional[int]) -> List[Tuple[str, Optional[str]]]:
+    """Returns list of (boeId, auctionId) tuples. Uses status::text cast — the
+    `status` column is PG enum AuctionStatus and won't compare to text directly."""
     sql = """
-        SELECT "boeId"
+        SELECT "boeId", "auctionId"
         FROM "Auction"
-        WHERE status = ANY(%s)
+        WHERE status::text = ANY(%s)
           AND ("cadastralRef" IS NULL OR "cadastralRef" = '')
         ORDER BY "endsAt" ASC NULLS LAST
     """
@@ -175,17 +253,61 @@ def load_targets(conn, statuses: tuple, limit: Optional[int]) -> List[str]:
         params.append(limit)
     with conn.cursor() as cur:
         cur.execute(sql, params)
-        return [r[0] for r in cur.fetchall()]
+        return [(r[0], r[1]) for r in cur.fetchall()]
 
 
-def update_row(conn, boe_id: str, rc: str, rc_data: str) -> None:
+def update_row(
+    conn,
+    boe_id: str,
+    rc: Optional[str],
+    rc_data: Optional[str],
+    discovered_auction_id: Optional[str],
+) -> None:
+    """Patch in whatever we found. Avoid clobbering an existing auctionId with
+    NULL — only write it when we actually discovered one."""
+    sets = []
+    params: list = []
+    if rc:
+        sets.append('"cadastralRef" = %s')
+        params.append(rc)
+        sets.append('"cadastralData" = %s')
+        params.append(rc_data or rc)
+    if discovered_auction_id:
+        sets.append('"auctionId" = COALESCE("auctionId", %s)')
+        params.append(discovered_auction_id)
+    if not sets:
+        return
+    sets.append('"updatedAt" = %s')
+    params.append(datetime.now(timezone.utc))
+    params.append(boe_id)
+    sql = f'UPDATE "Auction" SET {", ".join(sets)} WHERE "boeId" = %s'
     with conn.cursor() as cur:
-        cur.execute(
-            'UPDATE "Auction" SET "cadastralRef" = %s, "cadastralData" = %s, '
-            '"updatedAt" = %s WHERE "boeId" = %s',
-            (rc, rc_data, datetime.now(timezone.utc), boe_id),
-        )
+        cur.execute(sql, params)
     conn.commit()
+
+
+def try_portal(page, portal_id: str, min_delay: float, max_delay: float) -> Optional[str]:
+    """Fetch portal detail page for `portal_id` and return Bienes section text.
+    Returns None if the portal errors (e.g. invalid idSub)."""
+    try:
+        page.goto(f"{PORTAL_DETAIL_URL}{portal_id}", wait_until="networkidle", timeout=30000)
+        time.sleep(random.uniform(min_delay, max_delay))
+        body = get_page_text(page) or ""
+        if "identificador de subasta incorrecto" in body.lower():
+            return None
+        return extract_section_text(page, "Bienes")
+    except Exception:
+        return None
+
+
+def try_gazette(page, boe_id: str, min_delay: float, max_delay: float) -> Optional[str]:
+    """Fetch the gazette edict page; return full body text or None."""
+    try:
+        page.goto(f"{GAZETTE_URL}{boe_id}", wait_until="networkidle", timeout=30000)
+        time.sleep(random.uniform(min_delay, max_delay))
+        return get_page_text(page)
+    except Exception:
+        return None
 
 
 def main() -> int:
@@ -193,24 +315,40 @@ def main() -> int:
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--limit", type=int, default=20, help="Process up to N rows (default 20).")
     g.add_argument("--all", action="store_true", help="Process the entire active set.")
-    ap.add_argument("--statuses", nargs="+", default=list(DEFAULT_STATUSES),
-                    help=f"Status whitelist (default: {' '.join(DEFAULT_STATUSES)}).")
+    ap.add_argument(
+        "--statuses",
+        nargs="+",
+        default=list(DEFAULT_STATUSES),
+        help=f"Status whitelist (default: {' '.join(DEFAULT_STATUSES)}).",
+    )
     ap.add_argument("--min-delay", type=float, default=1.5, help="Min per-fetch delay seconds.")
     ap.add_argument("--max-delay", type=float, default=3.5, help="Max per-fetch delay seconds.")
-    ap.add_argument("--ignore-checkpoint", action="store_true",
-                    help="Process all selected rows even if previously seen.")
+    ap.add_argument(
+        "--ignore-checkpoint",
+        action="store_true",
+        help="Process all selected rows even if previously seen.",
+    )
+    ap.add_argument(
+        "--skip-pdf",
+        action="store_true",
+        help="Disable the PDF-edicto fallback (faster, lower coverage).",
+    )
     args = ap.parse_args()
 
     db_url = get_db_url()
     statuses = tuple(args.statuses)
     limit = None if args.all else args.limit
 
-    print(f"[backfill-rc] connecting to PG ...")
+    print("[backfill-rc] connecting to PG ...")
     conn = psycopg2.connect(db_url)
     try:
         targets = load_targets(conn, statuses, limit)
-        print(f"[backfill-rc] {len(targets)} candidate rows "
-              f"(statuses={list(statuses)}, limit={'ALL' if limit is None else limit})")
+        print(
+            f"[backfill-rc] {len(targets)} candidate rows "
+            f"(statuses={list(statuses)}, limit={'ALL' if limit is None else limit})"
+        )
+        print(f"[backfill-rc] pdf fallback: "
+              f"{'DISABLED (--skip-pdf)' if args.skip_pdf else ('available' if _PYPDF_AVAILABLE else 'unavailable (pypdf not installed)')}")
 
         if not targets:
             print("[backfill-rc] nothing to do.")
@@ -219,14 +357,19 @@ def main() -> int:
         checkpoint = set() if args.ignore_checkpoint else load_checkpoint()
         if checkpoint:
             before = len(targets)
-            targets = [t for t in targets if t not in checkpoint]
-            print(f"[backfill-rc] checkpoint skipped {before - len(targets)} already-processed rows")
+            targets = [t for t in targets if t[0] not in checkpoint]
+            print(
+                f"[backfill-rc] checkpoint skipped {before - len(targets)} already-processed rows"
+            )
 
         attempted = 0
-        rc_found = 0
+        rc_from_portal = 0
+        rc_from_gazette = 0
+        rc_from_pdf = 0
+        idsub_discovered = 0
         still_null = 0
         errors = 0
-        samples: List[Tuple[str, str]] = []
+        samples: List[Tuple[str, str, str]] = []  # (boe_id, source, rc)
 
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
@@ -234,37 +377,117 @@ def main() -> int:
                 viewport={"width": 1366, "height": 768},
                 locale="es-ES",
                 timezone_id="Europe/Madrid",
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
             )
             page = context.new_page()
             page.set_default_timeout(20000)
 
             try:
-                for idx, boe_id in enumerate(targets, start=1):
+                for idx, (boe_id, existing_auction_id) in enumerate(targets, start=1):
                     attempted += 1
+                    rc: Optional[str] = None
+                    rc_data: Optional[str] = None
+                    discovered_idsub: Optional[str] = None
+                    source = "—"
+
                     try:
-                        url = f"{BASE_URL}{boe_id}"
-                        page.goto(url, wait_until="networkidle", timeout=30000)
-                        time.sleep(random.uniform(args.min_delay, args.max_delay))
+                        # Resolve which portal id to try first.
+                        portal_id = (
+                            existing_auction_id
+                            if existing_auction_id
+                            else (boe_id if boe_id.startswith("SUB-") else None)
+                        )
 
-                        bienes = extract_section_text(page, "Bienes")
-                        rc, rc_data = extract_cadastral_refs(bienes)
+                        # STEP 1: Portal Bienes tab (highest quality source).
+                        if portal_id:
+                            bienes = try_portal(page, portal_id, args.min_delay, args.max_delay)
+                            rc, rc_data = extract_cadastral_refs(bienes)
+                            if rc:
+                                source = "portal"
 
+                        # STEP 2: Gazette edict — search body for embedded
+                        # portal idSub AND for the RC label directly.
+                        gazette_body: Optional[str] = None
+                        if not rc:
+                            gazette_body = try_gazette(
+                                page, boe_id, args.min_delay, args.max_delay
+                            )
+                            if gazette_body:
+                                # Try to discover a portal idSub we didn't have.
+                                if not portal_id:
+                                    found_id = extract_portal_idsub(gazette_body)
+                                    if found_id:
+                                        discovered_idsub = found_id
+                                        idsub_discovered += 1
+                                        # Try the portal Bienes tab now.
+                                        bienes = try_portal(
+                                            page, found_id, args.min_delay, args.max_delay
+                                        )
+                                        rc, rc_data = extract_cadastral_refs(bienes)
+                                        if rc:
+                                            source = "portal_via_gazette"
+                                # Fallback: parse RC from gazette body directly.
+                                if not rc:
+                                    rc, rc_data = extract_cadastral_refs(gazette_body)
+                                    if rc:
+                                        source = "gazette"
+
+                        # STEP 3: PDF edicto fallback.
+                        if not rc and not args.skip_pdf and _PYPDF_AVAILABLE:
+                            # We need to be on a page that has the PDF link.
+                            # If we haven't loaded the gazette yet (because we
+                            # had a portal_id but it errored), load it now.
+                            if not gazette_body:
+                                gazette_body = try_gazette(
+                                    page, boe_id, args.min_delay, args.max_delay
+                                )
+                            if gazette_body:
+                                pdf_url = extract_pdf_link(page)
+                                if pdf_url:
+                                    pdf_text = fetch_pdf_text(pdf_url)
+                                    if pdf_text:
+                                        rc, rc_data = extract_cadastral_refs(pdf_text)
+                                        if rc:
+                                            source = "pdf"
+                                        # Also try idSub from PDF if not yet found.
+                                        if not (existing_auction_id or discovered_idsub):
+                                            found_id = extract_portal_idsub(pdf_text)
+                                            if found_id:
+                                                discovered_idsub = found_id
+                                                idsub_discovered += 1
+
+                        # Bookkeeping + write.
                         if rc:
-                            update_row(conn, boe_id, rc, rc_data or rc)
-                            rc_found += 1
-                            if len(samples) < 5:
-                                samples.append((boe_id, rc))
+                            if source == "portal":
+                                rc_from_portal += 1
+                            elif source in ("portal_via_gazette", "gazette"):
+                                rc_from_gazette += 1
+                            elif source == "pdf":
+                                rc_from_pdf += 1
+                            if len(samples) < 8:
+                                samples.append((boe_id, source, rc))
                             tag = "OK "
                         else:
                             still_null += 1
                             tag = "—  "
 
+                        if rc or discovered_idsub:
+                            update_row(conn, boe_id, rc, rc_data, discovered_idsub)
+
                         checkpoint.add(boe_id)
                         if idx % 25 == 0:
                             save_checkpoint(checkpoint)
 
-                        print(f"[{idx}/{len(targets)}] {tag} {boe_id}"
-                              + (f" rc={rc}" if rc else ""))
+                        suffix = ""
+                        if rc:
+                            suffix = f" rc={rc} src={source}"
+                        elif discovered_idsub:
+                            suffix = f" (no rc; persisted idSub={discovered_idsub})"
+                        print(f"[{idx}/{len(targets)}] {tag} {boe_id}{suffix}")
                     except KeyboardInterrupt:
                         print("\n[backfill-rc] interrupted — saving checkpoint")
                         save_checkpoint(checkpoint)
@@ -281,13 +504,17 @@ def main() -> int:
                     pass
 
         print("\n[backfill-rc] DONE")
-        print(f"  attempted      : {attempted}")
-        print(f"  rc_found (tab) : {rc_found}")
-        print(f"  rc_from_pdf    : 0 (PDF fallback deferred to v2)")
-        print(f"  still_null     : {still_null}")
-        print(f"  errors         : {errors}")
+        print(f"  attempted          : {attempted}")
+        print(f"  rc from portal     : {rc_from_portal}")
+        print(f"  rc from gazette    : {rc_from_gazette}")
+        print(f"  rc from pdf        : {rc_from_pdf}")
+        print(f"  idsub discovered   : {idsub_discovered}")
+        print(f"  still_null         : {still_null}")
+        print(f"  errors             : {errors}")
         if samples:
-            print(f"  samples        : " + ", ".join(f"({b}, {r})" for b, r in samples))
+            print("  samples            : " + ", ".join(
+                f"({b}, src={s}, rc={r})" for b, s, r in samples
+            ))
         return 0
     finally:
         conn.close()
