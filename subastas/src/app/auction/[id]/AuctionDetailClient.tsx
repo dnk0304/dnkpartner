@@ -29,7 +29,8 @@
 import * as React from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { ArrowLeft, ExternalLink, FileText, MapPin } from "lucide-react";
+import Image from "next/image";
+import { ArrowLeft, ExternalLink, FileText, MapPin, ImageOff } from "lucide-react";
 import { apiFetch } from "@/lib/api-path";
 import { AuctionItem } from "@/types";
 import { ObservatoryHeader } from "@/components/observatory/ObservatoryHeader";
@@ -97,6 +98,7 @@ export default function AuctionDetailClient({ id }: { id: string }) {
   const [data, setData] = React.useState<DetailResponse["data"] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [photoFailed, setPhotoFailed] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -234,6 +236,14 @@ export default function AuctionDetailClient({ id }: { id: string }) {
 
   const hasCoords = typeof raw.latitude === "number" && typeof raw.longitude === "number";
 
+  // Real photo = resolver-served (Catastro / Street View / migrated). Anything else
+  // (legacy seed URL, category placeholder) is treated as "no photo".
+  const photoUrl: string | null =
+    raw.imageUrl &&
+    (raw.imageUrl.startsWith("/api/auction-image/") || raw.imageUrl.startsWith("/streetview/"))
+      ? raw.imageUrl
+      : null;
+
   return (
     <div className="min-h-screen bg-[--color-page] pb-24 md:pb-12">
       <ObservatoryHeader hideSearch />
@@ -290,6 +300,28 @@ export default function AuctionDetailClient({ id }: { id: string }) {
         <div className="grid grid-cols-1 md:grid-cols-[1fr_360px] gap-6 md:gap-8 items-start">
           {/* Left: content */}
           <div className="space-y-8 min-w-0">
+            {/* Real photo (Catastro/Street View). Shown above the map so the
+                eye gets the property first; map provides spatial context after. */}
+            {photoUrl && !photoFailed && (
+              <section aria-labelledby="photo-heading">
+                <h2 id="photo-heading" className="sr-only">Foto del bien</h2>
+                <div className="relative aspect-[16/9] w-full overflow-hidden rounded-lg border border-[--color-hairline] bg-[--color-surface-muted]">
+                  <Image
+                    src={photoUrl}
+                    alt={`Foto de ${raw.title}`}
+                    fill
+                    sizes="(max-width: 768px) 100vw, 60vw"
+                    className="object-cover"
+                    priority
+                    onError={() => setPhotoFailed(true)}
+                  />
+                </div>
+                <p className="mt-1.5 text-[11px] text-[--color-ink-tertiary]">
+                  Foto generada a partir de la referencia catastral o Street View. Puede no reflejar el estado actual.
+                </p>
+              </section>
+            )}
+
             {/* Map */}
             {hasCoords ? (
               <section aria-labelledby="map-heading">

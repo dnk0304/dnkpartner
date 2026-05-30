@@ -14,6 +14,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { AuctionItem } from "@/types";
 import { StatusDot } from "./StatusBadge";
 import { LiveCountdown } from "./LiveCountdown";
@@ -21,6 +22,11 @@ import { FollowButton } from "@/components/notifications/FollowButton";
 import { formatPrice, capitalize, titleCase } from "./format";
 import { getStatusMeta } from "./status";
 import { cn } from "@/lib/utils";
+
+function isRealPhotoUrl(url?: string | null): boolean {
+  if (!url) return false;
+  return url.startsWith("/api/auction-image/") || url.startsWith("/streetview/");
+}
 
 export type AuctionListRowProps = {
   item: AuctionItem;
@@ -32,6 +38,8 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
   const where = [item.municipality && titleCase(item.municipality), item.province && capitalize(item.province)]
     .filter(Boolean)
     .join(" · ");
+  const realPhoto = isRealPhotoUrl(item.imageUrl);
+  const [imgFailed, setImgFailed] = React.useState(false);
 
   return (
     <tr
@@ -45,6 +53,26 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
       </td>
 
       <td className="align-top py-3 pr-3 min-w-0">
+        <div className="flex items-start gap-3 min-w-0">
+          {realPhoto && !imgFailed && (
+            <Link
+              href={`/auction/${encodeURIComponent(item.id)}`}
+              tabIndex={-1}
+              aria-hidden="true"
+              className="relative shrink-0 w-16 h-12 rounded overflow-hidden bg-[--color-surface-muted] border border-[--color-hairline] hidden sm:block"
+            >
+              <Image
+                src={item.imageUrl}
+                alt=""
+                fill
+                sizes="64px"
+                className="object-cover"
+                loading="lazy"
+                onError={() => setImgFailed(true)}
+              />
+            </Link>
+          )}
+          <div className="min-w-0 flex-1">
         <Link
           href={`/auction/${encodeURIComponent(item.id)}`}
           className="block text-sm font-medium text-[--color-ink-primary] hover:underline focus-visible:outline-none focus-visible:underline line-clamp-2"
@@ -61,6 +89,8 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
               <span className="truncate">{where}</span>
             </>
           )}
+        </div>
+          </div>
         </div>
       </td>
 

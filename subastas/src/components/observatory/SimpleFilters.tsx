@@ -353,6 +353,31 @@ export function ActiveFilterChips({
       });
     }
   }
+  if (filters.pctTasacionMax != null) {
+    chips.push({
+      key: "pctTasacion",
+      label: `≤ ${filters.pctTasacionMax}% tasación`,
+      onRemove: () => onChange({ pctTasacionMax: null }),
+    });
+  }
+  if (filters.endsBefore) {
+    const d = new Date(filters.endsBefore);
+    const fmt = isNaN(d.getTime())
+      ? filters.endsBefore
+      : d.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+    chips.push({
+      key: "endsBefore",
+      label: `Termina antes del ${fmt}`,
+      onRemove: () => onChange({ endsBefore: null }),
+    });
+  }
+  if (filters.hasImage) {
+    chips.push({
+      key: "hasImage",
+      label: "Con foto",
+      onRemove: () => onChange({ hasImage: false }),
+    });
+  }
 
   if (chips.length === 0) return null;
 

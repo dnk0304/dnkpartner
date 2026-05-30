@@ -127,6 +127,13 @@ export type ObservatoryFilters = {
   sort: SortValue;
   /** When true, show the full SimpleFilters/AdvancedFilters surface; when false, only PresetRow + ActiveFilterChips. */
   advanced: boolean;
+  // --- P1 advanced filter params (Forge-backed) ---
+  /** Max % of appraisal (currentBid/appraisal*100). e.g. 70 → "≤70% tasación". */
+  pctTasacionMax: number | null;
+  /** ISO timestamp — only auctions ending before this date. */
+  endsBefore: string | null;
+  /** When true, restrict to rows that have a real photo. */
+  hasImage: boolean;
 };
 
 export const DEFAULT_FILTERS: ObservatoryFilters = {
@@ -142,6 +149,9 @@ export const DEFAULT_FILTERS: ObservatoryFilters = {
   types: [],
   sort: DEFAULT_SORT,
   advanced: false,
+  pctTasacionMax: null,
+  endsBefore: null,
+  hasImage: false,
 };
 
 const VALID_SORTS: SortValue[] = ["endsAt_asc", "published_desc", "price_asc", "price_desc"];
@@ -169,6 +179,9 @@ export function filtersFromParams(p: URLSearchParams): ObservatoryFilters {
       return raw && (VALID_SORTS as string[]).includes(raw) ? (raw as SortValue) : DEFAULT_SORT;
     })(),
     advanced: p.get("advanced") === "1",
+    pctTasacionMax: num(p.get("pctTasacionMax")),
+    endsBefore: p.get("endsBefore") || null,
+    hasImage: p.get("hasImage") === "true",
   };
 }
 
@@ -187,6 +200,9 @@ export function paramsFromFilters(f: ObservatoryFilters): URLSearchParams {
   if (f.types.length) p.set("types", f.types.join(","));
   if (f.sort && f.sort !== DEFAULT_SORT) p.set("sort", f.sort);
   if (f.advanced) p.set("advanced", "1");
+  if (f.pctTasacionMax != null) p.set("pctTasacionMax", String(f.pctTasacionMax));
+  if (f.endsBefore) p.set("endsBefore", f.endsBefore);
+  if (f.hasImage) p.set("hasImage", "true");
   return p;
 }
 
@@ -208,19 +224,21 @@ export function paramsFromFilters(f: ObservatoryFilters): URLSearchParams {
 export function filtersToApiParams(f: ObservatoryFilters): URLSearchParams {
   const p = new URLSearchParams();
 
-  // Categories
+  // Categories — prefer the new multi-`categories` rollup param when >1; fall back to
+  // single `category` for exact-match buckets.
   if (f.categories.length === 1) {
     p.set("category", f.categories[0]);
-  } else if (f.categories.length === 0) {
+  } else if (f.categories.length > 1) {
+    p.set("categories", f.categories.join(","));
+  } else {
     const bucket = SIMPLE_KIND_OPTIONS.find((b) => b.id === f.kind);
     if (bucket && bucket.categories.length === 1) {
       p.set("category", bucket.categories[0]);
+    } else if (bucket && bucket.categories.length > 1) {
+      // Multi-cat broad bucket — use the new multi-`categories` param so the
+      // server narrows the page instead of relying purely on client post-filter.
+      p.set("categories", bucket.categories.join(","));
     }
-    // Multi-category buckets are handled by client filter — we still
-    // narrow on the server when possible. (For "Vivienda" → 2 cats, we
-    // could fetch both via the existing API by issuing one request per
-    // category, but that's overkill for the simple filter. The list view
-    // already does post-filter for refinement.)
   }
 
   // Province
@@ -238,6 +256,12 @@ export function filtersToApiParams(f: ObservatoryFilters): URLSearchParams {
   if (f.types.length > 0) {
     p.set("auctionTypes", f.types.join(","));
   }
+
+  // P1 advanced filter params (Forge-backed). Skipping null/false keeps the URL clean.
+  if (f.priceMax != null) p.set("priceMax", String(f.priceMax));
+  if (f.pctTasacionMax != null) p.set("pctTasacionMax", String(f.pctTasacionMax));
+  if (f.endsBefore) p.set("endsBefore", f.endsBefore);
+  if (f.hasImage) p.set("hasImage", "true");
 
   // Sort — always send so SSR/CSR stay deterministic. Server default matches DEFAULT_SORT.
   if (f.sort) p.set("sort", f.sort);
@@ -258,15 +282,45 @@ export function isDefaultFilters(f: ObservatoryFilters): boolean {
     f.categories.length === 0 &&
     f.statuses.length === 0 &&
     f.types.length === 0 &&
-    f.sort === DEFAULT_SORT
+    f.sort === DEFAULT_SORT &&
+    f.pctTasacionMax == null &&
+    !f.endsBefore &&
+    !f.hasImage
   );
 }
 
-/** P0 preset identifiers. */
-export type PresetId = "viviendas-activas" | "coches" | "por-provincia" | "judiciales-boe";
+/** Vehicle rollup — every category that belongs in "Coches y vehículos". */
+export const VEHICLE_CATEGORIES: AuctionCategory[] = [
+  "Turismos",
+  "Motocicletas",
+  "Vehículos Industriales",
+  "Barcos",
+];
+
+/** Preset identifiers — P0 (first 4) + P1 advanced (last 4). */
+export type PresetId =
+  | "viviendas-activas"
+  | "coches"
+  | "por-provincia"
+  | "judiciales-boe"
+  // P1 advanced
+  | "viviendas-baratas"
+  | "bajo-tasacion"
+  | "termina-semana"
+  | "solo-con-foto";
+
+/**
+ * Compute an ISO timestamp `days` ahead of `from`. Pure helper so isPresetActive
+ * stays deterministic when called from the same render as the click handler.
+ */
+function isoDaysFromNow(days: number, from: Date = new Date()): string {
+  const d = new Date(from.getTime());
+  d.setDate(d.getDate() + days);
+  return d.toISOString();
+}
 
 /** Bundle applied when a preset is clicked. All other filter dims reset to defaults. */
-export function presetFilters(id: PresetId, opts?: { province?: string }): Partial<ObservatoryFilters> {
+export function presetFilters(id: PresetId, opts?: { province?: string; now?: Date }): Partial<ObservatoryFilters> {
   // Common reset — every preset starts from defaults, then overrides.
   const base: Partial<ObservatoryFilters> = {
     search: "",
@@ -279,6 +333,9 @@ export function presetFilters(id: PresetId, opts?: { province?: string }): Parti
     categories: [],
     statuses: [],
     types: [],
+    pctTasacionMax: null,
+    endsBefore: null,
+    hasImage: false,
   };
   switch (id) {
     case "viviendas-activas":
@@ -288,10 +345,10 @@ export function presetFilters(id: PresetId, opts?: { province?: string }): Parti
         statuses: ["celebrandose", "proxima-apertura"],
       };
     case "coches":
-      // P0: Turismos only (API category is single-value exact match). Multi-vehicle rollup = P1.
+      // P1: full vehicle rollup via the new multi-`categories` API param.
       return {
         ...base,
-        categories: ["Turismos"],
+        categories: VEHICLE_CATEGORIES,
         statuses: ["celebrandose", "proxima-apertura"],
       };
     case "por-provincia":
@@ -306,6 +363,32 @@ export function presetFilters(id: PresetId, opts?: { province?: string }): Parti
         types: ["judicial"],
         statuses: ["celebrandose", "proxima-apertura"],
       };
+    case "viviendas-baratas":
+      return {
+        ...base,
+        kind: "vivienda",
+        categories: ["Viviendas"],
+        statuses: ["celebrandose", "proxima-apertura"],
+        priceMax: 100000,
+      };
+    case "bajo-tasacion":
+      return {
+        ...base,
+        statuses: ["celebrandose", "proxima-apertura"],
+        pctTasacionMax: 70,
+      };
+    case "termina-semana":
+      return {
+        ...base,
+        statuses: ["celebrandose"],
+        endsBefore: isoDaysFromNow(7, opts?.now),
+      };
+    case "solo-con-foto":
+      return {
+        ...base,
+        statuses: ["celebrandose", "proxima-apertura"],
+        hasImage: true,
+      };
   }
 }
 
@@ -315,6 +398,15 @@ export function isPresetActive(f: ObservatoryFilters, id: PresetId, opts?: { pro
   return (Object.keys(target) as Array<keyof ObservatoryFilters>).every((k) => {
     const a = (f as any)[k];
     const b = (target as any)[k];
+    // endsBefore for the "termina-semana" preset is computed at click-time, so the
+    // exact ISO drifts second-by-second. Treat any present endsBefore inside a
+    // generous +6h..+8d window from now as "this preset is active".
+    if (k === "endsBefore" && id === "termina-semana") {
+      if (!a) return false;
+      const t = new Date(a).getTime();
+      const now = Date.now();
+      return t > now + 6 * 3600 * 1000 && t < now + 8 * 24 * 3600 * 1000;
+    }
     if (Array.isArray(a) && Array.isArray(b)) {
       if (a.length !== b.length) return false;
       const sa = [...a].sort();

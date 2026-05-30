@@ -162,25 +162,30 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
   const isPropertyCategory = ['Viviendas', 'Locales', 'Terrenos', 'Garajes', 'Trasteros', 'Fincas rústicas', 'Naves industriales', 'Otros inmuebles'].includes(item.category);
 
   const hasCoords = Boolean(item.latitude && item.longitude);
-  
-  // Determine image source based on coordinates and category
+
+  // Real photo = resolver-served (Catastro / Street View / migrated). When present,
+  // it ALWAYS wins over the map/category placeholder — that's the P1 upgrade.
+  const hasRealPhoto = Boolean(
+    item.imageUrl && (item.imageUrl.startsWith('/api/auction-image/') || item.imageUrl.startsWith('/streetview/'))
+  );
+
+  // Determine image source: real photo > map > category placeholder.
   let imageSrc: string;
-  if (hasCoords) {
-    // Has coordinates - show map with pinpoint
+  if (hasRealPhoto) {
+    imageSrc = item.imageUrl;
+  } else if (hasCoords) {
     imageSrc = generateMapImageUrl(item.latitude || null, item.longitude || null, 800, 600, getOptimalZoom(item.category));
   } else if (isVehicleCategory) {
-    // Vehicle without coordinates - show vehicle-specific icon
     imageSrc = getVehicleCategoryImageUrl(item.category);
   } else if (isPropertyCategory) {
-    // Property without coordinates - show property-specific icon
     imageSrc = getPropertyCategoryImageUrl(item.category);
   } else {
-    // Fallback - use stored imageUrl or generic property image
     imageSrc = item.imageUrl || getPropertyCategoryImageUrl('Otros inmuebles');
   }
-  
-  const imageAlt = hasCoords ? 'Mapa de ubicación' : item.title;
-  const showPinOverlay = !hasCoords;
+
+  const imageAlt = hasRealPhoto ? `Foto de ${item.title}` : hasCoords ? 'Mapa de ubicación' : item.title;
+  // Only show the pin overlay when we're rendering a non-map, non-photo placeholder.
+  const showPinOverlay = !hasCoords && !hasRealPhoto;
 
   return (
     <Card 

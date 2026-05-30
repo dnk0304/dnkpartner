@@ -15,7 +15,7 @@
  */
 
 import * as React from "react";
-import { Home, Car, MapPin, Gavel } from "lucide-react";
+import { Home, Car, MapPin, Gavel, Tag, Percent, CalendarClock, Image as ImageIcon } from "lucide-react";
 import { apiFetch } from "@/lib/api-path";
 import {
   ObservatoryFilters,
@@ -136,7 +136,7 @@ export function PresetRow({
     },
     {
       id: "coches",
-      label: "Coches",
+      label: "Coches y vehículos",
       icon: <Car className="h-4 w-4" aria-hidden="true" />,
       count: cochesCount,
     },
@@ -152,6 +152,35 @@ export function PresetRow({
       label: "Judiciales del BOE",
       icon: <Gavel className="h-4 w-4" aria-hidden="true" />,
       count: typeCounts.judicialActive,
+    },
+  ];
+
+  // P1 — advanced one-click presets backed by the new /api/auctions params.
+  // All FREE, all visible, no tier-gating per Dennis decision.
+  const advancedCards: Array<PresetCardSpec> = [
+    {
+      id: "viviendas-baratas",
+      label: "Viviendas < 100.000 €",
+      icon: <Tag className="h-4 w-4" aria-hidden="true" />,
+      count: null,
+    },
+    {
+      id: "bajo-tasacion",
+      label: "Bajo tasación (≤70%)",
+      icon: <Percent className="h-4 w-4" aria-hidden="true" />,
+      count: null,
+    },
+    {
+      id: "termina-semana",
+      label: "Terminan esta semana",
+      icon: <CalendarClock className="h-4 w-4" aria-hidden="true" />,
+      count: null,
+    },
+    {
+      id: "solo-con-foto",
+      label: "Solo con foto",
+      icon: <ImageIcon className="h-4 w-4" aria-hidden="true" />,
+      count: null,
     },
   ];
 
@@ -196,7 +225,58 @@ export function PresetRow({
           />
         ))}
       </div>
+
+      {/* P1 — advanced presets band. All free, all visible. Compact chip styling
+          so the main 4 remain the primary entry point. */}
+      <div className="mt-4">
+        <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[--color-ink-tertiary]">
+          Filtros avanzados
+        </div>
+        <div
+          className={cn(
+            "flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory -mx-4 px-4",
+            "md:flex-wrap md:overflow-visible md:mx-0 md:px-0 md:pb-0",
+          )}
+        >
+          {advancedCards.map((c) => (
+            <AdvancedPresetChip
+              key={c.id}
+              spec={c}
+              active={isPresetActive(filters, c.id)}
+              onClick={() => onApplyPreset(presetFilters(c.id))}
+            />
+          ))}
+        </div>
+      </div>
     </section>
+  );
+}
+
+function AdvancedPresetChip({
+  spec,
+  active,
+  onClick,
+}: {
+  spec: PresetCardSpec;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "snap-start shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all min-h-[36px]",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40",
+        active
+          ? "border-[--color-brand] bg-[--color-brand] text-white shadow-sm"
+          : "border-[--color-hairline] bg-[--color-surface] text-[--color-ink-secondary] hover:border-[--color-brand]/40 hover:text-[--color-brand]",
+      )}
+    >
+      <span className={cn(active ? "text-white" : "text-[--color-ink-tertiary]")}>{spec.icon}</span>
+      <span>{spec.label}</span>
+    </button>
   );
 }
 
