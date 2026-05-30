@@ -98,13 +98,43 @@
 }
 
 .sb-panel-header {
-  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 12px 12px 16px;
   font-size: 0.8rem;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.5);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   border-bottom: 1px solid #1c1c2a;
+}
+
+.sb-add-image-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: #1c1c2a;
+  border: 1px solid #2a2a3d;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.sb-add-image-btn:hover {
+  background: #2a2a3d;
+  border-color: #7c3aed;
+  color: #fff;
+}
+.sb-add-image-btn:focus-visible {
+  outline: 2px solid #7c3aed;
+  outline-offset: 2px;
 }
 
 .sb-blocks-container {
@@ -124,6 +154,7 @@
 .sb-canvas {
   flex: 1;
   overflow: hidden;
+  position: relative;
 }
 
 #gjs {
@@ -456,4 +487,352 @@
   .sb-panel-right {
     display: none;
   }
+}
+
+/* ─────────────────────────────────────────────────────────
+   Persistent saved-timestamp (replaces transient toast for autosaves)
+   ───────────────────────────────────────────────────────── */
+.sb-saved-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.78rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: color 0.2s;
+}
+.sb-saved-indicator i {
+  font-size: 0.85rem;
+  color: #16a34a;
+}
+.sb-saved-indicator.is-saving {
+  color: rgba(255, 255, 255, 0.85);
+}
+.sb-saved-indicator.is-saving i {
+  color: #f59e0b;
+}
+
+/* Publish button — visually distinct from Save */
+.sb-toolbar button.sb-publish-btn {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #fff;
+}
+.sb-toolbar button.sb-publish-btn:hover {
+  background: #15803d;
+  border-color: #15803d;
+}
+
+/* Toast variant: info */
+.sb-toast.info {
+  background: #1e40af;
+  color: #fff;
+  max-width: 420px;
+  line-height: 1.4;
+}
+
+/* ─────────────────────────────────────────────────────────
+   Inline new-page modal (replaces window.prompt)
+   ───────────────────────────────────────────────────────── */
+.sb-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(8, 8, 16, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: sb-fade-in 0.15s ease-out;
+}
+
+.sb-modal {
+  width: 100%;
+  max-width: 420px;
+  background: #14141f;
+  border: 1px solid #2a2a3d;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  animation: sb-modal-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.sb-modal-title {
+  margin: 0 0 16px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.sb-modal-field {
+  display: block;
+  margin-bottom: 14px;
+}
+.sb-modal-field > span {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+}
+.sb-modal-field input {
+  width: 100%;
+  padding: 10px 12px;
+  background: #0c0c14;
+  border: 1px solid #2a2a3d;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.sb-modal-field input:focus {
+  outline: none;
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.25);
+}
+
+.sb-modal-error {
+  margin: 4px 0 12px;
+  padding: 8px 10px;
+  background: rgba(220, 38, 38, 0.12);
+  border: 1px solid rgba(220, 38, 38, 0.4);
+  border-radius: 6px;
+  color: #fca5a5;
+  font-size: 0.82rem;
+}
+
+.sb-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.sb-modal-btn {
+  padding: 9px 16px;
+  background: #1c1c2a;
+  border: 1px solid #2a2a3d;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.sb-modal-btn:hover:not(:disabled) {
+  background: #2a2a3d;
+  border-color: #7c3aed;
+}
+.sb-modal-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.sb-modal-btn:focus-visible {
+  outline: 2px solid #7c3aed;
+  outline-offset: 2px;
+}
+
+.sb-modal-btn-primary {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: #fff;
+}
+.sb-modal-btn-primary:hover:not(:disabled) {
+  background: #8b5cf6;
+  border-color: #8b5cf6;
+}
+
+@keyframes sb-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes sb-modal-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ─────────────────────────────────────────────────────────
+   Empty-state template overlay + thumbnails
+   ───────────────────────────────────────────────────────── */
+.sb-template-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: rgba(248, 250, 252, 0.96);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  overflow-y: auto;
+  animation: sb-fade-in 0.2s ease-out;
+}
+
+.sb-template-overlay-inner {
+  width: 100%;
+  max-width: 900px;
+  text-align: center;
+}
+
+.sb-template-overlay-title {
+  margin: 0 0 8px;
+  font-size: 2rem;
+  font-weight: 800;
+  color: #111827;
+  font-family: "Plus Jakarta Sans", -apple-system, sans-serif;
+}
+
+.sb-template-overlay-sub {
+  margin: 0 0 32px;
+  font-size: 1rem;
+  color: #4b5563;
+}
+
+.sb-template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 20px;
+  text-align: left;
+}
+
+.sb-template-card {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+.sb-template-card:hover {
+  transform: translateY(-2px);
+  border-color: #7c3aed;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+.sb-template-card:focus-visible {
+  outline: 2px solid #7c3aed;
+  outline-offset: 2px;
+}
+
+.sb-template-thumb {
+  display: block;
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  background: #f3f4f6;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.sb-template-card-body {
+  padding: 14px 16px 18px;
+}
+.sb-template-card-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 4px;
+}
+.sb-template-card-desc {
+  font-size: 0.82rem;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.sb-template-card-blank .sb-template-thumb {
+  background: #f9fafb;
+}
+
+/* ─────────────────────────────────────────────────────────
+   Owner Style panel — S/M/L/XL buckets
+   ───────────────────────────────────────────────────────── */
+.sb-owner-style {
+  padding: 16px;
+}
+
+.sb-owner-hint {
+  margin: 12px 4px;
+  padding: 14px;
+  background: rgba(124, 58, 237, 0.08);
+  border: 1px solid rgba(124, 58, 237, 0.25);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.sb-bucket-row {
+  margin-bottom: 18px;
+}
+
+.sb-bucket-label {
+  margin-bottom: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.65);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sb-bucket-group {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.sb-bucket-btn {
+  padding: 10px 0;
+  background: #1c1c2a;
+  border: 1px solid #2a2a3d;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.sb-bucket-btn:hover {
+  background: #2a2a3d;
+  color: #fff;
+}
+.sb-bucket-btn.active {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: #fff;
+}
+.sb-bucket-btn:focus-visible {
+  outline: 2px solid #7c3aed;
+  outline-offset: 2px;
+}
+
+.sb-owner-footnote {
+  margin: 24px 4px 0;
+  padding-top: 16px;
+  border-top: 1px solid #1c1c2a;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.45);
+  line-height: 1.5;
+}
+
+.sb-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #a78bfa;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.sb-link-btn:hover {
+  color: #c4b5fd;
 }

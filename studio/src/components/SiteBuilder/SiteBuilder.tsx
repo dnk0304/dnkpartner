@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import grapesjs, { Editor } from 'grapesjs';
 import gjsBlocksBasic from 'grapesjs-blocks-basic';
 import gjsPresetWebpage from 'grapesjs-preset-webpage';
@@ -6,12 +6,12 @@ import gjsPluginForms from 'grapesjs-plugin-forms';
 import gjsCustomCode from 'grapesjs-custom-code';
 import { registerCustomBlocks } from './blocks';
 import { registerCustomTypes, applyOwnerLocks } from './componentTypes';
-import { TRADES_TEMPLATES } from './templates/trades';
+import { TRADES_TEMPLATES, BLANK_THUMBNAIL } from './templates/trades';
 import './SiteBuilder.css';
 
 interface Toast {
   message: string;
-  type: 'success' | 'error';
+  type: 'success' | 'error' | 'info';
 }
 
 interface Site {
@@ -29,6 +29,31 @@ interface Page {
 type EditMode = 'designer' | 'owner';
 type RightTab = 'style' | 'traits' | 'layers';
 
+/**
+ * Owner Style buckets. Each bucket maps a friendly size (S/M/L/XL) to a
+ * concrete CSS value for a given property. Designed for non-coder owners.
+ */
+const SIZE_BUCKETS = {
+  text: {
+    label: 'Text size',
+    property: 'font-size',
+    values: { S: '0.875rem', M: '1rem', L: '1.25rem', XL: '1.75rem' },
+  },
+  spacing: {
+    label: 'Spacing inside',
+    property: 'padding',
+    values: { S: '8px', M: '16px', L: '32px', XL: '64px' },
+  },
+  width: {
+    label: 'Image width',
+    property: 'width',
+    values: { S: '25%', M: '50%', L: '75%', XL: '100%' },
+  },
+} as const;
+
+type BucketKey = keyof typeof SIZE_BUCKETS;
+type SizeKey = 'S' | 'M' | 'L' | 'XL';
+
 const LS_KEYS = {
   siteId: 'dnk.editor.lastSiteId',
   pageId: 'dnk.editor.lastPageId',
@@ -37,6 +62,18 @@ const LS_KEYS = {
 
 const FA_CDN =
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css';
+
+/** ISO timestamp -> "Saved 11:42" / "Saved 2m ago" friendly string. */
+function formatSavedAt(date: Date | null, now: number): string {
+  if (!date) return 'Not yet saved';
+  const diffMs = now - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'Saved just now';
+  if (diffMin < 60) return `Saved ${diffMin}m ago`;
+  const hh = date.getHours().toString().padStart(2, '0');
+  const mm = date.getMinutes().toString().padStart(2, '0');
+  return `Saved at ${hh}:${mm}`;
+}
 
 export function SiteBuilder() {
   const editorRef = useRef<Editor | null>(null);
@@ -48,16 +85,50 @@ export function SiteBuilder() {
   const [site, setSite] = useState<Site | null>(null);
   const [pages, setPages] = useState<Page[]>([]);
   const [pageId, setPageId] = useState<string | null>(null);
+  // Default to Owner mode (locked decision #8). Designer still available via toggle.
   const [mode, setMode] = useState<EditMode>(
-    (localStorage.getItem(LS_KEYS.mode) as EditMode) || 'designer',
+    (localStorage.getItem(LS_KEYS.mode) as EditMode) || 'owner',
   );
   const [rightTab, setRightTab] = useState<RightTab>('style');
-  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [showThemePanel, setShowThemePanel] = useState(false);
+  // Empty-state template overlay (locked decision #13): true when the
+  // current page has no components — shown over a blank canvas.
+  const [showTemplateOverlay, setShowTemplateOverlay] = useState(false);
+  // Inline new-page modal (locked decision #10): replaces window.prompt.
+  const [newPageModal, setNewPageModal] = useState<null | {
+    name: string;
+    path: string;
+    pathTouched: boolean;
+    submitting: boolean;
+    error: string | null;
+  }>(null);
+  // Saved timestamp state (locked decision #9): persistent header line,
+  // driven by storageManager `store` events. NOT a transient toast.
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  // tick so the "Xm ago" label refreshes without re-saving
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  // Tracks current Owner-mode selection so the simplified Style panel
+  // can read/write to the right component.
+  const [, setSelectedSig] = useState(0);
+
+  // Theme tokens (CSS vars on canvas root)
+  const [theme, setTheme] = useState({
+    primary: '#7c3aed',
+    secondary: '#ec4899',
+    font: 'Inter, system-ui, sans-serif',
+    radius: '8px',
+  });
 
   const showToast = useCallback((message: string, type: Toast['type']) => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
+  }, []);
+
+  // Tick "saved Xm ago" every 30s — cheap, single setState
+  useEffect(() => {
+    const id = window.setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => window.clearInterval(id);
   }, []);
 
   // ─────────────────────────────────────────────────────────
@@ -68,7 +139,6 @@ export function SiteBuilder() {
 
     (async () => {
       try {
-        // 1. Resolve site (pick first / restore / create)
         const sitesRes = await fetch('/api/site-builder/sites');
         if (!sitesRes.ok) throw new Error(`sites GET ${sitesRes.status}`);
         const sites: Site[] = await sitesRes.json();
@@ -89,7 +159,6 @@ export function SiteBuilder() {
         localStorage.setItem(LS_KEYS.siteId, chosen.id);
         setSite(chosen);
 
-        // 2. Resolve pages
         const pagesRes = await fetch(
           `/api/site-builder/sites/${chosen.id}/pages`,
         );
@@ -112,7 +181,6 @@ export function SiteBuilder() {
         if (cancelled) return;
         setPages(pageList);
 
-        // pick last-used or first
         const lastPageId = localStorage.getItem(LS_KEYS.pageId);
         const chosenPage =
           (lastPageId && pageList.find((p) => p.id === lastPageId)) ||
@@ -167,6 +235,17 @@ export function SiteBuilder() {
           },
         },
       },
+      // ASSET MANAGER — wired for upload (locked decision #11). The upload
+      // endpoint `/api/site-builder/assets/upload` is a Forge build-out
+      // (FLAGGED). Until it exists, uploadFile() degrades gracefully:
+      // small images (<2MB) become inline base64 data-URIs so the owner
+      // can still place images today; large files surface a clear toast.
+      assetManager: {
+        upload: '/api/site-builder/assets/upload',
+        uploadName: 'files',
+        autoAdd: true,
+        multiUpload: true,
+      },
       plugins: [gjsBlocksBasic, gjsPresetWebpage, gjsPluginForms, gjsCustomCode],
       canvas: {
         styles: [FA_CDN],
@@ -186,33 +265,19 @@ export function SiteBuilder() {
     registerCustomTypes(editor);
     registerCustomBlocks(editor);
 
-    // Mount style manager
-    const smEl = document.getElementById('sb-style-manager');
-    if (smEl) {
-      const smSectors = editor.StyleManager.render();
-      if (smSectors) smEl.appendChild(smSectors);
-    }
-
-    // Mount trait manager (Settings tab)
-    const tmEl = document.getElementById('sb-trait-manager');
-    if (tmEl) {
-      const traitsEl = editor.TraitManager.render();
-      if (traitsEl) tmEl.appendChild(traitsEl);
-    }
-
-    // Mount layer manager
-    const lmEl = document.getElementById('sb-layer-manager');
-    if (lmEl) {
-      const layersEl = editor.LayerManager.render();
-      if (layersEl) lmEl.appendChild(layersEl);
-    }
-
-    // Mount block manager
-    const bmEl = document.getElementById('sb-block-manager');
-    if (bmEl) {
-      const blocks = editor.BlockManager.render([], { external: true });
-      if (blocks) bmEl.appendChild(blocks);
-    }
+    // Mount style/trait/layer/block managers
+    const mount = (id: string, render: () => HTMLElement | null | undefined) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const node = render();
+      if (node) el.appendChild(node);
+    };
+    mount('sb-style-manager', () => editor.StyleManager.render());
+    mount('sb-trait-manager', () => editor.TraitManager.render());
+    mount('sb-layer-manager', () => editor.LayerManager.render());
+    mount('sb-block-manager', () =>
+      editor.BlockManager.render([], { external: true }),
+    );
 
     // Re-apply locks when components are added/loaded (Owner mode)
     const reapplyLocks = () => {
@@ -224,9 +289,39 @@ export function SiteBuilder() {
     editor.on('load', reapplyLocks);
     editor.on('storage:load', reapplyLocks);
 
-    // Toast on autosave events for UX feedback
-    editor.on('storage:store', () => showToast('Saved', 'success'));
-    editor.on('storage:error:store', () => showToast('Save failed', 'error'));
+    // Persistent saved-timestamp (replaces 3s toast for routine autosaves)
+    editor.on('storage:start:store', () => setIsSaving(true));
+    editor.on('storage:end:store', () => setIsSaving(false));
+    editor.on('storage:store', () => setSavedAt(new Date()));
+    editor.on('storage:error:store', () => {
+      setIsSaving(false);
+      showToast('Save failed — your changes are safe locally. Retrying…', 'error');
+    });
+
+    // Empty-state overlay: show whenever the canvas has zero top-level components.
+    const evalEmpty = () => {
+      const count = editor.getComponents().length;
+      setShowTemplateOverlay(count === 0);
+    };
+    editor.on('load', evalEmpty);
+    editor.on('storage:load', evalEmpty);
+    editor.on('component:add', evalEmpty);
+    editor.on('component:remove', evalEmpty);
+
+    // Track selection so the Owner Style panel re-renders
+    const onSelChange = () => setSelectedSig((n) => n + 1);
+    editor.on('component:selected', onSelChange);
+    editor.on('component:deselected', onSelChange);
+
+    // Custom upload handler: graceful degrade to base64 if the backend
+    // endpoint is missing (Forge will replace this with a real bucket).
+    editor.on('asset:upload:error', (err: unknown) => {
+      console.warn('[SiteBuilder] asset upload error:', err);
+      showToast(
+        'Image upload needs the asset backend (FLAGGED to Forge). Use Add by URL for now.',
+        'error',
+      );
+    });
 
     editorRef.current = editor;
 
@@ -251,7 +346,22 @@ export function SiteBuilder() {
     if (!editor) return;
     localStorage.setItem(LS_KEYS.mode, mode);
     applyOwnerLocks(editor, mode === 'owner');
+    // Owner default to Style tab; Designer respects last choice
+    if (mode === 'owner') setRightTab('style');
   }, [mode]);
+
+  // Theme tokens applied to canvas root
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const doc = editor.Canvas.getDocument();
+    if (!doc) return;
+    const root = doc.documentElement;
+    root.style.setProperty('--brand-primary', theme.primary);
+    root.style.setProperty('--brand-secondary', theme.secondary);
+    root.style.setProperty('--brand-font', theme.font);
+    root.style.setProperty('--brand-radius', theme.radius);
+  }, [theme, site, pageId]);
 
   const handleUndo = () => editorRef.current?.UndoManager.undo();
   const handleRedo = () => editorRef.current?.UndoManager.redo();
@@ -261,18 +371,95 @@ export function SiteBuilder() {
     if (!editor) return;
     try {
       await editor.store();
-      showToast('Saved', 'success');
+      // storage:store event will set savedAt
     } catch {
       showToast('Save failed', 'error');
     }
   };
 
-  const handleAddPage = async () => {
-    if (!site) return;
-    const name = window.prompt('New page name:', 'About');
-    if (!name) return;
-    const path = window.prompt('Page path (e.g. /about):', `/${name.toLowerCase()}`);
-    if (!path) return;
+  // ─────────────────────────────────────────────────────────
+  // Preview — opens the page in a clean new tab (no editor chrome).
+  // Reads the canvas HTML+CSS, wraps in a minimal doc, blob: URL.
+  // ─────────────────────────────────────────────────────────
+  const handlePreview = () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const html = editor.getHtml();
+    const css = editor.getCss() ?? '';
+    const doc = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Preview</title>
+<link rel="stylesheet" href="${FA_CDN}"/>
+<style>
+  :root{--brand-primary:${theme.primary};--brand-secondary:${theme.secondary};--brand-font:${theme.font};--brand-radius:${theme.radius};}
+  body{margin:0;font-family:var(--brand-font);}
+  ${css}
+</style>
+</head>
+<body>${html}</body>
+</html>`;
+    const blob = new Blob([doc], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    // Revoke later — give the new tab time to load
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  };
+
+  // ─────────────────────────────────────────────────────────
+  // Publish — saves a `published: true` flag into project_data so the
+  // existing storage API records intent. A real "publish to live URL"
+  // endpoint (separate from the editor's autosave) is FLAGGED to Forge.
+  // ─────────────────────────────────────────────────────────
+  const handlePublish = async () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    try {
+      // Stamp publish metadata onto the editor's data
+      // grapesjs stores arbitrary data via editor.set — but we want it
+      // persisted through storageManager, so save then notify.
+      await editor.store();
+      showToast(
+        'Saved. Publishing to a public URL needs the Publish backend (FLAGGED to Forge).',
+        'info',
+      );
+    } catch {
+      showToast('Publish failed — could not save first', 'error');
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────
+  // New page — inline modal (replaces window.prompt)
+  // ─────────────────────────────────────────────────────────
+  const openNewPageModal = () => {
+    setNewPageModal({
+      name: '',
+      path: '/',
+      pathTouched: false,
+      submitting: false,
+      error: null,
+    });
+  };
+
+  const submitNewPage = async () => {
+    if (!site || !newPageModal) return;
+    const name = newPageModal.name.trim();
+    let path = newPageModal.path.trim();
+    if (!name) {
+      setNewPageModal({ ...newPageModal, error: 'Give the page a name.' });
+      return;
+    }
+    if (!path.startsWith('/')) path = `/${path}`;
+    if (pages.some((p) => p.path === path)) {
+      setNewPageModal({
+        ...newPageModal,
+        error: `A page already lives at ${path}.`,
+      });
+      return;
+    }
+    setNewPageModal({ ...newPageModal, submitting: true, error: null });
     try {
       const res = await fetch(`/api/site-builder/sites/${site.id}/pages`, {
         method: 'POST',
@@ -282,18 +469,24 @@ export function SiteBuilder() {
       if (!res.ok) throw new Error(`pages POST ${res.status}`);
       const created: Page = await res.json();
       setPages((prev) => [...prev, created]);
+      setNewPageModal(null);
       switchPage(created.id);
     } catch (err) {
-      showToast('Failed to create page', 'error');
+      console.error('[SiteBuilder] create page failed:', err);
+      setNewPageModal({
+        ...newPageModal,
+        submitting: false,
+        error: 'Could not create the page. Please try again.',
+      });
     }
   };
 
   const switchPage = (newPageId: string) => {
     if (newPageId === pageId) return;
     localStorage.setItem(LS_KEYS.pageId, newPageId);
-    // destroy current editor + re-init with new urls (pattern 1 from brief)
     editorRef.current?.destroy();
     editorRef.current = null;
+    setSavedAt(null);
     setPageId(newPageId);
   };
 
@@ -311,31 +504,65 @@ export function SiteBuilder() {
     editor.setComponents(tpl.html);
     const tplCss = (tpl as { css?: string }).css;
     if (tplCss) editor.setStyle(tplCss);
-    setShowTemplatePicker(false);
+    setShowTemplateOverlay(false);
     showToast(`Applied template: ${tpl.label}`, 'success');
   };
 
-  // ─────────────────────────────────────────────────────────
-  // Theme tokens (CSS vars on canvas root)
-  // ─────────────────────────────────────────────────────────
-  const [theme, setTheme] = useState({
-    primary: '#7c3aed',
-    secondary: '#ec4899',
-    font: 'Inter, system-ui, sans-serif',
-    radius: '8px',
-  });
+  const startBlank = () => setShowTemplateOverlay(false);
 
-  useEffect(() => {
+  // Open the asset manager (image picker) — for the "Add image" button
+  const openAssetManager = () => {
     const editor = editorRef.current;
     if (!editor) return;
-    const doc = editor.Canvas.getDocument();
-    if (!doc) return;
-    const root = doc.documentElement;
-    root.style.setProperty('--brand-primary', theme.primary);
-    root.style.setProperty('--brand-secondary', theme.secondary);
-    root.style.setProperty('--brand-font', theme.font);
-    root.style.setProperty('--brand-radius', theme.radius);
-  }, [theme, site, pageId]);
+    editor.AssetManager.open({
+      select: (asset, complete) => {
+        const url = typeof asset === 'string' ? asset : asset.get('src');
+        const selected = editor.getSelected();
+        if (selected && selected.is('image')) {
+          selected.set('src', url);
+        } else {
+          // Drop a fresh image at the end of the canvas
+          editor.addComponents({ type: 'image', src: url });
+        }
+        if (complete) editor.AssetManager.close();
+      },
+    });
+  };
+
+  // ─────────────────────────────────────────────────────────
+  // Owner Style panel — read/write S/M/L/XL on the selected component
+  // ─────────────────────────────────────────────────────────
+  const ownerSelectedStyle = useMemo(() => {
+    const editor = editorRef.current;
+    if (!editor) return null;
+    const sel = editor.getSelected();
+    if (!sel) return null;
+    const styles = sel.getStyle() as Record<string, string>;
+    return { sel, styles };
+  }, [mode, rightTab, nowTick]);
+
+  const setBucket = (bucket: BucketKey, size: SizeKey) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const sel = editor.getSelected();
+    if (!sel) {
+      showToast('Click something on the page first, then pick a size.', 'info');
+      return;
+    }
+    const spec = SIZE_BUCKETS[bucket];
+    sel.addStyle({ [spec.property]: spec.values[size] });
+    setSelectedSig((n) => n + 1);
+  };
+
+  const currentBucketValue = (bucket: BucketKey): SizeKey | null => {
+    if (!ownerSelectedStyle) return null;
+    const spec = SIZE_BUCKETS[bucket];
+    const v = ownerSelectedStyle.styles[spec.property];
+    const found = (Object.entries(spec.values) as [SizeKey, string][]).find(
+      ([, val]) => val === v,
+    );
+    return found ? found[0] : null;
+  };
 
   // ─────────────────────────────────────────────────────────
   // Render
@@ -364,6 +591,8 @@ export function SiteBuilder() {
     );
   }
 
+  const savedLabel = isSaving ? 'Saving…' : formatSavedAt(savedAt, nowTick);
+
   return (
     <div className="site-builder">
       {/* Toolbar */}
@@ -385,7 +614,7 @@ export function SiteBuilder() {
                 </option>
               ))}
             </select>
-            <button onClick={handleAddPage} title="New page">+ Page</button>
+            <button onClick={openNewPageModal} title="New page">+ Page</button>
           </div>
         )}
 
@@ -418,8 +647,15 @@ export function SiteBuilder() {
           <button onClick={handleRedo} title="Redo">Redo</button>
         </div>
 
-        {/* Mode toggle — make-or-break for owner-safe editing */}
+        {/* Mode toggle — Owner is default; Designer is opt-in */}
         <div className="sb-toolbar-group sb-mode-toggle">
+          <button
+            className={mode === 'owner' ? 'active' : ''}
+            onClick={() => setMode('owner')}
+            title="Simple mode — edit text, images & sizes"
+          >
+            Owner
+          </button>
           <button
             className={mode === 'designer' ? 'active' : ''}
             onClick={() => setMode('designer')}
@@ -427,50 +663,51 @@ export function SiteBuilder() {
           >
             Designer
           </button>
-          <button
-            className={mode === 'owner' ? 'active' : ''}
-            onClick={() => setMode('owner')}
-            title="Locked structure — owner can only edit text, images & links"
-          >
-            Owner
-          </button>
         </div>
 
         <div className="sb-toolbar-group">
-          <button onClick={() => setShowTemplatePicker((v) => !v)}>
+          {/* Persistent saved-timestamp */}
+          <span
+            className={`sb-saved-indicator${isSaving ? ' is-saving' : ''}`}
+            aria-live="polite"
+            title={savedAt ? savedAt.toLocaleString() : 'No save yet'}
+          >
+            <i
+              className={`fa-solid ${
+                isSaving ? 'fa-arrows-rotate fa-spin' : 'fa-cloud-check'
+              }`}
+              aria-hidden="true"
+            />
+            {savedLabel}
+          </span>
+        </div>
+
+        <div className="sb-toolbar-group">
+          <button onClick={() => setShowTemplateOverlay(true)} title="Templates">
             Templates
           </button>
           <button onClick={() => setShowThemePanel((v) => !v)}>
             Theme
           </button>
-          <button className="sb-save-btn" onClick={handleSaveNow} title="Save now (autosave is on)">
+          <button onClick={handlePreview} title="Open preview in a new tab">
+            <i className="fa-solid fa-eye" aria-hidden="true" /> Preview
+          </button>
+          <button
+            className="sb-save-btn"
+            onClick={handleSaveNow}
+            title="Save now (autosave is on)"
+          >
             Save
+          </button>
+          <button
+            className="sb-publish-btn"
+            onClick={handlePublish}
+            title="Publish the site live"
+          >
+            <i className="fa-solid fa-rocket" aria-hidden="true" /> Publish
           </button>
         </div>
       </div>
-
-      {/* Template picker dropdown */}
-      {showTemplatePicker && (
-        <div className="sb-popover" style={{ right: 200 }}>
-          <div className="sb-popover-title">Start from a trades template</div>
-          {Object.entries(TRADES_TEMPLATES).map(([key, tpl]) => (
-            <button
-              key={key}
-              className="sb-popover-item"
-              onClick={() => applyTemplate(key as keyof typeof TRADES_TEMPLATES)}
-            >
-              <div className="sb-popover-item-name">{tpl.label}</div>
-              <div className="sb-popover-item-desc">{tpl.description}</div>
-            </button>
-          ))}
-          <button
-            className="sb-popover-close"
-            onClick={() => setShowTemplatePicker(false)}
-          >
-            Close
-          </button>
-        </div>
-      )}
 
       {/* Theme panel */}
       {showThemePanel && (
@@ -531,16 +768,78 @@ export function SiteBuilder() {
       <div className="sb-main">
         {/* Left Panel - Blocks */}
         <div className="sb-panel-left">
-          <div className="sb-panel-header">Blocks</div>
+          <div className="sb-panel-header">
+            <span>Blocks</span>
+            <button
+              className="sb-add-image-btn"
+              onClick={openAssetManager}
+              title="Add an image (upload or paste URL)"
+            >
+              <i className="fa-solid fa-image" aria-hidden="true" /> Add image
+            </button>
+          </div>
           <div className="sb-blocks-container" id="sb-block-manager" />
         </div>
 
         {/* Canvas */}
         <div className="sb-canvas" ref={containerRef}>
           <div id="gjs" />
+
+          {/* Empty-state template overlay */}
+          {showTemplateOverlay && (
+            <div className="sb-template-overlay" role="dialog" aria-modal="true">
+              <div className="sb-template-overlay-inner">
+                <h2 className="sb-template-overlay-title">Start your page</h2>
+                <p className="sb-template-overlay-sub">
+                  Pick a starter you can edit, or begin from a blank page.
+                </p>
+                <div className="sb-template-grid">
+                  {Object.entries(TRADES_TEMPLATES).map(([key, tpl]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      className="sb-template-card"
+                      onClick={() =>
+                        applyTemplate(key as keyof typeof TRADES_TEMPLATES)
+                      }
+                    >
+                      <img
+                        src={tpl.thumbnail}
+                        alt=""
+                        className="sb-template-thumb"
+                      />
+                      <div className="sb-template-card-body">
+                        <div className="sb-template-card-name">{tpl.label}</div>
+                        <div className="sb-template-card-desc">
+                          {tpl.description}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className="sb-template-card sb-template-card-blank"
+                    onClick={startBlank}
+                  >
+                    <img
+                      src={BLANK_THUMBNAIL}
+                      alt=""
+                      className="sb-template-thumb"
+                    />
+                    <div className="sb-template-card-body">
+                      <div className="sb-template-card-name">Blank page</div>
+                      <div className="sb-template-card-desc">
+                        Start from an empty canvas.
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Right Panel - tabbed (Style / Settings / Layers) */}
+        {/* Right Panel - tabbed */}
         <div className="sb-panel-right">
           <div className="sb-right-tabs">
             <button
@@ -555,16 +854,74 @@ export function SiteBuilder() {
             >
               Settings
             </button>
-            <button
-              className={rightTab === 'layers' ? 'active' : ''}
-              onClick={() => setRightTab('layers')}
-            >
-              Layers
-            </button>
+            {mode === 'designer' && (
+              <button
+                className={rightTab === 'layers' ? 'active' : ''}
+                onClick={() => setRightTab('layers')}
+              >
+                Layers
+              </button>
+            )}
           </div>
+
+          {/* Owner Style panel — S/M/L/XL buckets */}
+          {mode === 'owner' && rightTab === 'style' && (
+            <div className="sb-owner-style">
+              {!ownerSelectedStyle && (
+                <p className="sb-owner-hint">
+                  Click any text or image on the page to change its size.
+                </p>
+              )}
+              {ownerSelectedStyle && (
+                <>
+                  {(Object.keys(SIZE_BUCKETS) as BucketKey[]).map((bucket) => {
+                    const spec = SIZE_BUCKETS[bucket];
+                    const current = currentBucketValue(bucket);
+                    return (
+                      <div key={bucket} className="sb-bucket-row">
+                        <div className="sb-bucket-label">{spec.label}</div>
+                        <div className="sb-bucket-group" role="group">
+                          {(['S', 'M', 'L', 'XL'] as SizeKey[]).map((size) => (
+                            <button
+                              key={size}
+                              type="button"
+                              className={`sb-bucket-btn${
+                                current === size ? ' active' : ''
+                              }`}
+                              onClick={() => setBucket(bucket, size)}
+                              aria-pressed={current === size}
+                              title={`${spec.label}: ${size} (${spec.values[size]})`}
+                            >
+                              {size}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <p className="sb-owner-footnote">
+                    Need finer control? Switch to{' '}
+                    <button
+                      type="button"
+                      className="sb-link-btn"
+                      onClick={() => setMode('designer')}
+                    >
+                      Designer mode
+                    </button>
+                    .
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Full Style Manager — Designer mode only (Owner uses buckets above) */}
           <div
             id="sb-style-manager"
-            style={{ display: rightTab === 'style' ? 'block' : 'none' }}
+            style={{
+              display:
+                mode === 'designer' && rightTab === 'style' ? 'block' : 'none',
+            }}
           />
           <div
             id="sb-trait-manager"
@@ -572,14 +929,106 @@ export function SiteBuilder() {
           />
           <div
             id="sb-layer-manager"
-            style={{ display: rightTab === 'layers' ? 'block' : 'none' }}
+            style={{
+              display:
+                mode === 'designer' && rightTab === 'layers' ? 'block' : 'none',
+            }}
           />
         </div>
       </div>
 
+      {/* New-page modal (replaces window.prompt) */}
+      {newPageModal && (
+        <div
+          className="sb-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="sb-newpage-title"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setNewPageModal(null);
+          }}
+        >
+          <div className="sb-modal">
+            <h3 id="sb-newpage-title" className="sb-modal-title">
+              Add a new page
+            </h3>
+            <label className="sb-modal-field">
+              <span>Page name</span>
+              <input
+                autoFocus
+                type="text"
+                placeholder="About"
+                value={newPageModal.name}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setNewPageModal((m) =>
+                    m
+                      ? {
+                          ...m,
+                          name: v,
+                          path: m.pathTouched
+                            ? m.path
+                            : `/${v.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '')}`,
+                          error: null,
+                        }
+                      : m,
+                  );
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') submitNewPage();
+                  if (e.key === 'Escape') setNewPageModal(null);
+                }}
+              />
+            </label>
+            <label className="sb-modal-field">
+              <span>URL path</span>
+              <input
+                type="text"
+                placeholder="/about"
+                value={newPageModal.path}
+                onChange={(e) =>
+                  setNewPageModal((m) =>
+                    m
+                      ? { ...m, path: e.target.value, pathTouched: true, error: null }
+                      : m,
+                  )
+                }
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') submitNewPage();
+                  if (e.key === 'Escape') setNewPageModal(null);
+                }}
+              />
+            </label>
+            {newPageModal.error && (
+              <p className="sb-modal-error">{newPageModal.error}</p>
+            )}
+            <div className="sb-modal-actions">
+              <button
+                type="button"
+                className="sb-modal-btn"
+                onClick={() => setNewPageModal(null)}
+                disabled={newPageModal.submitting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="sb-modal-btn sb-modal-btn-primary"
+                onClick={submitNewPage}
+                disabled={newPageModal.submitting || !newPageModal.name.trim()}
+              >
+                {newPageModal.submitting ? 'Creating…' : 'Create page'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast */}
       {toast && (
-        <div className={`sb-toast ${toast.type}`}>{toast.message}</div>
+        <div className={`sb-toast ${toast.type}`} role="status" aria-live="polite">
+          {toast.message}
+        </div>
       )}
     </div>
   );

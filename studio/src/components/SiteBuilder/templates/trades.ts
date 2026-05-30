@@ -9,7 +9,52 @@ export interface TradesTemplate {
   description: string;
   html: string;
   css?: string;
+  /** Inline SVG data-URI thumbnail (no backend asset needed). */
+  thumbnail: string;
 }
+
+/**
+ * Skeleton-style page thumbnails as inline SVG data-URIs.
+ * Brand color drives the hero — `accent` is a hex string used as the
+ * dominant block so the owner recognizes the vibe at a glance.
+ */
+function makeThumbnail(accent: string, secondaryAccent: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160" preserveAspectRatio="xMidYMid slice">
+    <rect width="240" height="160" fill="#f9fafb"/>
+    <rect x="0" y="0" width="240" height="14" fill="#ffffff" stroke="#e5e7eb"/>
+    <rect x="8" y="4" width="38" height="6" rx="1" fill="#111827"/>
+    <rect x="190" y="3" width="42" height="8" rx="2" fill="${accent}"/>
+    <rect x="0" y="14" width="240" height="62" fill="${accent}"/>
+    <rect x="40" y="30" width="160" height="9" rx="2" fill="#ffffff" opacity="0.95"/>
+    <rect x="60" y="44" width="120" height="5" rx="1" fill="#ffffff" opacity="0.7"/>
+    <rect x="92" y="58" width="56" height="10" rx="2" fill="#ffffff"/>
+    <rect x="20" y="92" width="60" height="50" rx="3" fill="#ffffff" stroke="#e5e7eb"/>
+    <rect x="90" y="92" width="60" height="50" rx="3" fill="#ffffff" stroke="#e5e7eb"/>
+    <rect x="160" y="92" width="60" height="50" rx="3" fill="#ffffff" stroke="#e5e7eb"/>
+    <circle cx="34" cy="106" r="5" fill="${secondaryAccent}"/>
+    <circle cx="104" cy="106" r="5" fill="${secondaryAccent}"/>
+    <circle cx="174" cy="106" r="5" fill="${secondaryAccent}"/>
+    <rect x="26" y="118" width="42" height="4" rx="1" fill="#374151"/>
+    <rect x="96" y="118" width="42" height="4" rx="1" fill="#374151"/>
+    <rect x="166" y="118" width="42" height="4" rx="1" fill="#374151"/>
+    <rect x="26" y="126" width="48" height="3" rx="1" fill="#9ca3af"/>
+    <rect x="96" y="126" width="48" height="3" rx="1" fill="#9ca3af"/>
+    <rect x="166" y="126" width="48" height="3" rx="1" fill="#9ca3af"/>
+    <rect x="0" y="150" width="240" height="10" fill="#111827"/>
+  </svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+function makeBlankThumbnail(): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160">
+    <rect width="240" height="160" fill="#f3f4f6"/>
+    <rect x="20" y="20" width="200" height="120" rx="6" fill="#ffffff" stroke="#d1d5db" stroke-dasharray="4 4"/>
+    <text x="120" y="86" text-anchor="middle" font-family="system-ui,sans-serif" font-size="14" font-weight="600" fill="#6b7280">Blank page</text>
+  </svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+export const BLANK_THUMBNAIL = makeBlankThumbnail();
 
 const PLUMBER_HTML = `
 <nav data-locked-on-owner="true" style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;background:#fff;border-bottom:1px solid #e5e7eb;font-family:var(--brand-font,Inter,sans-serif);">
@@ -175,10 +220,12 @@ export const TRADES_TEMPLATES = {
     label: 'Plumber Landing',
     description: 'Hero, services, reviews, contact form, footer',
     html: PLUMBER_HTML,
+    thumbnail: makeThumbnail('#2563eb', '#2563eb'),
   },
   electrician: {
     label: 'Electrician Landing',
     description: 'Hero, services, contact form, simple footer',
     html: ELECTRICIAN_HTML,
+    thumbnail: makeThumbnail('#f59e0b', '#f59e0b'),
   },
 } satisfies Record<string, TradesTemplate>;
