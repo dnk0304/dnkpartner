@@ -45,3 +45,9 @@ next-env.d.ts
 data/backups/
 data/*.db
 data/*.sql
+
+# Forge P1 (2026-05-30): legacy Street View JPGs lived here and bloated the repo.
+# They now live on the Hetzner-mounted volume /data/auction-images and are
+# served via /api/auction-image/[boeId]. Keep ignored so no one accidentally
+# re-adds them.
+/public/streetview/

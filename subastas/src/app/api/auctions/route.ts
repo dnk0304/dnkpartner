@@ -221,12 +221,39 @@ function extractWarning(item: AuctionFromDB): string | null {
  * - Vehicles: Use a placeholder vehicle image (to be replaced with AI-generated)
  * - Boats: Use a placeholder boat image
  */
+/**
+ * Forge P1 (2026-05-30): Catastro+StreetView auction-image pipeline.
+ *
+ * imageUrl is now populated out-of-band by the resolver (see
+ * src/lib/auction-images/resolver.ts) — written by the backfill endpoint and
+ * future enrichment hooks. The request path only READS that field.
+ *
+ * `/api/auction-image/<boeId>` paths are the truth source for "Solo con foto"
+ * (Pixel's hasImage filter). Category placeholder URLs are NOT real photos
+ * and MUST NOT satisfy the filter.
+ */
+const REAL_IMAGE_PREFIX = '/api/auction-image/';
+function isRealAuctionImage(u: string | null | undefined): boolean {
+  if (!u) return false;
+  if (u.startsWith(REAL_IMAGE_PREFIX)) return true;
+  // Legacy /streetview/<boeId>.jpg paths are also real photos (until migrated).
+  if (u.startsWith('/streetview/')) return true;
+  return false;
+}
+
 function getAppropriateImageUrl(item: AuctionFromDB): string {
   const zoom = getOptimalZoom(item.category);
   const safeStreetviewPath = item.boeId
     ? `/streetview/${item.boeId.replace(/[^a-zA-Z0-9_-]+/g, '_')}.jpg`
     : null;
   const isActiveOrPreAuction = ['ACTIVE', 'CELEBRANDOSE', 'PRE_AUCTION', 'PROXIMA_APERTURA'].includes(item.status);
+
+  // Forge P1: prefer the resolver-populated real image (Catastro / StreetView)
+  // ahead of every other source. This is what makes the "real photo on card"
+  // story work without any per-request outbound calls.
+  if (item.imageUrl && item.imageUrl.startsWith(REAL_IMAGE_PREFIX)) {
+    return item.imageUrl;
+  }
 
   const streetviewFiles = getStreetviewFileSet();
   const streetviewFileExists = (publicPath: string | null): boolean => {
@@ -326,6 +353,7 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
       endDate: endsAt || new Date(publishedAt.getTime() + 30 * 24 * 60 * 60 * 1000),
       source: (item.source || 'BOE') as 'BOE' | 'TEJU',
       imageUrl,
+      hasImage: isRealAuctionImage(item.imageUrl),
       isLocked: true,
       address: null,
       latitude: item.latitude,
@@ -364,6 +392,7 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
     endDate: endsAt || publishedAt,
     source: (item.source || 'BOE') as 'BOE' | 'TEJU',
     imageUrl,
+    hasImage: isRealAuctionImage(item.imageUrl),
     isLocked: false,
     address: item.address,
     latitude: item.latitude,
