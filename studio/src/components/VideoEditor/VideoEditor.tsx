@@ -25,6 +25,9 @@ import {
   Upload,
   X,
   Scissors,
+  ChevronDown,
+  Volume2,
+  VolumeX,
 } from 'lucide-react'
 
 /* ═══════════════════════════════════════════════════════════════
@@ -71,6 +74,9 @@ type AspectRatio = '16:9' | '9:16' | '1:1'
 interface TimelineState {
   clips: VideoClip[]
   musicTrack: MusicTrack | null
+  /** Music track gain, 0 (mute) → 1 (unity). Default 0.8. Persisted with the
+   *  project so the autosave snapshot restores it across reloads. */
+  musicVolume: number
   aspectRatio: AspectRatio
 }
 
@@ -87,6 +93,7 @@ type EditorAction =
   | { type: 'UPDATE_CLIP'; id: string; updates: Partial<VideoClip> }
   | { type: 'REORDER_CLIPS'; fromIndex: number; toIndex: number }
   | { type: 'SET_MUSIC'; track: MusicTrack | null }
+  | { type: 'SET_MUSIC_VOLUME'; volume: number }
   | { type: 'SET_ASPECT_RATIO'; ratio: AspectRatio }
   | { type: 'APPLY_TEMPLATE'; template: TemplatePreset }
   | { type: 'UNDO' }
@@ -254,6 +261,10 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     case 'SET_MUSIC': {
       return pushHistory(state, { ...state.current, musicTrack: action.track })
     }
+    case 'SET_MUSIC_VOLUME': {
+      const v = clamp(action.volume, 0, 1)
+      return pushHistory(state, { ...state.current, musicVolume: v })
+    }
     case 'SET_ASPECT_RATIO': {
       return pushHistory(state, { ...state.current, aspectRatio: action.ratio })
     }
@@ -296,9 +307,122 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
 }
 
 const initialState: EditorState = {
-  current: { clips: [], musicTrack: null, aspectRatio: '16:9' },
+  current: { clips: [], musicTrack: null, musicVolume: 0.8, aspectRatio: '16:9' },
   past: [],
   future: [],
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TRANSITION PREVIEW — looping visual demo of the chosen transition
+   between two solid-color "frames" so users can SEE wipe-left vs
+   crossfade before applying. Pure CSS animation, GPU-friendly,
+   honours prefers-reduced-motion.
+   ═══════════════════════════════════════════════════════════════ */
+type TransitionKind = VideoClip['transition']
+type EasingKind = VideoClip['easing']
+
+interface TransitionPreviewProps {
+  transition: TransitionKind
+  durationSec: number
+  easing: EasingKind
+}
+
+function TransitionPreview({ transition, durationSec, easing }: TransitionPreviewProps) {
+  // Total loop = hold A → transition → hold B → reset. Snappy enough to feel live.
+  const transMs = Math.max(100, Math.round(durationSec * 1000))
+  const loopMs = transMs + 1400 // 700ms hold each side
+
+  // Two frames: "A" (left/before) and "B" (right/after). B is the moving layer.
+  // Each transition recipe defines the keyframes for B as a percentage of loopMs.
+  const transPctStart = (700 / loopMs) * 100
+  const transPctEnd = ((700 + transMs) / loopMs) * 100
+
+  // Build the per-transition keyframes. Frame A sits underneath; B animates in.
+  const keyframes = (() => {
+    const s = transPctStart.toFixed(2)
+    const e = transPctEnd.toFixed(2)
+    switch (transition) {
+      case 'cut':
+        // Instant swap at midpoint of "transition window"
+        return `
+          0% { opacity: 0; transform: translateX(0); clip-path: inset(0 0 0 0); }
+          ${s}% { opacity: 0; transform: translateX(0); clip-path: inset(0 0 0 0); }
+          ${e}% { opacity: 1; transform: translateX(0); clip-path: inset(0 0 0 0); }
+          100% { opacity: 1; transform: translateX(0); clip-path: inset(0 0 0 0); }
+        `
+      case 'crossfade':
+        return `
+          0% { opacity: 0; transform: translateX(0); clip-path: inset(0 0 0 0); }
+          ${s}% { opacity: 0; }
+          ${e}% { opacity: 1; }
+          100% { opacity: 1; }
+        `
+      case 'wipe-left':
+        // B revealed from RIGHT edge moving LEFT
+        return `
+          0% { opacity: 1; clip-path: inset(0 0 0 100%); }
+          ${s}% { opacity: 1; clip-path: inset(0 0 0 100%); }
+          ${e}% { opacity: 1; clip-path: inset(0 0 0 0%); }
+          100% { opacity: 1; clip-path: inset(0 0 0 0%); }
+        `
+      case 'wipe-right':
+        // B revealed from LEFT edge moving RIGHT
+        return `
+          0% { opacity: 1; clip-path: inset(0 100% 0 0); }
+          ${s}% { opacity: 1; clip-path: inset(0 100% 0 0); }
+          ${e}% { opacity: 1; clip-path: inset(0 0 0 0); }
+          100% { opacity: 1; clip-path: inset(0 0 0 0); }
+        `
+      case 'slide':
+        // B slides in from the right
+        return `
+          0% { opacity: 1; transform: translateX(100%); }
+          ${s}% { opacity: 1; transform: translateX(100%); }
+          ${e}% { opacity: 1; transform: translateX(0%); }
+          100% { opacity: 1; transform: translateX(0%); }
+        `
+    }
+  })()
+
+  // Unique animation name per render so React → CSS keyframes stay in sync
+  // when transition/duration change. Stable enough; no global pollution worry
+  // because the <style> tag is scoped to this component instance via the name.
+  const animName = `te-${transition}-${transMs}`
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-slate-300 uppercase tracking-wider">Preview</span>
+        <span className="text-xs text-slate-400 tabular-nums">{durationSec.toFixed(1)}s</span>
+      </div>
+      <div
+        className="relative w-full aspect-video rounded-md overflow-hidden border border-[#2a2a3d] bg-black"
+        role="img"
+        aria-label={`Preview of ${transition} transition, ${durationSec.toFixed(1)} seconds`}
+      >
+        {/* Frame A (under) */}
+        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-violet-600 to-indigo-700">
+          <span className="text-white/90 text-2xl font-bold tracking-wider select-none">A</span>
+        </div>
+        {/* Frame B (animated) */}
+        <div
+          className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-emerald-500 to-teal-600 will-change-transform"
+          style={{
+            animation: `${animName} ${loopMs}ms ${easing} infinite`,
+          }}
+        >
+          <span className="text-white/90 text-2xl font-bold tracking-wider select-none">B</span>
+        </div>
+        {/* Scoped keyframes + reduced-motion fallback (freeze on Frame B) */}
+        <style>{`
+          @keyframes ${animName} { ${keyframes} }
+          @media (prefers-reduced-motion: reduce) {
+            [style*="${animName}"] { animation: none !important; opacity: 1 !important; transform: none !important; clip-path: none !important; }
+          }
+        `}</style>
+      </div>
+    </div>
+  )
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -307,7 +431,7 @@ const initialState: EditorState = {
 
 export function VideoEditor() {
   const [state, dispatch] = useReducer(editorReducer, initialState)
-  const { clips, musicTrack, aspectRatio } = state.current
+  const { clips, musicTrack, musicVolume, aspectRatio } = state.current
 
   // Source clips from the server (clip library)
   const [sourceClips, setSourceClips] = useState<SourceClip[]>([])
@@ -332,6 +456,9 @@ export function VideoEditor() {
   const [waveformBars, setWaveformBars] = useState<number[]>([])
   const [showShortcutsModal, setShowShortcutsModal] = useState(false)
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null)
+  // Templates dropdown — click-toggle (was hover-only, broken on touch + a11y)
+  const [templatesOpen, setTemplatesOpen] = useState(false)
+  const templatesRef = useRef<HTMLDivElement>(null)
 
   // ─── Server-persisted project autosave (replaces JSON file download/upload) ──
   // We keep a single active project per editor session. On first edit (any
@@ -355,6 +482,34 @@ export function VideoEditor() {
 
   const selectedClip = clips.find(c => c.id === selectedClipId) ?? null
   const totalDuration = getTotalDuration(clips)
+
+  /* ─── Templates dropdown: outside-click + Escape to close ────── */
+  useEffect(() => {
+    if (!templatesOpen) return
+    function onPointer(e: MouseEvent) {
+      if (!templatesRef.current?.contains(e.target as Node)) setTemplatesOpen(false)
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setTemplatesOpen(false)
+    }
+    document.addEventListener('mousedown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [templatesOpen])
+
+  /* ─── Keep the live audio element gain in sync with musicVolume ── */
+  // The single <audio ref={audioRef}> is reused for both library preview
+  // and (future) timeline playback. Setting .volume here means preview is
+  // ducked immediately when the user drags the slider, and the value is
+  // restored on project reload via the autosave snapshot.
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = clamp(musicVolume ?? 0.8, 0, 1)
+    }
+  }, [musicVolume])
 
   /* ─── Fetch source clips on mount ──────────────────────── */
   useEffect(() => {
@@ -809,6 +964,9 @@ export function VideoEditor() {
       if (loadedState?.musicTrack !== undefined) {
         dispatch({ type: 'SET_MUSIC', track: loadedState.musicTrack })
       }
+      if (typeof loadedState?.musicVolume === 'number') {
+        dispatch({ type: 'SET_MUSIC_VOLUME', volume: loadedState.musicVolume })
+      }
       if (loadedState?.aspectRatio) {
         dispatch({ type: 'SET_ASPECT_RATIO', ratio: loadedState.aspectRatio })
       }
@@ -870,6 +1028,9 @@ export function VideoEditor() {
         }
         if (loadedState.musicTrack !== undefined) {
           dispatch({ type: 'SET_MUSIC', track: loadedState.musicTrack })
+        }
+        if (typeof loadedState.musicVolume === 'number') {
+          dispatch({ type: 'SET_MUSIC_VOLUME', volume: loadedState.musicVolume })
         }
         if (loadedState.aspectRatio) {
           dispatch({ type: 'SET_ASPECT_RATIO', ratio: loadedState.aspectRatio })
@@ -997,7 +1158,7 @@ export function VideoEditor() {
           className="absolute top-0 flex flex-col items-center"
           style={{ left: t * pxPerSecond }}
         >
-          <span className="text-[10px] text-slate-500 select-none">{t}s</span>
+          <span className="text-xs text-slate-400 select-none">{t}s</span>
           <div className="w-px h-2 bg-slate-600" />
         </div>
       )
@@ -1057,23 +1218,37 @@ export function VideoEditor() {
 
         <div className="w-px h-5 bg-[#2a2a3d] mx-1" />
 
-        {/* Templates */}
-        <div className="relative group">
-          <button className="flex items-center gap-1 px-3 py-1.5 text-xs rounded hover:bg-[#1c1c2a] transition-colors">
+        {/* Templates — click-toggle (was hover-only: broken on touch, kbd-inaccessible) */}
+        <div className="relative" ref={templatesRef}>
+          <button
+            type="button"
+            onClick={() => setTemplatesOpen(o => !o)}
+            aria-haspopup="menu"
+            aria-expanded={templatesOpen}
+            className="flex items-center gap-1 px-3 py-1.5 text-xs rounded hover:bg-[#1c1c2a] focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 transition-colors"
+          >
             <Scissors className="w-3.5 h-3.5" />
             Templates
+            <ChevronDown className={`w-3 h-3 transition-transform ${templatesOpen ? 'rotate-180' : ''}`} />
           </button>
-          <div className="absolute left-0 top-full mt-1 w-48 bg-[#14141f] border border-[#2a2a3d] rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-            {TEMPLATES.map(tpl => (
-              <button
-                key={tpl.name}
-                onClick={() => applyTemplate(tpl)}
-                className="block w-full text-left px-3 py-2 text-xs hover:bg-[#1c1c2a] transition-colors first:rounded-t-lg last:rounded-b-lg"
-              >
-                {tpl.name}
-              </button>
-            ))}
-          </div>
+          {templatesOpen && (
+            <div
+              role="menu"
+              aria-label="Templates"
+              className="absolute left-0 top-full mt-1 w-52 bg-[#14141f] border border-[#2a2a3d] rounded-lg shadow-xl z-50 py-1"
+            >
+              {TEMPLATES.map(tpl => (
+                <button
+                  key={tpl.name}
+                  role="menuitem"
+                  onClick={() => { applyTemplate(tpl); setTemplatesOpen(false) }}
+                  className="block w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-[#1c1c2a] focus:bg-[#1c1c2a] focus:outline-none transition-colors"
+                >
+                  {tpl.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Aspect Ratio */}
@@ -1082,7 +1257,7 @@ export function VideoEditor() {
             <button
               key={r}
               onClick={() => dispatch({ type: 'SET_ASPECT_RATIO', ratio: r })}
-              className={`px-2 py-1 text-[11px] rounded font-medium transition-colors ${
+              className={`px-2 py-1 text-xs rounded font-medium transition-colors ${
                 aspectRatio === r
                   ? 'bg-violet-600 text-white'
                   : 'bg-[#1c1c2a] text-slate-400 hover:text-slate-200'
@@ -1111,7 +1286,7 @@ export function VideoEditor() {
         {/* Snap toggle */}
         <button
           onClick={() => setSnapEnabled(s => !s)}
-          className={`px-2 py-1 text-[11px] rounded transition-colors ${snapEnabled ? 'bg-violet-600/30 text-violet-300' : 'bg-[#1c1c2a] text-slate-500'}`}
+          className={`px-2 py-1 text-xs rounded transition-colors ${snapEnabled ? 'bg-violet-600/30 text-violet-300' : 'bg-[#1c1c2a] text-slate-400'}`}
           title="Snap to grid (0.5s)"
         >
           ⊞ Snap
@@ -1126,7 +1301,7 @@ export function VideoEditor() {
           aria-label="Project name"
           title="Project name (autosaved)"
         />
-        <span className="text-[10px] text-slate-500 min-w-[60px]">
+        <span className="text-xs text-slate-400 min-w-[60px]">
           {projectSavedAt ? `Saved ${projectSavedAt.toLocaleTimeString()}` : 'Not saved'}
         </span>
         <button
@@ -1146,14 +1321,14 @@ export function VideoEditor() {
         <button
           onClick={saveProject}
           disabled={clips.length === 0}
-          className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded hover:bg-[#1c1c2a] transition-colors disabled:opacity-40 text-slate-500"
+          className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded hover:bg-[#1c1c2a] transition-colors disabled:opacity-40 text-slate-400"
           title="Export project as JSON (offline backup)"
         >
           ⤓ JSON
         </button>
         <button
           onClick={() => projectFileInputRef.current?.click()}
-          className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded hover:bg-[#1c1c2a] transition-colors text-slate-500"
+          className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded hover:bg-[#1c1c2a] transition-colors text-slate-400"
           title="Import project from JSON file"
         >
           ⤒ Import
@@ -1177,7 +1352,7 @@ export function VideoEditor() {
             >
               <h3 className="text-sm font-semibold mb-3 text-slate-200">Open project</h3>
               {projectList.length === 0 ? (
-                <p className="text-xs text-slate-500">No saved projects yet.</p>
+                <p className="text-xs text-slate-400">No saved projects yet.</p>
               ) : (
                 <ul className="space-y-1">
                   {projectList.map(p => (
@@ -1187,7 +1362,7 @@ export function VideoEditor() {
                         className="w-full text-left px-3 py-2 text-xs rounded hover:bg-[#2a2a3a] transition-colors"
                       >
                         <div className="text-slate-200">{p.name}</div>
-                        <div className="text-[10px] text-slate-500">{new Date(p.updated_at).toLocaleString()}</div>
+                        <div className="text-xs text-slate-400">{new Date(p.updated_at).toLocaleString()}</div>
                       </button>
                     </li>
                   ))}
@@ -1206,7 +1381,7 @@ export function VideoEditor() {
         {/* Keyboard shortcuts help */}
         <button
           onClick={() => setShowShortcutsModal(true)}
-          className="px-2 py-1.5 text-xs rounded hover:bg-[#1c1c2a] transition-colors text-slate-500"
+          className="px-2 py-1.5 text-xs rounded hover:bg-[#1c1c2a] transition-colors text-slate-400"
           title="Keyboard shortcuts"
         >
           ?
@@ -1236,7 +1411,7 @@ export function VideoEditor() {
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Clips</h2>
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded bg-violet-600/20 text-violet-300 hover:bg-violet-600/30 transition-colors"
+              className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-violet-600/20 text-violet-300 hover:bg-violet-600/30 transition-colors"
             >
               <Upload className="w-3 h-3" />
               Import
@@ -1255,9 +1430,9 @@ export function VideoEditor() {
           <div className="flex-1 overflow-y-auto p-2 space-y-1.5" role="list" aria-label="Available clips">
             {sourceClips.length === 0 && clips.length === 0 && (
               <div className="flex flex-col items-center justify-center h-40 text-center">
-                <Film className="w-8 h-8 text-slate-600 mb-2" />
-                <p className="text-xs text-slate-500">No clips yet</p>
-                <p className="text-[11px] text-slate-600 mt-1">Import clips or load from server</p>
+                <Film className="w-8 h-8 text-slate-400 mb-2" />
+                <p className="text-xs text-slate-400">No clips yet</p>
+                <p className="text-xs text-slate-400 mt-1">Import clips or load from server</p>
               </div>
             )}
 
@@ -1276,14 +1451,14 @@ export function VideoEditor() {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <Film className="w-4 h-4 text-slate-600" />
+                    <Film className="w-4 h-4 text-slate-400" />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-medium text-slate-300 truncate">{src.name}</p>
-                  <p className="text-[10px] text-slate-500">{formatTime(src.duration)}</p>
+                  <p className="text-xs font-medium text-slate-300 truncate">{src.name}</p>
+                  <p className="text-xs text-slate-400">{formatTime(src.duration)}</p>
                 </div>
-                <Plus className="w-3.5 h-3.5 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <Plus className="w-3.5 h-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
               </button>
             ))}
           </div>
@@ -1334,7 +1509,7 @@ export function VideoEditor() {
                 {clips.length === 0 && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0c0c14]">
                     <Film className="w-12 h-12 text-slate-700 mb-3" />
-                    <p className="text-sm text-slate-500">Add clips to get started</p>
+                    <p className="text-sm text-slate-400">Add clips to get started</p>
                   </div>
                 )}
               </div>
@@ -1381,7 +1556,7 @@ export function VideoEditor() {
           <div className="h-[200px] shrink-0 bg-[#1a1a2e] border-t border-[#2a2a3d] flex flex-col">
             {/* Timeline toolbar */}
             <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#2a2a3d] bg-[#14141f]">
-              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Timeline</span>
+              <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Timeline</span>
               <div className="flex-1" />
               {selectedClipId && (
                 <button
@@ -1511,7 +1686,7 @@ export function VideoEditor() {
                         {/* Clip content */}
                         <div className="flex-1 flex items-center gap-1.5 px-3 min-w-0">
                           <Film className="w-3 h-3 text-white/60 shrink-0" />
-                          <span className="text-[10px] text-white/80 font-medium truncate">
+                          <span className="text-xs text-white/80 font-medium truncate">
                             {clip.name}
                           </span>
                         </div>
@@ -1546,21 +1721,21 @@ export function VideoEditor() {
 
                   {clips.length === 0 && (
                     <div className="flex items-center justify-center w-full h-full">
-                      <span className="text-xs text-slate-600">Drop clips here to build your timeline</span>
+                      <span className="text-xs text-slate-400">Drop clips here to build your timeline</span>
                     </div>
                   )}
                 </div>
 
                 {/* Audio track row */}
                 <div className="h-10 relative flex items-center px-1 border-t border-[#2a2a3d]/50">
-                  <span className="absolute left-2 text-[9px] text-purple-400/60 font-medium uppercase tracking-wide">Audio</span>
+                  <span className="absolute left-2 text-[11px] text-purple-400/60 font-medium uppercase tracking-wide">Audio</span>
                   {musicTrack && (
                     <div
                       className="ml-12 h-7 rounded-md bg-purple-600/40 border border-purple-500/30 flex items-center px-3 gap-1.5 overflow-hidden"
                       style={{ width: Math.min(musicTrack.duration, totalDuration || 30) * pxPerSecond }}
                     >
                       <Music className="w-3 h-3 text-purple-300 shrink-0" />
-                      <span className="text-[10px] text-purple-200 truncate shrink-0">{musicTrack.name}</span>
+                      <span className="text-xs text-purple-200 truncate shrink-0">{musicTrack.name}</span>
                       {/* Waveform visualization (cosmetic) */}
                       {waveformBars.length > 0 && (
                         <div className="flex items-center gap-px ml-1 h-5 overflow-hidden">
@@ -1609,10 +1784,10 @@ export function VideoEditor() {
                   <button
                     key={tab.key}
                     onClick={() => setPropertiesTab(tab.key)}
-                    className={`flex-1 px-2 py-2.5 text-[11px] font-medium transition-colors ${
+                    className={`flex-1 px-2 py-2.5 text-xs font-medium transition-colors ${
                       propertiesTab === tab.key
                         ? 'text-violet-300 border-b-2 border-violet-500'
-                        : 'text-slate-500 hover:text-slate-300'
+                        : 'text-slate-400 hover:text-slate-300'
                     }`}
                     aria-selected={propertiesTab === tab.key}
                     role="tab"
@@ -1627,7 +1802,7 @@ export function VideoEditor() {
                 {propertiesTab === 'clip' && (
                   <>
                     <div>
-                      <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+                      <label className="block text-xs text-slate-400 uppercase tracking-wider mb-1">
                         Clip Name
                       </label>
                       <p className="text-sm text-slate-200 truncate">{selectedClip.name}</p>
@@ -1636,7 +1811,7 @@ export function VideoEditor() {
                       <div>
                         <label
                           htmlFor="trim-start"
-                          className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1"
+                          className="block text-xs text-slate-400 uppercase tracking-wider mb-1"
                         >
                           Trim Start (s)
                         </label>
@@ -1658,7 +1833,7 @@ export function VideoEditor() {
                       <div>
                         <label
                           htmlFor="trim-end"
-                          className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1"
+                          className="block text-xs text-slate-400 uppercase tracking-wider mb-1"
                         >
                           Trim End (s)
                         </label>
@@ -1679,7 +1854,7 @@ export function VideoEditor() {
                       </div>
                     </div>
                     <div>
-                      <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Duration</p>
+                      <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Duration</p>
                       <p className="text-sm text-slate-300 tabular-nums">
                         {formatTime(getClipDuration(selectedClip))}
                       </p>
@@ -1691,7 +1866,7 @@ export function VideoEditor() {
                 {propertiesTab === 'transitions' && (
                   <div className="space-y-3">
                     <div>
-                      <label htmlFor="transition-select" className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+                      <label htmlFor="transition-select" className="block text-xs text-slate-400 uppercase tracking-wider mb-1">
                         Transition Type
                       </label>
                       <select
@@ -1708,7 +1883,7 @@ export function VideoEditor() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+                      <label className="block text-xs text-slate-400 uppercase tracking-wider mb-1">
                         Duration: {selectedClip.transitionDuration?.toFixed(1) ?? '0.5'}s
                       </label>
                       <input
@@ -1720,12 +1895,12 @@ export function VideoEditor() {
                         onChange={e => dispatch({ type: 'UPDATE_CLIP', id: selectedClip.id, updates: { transitionDuration: parseFloat(e.target.value) } })}
                         className="w-full accent-violet-500"
                       />
-                      <div className="flex justify-between text-[9px] text-slate-600">
+                      <div className="flex justify-between text-[11px] text-slate-400">
                         <span>0.1s</span><span>2.0s</span>
                       </div>
                     </div>
                     <div>
-                      <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Easing</label>
+                      <label className="block text-xs text-slate-400 uppercase tracking-wider mb-1">Easing</label>
                       <select
                         value={selectedClip.easing ?? 'linear'}
                         onChange={e => dispatch({ type: 'UPDATE_CLIP', id: selectedClip.id, updates: { easing: e.target.value as VideoClip['easing'] } })}
@@ -1737,7 +1912,12 @@ export function VideoEditor() {
                         <option value="ease-in-out">Ease In-Out</option>
                       </select>
                     </div>
-                    <p className="text-[10px] text-slate-600">
+                    <TransitionPreview
+                      transition={selectedClip.transition}
+                      durationSec={selectedClip.transitionDuration ?? 0.5}
+                      easing={selectedClip.easing ?? 'linear'}
+                    />
+                    <p className="text-xs text-slate-400">
                       Applied when transitioning into this clip from the previous one.
                     </p>
                   </div>
@@ -1755,13 +1935,13 @@ export function VideoEditor() {
                     </button>
 
                     {selectedClip.textOverlays.length === 0 && (
-                      <p className="text-xs text-slate-600 text-center py-4">No text overlays</p>
+                      <p className="text-xs text-slate-400 text-center py-4">No text overlays</p>
                     )}
 
                     {selectedClip.textOverlays.map(overlay => (
                       <div key={overlay.id} className="p-3 bg-[#1c1c2a] rounded-lg space-y-2.5 border border-[#2a2a3d]">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Overlay</span>
+                          <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Overlay</span>
                           <button
                             onClick={() => removeTextOverlay(selectedClip.id, overlay.id)}
                             className="p-0.5 rounded hover:bg-red-600/20 text-red-400 transition-colors"
@@ -1772,7 +1952,7 @@ export function VideoEditor() {
                         </div>
 
                         <div>
-                          <label className="block text-[10px] text-slate-500 mb-0.5">Text</label>
+                          <label className="block text-xs text-slate-400 mb-0.5">Text</label>
                           <input
                             type="text"
                             value={overlay.text}
@@ -1783,7 +1963,7 @@ export function VideoEditor() {
 
                         <div className="grid grid-cols-2 gap-2">
                           <div>
-                            <label className="block text-[10px] text-slate-500 mb-0.5">Size</label>
+                            <label className="block text-xs text-slate-400 mb-0.5">Size</label>
                             <input
                               type="number"
                               min={8}
@@ -1794,7 +1974,7 @@ export function VideoEditor() {
                             />
                           </div>
                           <div>
-                            <label className="block text-[10px] text-slate-500 mb-0.5">Color</label>
+                            <label className="block text-xs text-slate-400 mb-0.5">Color</label>
                             <input
                               type="color"
                               value={overlay.color}
@@ -1806,7 +1986,7 @@ export function VideoEditor() {
                         </div>
 
                         <div>
-                          <label className="block text-[10px] text-slate-500 mb-0.5">Position</label>
+                          <label className="block text-xs text-slate-400 mb-0.5">Position</label>
                           <select
                             value={overlay.position}
                             onChange={e => updateTextOverlay(selectedClip.id, overlay.id, { position: e.target.value as TextOverlay['position'] })}
@@ -1820,7 +2000,7 @@ export function VideoEditor() {
 
                         <div className="grid grid-cols-2 gap-2">
                           <div>
-                            <label className="block text-[10px] text-slate-500 mb-0.5">Start (s)</label>
+                            <label className="block text-xs text-slate-400 mb-0.5">Start (s)</label>
                             <input
                               type="number"
                               min={0}
@@ -1831,7 +2011,7 @@ export function VideoEditor() {
                             />
                           </div>
                           <div>
-                            <label className="block text-[10px] text-slate-500 mb-0.5">Duration (s)</label>
+                            <label className="block text-xs text-slate-400 mb-0.5">Duration (s)</label>
                             <input
                               type="number"
                               min={0.1}
@@ -1851,10 +2031,10 @@ export function VideoEditor() {
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
               <div className="w-12 h-12 rounded-xl bg-[#1c1c2a] flex items-center justify-center mb-3">
-                <Film className="w-6 h-6 text-slate-600" />
+                <Film className="w-6 h-6 text-slate-400" />
               </div>
-              <p className="text-sm text-slate-500 font-medium">No clip selected</p>
-              <p className="text-xs text-slate-600 mt-1">Select a clip in the timeline to edit its properties</p>
+              <p className="text-sm text-slate-400 font-medium">No clip selected</p>
+              <p className="text-xs text-slate-400 mt-1">Select a clip in the timeline to edit its properties</p>
             </div>
           )}
         </aside>
@@ -1892,7 +2072,7 @@ export function VideoEditor() {
                 <button
                   key={cat}
                   onClick={() => setMusicCategory(cat)}
-                  className={`px-3 py-1 text-[11px] rounded-full font-medium whitespace-nowrap transition-colors ${
+                  className={`px-3 py-1 text-xs rounded-full font-medium whitespace-nowrap transition-colors ${
                     musicCategory === cat
                       ? 'bg-purple-600 text-white'
                       : 'bg-[#1c1c2a] text-slate-400 hover:text-slate-200'
@@ -1935,26 +2115,65 @@ export function VideoEditor() {
                   </button>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-slate-200 truncate">{track.name}</p>
-                    <p className="text-[10px] text-slate-500">{formatTime(track.duration)}</p>
+                    <p className="text-xs text-slate-400">{formatTime(track.duration)}</p>
                   </div>
                   {musicTrack?.id === track.id && (
-                    <span className="text-[10px] text-purple-400 font-medium">Selected</span>
+                    <span className="text-xs text-purple-400 font-medium">Selected</span>
                   )}
                 </div>
               ))}
             </div>
 
             {musicTrack && (
-              <div className="px-5 py-3 border-t border-[#2a2a3d] flex items-center justify-between">
-                <span className="text-xs text-slate-400">
-                  Current: <span className="text-purple-300">{musicTrack.name}</span>
-                </span>
-                <button
-                  onClick={() => dispatch({ type: 'SET_MUSIC', track: null })}
-                  className="text-[11px] text-red-400 hover:text-red-300 transition-colors"
-                >
-                  Remove
-                </button>
+              <div className="px-5 py-3 border-t border-[#2a2a3d] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-300">
+                    Current: <span className="text-purple-300">{musicTrack.name}</span>
+                  </span>
+                  <button
+                    onClick={() => dispatch({ type: 'SET_MUSIC', track: null })}
+                    className="text-xs text-red-400 hover:text-red-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded transition-colors"
+                  >
+                    Remove
+                  </button>
+                </div>
+
+                {/* Music volume — wired to <audio>.volume; persisted in TimelineState */}
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      dispatch({
+                        type: 'SET_MUSIC_VOLUME',
+                        volume: musicVolume > 0 ? 0 : 0.8,
+                      })
+                    }
+                    aria-label={musicVolume === 0 ? 'Unmute music' : 'Mute music'}
+                    title={musicVolume === 0 ? 'Unmute' : 'Mute'}
+                    className="p-1 rounded text-slate-300 hover:text-white hover:bg-[#1c1c2a] focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 transition-colors"
+                  >
+                    {musicVolume === 0
+                      ? <VolumeX className="w-4 h-4" />
+                      : <Volume2 className="w-4 h-4" />}
+                  </button>
+                  <label htmlFor="music-volume" className="sr-only">Music volume</label>
+                  <input
+                    id="music-volume"
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={musicVolume}
+                    onChange={e =>
+                      dispatch({ type: 'SET_MUSIC_VOLUME', volume: parseFloat(e.target.value) })
+                    }
+                    aria-valuetext={`${Math.round(musicVolume * 100)} percent`}
+                    className="flex-1 accent-purple-500 cursor-pointer"
+                  />
+                  <span className="text-xs text-slate-300 tabular-nums w-10 text-right">
+                    {Math.round(musicVolume * 100)}%
+                  </span>
+                </div>
               </div>
             )}
           </div>
@@ -2004,7 +2223,7 @@ export function VideoEditor() {
 
             <div className="p-5 space-y-4">
               <div>
-                <label htmlFor="export-name" className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+                <label htmlFor="export-name" className="block text-xs text-slate-400 uppercase tracking-wider mb-1">
                   Output Name
                 </label>
                 <input
@@ -2017,8 +2236,8 @@ export function VideoEditor() {
               </div>
 
               <div>
-                <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">FFmpeg Command Preview</p>
-                <pre className="p-3 bg-[#0c0c14] border border-[#2a2a3d] rounded-lg text-[10px] text-slate-400 overflow-x-auto font-mono leading-relaxed whitespace-pre-wrap">
+                <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">FFmpeg Command Preview</p>
+                <pre className="p-3 bg-[#0c0c14] border border-[#2a2a3d] rounded-lg text-xs text-slate-400 overflow-x-auto font-mono leading-relaxed whitespace-pre-wrap">
 {`ffmpeg \\
 ${clips.map((c) => `  -i "${c.path}" \\`).join('\n')}
 ${musicTrack ? `  -i "${musicTrack.path}" \\\n` : ''}  -filter_complex "
@@ -2047,7 +2266,7 @@ ${musicTrack ? '  -map "[outa]" \\\n' : ''}  -aspect ${aspectRatio.replace(':', 
               {/* Branding Settings */}
               <div className="p-3 bg-[#1c1c2a] rounded-lg border border-[#2a2a3d] space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">🎨 Panini Pano Branding (last 4s)</label>
+                  <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">🎨 Panini Pano Branding (last 4s)</label>
                   <button
                     onClick={() => setBrandingEnabled(b => !b)}
                     className={`w-9 h-5 rounded-full transition-colors ${brandingEnabled ? 'bg-violet-600' : 'bg-slate-700'}`}
@@ -2072,7 +2291,7 @@ ${musicTrack ? '  -map "[outa]" \\\n' : ''}  -aspect ${aspectRatio.replace(':', 
 
               {exportStatus === 'exporting' && (
                 <div className="space-y-1">
-                  <div className="flex items-center justify-between text-[10px] text-slate-400">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
                     <span>Exporting...</span>
                     <span>{exportProgress}%</span>
                   </div>
@@ -2170,7 +2389,7 @@ ${musicTrack ? '  -map "[outa]" \\\n' : ''}  -aspect ${aspectRatio.replace(':', 
               ].map(([key, label]) => (
                 <div key={key} className="flex items-center justify-between py-1.5 border-b border-[#1c1c2a] last:border-0">
                   <span className="text-xs text-slate-400">{label}</span>
-                  <kbd className="px-2 py-0.5 text-[11px] font-mono bg-[#1c1c2a] border border-[#2a2a3d] rounded text-slate-300">{key}</kbd>
+                  <kbd className="px-2 py-0.5 text-xs font-mono bg-[#1c1c2a] border border-[#2a2a3d] rounded text-slate-300">{key}</kbd>
                 </div>
               ))}
             </div>
