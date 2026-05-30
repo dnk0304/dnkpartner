@@ -240,6 +240,7 @@ _RAW: dict[str, str] = {
     # Las Palmas
     "las palmas de gran canaria": "Las Palmas",
     "las palmas": "Las Palmas",
+    "gran canaria": "Las Palmas",  # whole-island label used by scraper
     "telde": "Las Palmas",
     "santa lucia de tirajana": "Las Palmas",
     "arucas": "Las Palmas",
@@ -259,6 +260,7 @@ _RAW: dict[str, str] = {
 
     # Santa Cruz de Tenerife
     "santa cruz de tenerife": "Santa Cruz de Tenerife",
+    "tenerife": "Santa Cruz de Tenerife",  # whole-island label used by scraper
     "san cristobal de la laguna": "Santa Cruz de Tenerife",
     "la laguna": "Santa Cruz de Tenerife",
     "arona": "Santa Cruz de Tenerife",
