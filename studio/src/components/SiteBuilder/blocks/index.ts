@@ -166,6 +166,249 @@ export function registerCustomBlocks(editor: Editor) {
     `,
   });
 
+  // ───────────────────────────────────────────────────────
+  // TRADES-ORIENTED BLOCKS (Wave 1 — plumber/electrician/HVAC)
+  // ───────────────────────────────────────────────────────
+
+  bm.add('trades-hero', {
+    label: 'Trades Hero',
+    category: 'Trades',
+    attributes: { class: 'fa fa-bolt' },
+    content: { type: 'trades-hero' },
+  });
+
+  bm.add('trades-cta', {
+    label: 'CTA Button',
+    category: 'Trades',
+    attributes: { class: 'fa fa-hand-pointer' },
+    content: { type: 'trades-cta' },
+  });
+
+  bm.add('trades-contact-bar', {
+    label: 'Call/Email Bar',
+    category: 'Trades',
+    attributes: { class: 'fa fa-phone' },
+    content: { type: 'trades-contact-bar' },
+  });
+
+  bm.add('trades-services-grid', {
+    label: 'Services Grid',
+    category: 'Trades',
+    attributes: { class: 'fa fa-th-large' },
+    content: `
+      <section data-locked-on-owner="true" style="padding:80px 24px;background:#f9fafb;font-family:var(--brand-font,Inter,sans-serif);">
+        <div style="max-width:1100px;margin:0 auto;text-align:center;">
+          <h2 style="font-size:2.25rem;font-weight:800;color:#111827;margin:0 0 12px;">Our Services</h2>
+          <p style="color:#4b5563;margin:0 0 48px;font-size:1.05rem;">Reliable, fast, and fairly priced.</p>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;text-align:left;">
+            <div data-gjs-type="trades-service-card"></div>
+            <div data-gjs-type="trades-service-card"></div>
+            <div data-gjs-type="trades-service-card"></div>
+          </div>
+        </div>
+      </section>
+    `,
+  });
+
+  bm.add('trades-service-card', {
+    label: 'Service Card',
+    category: 'Trades',
+    attributes: { class: 'fa fa-wrench' },
+    content: { type: 'trades-service-card' },
+  });
+
+  bm.add('trades-testimonial', {
+    label: 'Testimonial',
+    category: 'Trades',
+    attributes: { class: 'fa fa-star' },
+    content: `
+      <div data-locked-on-owner="true" style="background:#fff;padding:32px;border-radius:var(--brand-radius,8px);box-shadow:0 2px 12px rgba(0,0,0,0.06);font-family:var(--brand-font,Inter,sans-serif);max-width:520px;margin:24px auto;">
+        <div style="color:#f59e0b;font-size:1.1rem;margin-bottom:12px;">
+          <i class="fa-solid fa-star"></i>
+          <i class="fa-solid fa-star"></i>
+          <i class="fa-solid fa-star"></i>
+          <i class="fa-solid fa-star"></i>
+          <i class="fa-solid fa-star"></i>
+        </div>
+        <p style="font-size:1.05rem;color:#1f2937;line-height:1.6;margin:0 0 16px;font-style:italic;">"They showed up on time, fixed the leak in under an hour, and charged exactly what they quoted. Will absolutely call again."</p>
+        <p style="color:#6b7280;margin:0;font-weight:600;">— Sarah K., Verified Customer</p>
+      </div>
+    `,
+  });
+
+  bm.add('trades-service-areas', {
+    label: 'Service Areas',
+    category: 'Trades',
+    attributes: { class: 'fa fa-map-marker' },
+    content: `
+      <section data-locked-on-owner="true" style="padding:64px 24px;background:#fff;font-family:var(--brand-font,Inter,sans-serif);">
+        <div style="max-width:900px;margin:0 auto;text-align:center;">
+          <h2 style="font-size:2rem;font-weight:800;color:#111827;margin:0 0 12px;">Areas We Serve</h2>
+          <p style="color:#4b5563;margin:0 0 32px;">Proudly serving the greater metro area.</p>
+          <ul style="list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;justify-content:center;gap:12px;">
+            <li style="background:#f3f4f6;padding:10px 18px;border-radius:999px;color:#374151;font-weight:600;">Downtown</li>
+            <li style="background:#f3f4f6;padding:10px 18px;border-radius:999px;color:#374151;font-weight:600;">North Side</li>
+            <li style="background:#f3f4f6;padding:10px 18px;border-radius:999px;color:#374151;font-weight:600;">Westview</li>
+            <li style="background:#f3f4f6;padding:10px 18px;border-radius:999px;color:#374151;font-weight:600;">Eastlake</li>
+            <li style="background:#f3f4f6;padding:10px 18px;border-radius:999px;color:#374151;font-weight:600;">Riverside</li>
+            <li style="background:#f3f4f6;padding:10px 18px;border-radius:999px;color:#374151;font-weight:600;">Brookhaven</li>
+          </ul>
+        </div>
+      </section>
+    `,
+  });
+
+  bm.add('trades-hours', {
+    label: 'Opening Hours',
+    category: 'Trades',
+    attributes: { class: 'fa fa-clock' },
+    content: `
+      <section data-locked-on-owner="true" style="padding:48px 24px;background:#f9fafb;font-family:var(--brand-font,Inter,sans-serif);">
+        <div style="max-width:520px;margin:0 auto;">
+          <h2 style="text-align:center;font-size:1.75rem;font-weight:800;color:#111827;margin:0 0 24px;">Opening Hours</h2>
+          <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:var(--brand-radius,8px);overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+            <tbody>
+              <tr><td style="padding:14px 20px;border-bottom:1px solid #f3f4f6;color:#374151;font-weight:600;">Monday – Friday</td><td style="padding:14px 20px;border-bottom:1px solid #f3f4f6;color:#6b7280;text-align:right;">7:00 AM – 7:00 PM</td></tr>
+              <tr><td style="padding:14px 20px;border-bottom:1px solid #f3f4f6;color:#374151;font-weight:600;">Saturday</td><td style="padding:14px 20px;border-bottom:1px solid #f3f4f6;color:#6b7280;text-align:right;">8:00 AM – 4:00 PM</td></tr>
+              <tr><td style="padding:14px 20px;color:#374151;font-weight:600;">Sunday</td><td style="padding:14px 20px;color:#6b7280;text-align:right;">Emergency only</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    `,
+  });
+
+  bm.add('trades-contact-form', {
+    label: 'Contact Form',
+    category: 'Trades',
+    attributes: { class: 'fa fa-envelope' },
+    content: `
+      <section data-locked-on-owner="true" style="padding:80px 24px;background:#fff;font-family:var(--brand-font,Inter,sans-serif);">
+        <div style="max-width:560px;margin:0 auto;">
+          <h2 style="text-align:center;font-size:2rem;font-weight:800;color:#111827;margin:0 0 12px;">Request a Quote</h2>
+          <p style="text-align:center;color:#6b7280;margin:0 0 32px;">We typically respond within 30 minutes.</p>
+          <form style="display:flex;flex-direction:column;gap:14px;">
+            <input type="text" name="name" placeholder="Your name" style="padding:14px 16px;border:1px solid #d1d5db;border-radius:var(--brand-radius,8px);font-size:1rem;" />
+            <input type="tel" name="phone" placeholder="Phone number" style="padding:14px 16px;border:1px solid #d1d5db;border-radius:var(--brand-radius,8px);font-size:1rem;" />
+            <input type="email" name="email" placeholder="Email" style="padding:14px 16px;border:1px solid #d1d5db;border-radius:var(--brand-radius,8px);font-size:1rem;" />
+            <textarea name="message" placeholder="Describe the job..." rows="5" style="padding:14px 16px;border:1px solid #d1d5db;border-radius:var(--brand-radius,8px);font-size:1rem;font-family:inherit;resize:vertical;"></textarea>
+            <button type="submit" style="padding:14px 28px;background:var(--brand-primary,#7c3aed);color:#fff;border:none;border-radius:var(--brand-radius,8px);font-size:1rem;font-weight:700;cursor:pointer;">Send Request</button>
+          </form>
+        </div>
+      </section>
+    `,
+  });
+
+  bm.add('trades-map-embed', {
+    label: 'Map Embed',
+    category: 'Trades',
+    attributes: { class: 'fa fa-map' },
+    content: `
+      <section data-locked-on-owner="true" style="padding:0;background:#fff;">
+        <iframe
+          src="https://www.openstreetmap.org/export/embed.html?bbox=-74.02%2C40.70%2C-73.95%2C40.75&layer=mapnik"
+          style="width:100%;height:400px;border:0;display:block;"
+          loading="lazy"
+          title="Service area map"
+        ></iframe>
+      </section>
+    `,
+  });
+
+  bm.add('trades-nav', {
+    label: 'Nav Bar',
+    category: 'Trades',
+    attributes: { class: 'fa fa-bars' },
+    content: `
+      <nav data-locked-on-owner="true" style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;background:#fff;border-bottom:1px solid #e5e7eb;font-family:var(--brand-font,Inter,sans-serif);">
+        <div style="font-size:1.2rem;font-weight:800;color:#111827;">Your Business</div>
+        <ul style="display:flex;gap:24px;list-style:none;padding:0;margin:0;">
+          <li><a href="#services" style="color:#374151;text-decoration:none;font-weight:600;">Services</a></li>
+          <li><a href="#about" style="color:#374151;text-decoration:none;font-weight:600;">About</a></li>
+          <li><a href="#reviews" style="color:#374151;text-decoration:none;font-weight:600;">Reviews</a></li>
+          <li><a href="#contact" style="color:#374151;text-decoration:none;font-weight:600;">Contact</a></li>
+        </ul>
+        <a href="tel:+15551234567" style="padding:10px 20px;background:var(--brand-primary,#7c3aed);color:#fff;text-decoration:none;border-radius:var(--brand-radius,8px);font-weight:700;">Call Now</a>
+      </nav>
+    `,
+  });
+
+  bm.add('trades-columns-2', {
+    label: '2 Columns',
+    category: 'Layout',
+    attributes: { class: 'fa fa-columns' },
+    content: `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;padding:32px 24px;max-width:1100px;margin:0 auto;">
+        <div style="min-height:120px;padding:16px;border:1px dashed #d1d5db;border-radius:var(--brand-radius,8px);"></div>
+        <div style="min-height:120px;padding:16px;border:1px dashed #d1d5db;border-radius:var(--brand-radius,8px);"></div>
+      </div>
+    `,
+  });
+
+  bm.add('trades-columns-3', {
+    label: '3 Columns',
+    category: 'Layout',
+    attributes: { class: 'fa fa-columns' },
+    content: `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;padding:32px 24px;max-width:1200px;margin:0 auto;">
+        <div style="min-height:120px;padding:16px;border:1px dashed #d1d5db;border-radius:var(--brand-radius,8px);"></div>
+        <div style="min-height:120px;padding:16px;border:1px dashed #d1d5db;border-radius:var(--brand-radius,8px);"></div>
+        <div style="min-height:120px;padding:16px;border:1px dashed #d1d5db;border-radius:var(--brand-radius,8px);"></div>
+      </div>
+    `,
+  });
+
+  bm.add('trades-gallery', {
+    label: 'Photo Gallery',
+    category: 'Trades',
+    attributes: { class: 'fa fa-images' },
+    content: `
+      <section data-locked-on-owner="true" style="padding:64px 24px;background:#fff;font-family:var(--brand-font,Inter,sans-serif);">
+        <h2 style="text-align:center;font-size:2rem;font-weight:800;color:#111827;margin:0 0 32px;">Recent Work</h2>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;max-width:1200px;margin:0 auto;">
+          ${[1, 2, 3, 4, 5, 6, 7, 8].map(() => `
+          <div style="aspect-ratio:1/1;background:#e5e7eb;border-radius:var(--brand-radius,8px);overflow:hidden;display:flex;align-items:center;justify-content:center;color:#9ca3af;">
+            <i class="fa-solid fa-image" style="font-size:2rem;"></i>
+          </div>`).join('')}
+        </div>
+      </section>
+    `,
+  });
+
+  bm.add('trades-footer', {
+    label: 'Trades Footer',
+    category: 'Trades',
+    attributes: { class: 'fa fa-shield' },
+    content: `
+      <footer data-locked-on-owner="true" style="padding:48px 24px 24px;background:#111827;color:#fff;font-family:var(--brand-font,Inter,sans-serif);">
+        <div style="max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:32px;">
+          <div>
+            <h4 style="font-size:1.1rem;font-weight:800;margin:0 0 12px;">Your Business Name</h4>
+            <p style="color:#9ca3af;margin:0;line-height:1.6;font-size:0.9rem;">Licensed & insured. Serving the community since 2010.</p>
+            <p style="color:#9ca3af;margin:12px 0 0;font-size:0.85rem;">License #ABC123456</p>
+          </div>
+          <div>
+            <h4 style="font-size:0.95rem;font-weight:700;color:#fff;margin:0 0 12px;text-transform:uppercase;letter-spacing:0.05em;">Contact</h4>
+            <p style="color:#9ca3af;margin:0 0 6px;font-size:0.9rem;"><i class="fa-solid fa-phone" style="margin-right:8px;"></i>(555) 123-4567</p>
+            <p style="color:#9ca3af;margin:0 0 6px;font-size:0.9rem;"><i class="fa-solid fa-envelope" style="margin-right:8px;"></i>info@yourbusiness.com</p>
+            <p style="color:#9ca3af;margin:0;font-size:0.9rem;"><i class="fa-solid fa-location-dot" style="margin-right:8px;"></i>123 Main St, Your City</p>
+          </div>
+          <div>
+            <h4 style="font-size:0.95rem;font-weight:700;color:#fff;margin:0 0 12px;text-transform:uppercase;letter-spacing:0.05em;">Follow</h4>
+            <div style="display:flex;gap:10px;">
+              <a href="#" style="width:36px;height:36px;border-radius:8px;background:#1f2937;display:flex;align-items:center;justify-content:center;color:#fff;text-decoration:none;"><i class="fa-brands fa-facebook"></i></a>
+              <a href="#" style="width:36px;height:36px;border-radius:8px;background:#1f2937;display:flex;align-items:center;justify-content:center;color:#fff;text-decoration:none;"><i class="fa-brands fa-instagram"></i></a>
+              <a href="#" style="width:36px;height:36px;border-radius:8px;background:#1f2937;display:flex;align-items:center;justify-content:center;color:#fff;text-decoration:none;"><i class="fa-brands fa-google"></i></a>
+            </div>
+          </div>
+        </div>
+        <div style="text-align:center;padding-top:24px;margin-top:32px;border-top:1px solid #1f2937;">
+          <p style="font-size:0.8rem;color:#6b7280;margin:0;">© 2026 Your Business Name. All rights reserved.</p>
+        </div>
+      </footer>
+    `,
+  });
+
   bm.add('pricing-table', {
     label: 'Pricing Table',
     category: 'Sections',

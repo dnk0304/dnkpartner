@@ -43,6 +43,7 @@ import { proxyManager } from './trends/proxyManager.js';
 import videoRemotionRouter from './videoRemotion.js';
 // Site Builder
 import { siteBuilderRouter } from './siteBuilder.js';
+import { runStudioMigrations } from './db/studioMigrations.js';
 
 // KDP Mode imports
 import { generateKDPExport } from "./kdpPDF"
@@ -8234,6 +8235,12 @@ console.log('[Server] ✅ Remotion render endpoints registered (/api/video/rende
 // ==================== SITE BUILDER ====================
 app.use('/api/site-builder', siteBuilderRouter);
 console.log('[Server] ✅ Site Builder endpoints registered (/api/site-builder)');
+
+// Studio Postgres schema bootstrap — idempotent CREATE TABLE IF NOT EXISTS.
+// Runs once at startup; logs and continues if DATABASE_URL is unset.
+runStudioMigrations().catch((err) => {
+  console.error('[Server] ⚠️ Studio migrations failed — site builder persistence will 500:', err);
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Production: serve the Vite SPA build out of dist/.

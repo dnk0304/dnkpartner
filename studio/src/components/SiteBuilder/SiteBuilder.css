@@ -1,5 +1,8 @@
 /* GrapesJS overrides & shell styling */
 @import 'grapesjs/dist/css/grapes.min.css';
+/* FontAwesome — needed for block icons in the editor chrome
+   (the canvas iframe is injected separately via canvas.styles) */
+@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css');
 
 .site-builder {
   display: flex;
@@ -238,6 +241,213 @@
 .gjs-block:hover {
   border-color: #7c3aed;
   color: #fff;
+}
+
+/* ── Loading state ── */
+.sb-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: #0c0c14;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: "Plus Jakarta Sans", sans-serif;
+  font-size: 0.95rem;
+  gap: 16px;
+}
+
+.sb-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(124, 58, 237, 0.2);
+  border-top-color: #7c3aed;
+  border-radius: 50%;
+  animation: sb-spin 0.9s linear infinite;
+}
+
+@keyframes sb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Toolbar select ── */
+.sb-select {
+  padding: 6px 10px;
+  background: #1c1c2a;
+  border: 1px solid #2a2a3d;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 0.8rem;
+  cursor: pointer;
+  max-width: 180px;
+}
+
+.sb-select:focus {
+  outline: 2px solid #7c3aed;
+  outline-offset: 1px;
+}
+
+/* ── Mode toggle (segmented control) ── */
+.sb-mode-toggle {
+  padding: 2px;
+  background: #0c0c14;
+  border-radius: 8px;
+  border: 1px solid #2a2a3d;
+}
+
+.sb-mode-toggle button {
+  padding: 6px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.sb-mode-toggle button.active {
+  background: #7c3aed;
+  color: #fff;
+}
+
+.sb-mode-toggle button:hover:not(.active) {
+  color: #fff;
+  background: transparent;
+}
+
+/* ── Popover (templates, theme) ── */
+.sb-popover {
+  position: absolute;
+  top: 60px;
+  z-index: 100;
+  background: #14141f;
+  border: 1px solid #2a2a3d;
+  border-radius: 10px;
+  padding: 12px;
+  min-width: 280px;
+  max-height: 70vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4);
+}
+
+.sb-popover-title {
+  padding: 4px 8px 12px;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.sb-popover-item {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  margin-bottom: 4px;
+}
+
+.sb-popover-item:hover {
+  background: #1c1c2a;
+  border-color: #7c3aed;
+}
+
+.sb-popover-item-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.sb-popover-item-desc {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 4px;
+}
+
+.sb-popover-close {
+  display: block;
+  width: 100%;
+  padding: 8px;
+  background: transparent;
+  border: none;
+  border-top: 1px solid #2a2a3d;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  margin-top: 8px;
+  font-size: 0.8rem;
+}
+
+/* ── Theme panel rows ── */
+.sb-theme-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 8px;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.sb-theme-row input[type='color'] {
+  width: 44px;
+  height: 28px;
+  border: 1px solid #2a2a3d;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sb-theme-row select {
+  padding: 6px 10px;
+  background: #0c0c14;
+  border: 1px solid #2a2a3d;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 0.85rem;
+}
+
+/* ── Right panel tabs ── */
+.sb-right-tabs {
+  display: flex;
+  border-bottom: 1px solid #1c1c2a;
+}
+
+.sb-right-tabs button {
+  flex: 1;
+  padding: 12px 8px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.sb-right-tabs button:hover {
+  color: #fff;
+}
+
+.sb-right-tabs button.active {
+  color: #fff;
+  border-bottom-color: #7c3aed;
+}
+
+/* ── FontAwesome inside block manager icons ── */
+.gjs-block .fa,
+.gjs-block .fa-solid,
+.gjs-block .fa-regular,
+.gjs-block .fa-brands {
+  font-size: 1.3rem;
+  margin-bottom: 6px;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 /* ── Responsive: collapse panels ── */

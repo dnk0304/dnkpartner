@@ -1,193 +1,213 @@
-import { Router, Request, Response } from 'express';
-import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
+/**
+ * Site Builder persistence (container-safe, Postgres-backed).
+ *
+ * Replaces the previous filesystem-backed routes that wrote raw HTML/CSS to
+ * hardcoded `C:\Users\D\Desktop` paths — which broke inside the Coolify
+ * container deploy at dnkpartner.com/studio/*.
+ *
+ * Persists the GrapesJS *structured project model* (`editor.getProjectData()`)
+ * as JSONB in `studio_page.project_data`. This is lossless across reloads
+ * (components, styles, assets, pages — unlike `getHtml()` / `getCss()`,
+ * which threw away component metadata on every save).
+ *
+ * Storage: dnkpartner's existing Postgres, shared via `DATABASE_URL`.
+ * Studio-owned tables are namespaced `studio_*`. See `db/studioMigrations.ts`.
+ *
+ * Routes (mounted at `/api/site-builder`):
+ *   GET    /sites                              → list sites (default tenant)
+ *   POST   /sites                              → create empty site {name, slug?}
+ *   GET    /sites/:siteId/pages                → list pages for a site
+ *   POST   /sites/:siteId/pages                → create empty page {name, path}
+ *   GET    /sites/:siteId/pages/:pageId        → load { project_data } — GrapesJS storageManager urlLoad
+ *   POST   /sites/:siteId/pages/:pageId        → upsert project_data         — GrapesJS storageManager urlStore
+ *
+ * Auth: relies on the existing dnkpartner `/studio/*` login gate. Single
+ * default tenant for now (multi-tenant is the SHAPE, not yet wired per-user).
+ *
+ * Legacy filesystem routes (`/load`, `/save`, `/export`, `/projects`) are
+ * REMOVED — they were the container-breaking bug. The frontend (Pixel)
+ * switches to the new endpoints + GrapesJS remote storageManager.
+ */
+import { Router, Request, Response, NextFunction } from 'express';
+import { getPool, hasDatabaseUrl } from './db/pool.js';
+import { DEFAULT_TENANT_ID } from './db/studioMigrations.js';
 
 export const siteBuilderRouter = Router();
 
-interface LoadRequest {
-  projectPath: string;
+// UUID v4/v7 sanity check — prevents SQL errors leaking through as 500s.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUuid(s: unknown): s is string {
+  return typeof s === 'string' && UUID_RE.test(s);
 }
 
-interface SaveRequest {
-  projectPath: string;
-  html: string;
-  css: string;
+// Slug helper — kebab-case, ascii-only. Stable across saves of the same name.
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64) || 'untitled';
 }
 
-// POST /load - Load an HTML project into the editor
-siteBuilderRouter.post('/load', async (req: Request, res: Response) => {
+// Fail fast (503) if DATABASE_URL isn't configured — clearer than a 500.
+function requireDb(_req: Request, res: Response, next: NextFunction) {
+  if (!hasDatabaseUrl()) {
+    return res.status(503).json({
+      error: 'Site builder persistence unavailable: DATABASE_URL is not configured on the server.',
+    });
+  }
+  next();
+}
+siteBuilderRouter.use(requireDb);
+
+// ---------- Sites ----------
+
+// GET /sites — list sites for the default tenant.
+siteBuilderRouter.get('/sites', async (_req: Request, res: Response) => {
   try {
-    const { projectPath } = req.body as LoadRequest;
-    if (!projectPath) {
-      return res.status(400).json({ error: 'projectPath is required' });
-    }
-
-    const htmlPath = projectPath.endsWith('.html') ? projectPath : path.join(projectPath, 'index.html');
-    const dir = path.dirname(htmlPath);
-    const cssPath = path.join(dir, 'style.css');
-
-    let htmlContent: string;
-    try {
-      htmlContent = await fs.readFile(htmlPath, 'utf-8');
-    } catch {
-      return res.status(404).json({ error: `HTML file not found: ${htmlPath}` });
-    }
-
-    // Extract body content
-    const bodyMatch = htmlContent.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-    const bodyHtml = bodyMatch ? bodyMatch[1].trim() : htmlContent;
-
-    // Try to read CSS
-    let cssContent = '';
-    try {
-      cssContent = await fs.readFile(cssPath, 'utf-8');
-    } catch {
-      // No CSS file, that's fine
-    }
-
-    res.json({ html: bodyHtml, css: cssContent, projectPath: htmlPath });
+    const { rows } = await getPool().query(
+      `SELECT id, name, slug, created_at, updated_at
+       FROM studio_site
+       WHERE tenant_id = $1
+       ORDER BY updated_at DESC`,
+      [DEFAULT_TENANT_ID]
+    );
+    res.json(rows);
   } catch (err) {
-    console.error('[SiteBuilder] Load error:', err);
-    res.status(500).json({ error: 'Failed to load project' });
+    console.error('[SiteBuilder] list sites error:', err);
+    res.status(500).json({ error: 'Failed to list sites' });
   }
 });
 
-// POST /save - Save HTML+CSS back to project files
-siteBuilderRouter.post('/save', async (req: Request, res: Response) => {
+// POST /sites — create an empty site.  Body: { name, slug? }
+siteBuilderRouter.post('/sites', async (req: Request, res: Response) => {
   try {
-    const { projectPath, html, css } = req.body as SaveRequest;
-    if (!projectPath || html === undefined) {
-      return res.status(400).json({ error: 'projectPath and html are required' });
+    const { name, slug } = (req.body ?? {}) as { name?: string; slug?: string };
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return res.status(400).json({ error: 'name is required' });
     }
-
-    const htmlPath = projectPath.endsWith('.html') ? projectPath : path.join(projectPath, 'index.html');
-    const dir = path.dirname(htmlPath);
-    const cssPath = path.join(dir, 'style.css');
-
-    // Read existing HTML to preserve head
-    let existingHtml: string;
-    try {
-      existingHtml = await fs.readFile(htmlPath, 'utf-8');
-    } catch {
-      existingHtml = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Site</title><link rel="stylesheet" href="style.css" /></head><body></body></html>';
-    }
-
-    // Create backup
-    try {
-      await fs.copyFile(htmlPath, htmlPath + '.backup');
-    } catch {
-      // Original might not exist yet
-    }
-
-    // Replace body content
-    const headMatch = existingHtml.match(/<head[^>]*>[\s\S]*?<\/head>/i);
-    const head = headMatch ? headMatch[0] : '<head><meta charset="UTF-8" /><title>Site</title><link rel="stylesheet" href="style.css" /></head>';
-    const newHtml = `<!DOCTYPE html>\n<html lang="en">\n${head}\n<body>\n${html}\n</body>\n</html>`;
-
-    await fs.writeFile(htmlPath, newHtml, 'utf-8');
-
-    // Write CSS
-    if (css !== undefined) {
-      try {
-        await fs.copyFile(cssPath, cssPath + '.backup');
-      } catch {
-        // No existing CSS
-      }
-      await fs.writeFile(cssPath, css, 'utf-8');
-    }
-
-    res.json({ success: true, message: 'Project saved successfully' });
+    const finalSlug = slug && typeof slug === 'string' ? slugify(slug) : slugify(name);
+    const { rows } = await getPool().query(
+      `INSERT INTO studio_site (tenant_id, name, slug)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (tenant_id, slug) DO UPDATE SET updated_at = now()
+       RETURNING id, name, slug, created_at, updated_at`,
+      [DEFAULT_TENANT_ID, name.trim(), finalSlug]
+    );
+    res.status(201).json(rows[0]);
   } catch (err) {
-    console.error('[SiteBuilder] Save error:', err);
-    res.status(500).json({ error: 'Failed to save project' });
+    console.error('[SiteBuilder] create site error:', err);
+    res.status(500).json({ error: 'Failed to create site' });
   }
 });
 
-// GET /projects - List available projects
-siteBuilderRouter.get('/projects', async (_req: Request, res: Response) => {
+// ---------- Pages ----------
+
+// GET /sites/:siteId/pages — list pages for a site.
+siteBuilderRouter.get('/sites/:siteId/pages', async (req: Request, res: Response) => {
+  const { siteId } = req.params;
+  if (!isUuid(siteId)) return res.status(400).json({ error: 'invalid siteId' });
   try {
-    const desktopPath = path.join('C:', 'Users', 'D', 'Desktop');
-    const projects: Array<{ name: string; path: string; lastModified: string }> = [];
-
-    // Check panini-pano-website specifically
-    const paniniPath = path.join(desktopPath, 'panini-pano-website', 'index.html');
-    try {
-      const stat = await fs.stat(paniniPath);
-      projects.push({
-        name: 'panini-pano-website',
-        path: paniniPath,
-        lastModified: stat.mtime.toISOString(),
-      });
-    } catch {
-      // Doesn't exist
-    }
-
-    // Scan desktop 1 level deep for other folders with index.html
-    try {
-      const entries = await fs.readdir(desktopPath, { withFileTypes: true });
-      for (const entry of entries) {
-        if (!entry.isDirectory() || entry.name === 'panini-pano-website') continue;
-        const indexPath = path.join(desktopPath, entry.name, 'index.html');
-        try {
-          const stat = await fs.stat(indexPath);
-          projects.push({
-            name: entry.name,
-            path: indexPath,
-            lastModified: stat.mtime.toISOString(),
-          });
-        } catch {
-          // No index.html in this folder
-        }
-      }
-    } catch {
-      // Can't read desktop
-    }
-
-    res.json(projects);
+    const { rows } = await getPool().query(
+      `SELECT id, name, path, updated_at
+       FROM studio_page
+       WHERE site_id = $1
+       ORDER BY path ASC`,
+      [siteId]
+    );
+    res.json(rows);
   } catch (err) {
-    console.error('[SiteBuilder] Projects list error:', err);
-    res.status(500).json({ error: 'Failed to list projects' });
+    console.error('[SiteBuilder] list pages error:', err);
+    res.status(500).json({ error: 'Failed to list pages' });
   }
 });
 
-// POST /export - Export clean versions
-siteBuilderRouter.post('/export', async (req: Request, res: Response) => {
+// POST /sites/:siteId/pages — create an empty page. Body: { name, path }
+siteBuilderRouter.post('/sites/:siteId/pages', async (req: Request, res: Response) => {
+  const { siteId } = req.params;
+  if (!isUuid(siteId)) return res.status(400).json({ error: 'invalid siteId' });
+  const { name, path: pagePath } = (req.body ?? {}) as { name?: string; path?: string };
+  if (!name || !pagePath) {
+    return res.status(400).json({ error: 'name and path are required' });
+  }
   try {
-    const { projectPath, html, css } = req.body as SaveRequest;
-    if (!projectPath || html === undefined) {
-      return res.status(400).json({ error: 'projectPath and html are required' });
+    const { rows } = await getPool().query(
+      `INSERT INTO studio_page (site_id, name, path, project_data)
+       VALUES ($1, $2, $3, '{}'::jsonb)
+       ON CONFLICT (site_id, path) DO UPDATE SET name = EXCLUDED.name, updated_at = now()
+       RETURNING id, name, path, updated_at`,
+      [siteId, name, pagePath]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err: any) {
+    if (err?.code === '23503') {
+      // FK violation — site doesn't exist.
+      return res.status(404).json({ error: 'site not found' });
     }
+    console.error('[SiteBuilder] create page error:', err);
+    res.status(500).json({ error: 'Failed to create page' });
+  }
+});
 
-    const htmlPath = projectPath.endsWith('.html') ? projectPath : path.join(projectPath, 'index.html');
-    const dir = path.dirname(htmlPath);
-    const exportDir = path.join(dir, 'export');
-
-    await fs.mkdir(exportDir, { recursive: true });
-
-    const exportHtml = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Exported Site</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-${html}
-</body>
-</html>`;
-
-    const exportHtmlPath = path.join(exportDir, 'index.html');
-    const exportCssPath = path.join(exportDir, 'style.css');
-
-    await fs.writeFile(exportHtmlPath, exportHtml, 'utf-8');
-    if (css) {
-      await fs.writeFile(exportCssPath, css, 'utf-8');
+// GET /sites/:siteId/pages/:pageId — load page's GrapesJS project data.
+// This is the URL GrapesJS storageManager `urlLoad` hits.
+//
+// GrapesJS expects the response body to be the project data JSON directly
+// (it stores whatever it gets back). We return `project_data` as the raw
+// body so storageManager round-trips cleanly.
+siteBuilderRouter.get('/sites/:siteId/pages/:pageId', async (req: Request, res: Response) => {
+  const { siteId, pageId } = req.params;
+  if (!isUuid(siteId) || !isUuid(pageId)) {
+    return res.status(400).json({ error: 'invalid id' });
+  }
+  try {
+    const { rows } = await getPool().query(
+      `SELECT project_data
+       FROM studio_page
+       WHERE id = $1 AND site_id = $2`,
+      [pageId, siteId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'page not found' });
     }
-
-    res.json({ success: true, exportPath: exportDir });
+    res.json(rows[0].project_data);
   } catch (err) {
-    console.error('[SiteBuilder] Export error:', err);
-    res.status(500).json({ error: 'Failed to export project' });
+    console.error('[SiteBuilder] load page error:', err);
+    res.status(500).json({ error: 'Failed to load page' });
+  }
+});
+
+// POST /sites/:siteId/pages/:pageId — upsert page's GrapesJS project data.
+// This is the URL GrapesJS storageManager `urlStore` hits.
+//
+// storageManager POSTs the project data JSON as the request body. We store
+// the entire body verbatim into `project_data` JSONB. No HTML parsing, no
+// CSS extraction, no lossy round-trip.
+siteBuilderRouter.post('/sites/:siteId/pages/:pageId', async (req: Request, res: Response) => {
+  const { siteId, pageId } = req.params;
+  if (!isUuid(siteId) || !isUuid(pageId)) {
+    return res.status(400).json({ error: 'invalid id' });
+  }
+  const projectData = req.body;
+  if (projectData == null || typeof projectData !== 'object') {
+    return res.status(400).json({ error: 'request body must be the GrapesJS project data JSON object' });
+  }
+  try {
+    const { rowCount } = await getPool().query(
+      `UPDATE studio_page
+       SET project_data = $1::jsonb,
+           updated_at = now()
+       WHERE id = $2 AND site_id = $3`,
+      [JSON.stringify(projectData), pageId, siteId]
+    );
+    if (rowCount === 0) {
+      return res.status(404).json({ error: 'page not found' });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[SiteBuilder] save page error:', err);
+    res.status(500).json({ error: 'Failed to save page' });
   }
 });
