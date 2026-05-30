@@ -68,22 +68,29 @@ def run_backfill(dry_run: bool = False):
     with_municipality = cur.fetchone()[0]
     logger.info(f"  Of those, with municipality set: {with_municipality:,}")
 
-    # Fetch in batches to avoid memory pressure
+    # Fetch in batches via id cursor — NOT offset.
+    # Paginate-while-mutating bug: every UPDATE moves a row out of the
+    # `province = 'Unknown'` predicate, so the result set shrinks under
+    # the cursor and LIMIT/OFFSET silently skips rows. Using `WHERE id > last_id`
+    # walks the id space monotonically — rows we've already processed are
+    # naturally excluded, rows we haven't are guaranteed to appear regardless
+    # of how many predicates flipped. Single pass, no re-runs.
     BATCH_SIZE = 5000
-    offset = 0
+    last_id = ''  # text PK; '' sorts before any valid id
     updated_count = 0
     still_unknown = 0
+    batches = 0
 
-    logger.info("Starting province derivation loop...")
+    logger.info("Starting province derivation loop (id-cursor pagination)...")
 
     while True:
         cur.execute("""
             SELECT id, municipality, "courtName", "boeAnnouncement"
             FROM "Auction"
-            WHERE province = 'Unknown'
+            WHERE province = 'Unknown' AND id > %s
             ORDER BY id
-            LIMIT %s OFFSET %s
-        """, (BATCH_SIZE, offset))
+            LIMIT %s
+        """, (last_id, BATCH_SIZE))
 
         rows = cur.fetchall()
         if not rows:
@@ -112,6 +119,11 @@ def run_backfill(dry_run: bool = False):
             else:
                 still_unknown += 1
 
+        # Advance cursor to the last id seen, regardless of update outcome
+        # (rows that stay 'Unknown' would otherwise be re-fetched forever).
+        last_id = rows[-1][0]
+        batches += 1
+
         if batch_updates and not dry_run:
             psycopg2.extras.execute_batch(
                 cur,
@@ -120,11 +132,10 @@ def run_backfill(dry_run: bool = False):
                 page_size=500,
             )
             conn.commit()
-            logger.info(f"  Batch offset={offset}: {len(batch_updates)} rows updated")
+            logger.info(f"  Batch {batches} (last_id ending {last_id[-12:]}): "
+                        f"{len(batch_updates)}/{len(rows)} rows updated")
         elif batch_updates:
-            logger.info(f"  [DRY RUN] Batch offset={offset}: {len(batch_updates)} would be updated")
-
-        offset += BATCH_SIZE
+            logger.info(f"  [DRY RUN] Batch {batches}: {len(batch_updates)} would be updated")
 
     logger.info("=" * 60)
     logger.info(f"Province backfill complete")
