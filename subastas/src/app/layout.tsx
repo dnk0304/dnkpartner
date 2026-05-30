@@ -1,22 +1,40 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Source_Serif_4, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { SessionProvider } from "@/components/SessionProvider";
 import { AdminSettingsProvider } from "@/context/AdminSettingsContext";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+/**
+ * Typography — the single biggest "less AI" lever we have.
+ *   - Source Serif 4 for editorial/judicial headings
+ *   - Inter for UI/body (with tabular numerals enabled in globals.css)
+ *   - JetBrains Mono available for code-like values
+ *
+ * Self-hosted via next/font; respects basePath without extra config.
+ */
+const inter = Inter({
   subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const serifDisplay = Source_Serif_4({
   subsets: ["latin"],
+  variable: "--font-serif-display",
+  display: "swap",
+  weight: ["400", "600", "700"],
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "SubastaPro - The intelligence platform for premium auctions",
-  description: "Track and analyze property auctions across Spain with real-time updates and intelligent alerts",
+  title: "dnkSubastas — Observatorio de subastas públicas de España",
+  description:
+    "Seguimos en tiempo real las subastas judiciales del BOE y te avisamos cuando algo cambia. Datos oficiales, sin AI-hype.",
 };
 
 export default function RootLayout({
@@ -25,14 +43,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="es">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${inter.variable} ${serifDisplay.variable} ${jetbrainsMono.variable} antialiased`}
       >
         <SessionProvider>
-          <AdminSettingsProvider>
-            {children}
-          </AdminSettingsProvider>
+          <AdminSettingsProvider>{children}</AdminSettingsProvider>
         </SessionProvider>
       </body>
     </html>
