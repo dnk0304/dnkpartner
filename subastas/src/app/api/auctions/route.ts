@@ -453,14 +453,43 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
     const cursor = searchParams.get('cursor'); // For cursor-based pagination
-    
+
     // Validate pagination
     const safeLimit = Math.min(Math.max(limit, 1), 100); // Max 100 per page
     const offset = (page - 1) * safeLimit;
-    
+
+    // --- Sort whitelist (P0 dropdown) -----------------------------------
+    // Whitelist input -> safe ORDER BY clause. Never interpolate raw input.
+    // Default = endsAt_asc (urgency-first per Pixel UX recommendation).
+    type SortKey = 'endsAt_asc' | 'published_desc' | 'price_asc' | 'price_desc';
+    const EFFECTIVE_PRICE = 'COALESCE("currentBid", "minimumBid", "appraisalValue")';
+    const SORT_MAP: Record<SortKey, { orderBy: string; cursorMode: 'endsAt' | 'publishedAt' | 'offset' }> = {
+      endsAt_asc:      { orderBy: '"endsAt" ASC NULLS LAST, id ASC',     cursorMode: 'endsAt' },
+      published_desc:  { orderBy: '"publishedAt" DESC, id DESC',          cursorMode: 'publishedAt' },
+      price_asc:       { orderBy: `${EFFECTIVE_PRICE} ASC NULLS LAST, id ASC`,  cursorMode: 'offset' },
+      price_desc:      { orderBy: `${EFFECTIVE_PRICE} DESC NULLS LAST, id ASC`, cursorMode: 'offset' },
+    };
+    const rawSort = searchParams.get('sort');
+    // Accept `publishedAt_desc` as alias for `published_desc` (Ken's brief uses
+    // both spellings — keep both pointing at the same ORDER BY).
+    const normalizedSort: SortKey = (() => {
+      switch (rawSort) {
+        case 'endsAt_asc':
+        case 'published_desc':
+        case 'price_asc':
+        case 'price_desc':
+          return rawSort;
+        case 'publishedAt_desc':
+          return 'published_desc';
+        default:
+          return 'endsAt_asc'; // server default (was publishedAt DESC pre-P0)
+      }
+    })();
+    const sortPlan = SORT_MAP[normalizedSort];
+
     const tier = (tierParam || 'GUEST') as UserTier | 'GUEST';
-    
-    // Create cache key
+
+    // Create cache key (include sort so different orderings don't collide)
     const cacheKey = {
       province: province || 'all',
       category: category || 'all',
@@ -471,7 +500,8 @@ export async function GET(request: NextRequest) {
       tier,
       page,
       limit: safeLimit,
-      cursor: cursor || 'none'
+      cursor: cursor || 'none',
+      sort: normalizedSort
     };
     
     // Try cache first (30 second TTL)
@@ -591,18 +621,35 @@ export async function GET(request: NextRequest) {
       params.push(auctionType.toUpperCase());
     }
     
-    // Cursor-based pagination (faster for large datasets)
-    if (cursor) {
-      sql += ' AND publishedAt < ?';
+    // Cursor-based pagination — cursor semantics depend on active sort.
+    //   endsAt_asc      -> cursor is endsAt ISO string, advance with endsAt > ?
+    //   published_desc  -> cursor is publishedAt ISO string, advance with publishedAt < ?
+    //   price_asc/desc  -> cursor pagination not supported (price has NULLs and
+    //                      duplicates; correct keyset is non-trivial). UI must
+    //                      use page= for these two sorts. Cursor is ignored.
+    let usingOffset = false;
+    if (cursor && sortPlan.cursorMode === 'endsAt') {
+      sql += ' AND "endsAt" IS NOT NULL AND "endsAt" > ?';
       params.push(cursor);
+    } else if (cursor && sortPlan.cursorMode === 'publishedAt') {
+      sql += ' AND "publishedAt" < ?';
+      params.push(cursor);
+    } else if (sortPlan.cursorMode === 'offset') {
+      // Price sorts: fall back to LIMIT/OFFSET pagination using the existing
+      // `page` param. Do NOT honor cursor here — it would silently misalign.
+      usingOffset = true;
     }
-    
-    // Order by publishedAt (uses index)
-    sql += ' ORDER BY publishedAt DESC';
-    
-    // Add limit for pagination
+
+    // Whitelisted ORDER BY (safe; never interpolates user input)
+    sql += ` ORDER BY ${sortPlan.orderBy}`;
+
+    // Add limit (+1 to detect hasMore) and optional offset for price sorts
     sql += ' LIMIT ?';
-    params.push(safeLimit + 1); // Fetch one extra to check if there are more results
+    params.push(safeLimit + 1);
+    if (usingOffset && offset > 0) {
+      sql += ' OFFSET ?';
+      params.push(offset);
+    }
     
     // Execute query
     const queryStart = Date.now();
@@ -612,17 +659,26 @@ export async function GET(request: NextRequest) {
     // Check if there are more results
     const hasMore = auctions.length > safeLimit;
     const results = hasMore ? auctions.slice(0, safeLimit) : auctions;
-    
-    // Get next cursor (last item's publishedAt)
-    const nextCursor = hasMore && results.length > 0 ? results[results.length - 1].publishedAt : null;
-    
+
+    // Next cursor — depends on sort. Null for price sorts (offset-only).
+    let nextCursor: string | null = null;
+    if (hasMore && results.length > 0) {
+      const last = results[results.length - 1];
+      if (sortPlan.cursorMode === 'endsAt') {
+        nextCursor = last.endsAt; // may be null only at boundary; UI should fall back to page
+      } else if (sortPlan.cursorMode === 'publishedAt') {
+        nextCursor = last.publishedAt;
+      }
+    }
+
     // Get total count (only if needed for pagination UI)
     let totalCount = null;
     if (page === 1) {
       const countSql = sql.replace('SELECT *', 'SELECT COUNT(*) as count')
-                          .replace(/ORDER BY.*/, '')
-                          .replace(/LIMIT.*/, '');
-      const countParams = params.slice(0, -1); // Remove LIMIT param
+                          .replace(/ORDER BY[\s\S]*/, '');
+      // Strip LIMIT and (if appended) OFFSET params from the tail of params.
+      const trailingParamCount = usingOffset && offset > 0 ? 2 : 1;
+      const countParams = params.slice(0, -trailingParamCount);
       const countRow = await queryOne<{ count: string | number }>(countSql, countParams);
       // PG returns COUNT(*) as bigint -> string; coerce.
       totalCount = countRow ? Number(countRow.count) : 0;
