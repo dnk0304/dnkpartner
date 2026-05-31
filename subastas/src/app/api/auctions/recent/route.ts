@@ -20,6 +20,10 @@
  *   types       — comma-separated event types to include:
  *                   "status" (status changes), "bid" (new bids),
  *                   "auction" (starvation-fallback recent listings). Default: all three.
+ *   activeOnly  — "1"/"true" to drop event rows whose underlying auction is no
+ *                 longer active/upcoming (e.g. bulk "concluida-portal" cleanup
+ *                 status-events). Forces the fallback path to surface real
+ *                 ACTIVE auctions. Used by the ForexCarousel. Default: false.
  *
  * Performance: each side fetches `limit` rows (so the merged set is at most 3*limit),
  *              relies on the (auctionId, changedAt|seenAt DESC) indexes from
@@ -203,6 +207,13 @@ export async function GET(req: NextRequest) {
     const wantStatus = types.has("status");
     const wantBid = types.has("bid");
     const wantAuctionFallback = types.has("auction");
+    const activeOnlyParam = (url.searchParams.get("activeOnly") ?? "").toLowerCase();
+    const activeOnly = activeOnlyParam === "1" || activeOnlyParam === "true";
+    const ACTIVE_FRONTEND_STATUSES = new Set([
+      "celebrandose",
+      "proxima-apertura",
+      "suspendida",
+    ]);
 
     const [statusRows, bidRows] = await Promise.all([
       wantStatus
@@ -284,15 +295,28 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // ─── activeOnly filter ──────────────────────────────────────────────────
+    // When the caller (e.g. the ForexCarousel) only wants currently-active
+    // auctions, drop event rows whose underlying auction has moved to a
+    // terminal state. Without this, a flood of "concluida-portal" cleanup
+    // status-events will fill the feed and starve out the active rows the UI
+    // actually wants to render.
+    let workingItems = items;
+    if (activeOnly) {
+      workingItems = items.filter((it) =>
+        ACTIVE_FRONTEND_STATUSES.has(it.auction.status),
+      );
+    }
+
     // ─── Starvation fallback ────────────────────────────────────────────────
     // When AuctionStatusHistory / AuctionBidHistory don't supply enough
     // events to fill the user-requested `limit`, blend in the most-recently-
     // -updated real active/upcoming auctions. This is what guarantees the
     // feed always shows real titled clickable rows instead of empty state.
-    if (wantAuctionFallback && items.length < limit) {
-      const need = limit - items.length;
+    if (wantAuctionFallback && workingItems.length < limit) {
+      const need = limit - workingItems.length;
       // Pull a generous superset so we can skip dupes already in items.
-      const excludeIds = new Set(items.map((it) => it.auctionId));
+      const excludeIds = new Set(workingItems.map((it) => it.auctionId));
       const fallbackRows = await prisma.auction.findMany({
         where: {
           status: { in: ACTIVE_OR_UPCOMING_DB_STATUSES as unknown as string[] } as never,
@@ -314,7 +338,7 @@ export async function GET(req: NextRequest) {
         // else updatedAt (Prisma row touch).
         const at = (a.transitionedAt ?? a.updatedAt)?.toISOString();
         if (!at) continue;
-        items.push({
+        workingItems.push({
           id: `auction-${a.id}`,
           kind: "auction",
           at,
@@ -327,13 +351,13 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    if (items.length === 0) {
+    if (workingItems.length === 0) {
       return NextResponse.json({ success: true, data: [] });
     }
 
     // Sort by `at` desc, truncate to limit.
-    items.sort((a, b) => b.at.localeCompare(a.at));
-    const trimmed = items.slice(0, limit);
+    workingItems.sort((a, b) => b.at.localeCompare(a.at));
+    const trimmed = workingItems.slice(0, limit);
 
     return NextResponse.json({ success: true, data: trimmed });
   } catch (error) {

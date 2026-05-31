@@ -98,7 +98,7 @@ export function ForexCarousel({
 
   const load = React.useCallback(async () => {
     try {
-      const res = await apiFetch(`/api/auctions/recent?limit=${limit}&types=auction,status,bid`);
+      const res = await apiFetch(`/api/auctions/recent?limit=${limit}&types=auction,status,bid&activeOnly=1`);
       if (!res.ok) return;
       const body = await res.json();
       if (body?.success && Array.isArray(body.data)) {
