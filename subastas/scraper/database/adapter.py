@@ -101,22 +101,42 @@ class DatabaseAdapter:
         conn = self.connect()
         try:
             cursor = conn.cursor()
-            
+
             if params:
                 cursor.execute(query, params)
             else:
                 cursor.execute(query)
-            
+
             return cursor
         except Exception as e:
             logger.error(f"Query execution failed: {e}")
             raise
 
     def query_auctions(self, query: str, params: tuple = None) -> List[Dict[str, Any]]:
-        """Run a SELECT query and return rows as dicts"""
-        cursor = self.execute_query(query, params)
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
+        """
+        Run a SELECT query and return rows as dicts.
+
+        PG path uses RealDictCursor so dict access works (scheduler.py G6 note
+        called this out — default psycopg2 cursors yield tuples and dict(row)
+        raises). SQLite path uses Row factory set in connect().
+        """
+        conn = self.connect()
+        try:
+            if self.db_type == 'postgresql':
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                if params:
+                    cursor.execute(query, params)
+                else:
+                    cursor.execute(query)
+                rows = cursor.fetchall()
+                return [dict(row) for row in rows]
+            else:
+                cursor = self.execute_query(query, params)
+                rows = cursor.fetchall()
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"query_auctions failed: {e}")
+            raise
     
     def upsert_auction(self, auction_data: Union[Dict[str, Any], AuctionModel]) -> str:
         """

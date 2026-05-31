@@ -12,72 +12,106 @@ from ..database.adapter import DatabaseAdapter
 logger = logging.getLogger(__name__)
 
 
-def geocode_missing_coordinates(batch_size: int = 100):
+def geocode_missing_coordinates(batch_size: int = 100, active_only: bool = True):
     """
-    Backfill missing coordinates for auctions
-    Processes in batches to respect Nominatim rate limits
-    
+    Backfill missing coordinates for auctions using Google Geocoding API.
+
+    Tracks precision via Google's geometry.location_type:
+      ROOFTOP / RANGE_INTERPOLATED / GEOMETRIC_CENTER / APPROXIMATE
+    Per Dennis: keep APPROXIMATE (town-centroid) results — a nearby Street View
+    beats the stock placeholder icon.
+
     Args:
-        batch_size: Number of auctions to process per run
+        batch_size: rows per run
+        active_only: when True (default) only ACTIVE / CELEBRANDOSE / PRE_AUCTION /
+                     PROXIMA_APERTURA rows are touched. False = whole table.
     """
     logger.info("Starting geocoding backfill task")
     db = DatabaseAdapter()
     geocoder = GeocodingService()
-    
+
+    is_pg = db.db_type == 'postgresql'
+    status_clause = (
+        "AND status IN ('ACTIVE','CELEBRANDOSE','PRE_AUCTION','PROXIMA_APERTURA')"
+        if active_only else ""
+    )
+
     try:
-        # Query auctions without coordinates
-        query = """
-            SELECT boeId, address, province, municipality 
-            FROM Auction 
-            WHERE latitude IS NULL 
-            AND longitude IS NULL 
-            AND address IS NOT NULL 
-            LIMIT ?
-        """
-        
+        if is_pg:
+            query = f"""
+                SELECT "boeId", address, province, municipality
+                FROM "Auction"
+                WHERE latitude IS NULL
+                  AND longitude IS NULL
+                  AND address IS NOT NULL
+                  {status_clause}
+                LIMIT %s
+            """
+        else:
+            query = f"""
+                SELECT boeId, address, province, municipality
+                FROM Auction
+                WHERE latitude IS NULL
+                  AND longitude IS NULL
+                  AND address IS NOT NULL
+                  {status_clause}
+                LIMIT ?
+            """
+
         auctions = db.query_auctions(query, (batch_size,))
-        
+
         if not auctions:
             logger.info("No auctions need geocoding")
-            return
-        
+            return {'processed': 0, 'geocoded': 0, 'failed': 0, 'precision': {}}
+
         logger.info(f"Found {len(auctions)} auctions to geocode")
-        
+
         geocoded_count = 0
         failed_count = 0
-        
+        precision_counts: dict = {}
+
         for auction in auctions:
+            boe_id = auction.get('boeId') or auction.get('boeid')
             try:
-                coords = geocoder.geocode_address(
+                result = geocoder.geocode_address_detailed(
                     auction['address'],
                     auction['province'],
-                    auction.get('municipality')
+                    auction.get('municipality'),
                 )
-                
-                if coords:
-                    lat, lng = coords
-                    db.update_auction(auction['boeId'], {
-                        'latitude': lat,
-                        'longitude': lng
+
+                if result:
+                    db.update_auction(boe_id, {
+                        'latitude': result.latitude,
+                        'longitude': result.longitude,
                     })
                     geocoded_count += 1
-                    logger.info(f"Geocoded {auction['boeId']}: ({lat}, {lng})")
+                    precision_counts[result.location_type] = (
+                        precision_counts.get(result.location_type, 0) + 1
+                    )
+                    logger.info(
+                        f"Geocoded {boe_id} [{result.location_type}]: "
+                        f"({result.latitude}, {result.longitude})"
+                    )
                 else:
                     failed_count += 1
-                    logger.warning(f"Could not geocode {auction['boeId']}")
-            
+                    logger.warning(f"Could not geocode {boe_id}")
+
             except Exception as e:
-                logger.error(f"Error geocoding {auction['boeId']}: {e}")
+                logger.error(f"Error geocoding {boe_id}: {e}")
                 failed_count += 1
-        
-        logger.info(f"Geocoding backfill completed: {geocoded_count} success, {failed_count} failed")
-        
+
+        logger.info(
+            f"Geocoding backfill completed: {geocoded_count} success, "
+            f"{failed_count} failed, precision={precision_counts}"
+        )
+
         return {
             'processed': len(auctions),
             'geocoded': geocoded_count,
-            'failed': failed_count
+            'failed': failed_count,
+            'precision': precision_counts,
         }
-    
+
     except Exception as e:
         logger.error(f"Geocoding backfill task failed: {e}")
         return None
@@ -97,14 +131,23 @@ def enrich_from_catastro(batch_size: int = 50):
     
     try:
         # Query auctions with cadastral reference but no coordinates
-        query = """
-            SELECT boeId, cadastralRef, province 
-            FROM Auction 
-            WHERE cadastralRef IS NOT NULL 
-            AND (latitude IS NULL OR longitude IS NULL)
-            LIMIT ?
-        """
-        
+        if db.db_type == 'postgresql':
+            query = """
+                SELECT "boeId", "cadastralRef", province
+                FROM "Auction"
+                WHERE "cadastralRef" IS NOT NULL
+                  AND (latitude IS NULL OR longitude IS NULL)
+                LIMIT %s
+            """
+        else:
+            query = """
+                SELECT boeId, cadastralRef, province
+                FROM Auction
+                WHERE cadastralRef IS NOT NULL
+                  AND (latitude IS NULL OR longitude IS NULL)
+                LIMIT ?
+            """
+
         auctions = db.query_auctions(query, (batch_size,))
         
         if not auctions:
@@ -116,20 +159,22 @@ def enrich_from_catastro(batch_size: int = 50):
         enriched_count = 0
         
         for auction in auctions:
+            boe_id = auction.get('boeId') or auction.get('boeid')
+            cad_ref = auction.get('cadastralRef') or auction.get('cadastralref')
             try:
-                coords = geocoder.geocode_from_cadastral(auction['cadastralRef'])
-                
+                coords = geocoder.geocode_from_cadastral(cad_ref)
+
                 if coords:
                     lat, lng = coords
-                    db.update_auction(auction['boeId'], {
+                    db.update_auction(boe_id, {
                         'latitude': lat,
                         'longitude': lng
                     })
                     enriched_count += 1
-                    logger.info(f"Enriched {auction['boeId']} from Catastro")
+                    logger.info(f"Enriched {boe_id} from Catastro")
             
             except Exception as e:
-                logger.error(f"Error enriching {auction['boeId']}: {e}")
+                logger.error(f"Error enriching {boe_id}: {e}")
         
         logger.info(f"Catastro enrichment completed: {enriched_count} enriched")
         
