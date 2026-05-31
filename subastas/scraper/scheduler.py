@@ -407,6 +407,31 @@ class ScraperScheduler:
         self.run_daily_update_scraper()
         self.trigger_alert_check()
 
+    # Geocoder drain — keeps coordinate coverage from decaying as fresh
+    # ACTIVE/PRE_AUCTION rows land. Calls the existing backfill task which
+    # honours DATABASE_URL via DatabaseAdapter, so this writes to Postgres
+    # in prod (not the dev SQLite file).
+    def geocode_drain(self):
+        if not DATABASE_URL or ('postgres' not in DATABASE_URL):
+            self.log("  geocode_drain: skipped (no Postgres DATABASE_URL)")
+            return
+        try:
+            sys.path.insert(0, str(SCRIPT_DIR))
+            from tasks.backfill_tasks import geocode_missing_coordinates
+
+            batch = int(os.getenv("GEOCODE_BATCH_SIZE", "25"))
+            result = geocode_missing_coordinates(batch_size=batch, active_only=True)
+            if result:
+                self.log(
+                    f"  geocode_drain: processed={result.get('processed')} "
+                    f"geocoded={result.get('geocoded')} failed={result.get('failed')} "
+                    f"precision={result.get('precision')}"
+                )
+        except Exception as e:
+            self.log(f"  geocode_drain: error {type(e).__name__}: {e}")
+            import traceback
+            self.log(traceback.format_exc())
+
     # Wave 2b: dispatcher cron trigger — drains event_outbox by POSTing the
     # cron-authed dispatch endpoint inside the docker network. Returns the
     # processed/failed/skipped counts the route reports.
@@ -452,11 +477,18 @@ class ScraperScheduler:
         # Wave 2b: dispatcher drain — every DISPATCH_INTERVAL_MIN minutes
         schedule.every(DISPATCH_INTERVAL_MIN).minutes.do(self.dispatch_outbox)
 
+        # Geocode drain — every GEOCODE_INTERVAL_MIN minutes (default 10).
+        # Going-forward wiring for T3: new ACTIVE rows get coords without
+        # needing the manual backfill scripts.
+        geocode_interval = int(os.getenv("GEOCODE_INTERVAL_MIN", "10"))
+        schedule.every(geocode_interval).minutes.do(self.geocode_drain)
+
         self.log("Schedule configured:")
         self.log("  Pulse (bid updates):  Every 35 min")
         self.log("  Status monitor:       Every 30 min")
         self.log(f"  Daily BOE + alerts:   08:00, 14:00, 20:00")
         self.log(f"  Dispatch outbox:      Every {DISPATCH_INTERVAL_MIN} min")
+        self.log(f"  Geocode drain:        Every {geocode_interval} min (active rows only)")
         self.log(f"  ending_soon window:   {ENDING_SOON_HOURS}h before endsAt")
         self.log(f"  dispatch endpoint:    {DISPATCH_ENDPOINT}")
         self.log("")

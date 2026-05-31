@@ -8,8 +8,15 @@
  * the AUCTION_IMAGES_DIR volume across redeploys.
  *
  * Query params:
- *   limit  — max rows to process this call (default 50, max 500).
- *   force  — if "1", re-resolve rows that already have an imageUrl.
+ *   limit            — max rows to process this call (default 50, max 500).
+ *   offset           — skip first N rows (default 0). Lets cron walk past
+ *                      the 500-row top-of-list cap on subsequent calls.
+ *   force            — if "1", re-resolve rows that already have an imageUrl.
+ *   missingImageWithCoords
+ *                    — if "1", restrict to rows that already have
+ *                      latitude/longitude but no resolved imageUrl.
+ *                      Cheapest mode: skips Catastro/geocoding lookups,
+ *                      goes straight to Street View.
  *
  * Rate-limited internally (small inter-request delay) so we stay polite to
  * both Catastro and Google. Designed to be called repeatedly from the
@@ -35,12 +42,26 @@ export async function POST(req: NextRequest) {
 
   const url = new URL(req.url);
   const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') ?? '50', 10), 1), 500);
+  const offset = Math.max(parseInt(url.searchParams.get('offset') ?? '0', 10) || 0, 0);
   const force = url.searchParams.get('force') === '1';
+  const missingImageWithCoords = url.searchParams.get('missingImageWithCoords') === '1';
 
   const statusList = ACTIVE_STATUSES.map((s) => `'${s}'`).join(',');
+
+  // imageUrl filter: skipped entirely when force=1 (re-resolve everything),
+  // otherwise restricts to rows where imageUrl is null OR not yet served from
+  // our cached /api/auction-image/ route.
   const imageFilter = force
     ? ''
     : `AND ("imageUrl" IS NULL OR "imageUrl" NOT LIKE '/api/auction-image/%')`;
+
+  // Coords gate: in missingImageWithCoords mode we only touch rows that already
+  // have lat/lng, so the resolver chain can go straight to Street View without
+  // burning a Catastro RC lookup or a fresh geocode call. This is the cheapest
+  // backfill mode and is what we want once T2 has populated coordinates.
+  const coordsFilter = missingImageWithCoords
+    ? 'AND latitude IS NOT NULL AND longitude IS NOT NULL'
+    : '';
 
   const rows = await query<ResolverRow>(
     `SELECT "boeId", status, "cadastralRef", "cadastralData",
@@ -49,13 +70,16 @@ export async function POST(req: NextRequest) {
        FROM "Auction"
       WHERE status IN (${statusList})
         ${imageFilter}
+        ${coordsFilter}
       ORDER BY "publishedAt" DESC NULLS LAST
-      LIMIT ${limit}`,
+      LIMIT ${limit} OFFSET ${offset}`,
     []
   );
 
   const summary = {
     inspected: rows.length,
+    offset,
+    limit,
     catastro: 0,
     streetview: 0,
     cached: 0,
@@ -89,6 +113,6 @@ export async function GET() {
   return NextResponse.json({
     success: false,
     error: 'method_not_allowed',
-    hint: 'POST to /api/admin/images/backfill?limit=50',
+    hint: 'POST to /api/admin/images/backfill?limit=50&offset=0[&missingImageWithCoords=1][&force=1]',
   }, { status: 405 });
 }
