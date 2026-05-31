@@ -28,7 +28,7 @@ import { Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/api-path";
 import { FollowButton } from "@/components/notifications/FollowButton";
 import { StatusDot } from "./StatusBadge";
-import { formatPrice, formatRelativeEs, capitalize, titleCase } from "./format";
+import { formatPrice, formatRelativeEs, capitalize, titleCase, displayTitle } from "./format";
 import { getStatusMeta } from "./status";
 import { cn } from "@/lib/utils";
 
@@ -193,7 +193,7 @@ function FeedRow({ item }: { item: FeedItem }) {
           className="mt-1 block text-sm text-[--color-ink-primary] line-clamp-2 hover:underline focus-visible:outline-none focus-visible:underline"
         >
           {eventLine}
-          <span className="text-[--color-ink-secondary]"> — {a.title}</span>
+          <span className="text-[--color-ink-secondary]"> — {displayTitle(a)}</span>
         </Link>
 
         {where && (

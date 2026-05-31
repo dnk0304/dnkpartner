@@ -19,7 +19,7 @@ import { AuctionItem } from "@/types";
 import { StatusDot } from "./StatusBadge";
 import { LiveCountdown } from "./LiveCountdown";
 import { FollowButton } from "@/components/notifications/FollowButton";
-import { formatPrice, capitalize, titleCase } from "./format";
+import { formatPrice, capitalize, titleCase, displayTitle } from "./format";
 import { getStatusMeta } from "./status";
 import { cn } from "@/lib/utils";
 
@@ -38,8 +38,17 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
   const where = [item.municipality && titleCase(item.municipality), item.province && capitalize(item.province)]
     .filter(Boolean)
     .join(" · ");
+  // Never render the literal "Unknown" — synthesize from location.
+  const title = displayTitle({
+    title: item.title,
+    municipality: item.municipality,
+    province: item.province,
+  });
   const realPhoto = isRealPhotoUrl(item.imageUrl);
   const [imgFailed, setImgFailed] = React.useState(false);
+  const hasCurrentBid = item.currentBid != null && Number.isFinite(item.currentBid);
+  const hasTasacion = item.appraisalValue != null && Number.isFinite(item.appraisalValue);
+  const hasMinBid = item.minimumBid != null && Number.isFinite(item.minimumBid as number);
 
   return (
     <tr
@@ -77,7 +86,7 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
           href={`/auction/${encodeURIComponent(item.id)}`}
           className="block text-sm font-medium text-[--color-ink-primary] hover:underline focus-visible:outline-none focus-visible:underline line-clamp-2"
         >
-          {item.title}
+          {title}
         </Link>
         <div className="mt-0.5 flex items-center gap-2 text-xs text-[--color-ink-tertiary] tnum">
           <span className="uppercase tracking-wide" style={{ color: meta.color }}>
@@ -98,22 +107,45 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
         {item.category}
       </td>
 
+      {/* Puja column = current bid if present, else min bid (active rows usually
+          have no current bid). Hides cleanly when both are null. */}
       <td className="align-top py-3 pr-3 text-right whitespace-nowrap">
-        <div className="tnum text-sm font-semibold text-[--color-ink-primary]">
-          {formatPrice(item.currentBid)}
-        </div>
-        <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
-          puja actual
-        </div>
+        {hasCurrentBid ? (
+          <>
+            <div className="tnum text-sm font-semibold text-[--color-ink-primary]">
+              {formatPrice(item.currentBid)}
+            </div>
+            <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+              puja actual
+            </div>
+          </>
+        ) : hasMinBid ? (
+          <>
+            <div className="tnum text-sm font-semibold text-[--color-brand-soft]">
+              {formatPrice(item.minimumBid)}
+            </div>
+            <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+              puja mín.
+            </div>
+          </>
+        ) : (
+          <span className="text-[10px] text-[--color-ink-tertiary]">—</span>
+        )}
       </td>
 
       <td className="hidden lg:table-cell align-top py-3 pr-3 text-right whitespace-nowrap">
-        <div className="tnum text-sm text-[--color-ink-secondary]">
-          {formatPrice(item.appraisalValue)}
-        </div>
-        <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
-          tasación
-        </div>
+        {hasTasacion ? (
+          <>
+            <div className="tnum text-sm text-[--color-ink-secondary]">
+              {formatPrice(item.appraisalValue)}
+            </div>
+            <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+              tasación
+            </div>
+          </>
+        ) : (
+          <span className="text-[10px] text-[--color-ink-tertiary]">—</span>
+        )}
       </td>
 
       <td className="hidden md:table-cell align-top py-3 pr-3 text-right whitespace-nowrap">

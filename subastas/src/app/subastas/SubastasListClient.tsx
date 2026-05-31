@@ -100,17 +100,22 @@ export default function SubastasListClient() {
     [filters, pathname, router],
   );
 
-  // Load provinces + category counts once.
+  // Load provinces from the canonical endpoint (Forge a457be3):
+  // server-side whitelist filters out CP/postal-code junk, returns rows
+  // already sorted count_desc. We render EXACTLY what the API returns —
+  // no hardcoded list, no client re-sort.
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await apiFetch("/api/auctions/counts?groupBy=province");
+        const res = await apiFetch("/api/auctions/provinces?sort=count_desc&minimum_count=1");
         if (cancelled) return;
         if (res.ok) {
           const body = await res.json();
-          const provs = Object.keys(body?.counts?.total || {}).sort((a, b) => a.localeCompare(b));
-          setProvinces(provs);
+          if (body?.success && Array.isArray(body.data)) {
+            // Province key is what the existing filter URL expects.
+            setProvinces((body.data as Array<{ province: string }>).map((r) => r.province));
+          }
         }
       } catch {
         /* silent */

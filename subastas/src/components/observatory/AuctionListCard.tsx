@@ -20,7 +20,7 @@ import { AuctionItem } from "@/types";
 import { StatusBadge } from "./StatusBadge";
 import { LiveCountdown } from "./LiveCountdown";
 import { FollowButton } from "@/components/notifications/FollowButton";
-import { formatPrice, capitalize, titleCase } from "./format";
+import { formatPrice, capitalize, titleCase, displayTitle, formatDaysLeft } from "./format";
 import { cn } from "@/lib/utils";
 
 /**
@@ -43,15 +43,33 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
     .filter(Boolean)
     .join(" · ");
 
+  // Synthesize a readable title — never render the literal "Unknown" the
+  // upstream scraper emits for ~40% of active rows.
+  const title = displayTitle({
+    title: item.title,
+    municipality: item.municipality,
+    province: item.province,
+  });
+
   const realPhoto = isRealPhotoUrl(item.imageUrl);
   const [imgFailed, setImgFailed] = React.useState(false);
   const showImage = realPhoto && !imgFailed;
 
+  // Field availability — drives conditional hiding.
+  const hasTasacion = item.appraisalValue != null && Number.isFinite(item.appraisalValue);
+  const hasMinBid = item.minimumBid != null && Number.isFinite(item.minimumBid as number);
+  const hasCurrentBid = item.currentBid != null && Number.isFinite(item.currentBid);
+  const hasEndDate =
+    item.endDate instanceof Date
+      ? !Number.isNaN(item.endDate.getTime()) && item.endDate.getTime() > 0
+      : Boolean(item.endDate);
+  const daysBadge = hasEndDate ? formatDaysLeft(item.endDate) : null;
+
   return (
     <article
       className={cn(
-        "relative flex flex-col rounded-lg border border-[--color-hairline] bg-[--color-surface] overflow-hidden",
-        "hover:border-[--color-brand]/40 transition-colors",
+        "relative flex flex-col rounded-xl border border-[--color-hairline] bg-[--color-surface] overflow-hidden",
+        "shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-lift)] hover:border-[--color-brand-soft]/40 transition-shadow",
         className,
       )}
     >
@@ -85,6 +103,18 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
         <span className="pointer-events-none absolute top-2 left-2">
           <StatusBadge status={item.status} size="sm" />
         </span>
+        {daysBadge && (
+          <span
+            className={cn(
+              "pointer-events-none absolute bottom-2 left-2 tnum rounded-full px-2 py-0.5 text-[11px] font-semibold",
+              daysBadge === "Hoy" || daysBadge === "1 d"
+                ? "bg-[--color-gold] text-white"
+                : "bg-[--color-brand] text-white",
+            )}
+          >
+            {daysBadge}
+          </span>
+        )}
       </Link>
 
       {/* FollowButton sits OUTSIDE the hero Link — nesting interactive elements
@@ -94,43 +124,89 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
       </div>
 
       <div className="flex flex-col gap-3 p-4">
-      <Link
-        href={`/auction/${encodeURIComponent(item.id)}`}
-        className="block focus-visible:outline-none"
-      >
-        <h3 className="font-serif text-lg leading-tight text-[--color-ink-primary] line-clamp-2 hover:underline">
-          {item.title}
-        </h3>
-        {where && (
-          <p className="mt-1 text-xs text-[--color-ink-tertiary]">{where}</p>
+        <Link
+          href={`/auction/${encodeURIComponent(item.id)}`}
+          className="block focus-visible:outline-none"
+        >
+          <h3 className="font-serif text-lg leading-tight text-[--color-ink-primary] line-clamp-2 hover:underline">
+            {title}
+          </h3>
+          {where && (
+            <p className="mt-1 text-xs text-[--color-ink-tertiary]">{where}</p>
+          )}
+        </Link>
+
+        {/* PRIMARY hierarchy: Tasación (left, largest) + Puja mínima (right).
+            Both hide cleanly when the field is null — no "—" walls. */}
+        {(hasTasacion || hasMinBid) && (
+          <div className="grid grid-cols-2 gap-3 pt-2 hairline-t">
+            {hasTasacion ? (
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+                  Tasación
+                </div>
+                <div className="tnum text-base font-semibold text-[--color-ink-primary]">
+                  {formatPrice(item.appraisalValue)}
+                </div>
+              </div>
+            ) : (
+              <div />
+            )}
+            {hasMinBid && (
+              <div className="text-right">
+                <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+                  Puja mínima
+                </div>
+                <div className="tnum text-base font-semibold text-[--color-brand-soft]">
+                  {formatPrice(item.minimumBid)}
+                </div>
+              </div>
+            )}
+          </div>
         )}
-      </Link>
 
-      <div className="grid grid-cols-2 gap-3 pt-2 hairline-t">
-        <div>
-          <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
-            Puja actual
+        {/* Secondary row: current bid (only when present — most active rows have none). */}
+        {hasCurrentBid && (
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[--color-ink-tertiary] uppercase tracking-wide text-[10px]">
+              Puja actual
+            </span>
+            <span className="tnum font-semibold text-[--color-ink-primary]">
+              {formatPrice(item.currentBid)}
+            </span>
           </div>
-          <div className="tnum text-sm font-semibold text-[--color-ink-primary]">
-            {formatPrice(item.currentBid)}
-          </div>
-        </div>
-        <div className="text-right">
-          <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
-            Tasación
-          </div>
-          <div className="tnum text-sm text-[--color-ink-secondary]">
-            {formatPrice(item.appraisalValue)}
-          </div>
-        </div>
-      </div>
+        )}
 
-      <div className="hairline-t pt-2 flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
-          {item.category}
-        </span>
-        <LiveCountdown target={item.endDate} size="sm" prefix="Termina en" />
-      </div>
+        {/* Bottom meta strip: category + live countdown. */}
+        <div className="hairline-t pt-2 flex items-center justify-between gap-2">
+          {item.category && (
+            <span className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary] truncate">
+              {item.category}
+            </span>
+          )}
+          {hasEndDate && (
+            <LiveCountdown target={item.endDate} size="sm" prefix="Termina en" />
+          )}
+        </div>
+
+        {/* BOE direct link — primary differentiator: lets bidders act
+            without entering our detail page. */}
+        {item.boeLink && (
+          <a
+            href={item.boeLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className={cn(
+              "mt-1 inline-flex items-center justify-center gap-1 rounded-md",
+              "border border-[--color-brand-soft]/30 px-2.5 py-1.5 text-xs font-medium",
+              "text-[--color-brand-soft] hover:bg-[--color-info-soft]",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand-soft]/40",
+            )}
+          >
+            Ir al BOE oficial →
+          </a>
+        )}
       </div>
     </article>
   );

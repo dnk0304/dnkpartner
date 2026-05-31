@@ -22,7 +22,8 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { ObservatoryHeader } from "@/components/observatory/ObservatoryHeader";
-import { LiveFeed } from "@/components/observatory/LiveFeed";
+import { ForexCarousel } from "@/components/observatory/ForexCarousel";
+import { ProvinceDropdown } from "@/components/observatory/ProvinceDropdown";
 import { apiFetch } from "@/lib/api-path";
 import { formatNumber, formatRelativeEs } from "@/components/observatory/format";
 import { AuctionItem } from "@/types";
@@ -133,9 +134,10 @@ export default function HomeObservatory() {
     <div className="min-h-screen bg-[--color-page]">
       <ObservatoryHeader />
 
-      <main className="mx-auto max-w-editorial px-4 md:px-6 py-8 md:py-10 space-y-10 md:space-y-12">
-        {/* HERO — editorial, data-first */}
-        <section className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-8 lg:gap-12 items-start">
+      <main className="mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8 space-y-8 md:space-y-10">
+        {/* HERO — compressed editorial pitch (no big-number panel — that role
+            now belongs to the forex ticker beneath) */}
+        <section className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-6 lg:gap-10 items-start">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-[--color-gold] font-semibold">
               Observatorio de subastas públicas
@@ -168,7 +170,7 @@ export default function HomeObservatory() {
               </Link>
               <Link
                 href="/subastas?when=proximas"
-                className="rounded-md border border-[--color-brand]/30 px-4 py-2.5 text-sm font-semibold text-[--color-brand] hover:bg-[--color-brand]/5 transition-colors"
+                className="rounded-md border border-[--color-brand-soft]/30 px-4 py-2.5 text-sm font-semibold text-[--color-brand-soft] hover:bg-[--color-info-soft] transition-colors"
               >
                 Próximas aperturas
               </Link>
@@ -216,12 +218,12 @@ export default function HomeObservatory() {
           </div>
         </section>
 
-        {/* LIVE FEED — the centerpiece */}
+        {/* FOREX-style ticker — compact-default so the map below stays near the fold */}
         <section>
-          <LiveFeed limit={12} />
+          <ForexCarousel limit={30} seeAllHref="/subastas?when=activas" />
         </section>
 
-        {/* Map */}
+        {/* Map — IMMEDIATELY visible per landing spec */}
         <section aria-labelledby="map-heading">
           <div className="mb-3 flex items-baseline justify-between">
             <h2 id="map-heading" className="font-serif text-2xl text-[--color-ink-primary]">
@@ -229,12 +231,12 @@ export default function HomeObservatory() {
             </h2>
             <Link
               href="/subastas?view=map"
-              className="text-sm font-medium text-[--color-brand] hover:underline"
+              className="text-sm font-medium text-[--color-brand-soft] hover:underline"
             >
               Abrir mapa completo →
             </Link>
           </div>
-          <div className="h-[60vh] md:h-[640px] rounded-lg overflow-hidden border border-[--color-hairline] bg-white">
+          <div className="h-[55vh] md:h-[560px] rounded-xl overflow-hidden border border-[--color-hairline] bg-white shadow-[var(--shadow-card)]">
             <HierarchicalMap
               items={mapItems}
               onMarkerClick={(a: AuctionItem) => router.push(`/auction/${encodeURIComponent(a.id)}`)}
@@ -247,11 +249,14 @@ export default function HomeObservatory() {
           </div>
         </section>
 
-        {/* Province grid */}
-        <section aria-labelledby="provinces-heading">
-          <h2 id="provinces-heading" className="font-serif text-2xl text-[--color-ink-primary] mb-3">
+        {/* Province selector + grid */}
+        <section aria-labelledby="provinces-heading" className="space-y-4">
+          <h2 id="provinces-heading" className="font-serif text-2xl text-[--color-ink-primary]">
             Explora por provincia
           </h2>
+          <div className="max-w-md">
+            <ProvinceDropdown />
+          </div>
           <ProvinceGrid
             provinceCounts={provinceCounts}
             onProvinceClick={(province: string) =>

@@ -94,6 +94,63 @@ export function capitalize(value: string | null | undefined): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+/**
+ * displayTitle — produce a human-readable title for an auction card.
+ *
+ * The upstream `title` field is unreliable: ~94% of all rows (40.6% of ACTIVE
+ * rows) carry the literal string "Unknown" because of bad scraper data
+ * (FLAG-TITLE-FALLBACK-MISSES-LITERAL-UNKNOWN, Ken). `propertyType` is 100%
+ * null on active rows, so we cannot use it. Fallback order:
+ *
+ *   1. real title (not empty, not the literal "Unknown")
+ *   2. "Subasta en {municipality}, {province}"
+ *   3. "Subasta en {province}"
+ *   4. "Subasta judicial"
+ *
+ * We never render "Unknown" to the user.
+ */
+export function displayTitle(input: {
+  title?: string | null;
+  municipality?: string | null;
+  province?: string | null;
+}): string {
+  const raw = (input.title ?? "").trim();
+  const isJunk = raw === "" || raw.toLowerCase() === "unknown";
+  if (!isJunk) return raw;
+
+  const muni = input.municipality ? titleCase(input.municipality) : "";
+  const prov = input.province ? capitalize(input.province) : "";
+
+  if (muni && prov) return `Subasta en ${muni}, ${prov}`;
+  if (muni) return `Subasta en ${muni}`;
+  if (prov) return `Subasta en ${prov}`;
+  return "Subasta judicial";
+}
+
+/** Days remaining until target (floor, ≥0). Returns null when target invalid. */
+export function daysLeft(target: string | Date | null | undefined): number | null {
+  if (!target) return null;
+  const d = target instanceof Date ? target : new Date(target);
+  const ms = d.getTime();
+  if (!Number.isFinite(ms)) return null;
+  const diff = ms - Date.now();
+  if (diff <= 0) return 0;
+  return Math.floor(diff / (24 * 60 * 60 * 1000));
+}
+
+/** Short days-left badge: "3 d" / "Hoy" / "Finalizada". */
+export function formatDaysLeft(target: string | Date | null | undefined): string {
+  const dl = daysLeft(target);
+  if (dl == null) return "Sin fecha";
+  if (dl === 0) {
+    const d = target instanceof Date ? target : new Date(target as string);
+    if (d.getTime() <= Date.now()) return "Finalizada";
+    return "Hoy";
+  }
+  if (dl === 1) return "1 d";
+  return `${dl} d`;
+}
+
 /** Title-case a multi-word string, preserving common Spanish particles. */
 export function titleCase(value: string | null | undefined): string {
   if (!value) return "";
