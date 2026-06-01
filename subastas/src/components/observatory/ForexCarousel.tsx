@@ -78,6 +78,40 @@ function isRealPhotoUrl(url?: string | null): boolean {
   return url.startsWith("/api/auction-image/") || url.startsWith("/streetview/");
 }
 
+/**
+ * Pick the first numeric value that is finite AND > 0. The `recent` feed
+ * routinely surfaces literal `0` for appraisal/minimum-bid where the upstream
+ * scraper has no value (~46% of active rows on 2026-06-01). Treat 0 as "no
+ * data" — never render "0 €" to the user.
+ */
+function pickPrice(...vals: Array<number | null | undefined>): number | null {
+  for (const v of vals) {
+    if (v != null && Number.isFinite(v) && v > 0) return v;
+  }
+  return null;
+}
+
+/**
+ * True when `endsAt` is in the past. The `recent` feed can return rows that
+ * still carry a DB status of `celebrandose` even though their auction window
+ * already closed (no cleanup transition fired yet). The carousel treats clock
+ * as the source of truth — never paint "Live" on a row whose end time is gone.
+ */
+function isEffectivelyEnded(endsAt: string | null | undefined): boolean {
+  if (!endsAt) return false;
+  const ms = new Date(endsAt).getTime();
+  if (!Number.isFinite(ms)) return false;
+  return ms <= Date.now();
+}
+
+/** Treat literal "unknown" (any case) as junk — same convention as displayTitle. */
+function cleanLoc(value: string | null | undefined): string {
+  if (!value) return "";
+  const t = value.trim();
+  if (!t || t.toLowerCase() === "unknown") return "";
+  return t;
+}
+
 export type ForexCarouselProps = {
   /** Max auctions to fetch. Default 30. */
   limit?: number;
@@ -255,9 +289,15 @@ export function ForexCarousel({
 /* ── Compact ticker card ─────────────────────────────────────────────────── */
 
 function CompactCard({ auction }: { auction: FeedAuction }) {
-  const dl = daysLeft(auction.endsAt ?? auction.endDateTime);
-  const urgent = dl != null && dl <= 1;
-  const value = auction.appraisalValue ?? auction.minimumBid ?? auction.currentBid;
+  const endsAt = auction.endsAt ?? auction.endDateTime;
+  const ended = isEffectivelyEnded(endsAt);
+  const dl = daysLeft(endsAt);
+  const urgent = !ended && dl != null && dl <= 1;
+  const value = pickPrice(auction.appraisalValue, auction.minimumBid, auction.currentBid);
+
+  // Clock wins over stale DB status: if endsAt is in the past, never paint Live/Próx.
+  const effectiveStatus = ended ? "concluida-portal" : auction.status;
+  const prov = cleanLoc(auction.province);
 
   return (
     <Link
@@ -277,14 +317,18 @@ function CompactCard({ auction }: { auction: FeedAuction }) {
             aria-hidden="true"
             className={cn(
               "h-1.5 w-1.5 rounded-full",
-              auction.status === "celebrandose"
+              effectiveStatus === "celebrandose"
                 ? "bg-[--color-status-live] dnk-pulse"
-                : auction.status === "proxima-apertura"
+                : effectiveStatus === "proxima-apertura"
                   ? "bg-[--color-status-upcoming]"
                   : "bg-[--color-ink-tertiary]",
             )}
           />
-          {auction.status === "celebrandose" ? "Live" : auction.status === "proxima-apertura" ? "Próx" : "—"}
+          {effectiveStatus === "celebrandose"
+            ? "Live"
+            : effectiveStatus === "proxima-apertura"
+              ? "Próx"
+              : "—"}
         </span>
         <span
           className={cn(
@@ -292,14 +336,14 @@ function CompactCard({ auction }: { auction: FeedAuction }) {
             urgent ? "text-[--color-gold]" : "text-[--color-ink-secondary]",
           )}
         >
-          {formatDaysLeft(auction.endsAt ?? auction.endDateTime)}
+          {ended ? "Finalizada" : formatDaysLeft(endsAt)}
         </span>
       </div>
       <div className="tnum text-sm font-semibold text-[--color-ink-primary] truncate">
-        {value != null ? formatPrice(value) : "—"}
+        {value != null ? formatPrice(value) : "Sin tasación"}
       </div>
       <div className="text-[10px] text-[--color-ink-tertiary] truncate">
-        {auction.province ? capitalize(auction.province) : "España"}
+        {prov ? capitalize(prov) : "España"}
       </div>
     </Link>
   );
@@ -308,18 +352,22 @@ function CompactCard({ auction }: { auction: FeedAuction }) {
 /* ── Expanded richer card ────────────────────────────────────────────────── */
 
 function ExpandedCard({ auction }: { auction: FeedAuction }) {
-  const dl = daysLeft(auction.endsAt ?? auction.endDateTime);
-  const urgent = dl != null && dl <= 1;
+  const endsAt = auction.endsAt ?? auction.endDateTime;
+  const ended = isEffectivelyEnded(endsAt);
+  const dl = daysLeft(endsAt);
+  const urgent = !ended && dl != null && dl <= 1;
   const title = displayTitle(auction);
-  const where = [
-    auction.municipality && titleCase(auction.municipality),
-    auction.province && capitalize(auction.province),
-  ]
+  const muni = cleanLoc(auction.municipality);
+  const prov = cleanLoc(auction.province);
+  const where = [muni && titleCase(muni), prov && capitalize(prov)]
     .filter(Boolean)
     .join(" · ");
-  const tasacion = auction.appraisalValue;
-  const minBid = auction.minimumBid;
+  // Treat 0 as "no data" (see pickPrice).
+  const tasacion = pickPrice(auction.appraisalValue);
+  const minBid = pickPrice(auction.minimumBid);
   const photo = isRealPhotoUrl(auction.imageUrl) ? auction.imageUrl : null;
+  // Clock wins over stale DB status — same rule as CompactCard.
+  const effectiveStatus = ended ? "concluida-portal" : auction.status;
 
   return (
     <Link
@@ -348,7 +396,7 @@ function ExpandedCard({ auction }: { auction: FeedAuction }) {
           </div>
         )}
         <span className="absolute top-1.5 left-1.5">
-          <StatusBadge status={auction.status} size="sm" />
+          <StatusBadge status={effectiveStatus} size="sm" />
         </span>
         <span
           className={cn(
@@ -358,7 +406,7 @@ function ExpandedCard({ auction }: { auction: FeedAuction }) {
               : "bg-[--color-brand] text-white",
           )}
         >
-          {formatDaysLeft(auction.endsAt ?? auction.endDateTime)}
+          {ended ? "Finalizada" : formatDaysLeft(endsAt)}
         </span>
       </div>
 
