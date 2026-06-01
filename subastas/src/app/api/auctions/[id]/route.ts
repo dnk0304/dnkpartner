@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
+import { boeLinkFor } from '@/lib/boe-link';
 
 export async function GET(
   _req: NextRequest,
@@ -58,10 +59,18 @@ export async function GET(
     // Session lookup failure shouldn't break the public detail load.
   }
 
+  // Derive the per-auction BOE URL at projection time so the detail page
+  // never falls back to the BOE homepage when `boeLink` is NULL (only 630
+  // of 1,699 active rows carry a stored value — see lib/boe-link.ts).
+  const projectedAuction = {
+    ...auction,
+    boeLink: boeLinkFor(auction.boeId, auction.boeLink),
+  };
+
   return NextResponse.json({
     success: true,
     data: {
-      auction,
+      auction: projectedAuction,
       history: { statuses: statusHistory, bids: bidHistory },
       followCount: auction.favoriteCount,
       isFollowing,

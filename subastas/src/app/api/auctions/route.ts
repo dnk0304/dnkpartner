@@ -7,6 +7,7 @@ import { generateMapImageUrl, getOptimalZoom } from '@/lib/map-image';
 import { getVehicleCategoryImageUrl } from '@/lib/vehicle-images';
 import { getPropertyCategoryImageUrl } from '@/lib/property-images';
 import { auctionCache } from '@/lib/cache';
+import { boeLinkFor } from '@/lib/boe-link';
 
 const normalizeText = (value: string) => {
   return value
@@ -384,7 +385,7 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
     minimumBid: item.minimumBid,
     courtName: item.courtName,
     procedureNumber: item.procedureNumber,
-    boeLink: item.boeLink,
+    boeLink: boeLinkFor(item.boeId, item.boeLink),
     edictUrl: item.edictUrl,
     pdfUrl: item.pdfUrl,
     status: frontendStatus,

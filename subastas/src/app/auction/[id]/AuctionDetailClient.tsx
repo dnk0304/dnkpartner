@@ -34,6 +34,7 @@ import { ArrowLeft, ExternalLink, FileText, MapPin, ImageOff } from "lucide-reac
 import { apiFetch } from "@/lib/api-path";
 import { AuctionItem } from "@/types";
 import { ObservatoryHeader } from "@/components/observatory/ObservatoryHeader";
+import { effectiveStatus } from "@/components/observatory/status";
 import { DetailStatusPanel } from "@/components/observatory/DetailStatusPanel";
 import { DetailTimeline } from "@/components/observatory/DetailTimeline";
 import { StatusBadge } from "@/components/observatory/StatusBadge";
@@ -185,7 +186,13 @@ export default function AuctionDetailClient({ id }: { id: string }) {
   }
 
   const raw = data.auction;
-  const status = DB_TO_FRONTEND_STATUS[raw.status] ?? "celebrandose";
+  // Clock-wins status: if the DB says CELEBRANDOSE/PROXIMA_APERTURA but
+  // `endsAt` has already passed, every status-driven surface on this page
+  // (badge, countdown prefix, "Ir al BOE" CTA shape) must agree it's
+  // concluded. Without this guard, an un-swept row paints both
+  // "Celebrándose" and "Finalizada" simultaneously (Dennis's report).
+  const rawFrontendStatus = DB_TO_FRONTEND_STATUS[raw.status] ?? "celebrandose";
+  const status = effectiveStatus(rawFrontendStatus, raw.endsAt);
   const where = [raw.municipality && titleCase(raw.municipality), raw.province && capitalize(raw.province)]
     .filter(Boolean)
     .join(", ");

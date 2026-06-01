@@ -32,6 +32,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { boeLinkFor } from "@/lib/boe-link";
 
 export const dynamic = "force-dynamic";
 
@@ -192,7 +193,7 @@ function projectAuction(a: {
     endDateTime: a.endDateTime?.toISOString() ?? null,
     lotNumber: a.lotNumber ?? null,
     imageUrl: a.imageUrl ?? null,
-    boeLink: a.boeLink ?? null,
+    boeLink: boeLinkFor(a.boeId, a.boeLink),
     latitude: a.latitude ?? null,
     longitude: a.longitude ?? null,
   };

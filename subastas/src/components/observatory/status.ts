@@ -102,3 +102,34 @@ export function isLive(status: AuctionStatus | string | null | undefined): boole
 export function isUpcoming(status: AuctionStatus | string | null | undefined): boolean {
   return status === "proxima-apertura" || status === "pre-auction";
 }
+
+/**
+ * True when `endsAt` is in the past. The DB status can lag the wall clock —
+ * a row may still carry `celebrandose` even though its auction window already
+ * closed (no cleanup transition fired yet). Clock-wins is the source of truth.
+ *
+ * Mirrors the carousel's `isEffectivelyEnded` (ForexCarousel.tsx) — extracted
+ * here so carousel + detail + list surfaces share one definition.
+ */
+export function isEffectivelyEnded(endsAt: string | Date | null | undefined): boolean {
+  if (!endsAt) return false;
+  const ms = endsAt instanceof Date ? endsAt.getTime() : new Date(endsAt).getTime();
+  if (!Number.isFinite(ms)) return false;
+  return ms <= Date.now();
+}
+
+/**
+ * Clock-wins status resolution. If the raw (DB→frontend mapped) status says
+ * the auction is live/upcoming/suspended but `endsAt` has already passed,
+ * override to `concluida-portal` so every surface (badge, countdown, panel)
+ * agrees. Without this, a single un-swept row paints the contradictory
+ * "Celebrándose + Finalizada" pair Dennis reports.
+ */
+export function effectiveStatus(
+  rawFrontendStatus: AuctionStatus | string | null | undefined,
+  endsAt: string | Date | null | undefined,
+): string {
+  const status = (rawFrontendStatus ?? "celebrandose") as string;
+  if (isEffectivelyEnded(endsAt)) return "concluida-portal";
+  return status;
+}

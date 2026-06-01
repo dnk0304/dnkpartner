@@ -24,7 +24,7 @@ import { LiveCountdown } from "./LiveCountdown";
 import { FollowButton } from "@/components/notifications/FollowButton";
 import { NotifyPrefsPopover } from "@/components/notifications/NotifyPrefsPopover";
 import { formatPrice, formatDateLong } from "./format";
-import { getStatusMeta, isLive, isUpcoming } from "./status";
+import { getStatusMeta, isLive, isUpcoming, effectiveStatus } from "./status";
 import { cn } from "@/lib/utils";
 
 export type DetailStatusPanelProps = {
@@ -45,9 +45,14 @@ export function DetailStatusPanel({
   initialFollowing,
   className,
 }: DetailStatusPanelProps) {
-  const meta = getStatusMeta(auction.status);
-  const live = isLive(auction.status);
-  const upcoming = isUpcoming(auction.status);
+  // Defence-in-depth: even though AuctionDetailClient resolves an
+  // effectiveStatus before passing the AuctionItem down, recompute here so
+  // any future caller (modal, list-card detail flyout) gets the clock-wins
+  // guarantee for free. `endsAt` in the past forces "concluida-portal".
+  const resolvedStatus = effectiveStatus(auction.status, auction.endsAt ?? null);
+  const meta = getStatusMeta(resolvedStatus);
+  const live = isLive(resolvedStatus);
+  const upcoming = isUpcoming(resolvedStatus);
 
   // Pick the right countdown target: live → endsAt, upcoming → startedAt,
   // otherwise nothing (finished states).
@@ -72,7 +77,7 @@ export function DetailStatusPanel({
         <h2 id="detail-state-heading" className="sr-only">
           Estado actual de la subasta
         </h2>
-        <StatusBadge status={auction.status} size="lg" />
+        <StatusBadge status={resolvedStatus} size="lg" />
         <p className="mt-2 text-xs text-[--color-ink-tertiary]">{meta.helper}</p>
       </header>
 
