@@ -100,13 +100,18 @@ class ScraperScheduler:
             now = datetime.utcnow()
 
             # ---- 1. Expire past-deadline live auctions ----
+            # Widened (2026-06-01 corrective): also retire expired PROXIMA_APERTURA
+            # (pre-auction window passed, never opened on portal) and stale
+            # SUSPENDIDA (old suspensions that never resumed). All land on
+            # CONCLUIDA_PORTAL with transitionedAt set.
             cursor.execute("""
                 SELECT id, "boeId", "endsAt", status, title,
                        "boeLink", province, municipality,
                        "appraisalValue", "currentBid",
                        "suspensionReason", "resumeAt"
                 FROM "Auction"
-                WHERE status IN ('ACTIVE', 'CELEBRANDOSE')
+                WHERE status IN ('ACTIVE', 'CELEBRANDOSE', 'PROXIMA_APERTURA', 'SUSPENDIDA')
+                  AND "endsAt" IS NOT NULL
                   AND "endsAt" < %s
             """, (now,))
             expired = cursor.fetchall()
@@ -114,9 +119,18 @@ class ScraperScheduler:
             if expired:
                 self.log(f"  Found {len(expired)} expired live auctions")
 
-                # Import outbox writer
-                sys.path.insert(0, str(SCRIPT_DIR))
-                from database.outbox import emit_status_change
+                # Import outbox writer.
+                # FIX (2026-06-01): the previous form
+                #   sys.path.insert(0, str(SCRIPT_DIR)); from database.outbox import ...
+                # crashed every cycle with "attempted relative import beyond
+                # top-level package": importing top-level `database` runs
+                # database/__init__.py -> adapter.py -> `from ..config.settings`,
+                # and `..config` escapes above a top-level package. Use the same
+                # proven shim scrape_pulse uses (`sys.path.insert(0,'/')` +
+                # `app.` prefix) so the package resolves as app.database and
+                # `..config` -> app.config is valid.
+                sys.path.insert(0, '/')
+                from app.database.outbox import emit_status_change
 
                 expired_ids = [row[0] for row in expired]
 
@@ -173,8 +187,8 @@ class ScraperScheduler:
             ending_soon_rows = cursor.fetchall()
 
             if ending_soon_rows:
-                sys.path.insert(0, str(SCRIPT_DIR))
-                from database.outbox import emit_ending_soon
+                sys.path.insert(0, '/')
+                from app.database.outbox import emit_ending_soon
 
                 fired_count = 0
                 for (
@@ -416,8 +430,8 @@ class ScraperScheduler:
             self.log("  geocode_drain: skipped (no Postgres DATABASE_URL)")
             return
         try:
-            sys.path.insert(0, str(SCRIPT_DIR))
-            from tasks.backfill_tasks import geocode_missing_coordinates
+            sys.path.insert(0, '/')
+            from app.tasks.backfill_tasks import geocode_missing_coordinates
 
             batch = int(os.getenv("GEOCODE_BATCH_SIZE", "25"))
             result = geocode_missing_coordinates(batch_size=batch, active_only=True)

@@ -358,6 +358,14 @@ class BOEScraper(BaseScraper):
                 if detail_info.get('claimed_amount') is not None:
                     auction_data['claimed_amount'] = detail_info['claimed_amount']
 
+                # --- Authoritative end date from detail page ---
+                # The listing estimate (now()+7d) is a placeholder; the detail
+                # page carries the real "Fecha de conclusión". Without it, rows
+                # land with a bogus future endsAt (or NULL) and the status sweep
+                # can never expire them — a primary cause of stale-active rows.
+                if detail_info.get('ends_at') is not None:
+                    auction_data['ends_at'] = detail_info['ends_at']
+
                 # --- Title / identifier ---
                 # The listing card rarely carries a usable title, leaving the
                 # literal "Unknown". The detail-page Identificador is always
@@ -714,6 +722,40 @@ class BOEScraper(BaseScraper):
             return None
         return self._extract_currency(text, ['Puja mínima'])
 
+    def _extract_detail_date(self, text: str, labels: List[str]) -> Optional[datetime]:
+        """
+        Extract a BOE detail-page date for one of `labels`.
+        BOE renders dates as e.g. "Fecha de conclusión\t01-06-2026 20:18:03 CET
+        (ISO: 2026-06-01T20:18:03+02:00)". Prefer the ISO form when present
+        (unambiguous, tz-aware) and fall back to the dd-mm-YYYY HH:MM:SS form.
+        Returns a naive datetime (UTC-ish, matching how endsAt is stored).
+        """
+        if not text:
+            return None
+        for label in labels:
+            # ISO form first
+            iso = re.search(
+                rf"{re.escape(label)}[^\n]*?ISO:\s*([0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}T[0-9:]{{8}})",
+                text, re.IGNORECASE,
+            )
+            if iso:
+                try:
+                    return datetime.strptime(iso.group(1), "%Y-%m-%dT%H:%M:%S")
+                except Exception:
+                    pass
+            # dd-mm-YYYY HH:MM:SS form
+            dmy = re.search(
+                rf"{re.escape(label)}\s*[:\t\n]?\s*([0-9]{{2}})-([0-9]{{2}})-([0-9]{{4}})\s+([0-9]{{2}}):([0-9]{{2}}):([0-9]{{2}})",
+                text, re.IGNORECASE,
+            )
+            if dmy:
+                try:
+                    d, mo, y, h, mi, sec = (int(g) for g in dmy.groups())
+                    return datetime(y, mo, d, h, mi, sec)
+                except Exception:
+                    pass
+        return None
+
     def _extract_detail_status(self, text: str) -> Optional[str]:
         """
         Derive internal status from the detail-page status banner. The detail
@@ -807,6 +849,23 @@ class BOEScraper(BaseScraper):
             except Exception:
                 body_text = ''
 
+            # Authoritative dates from the detail page (label/value pairs):
+            #   "Fecha de inicio"      -> start of the bidding window
+            #   "Fecha de conclusión"  -> end of the bidding window (= endsAt)
+            start_at = self._extract_detail_date(body_text, ['Fecha de inicio'])
+            ends_at = self._extract_detail_date(
+                body_text, ['Fecha de conclusión', 'Fecha de fin', 'Fecha de finalización']
+            )
+
+            # Status resolution, most-authoritative first:
+            #   1. an explicit banner (cancelada / suspendida / concluida), then
+            #   2. a conclusion date already in the past => concluded. This is the
+            #      robust signal for AEAT (SUB-AT-*) pages, which carry no
+            #      "concluida" banner — only a past "Fecha de conclusión".
+            detail_status = self._extract_detail_status(body_text)
+            if detail_status is None and ends_at is not None and ends_at < datetime.now():
+                detail_status = 'CONCLUIDA_PORTAL'
+
             return {
                 'general_info': general_info,
                 'autoridad_gestora': autoridad,
@@ -823,7 +882,11 @@ class BOEScraper(BaseScraper):
                 'deposit_amount': self._extract_currency(body_text, ['Importe del depósito', 'Depósito']),
                 'claimed_amount': self._extract_currency(body_text, ['Cantidad reclamada']),
                 'tipo_subasta': self._extract_label_value(body_text, ['Tipo de subasta']),
-                'detail_status': self._extract_detail_status(body_text),
+                'anuncio_boe': self._extract_label_value(body_text, ['Anuncio BOE']),
+                'lotes': self._extract_label_value(body_text, ['Lotes']),
+                'start_at': start_at,
+                'ends_at': ends_at,
+                'detail_status': detail_status,
             }
         except Exception as e:
             self.log_warning(f"Failed to fetch detail info for {boe_id}: {e}")
