@@ -1,36 +1,29 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { ArrowUpRight, ArrowRight, Gavel, PenSquare, LineChart, PhoneCall, Sofa, Sticker } from 'lucide-react';
 import { validateSessionToken } from '@/lib/auth';
+import { AppShell } from '@/components/AppShell';
 import { DASHBOARD_PROJECTS, type DashboardProject } from './projects';
 
 /**
  * /dashboard — the post-login project picker.
  *
- * This is the FIRST authenticated page in the dnkpartner app, so it
- * establishes the server-side auth-gate pattern that every future authed
- * page reuses:
+ * Server-gated route (see auth block below). UI is composed of:
+ *   - AppShell chrome (logo + ProfileMenu) for continuity with the
+ *     rest of the authed surface.
+ *   - A welcome header that pulls the email from the validated JWT
+ *     payload so the user instantly sees which account they're in.
+ *   - A responsive card grid (1/2/3 cols) over the locked
+ *     DASHBOARD_PROJECTS set. Live cards are linkable; coming-soon
+ *     cards render visibly dimmed, dashed, non-interactive.
  *
- *   1. Read the shared `auth_token` cookie (HttpOnly, Path=/, set by
- *      /api/auth/login and /api/auth/google/callback).
- *   2. Run validateSessionToken — signature + sessionVersion check, so a
- *      kicked or rotated session is rejected here, not just at the API.
- *   3. On failure, server-redirect to /login?next=/dashboard. Doing this
- *      on the server (not via client-side /api/auth/me) avoids a flash of
- *      content before the bounce.
- *
- * UI scaffolding is intentionally minimal — Pixel restyles the card grid
- * next. The DASHBOARD_PROJECTS array below is the locked source of truth
- * for the card set; Pixel maps over it, we don't ship copy in JSX.
- *
- * Force dynamic: this route depends on cookies(), and we never want it
- * statically pre-rendered or served from a CDN. Explicit > implicit.
+ * Auth gate (Forge): cookie -> validateSessionToken -> /login on fail.
  */
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
   // ── Server-side auth gate ────────────────────────────────────────────
-  // cookies() is async in Next 15+; await it before .get().
   const cookieStore = await cookies();
   const token = cookieStore.get('auth_token')?.value;
 
@@ -40,106 +33,190 @@ export default async function DashboardPage() {
 
   const payload = await validateSessionToken(token);
   if (!payload) {
-    // Token present but invalid (bad sig, rotated sessionVersion, user
-    // deleted). Send through the same login bounce as no-cookie — the
-    // stale cookie will be overwritten on next successful login.
     redirect('/login?next=/dashboard');
   }
 
-  // ── Scaffold render ──────────────────────────────────────────────────
-  // Intentionally minimal: Pixel owns the card-grid UI. The data-testid
-  // hooks below let the verification harness and Pixel's restyle both
-  // target the right nodes without prop-drilling.
   return (
-    <main
-      data-testid="dashboard-root"
-      className="min-h-screen bg-brand-light/40"
-    >
-      <div className="mx-auto max-w-6xl px-4 py-12">
-        <header className="mb-10">
+    <AppShell>
+      <div
+        data-testid="dashboard-root"
+        className="mx-auto max-w-6xl px-6 py-12 sm:py-16"
+      >
+        <header className="mb-10 sm:mb-12">
+          <p className="text-xs uppercase tracking-[0.2em] font-semibold text-brand-primary">
+            Welcome back
+          </p>
           <h1
             data-testid="dashboard-heading"
-            className="text-3xl font-semibold tracking-tight text-brand-accent"
+            className="mt-3 text-3xl sm:text-4xl font-semibold tracking-tight text-brand-accent text-balance"
           >
             Your projects
           </h1>
-          <p className="mt-2 text-sm text-slate-500">
-            Signed in as {payload.email}.
+          <p className="mt-3 text-base text-brand-dark/70">
+            Signed in as <span className="font-medium text-brand-accent">{payload.email}</span>.
           </p>
         </header>
 
-        {/* Mount point for Pixel's card grid. Rendered as a plain list of
-            anchors for now so the gate-pass verification can see real
-            content; Pixel restyles into the brand card grid next. */}
         <section
           data-testid="dashboard-projects"
           aria-label="Projects"
-          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+          className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3"
         >
-          {DASHBOARD_PROJECTS.map((p) => {
-            const isLive = p.state === 'live' && p.href !== null;
-            const baseClass =
-              'block rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-shadow';
-            const liveClass = `${baseClass} hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40`;
-            const mutedClass = `${baseClass} opacity-60 cursor-not-allowed`;
-
-            if (isLive && p.external) {
-              return (
-                <a
-                  key={p.id}
-                  href={p.href as string}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  data-testid={`project-card-${p.id}`}
-                  className={liveClass}
-                >
-                  <CardBody project={p} />
-                </a>
-              );
-            }
-            if (isLive) {
-              return (
-                <Link
-                  key={p.id}
-                  href={p.href as string}
-                  data-testid={`project-card-${p.id}`}
-                  className={liveClass}
-                >
-                  <CardBody project={p} />
-                </Link>
-              );
-            }
-            return (
-              <div
-                key={p.id}
-                data-testid={`project-card-${p.id}`}
-                aria-disabled="true"
-                className={mutedClass}
-              >
-                <CardBody project={p} />
-              </div>
-            );
-          })}
+          {DASHBOARD_PROJECTS.map((p) => (
+            <ProjectCard key={p.id} project={p} />
+          ))}
         </section>
       </div>
-    </main>
+    </AppShell>
   );
 }
 
-function CardBody({ project }: { project: DashboardProject }) {
+/**
+ * Icon registry — keyed by project id so the data file stays
+ * presentation-free. Falls back to a generic shape if an id is added
+ * without a matching glyph (cheap forward-compat, no runtime crash).
+ */
+const PROJECT_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  subastas: Gavel,
+  studio: PenSquare,
+  trends: LineChart,
+  computercaller: PhoneCall,
+  'room-designer': Sofa,
+  'panini-pano': Sticker,
+};
+
+function ProjectCard({ project }: { project: DashboardProject }) {
+  const Icon = PROJECT_ICONS[project.id] ?? PenSquare;
+  const isLive = project.state === 'live' && project.href !== null;
+
+  // ── Shared visual primitives ─────────────────────────────────────────
+  // Card chrome is identical across live + coming-soon so the grid
+  // reads as one family; differentiation comes from border style,
+  // surface tint, icon treatment, and the footer chip.
+  const base =
+    'group relative flex h-full flex-col rounded-2xl p-6 transition-all duration-200 ease-out';
+  const liveChrome =
+    'bg-white border border-slate-200/80 shadow-sm hover:shadow-md hover:border-brand-primary/40 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50 focus-visible:ring-offset-2';
+  const soonChrome =
+    'bg-brand-light/50 border border-dashed border-slate-300 cursor-not-allowed';
+
+  const className = `${base} ${isLive ? liveChrome : soonChrome}`;
+
+  const inner = <CardBody project={project} Icon={Icon} isLive={isLive} />;
+
+  if (isLive && project.external) {
+    return (
+      <a
+        href={project.href as string}
+        target="_blank"
+        rel="noopener noreferrer"
+        data-testid={`project-card-${project.id}`}
+        className={className}
+        aria-label={`${project.name} — opens in new tab`}
+      >
+        {inner}
+      </a>
+    );
+  }
+
+  if (isLive) {
+    return (
+      <Link
+        href={project.href as string}
+        data-testid={`project-card-${project.id}`}
+        className={className}
+      >
+        {inner}
+      </Link>
+    );
+  }
+
+  return (
+    <div
+      data-testid={`project-card-${project.id}`}
+      aria-disabled="true"
+      className={className}
+    >
+      {inner}
+    </div>
+  );
+}
+
+function CardBody({
+  project,
+  Icon,
+  isLive,
+}: {
+  project: DashboardProject;
+  Icon: React.ComponentType<{ className?: string }>;
+  isLive: boolean;
+}) {
   return (
     <>
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-brand-accent">
+      {/* Icon tile — teal-tinted for live, slate-tinted (muted) for coming-soon. */}
+      <div
+        className={
+          isLive
+            ? 'inline-flex h-11 w-11 items-center justify-center rounded-xl bg-brand-primary/10 text-brand-primary'
+            : 'inline-flex h-11 w-11 items-center justify-center rounded-xl bg-slate-200/60 text-slate-400'
+        }
+        aria-hidden="true"
+      >
+        <Icon className="h-5 w-5" />
+      </div>
+
+      <div className="mt-5 flex items-start justify-between gap-3">
+        <h2
+          className={
+            isLive
+              ? 'text-lg font-semibold text-brand-accent'
+              : 'text-lg font-semibold text-brand-accent/60'
+          }
+        >
           {project.name}
         </h2>
-        {project.state === 'coming-soon' && (
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+        {project.external && isLive && (
+          <ArrowUpRight
+            className="h-4 w-4 flex-shrink-0 text-brand-dark/40 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-brand-primary"
+            aria-hidden="true"
+          />
+        )}
+      </div>
+
+      <p
+        className={
+          isLive
+            ? 'mt-2 text-sm leading-relaxed text-brand-dark/70'
+            : 'mt-2 text-sm leading-relaxed text-brand-dark/45'
+        }
+      >
+        {project.description}
+      </p>
+
+      {/* Footer chip — pushed to the bottom so cards line up vertically
+          across the row regardless of description length. */}
+      <div className="mt-6 flex-1" />
+      <div className="flex items-center justify-between">
+        {isLive ? (
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-primary">
+            <span
+              className="h-1.5 w-1.5 rounded-full bg-brand-primary"
+              aria-hidden="true"
+            />
+            Live
+          </span>
+        ) : (
+          <span className="inline-flex items-center rounded-full bg-white/70 px-2.5 py-0.5 text-xs font-medium text-brand-dark/55 border border-slate-200">
             Coming soon
           </span>
         )}
+        {isLive && !project.external && (
+          <ArrowRight
+            className="h-4 w-4 text-brand-dark/30 transition-all group-hover:translate-x-1 group-hover:text-brand-primary"
+            aria-hidden="true"
+          />
+        )}
       </div>
-      <p className="mt-2 text-sm text-slate-500">{project.description}</p>
     </>
   );
 }
