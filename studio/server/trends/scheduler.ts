@@ -526,10 +526,16 @@ class TrendScheduler {
       if (totalCollected >= 10) {
         scraperHealth.recordSuccess(source, totalCollected, duration, 'live');
         trendStore.setLastFullUpdate();
-        
-        // Run cross-region analysis after successful collection
-        console.log('[TrendScheduler] Triggering cross-region analysis...');
-        await this.runCrossRegionAnalysis();
+
+        // Run cross-region analysis after successful collection.
+        // Isolated try/catch: a downstream analysis failure MUST NOT fall through to
+        // the outer catch and clobber the just-recorded live health with mock data.
+        try {
+          console.log('[TrendScheduler] Triggering cross-region analysis...');
+          await this.runCrossRegionAnalysis();
+        } catch (analysisErr: any) {
+          console.warn('[TrendScheduler] Cross-region analysis failed (non-fatal, live health preserved):', analysisErr?.message || analysisErr);
+        }
       } else if (totalCollected > 0) {
         // Partial success
         console.log('[TrendScheduler] Google Trends collected few results, supplementing with fallback...');
@@ -1544,7 +1550,7 @@ class TrendScheduler {
     console.log('[TrendScheduler] ═══════════════════════════════════════');
     
     // Get all trends from trend store
-    const allTrends = await trendStore.getTrends();
+    const allTrends = trendStore.getAllTrends();
     
     // Map source names to regions
     const sourceToRegion: Record<string, string> = {
@@ -1684,6 +1690,31 @@ class TrendScheduler {
    */
   getUrgentAlerts() {
     return crossRegionDetector.getUrgentAlerts();
+  }
+
+  // ============================================
+  // HEALTH DELEGATORS (used by /api/trends/health aggregate route)
+  // ============================================
+
+  /**
+   * Get health status for all scrapers
+   */
+  getHealthStatus(): ScraperHealth[] {
+    return scraperHealth.getAllHealth();
+  }
+
+  /**
+   * Get health summary
+   */
+  getHealthSummary() {
+    return scraperHealth.getSummary();
+  }
+
+  /**
+   * Get recent health alerts
+   */
+  getHealthAlerts(limit: number = 50) {
+    return scraperHealth.getAlerts(limit);
   }
 }
 
