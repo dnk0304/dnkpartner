@@ -116,11 +116,44 @@ function mapType(t: string | null | undefined): string | null {
   return DB_TO_FRONTEND_TYPE[t] ?? null;
 }
 
+/** Title-case helper for synthesised titles (lower-cased municipality from BOE). */
+function titleCaseEs(value: string): string {
+  return value
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .join(" ");
+}
+
+/**
+ * Synthesise a human-readable title when the upstream `title` is NULL, empty,
+ * or the legacy literal "Unknown" (see Ghost's nullable-title migration intent
+ * and the frontend `displayTitle()` convention in
+ * src/components/observatory/format.ts). Mirrors that fallback order so
+ * server-rendered cards and API consumers never see a blank title.
+ */
+function synthTitle(
+  title: string | null | undefined,
+  municipality: string | null | undefined,
+  province: string | null | undefined,
+): string {
+  const raw = (title ?? "").trim();
+  if (raw && raw.toLowerCase() !== "unknown") return raw;
+  const muni = municipality ? titleCaseEs(municipality) : "";
+  const prov = province
+    ? province.charAt(0).toUpperCase() + province.slice(1)
+    : "";
+  if (muni && prov) return `Subasta en ${muni}, ${prov}`;
+  if (muni) return `Subasta en ${muni}`;
+  if (prov) return `Subasta en ${prov}`;
+  return "Subasta judicial";
+}
+
 /** Convert a Prisma auction row → the flat projection the feed serves. */
 function projectAuction(a: {
   id: string;
   boeId: string;
-  title: string;
+  title: string | null;
   category: string;
   province: string | null;
   municipality: string | null;
@@ -143,7 +176,7 @@ function projectAuction(a: {
   return {
     id: a.id,
     boeId: a.boeId,
-    title: a.title,
+    title: synthTitle(a.title, a.municipality, a.province),
     category: a.category,
     province: a.province ?? null,
     municipality: a.municipality ?? null,

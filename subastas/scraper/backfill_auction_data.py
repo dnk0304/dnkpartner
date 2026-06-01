@@ -121,8 +121,15 @@ def phase2_rescrape(cur, conn, limit: int, dry_run: bool):
         return 0
 
     # Lazy import the scraper (needs playwright) only when actually re-scraping.
+    # Use the scheduler's proven runtime pattern (see scheduler.py:273) — the
+    # scheduler container resolves the scrapers package as `app.scrapers.*`
+    # from `/`. The plain `from scrapers.boe_scraper import BOEScraper` form
+    # triggers `ImportError: attempted relative import beyond top-level
+    # package` because scrapers/__init__.py re-exports siblings that import
+    # from ..core.
     os.environ.setdefault("BOE_FETCH_DETAIL", "1")
-    from scrapers.boe_scraper import BOEScraper
+    sys.path.insert(0, "/")
+    from app.scrapers.boe_scraper import BOEScraper  # type: ignore[import-not-found]
     scraper = BOEScraper()
 
     fixed = 0
