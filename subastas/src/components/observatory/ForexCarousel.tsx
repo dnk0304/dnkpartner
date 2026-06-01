@@ -294,7 +294,17 @@ function CompactCard({ auction }: { auction: FeedAuction }) {
   const ended = isEffectivelyEnded(endsAt);
   const dl = daysLeft(endsAt);
   const urgent = !ended && dl != null && dl <= 1;
-  const value = pickPrice(auction.appraisalValue, auction.minimumBid, auction.currentBid);
+  // Fallback order: real valuation (appraisal → minBid → currentBid) first; if
+  // none are present but a `depositAmount` exists, surface that instead so the
+  // card isn't a bare "Sin tasación". Ken found 53 active rows on 2026-06-01
+  // with no valuation but a real deposit — those cards used to be useless.
+  const valuation = pickPrice(auction.appraisalValue, auction.minimumBid, auction.currentBid);
+  const deposit = pickPrice(auction.depositAmount);
+  const value = valuation ?? deposit;
+  // The compact card has no inline label, so when the rendered number is the
+  // deposit (not a valuation) we MUST tag it "Depósito" — otherwise the user
+  // would read it as a Tasación and mis-price the lot.
+  const valueIsDeposit = valuation == null && deposit != null;
 
   // Clock wins over stale DB status: if endsAt is in the past, never paint Live/Próx.
   const effectiveStatus = ended ? "concluida-portal" : auction.status;
@@ -341,7 +351,20 @@ function CompactCard({ auction }: { auction: FeedAuction }) {
         </span>
       </div>
       <div className="tnum text-sm font-semibold text-[--color-ink-primary] truncate">
-        {value != null ? formatPrice(value) : "Sin tasación"}
+        {value != null ? (
+          valueIsDeposit ? (
+            <>
+              <span className="text-[9px] uppercase tracking-wide font-medium text-[--color-ink-tertiary] mr-1">
+                Depósito
+              </span>
+              {formatPrice(value)}
+            </>
+          ) : (
+            formatPrice(value)
+          )
+        ) : (
+          "Sin tasación"
+        )}
       </div>
       <div className="text-[10px] text-[--color-ink-tertiary] truncate">
         {prov ? capitalize(prov) : "España"}
@@ -366,6 +389,11 @@ function ExpandedCard({ auction }: { auction: FeedAuction }) {
   // Treat 0 as "no data" (see pickPrice).
   const tasacion = pickPrice(auction.appraisalValue);
   const minBid = pickPrice(auction.minimumBid);
+  // Only surface deposit on the expanded card when neither tasación nor puja
+  // mínima exist — otherwise the card would have three competing numbers and
+  // the deposit row would just be noise. With this rule, the expanded card
+  // never goes blank for deposit-only rows (the 53 the carousel used to drop).
+  const deposit = tasacion == null && minBid == null ? pickPrice(auction.depositAmount) : null;
   const photo = isRealPhotoUrl(auction.imageUrl) ? auction.imageUrl : null;
   // Clock wins over stale DB status — same rule as CompactCard.
   const effectiveStatus = ended ? "concluida-portal" : auction.status;
@@ -439,6 +467,16 @@ function ExpandedCard({ auction }: { auction: FeedAuction }) {
               </div>
               <div className="tnum text-[13px] font-semibold text-[--color-ink-primary] truncate">
                 {formatPrice(minBid)}
+              </div>
+            </div>
+          )}
+          {deposit != null && (
+            <div className="min-w-0 col-span-2">
+              <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
+                Depósito
+              </div>
+              <div className="tnum text-[13px] font-semibold text-[--color-ink-primary] truncate">
+                {formatPrice(deposit)}
               </div>
             </div>
           )}
