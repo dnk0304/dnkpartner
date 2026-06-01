@@ -178,18 +178,17 @@ export async function verifyIdToken(idToken: string): Promise<GoogleIdTokenClaim
 /**
  * Sanitise a `next` redirect target. Must start with a single `/` and NOT
  * a second `/` (no scheme-relative `//evil.com/x` URLs) and not contain
- * a CR/LF. Anything else falls back to `/` (landing).
+ * a CR/LF. Anything else falls back to `/dashboard` (the post-login home).
  *
- * Phase 1 default = `/`. Once portfolio routes (/studio, /subastas,
- * /defensapenal) land in Phase 2+, this default can move to whichever
- * route is the "post-login home" — but until those routes exist, `/` is
- * the only valid landing.
+ * The post-login home is `/dashboard` — the server-gated project picker.
+ * An explicit, well-formed `next` (e.g. `/subastas`, `/studio`) still wins
+ * so emailed deep-links continue to land directly on the requested route.
  */
 export function sanitiseNext(next: string | null | undefined): string {
-  if (!next || typeof next !== 'string') return '/';
-  if (!next.startsWith('/')) return '/';
-  if (next.startsWith('//')) return '/';
-  if (/[\r\n]/.test(next)) return '/';
+  if (!next || typeof next !== 'string') return '/dashboard';
+  if (!next.startsWith('/')) return '/dashboard';
+  if (next.startsWith('//')) return '/dashboard';
+  if (/[\r\n]/.test(next)) return '/dashboard';
   return next;
 }
 

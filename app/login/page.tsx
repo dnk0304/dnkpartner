@@ -49,9 +49,10 @@ function LoginForm() {
   const [signedIn, setSignedIn] = useState(false);
 
   const verified = params.get('verified') === '1';
-  // Default post-login destination. Phase 1 only has the landing — when
-  // portfolio routes ship in Phase 2+, change this default accordingly.
-  const next = params.get('next') || '/';
+  // Default post-login destination is the project dashboard (server-gated
+  // at /dashboard). An explicit `?next=/something` still wins so deep-links
+  // (e.g. emailed links to /subastas) survive the sign-in round-trip.
+  const next = params.get('next') || '/dashboard';
   const oauthError = params.get('error');
 
   // Map Google callback error codes to friendly copy. Anything we don't
