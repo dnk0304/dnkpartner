@@ -287,13 +287,17 @@ export function useTrendingKeywords(params: {
   minScore?: number;
   emergingOnly?: boolean;
   enabled?: boolean;
+  /** Auto-refresh cadence in ms. Default 60s — matches the AI Trends UI poll. */
+  refetchInterval?: number;
 }): UseQueryResult<TrendingResponse, Error> {
-  const { enabled = true, ...queryParams } = params;
-  
+  const { enabled = true, refetchInterval = 60 * 1000, ...queryParams } = params;
+
   return useQuery({
     queryKey: ['trending', queryParams],
     queryFn: () => fetchTrendingKeywords(queryParams),
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 30 * 1000, // 30s — keep mostly-fresh in cache, but allow auto-poll
+    refetchInterval,
+    refetchIntervalInBackground: false,
     enabled,
   });
 }
@@ -303,12 +307,15 @@ export function useTrendingKeywords(params: {
  */
 export function useOpportunities(
   marketplace?: Marketplace,
-  enabled: boolean = true
+  enabled: boolean = true,
+  refetchInterval: number = 60 * 1000
 ): UseQueryResult<{ success: boolean; opportunities: TrendingKeyword[]; total: number }, Error> {
   return useQuery({
     queryKey: ['opportunities', marketplace],
     queryFn: () => fetchOpportunities(marketplace),
-    staleTime: 2 * 60 * 1000,
+    staleTime: 30 * 1000,
+    refetchInterval,
+    refetchIntervalInBackground: false,
     enabled,
   });
 }

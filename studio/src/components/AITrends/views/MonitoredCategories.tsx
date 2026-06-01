@@ -16,6 +16,10 @@ import {
 } from 'lucide-react';
 import { Button } from '../../Button';
 import { cn } from '../../../lib/utils';
+import { LiveIndicator } from '../components/LiveIndicator';
+
+const POLL_INTERVAL_MS = 90000;
+const POLL_STAGGER_MS = 25000;
 
 interface MonitoredCategory {
   id: string;
@@ -44,6 +48,8 @@ const MARKETPLACES = ['US', 'UK', 'DE', 'FR', 'JP', 'CA'];
 export function MonitoredCategories() {
   const [categories, setCategories] = useState<MonitoredCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -51,9 +57,14 @@ export function MonitoredCategories() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Fetch monitored categories
-  const fetchCategories = async () => {
-    setIsLoading(true);
+  // Fetch monitored categories. Polls in the background every 90s so the
+  // "Last checked" + keywordCount stay current without flashing the list.
+  const fetchCategories = async (isBackground = false) => {
+    if (isBackground) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
     setError(null);
 
     try {
@@ -64,15 +75,25 @@ export function MonitoredCategories() {
 
       const data = await response.json();
       setCategories(data.monitoredCategories || []);
+      setLastUpdatedAt(new Date());
     } catch (err: any) {
       setError(err.message || 'Failed to load monitored categories');
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
     fetchCategories();
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const startId = setTimeout(() => {
+      intervalId = setInterval(() => fetchCategories(true), POLL_INTERVAL_MS);
+    }, POLL_STAGGER_MS);
+    return () => {
+      clearTimeout(startId);
+      if (intervalId) clearInterval(intervalId);
+    };
   }, []);
 
   // Add new category
@@ -171,7 +192,7 @@ export function MonitoredCategories() {
         </div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Error Loading Categories</h2>
         <p className="text-gray-500 mb-4">{error}</p>
-        <Button onClick={fetchCategories} className="gap-2">
+        <Button onClick={() => fetchCategories()} className="gap-2">
           <RefreshCw className="w-4 h-4" />
           Retry
         </Button>
@@ -203,15 +224,23 @@ export function MonitoredCategories() {
             </p>
           </div>
         </div>
-        <Button 
-          onClick={fetchCategories}
-          variant="outline"
-          size="sm"
-          className="gap-2 border-gray-300 text-gray-700 hover:bg-gray-50"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-3">
+          <LiveIndicator
+            lastUpdatedAt={lastUpdatedAt}
+            isRefreshing={isRefreshing}
+            hasError={!!error}
+            intervalMs={POLL_INTERVAL_MS}
+          />
+          <Button
+            onClick={() => fetchCategories()}
+            variant="outline"
+            size="sm"
+            className="gap-2 border-gray-300 text-gray-700 hover:bg-gray-50"
+          >
+            <RefreshCw className={cn('w-4 h-4', isRefreshing && 'animate-spin')} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}

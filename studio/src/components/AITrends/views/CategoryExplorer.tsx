@@ -24,7 +24,11 @@ import {
 } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { Button } from '../../Button';
+import { LiveIndicator } from '../components/LiveIndicator';
 import type { ExplodingTrend, TrendCategory } from '../../../types/AITrends';
+
+const POLL_INTERVAL_MS = 60000;
+const POLL_STAGGER_MS = 15000;
 
 // Category icon mapping
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
@@ -59,6 +63,8 @@ export function CategoryExplorer() {
   const [categories, setCategories] = useState<TrendCategory[]>([]);
   const [trends, setTrends] = useState<Record<string, ExplodingTrend[]>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // UI state
@@ -66,11 +72,16 @@ export function CategoryExplorer() {
   const [searchFilter, setSearchFilter] = useState('');
   const [sortBy, setSortBy] = useState<'explosionScore' | 'growthRate' | 'volume'>('explosionScore');
 
-  // Fetch data
-  const fetchData = async () => {
-    setIsLoading(true);
+  // Fetch data. Initial mount = loading splash; subsequent polls = silent
+  // background refresh so categories don't unmount mid-browse.
+  const fetchData = async (isBackground = false) => {
+    if (isBackground) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
     setError(null);
-    
+
     try {
       const [categoriesRes, trendsRes] = await Promise.all([
         fetch('/api/trends/categories'),
@@ -85,7 +96,7 @@ export function CategoryExplorer() {
       const trendsData = await trendsRes.json();
 
       setCategories(categoriesData.categories || []);
-      
+
       // Group trends by category
       const groupedTrends: Record<string, ExplodingTrend[]> = {};
       (trendsData.trends || []).forEach((trend: ExplodingTrend) => {
@@ -94,17 +105,29 @@ export function CategoryExplorer() {
         }
         groupedTrends[trend.category].push(trend);
       });
-      
+
       setTrends(groupedTrends);
+      setLastUpdatedAt(new Date());
     } catch (err: any) {
       setError(err.message || 'Failed to load categories');
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
     fetchData();
+    // Stagger 15s after ExplodingTrends so the /exploding endpoint isn't hit
+    // by both views on the same tick.
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const startId = setTimeout(() => {
+      intervalId = setInterval(() => fetchData(true), POLL_INTERVAL_MS);
+    }, POLL_STAGGER_MS);
+    return () => {
+      clearTimeout(startId);
+      if (intervalId) clearInterval(intervalId);
+    };
   }, []);
 
   // Get category icon
@@ -204,7 +227,7 @@ export function CategoryExplorer() {
         <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Error Loading Categories</h2>
         <p className="text-gray-500 max-w-md mb-4">{error}</p>
-        <Button onClick={fetchData} className="gap-2">
+        <Button onClick={() => fetchData()} className="gap-2">
           <RefreshCw className="w-4 h-4" />
           Retry
         </Button>
@@ -247,13 +270,19 @@ export function CategoryExplorer() {
               View All Categories
             </Button>
           )}
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={fetchData}
+          <LiveIndicator
+            lastUpdatedAt={lastUpdatedAt}
+            isRefreshing={isRefreshing}
+            hasError={!!error}
+            intervalMs={POLL_INTERVAL_MS}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchData()}
             className="gap-2"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={cn('w-4 h-4', isRefreshing && 'animate-spin')} />
             Refresh
           </Button>
         </div>

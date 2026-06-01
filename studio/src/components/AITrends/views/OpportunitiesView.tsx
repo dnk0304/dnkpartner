@@ -20,9 +20,12 @@ import {
 } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { Button } from '../../Button';
+import { LiveIndicator } from '../components/LiveIndicator';
 import { useAITrends } from '../../../contexts/AITrendsContext';
 import { useOpportunities, TrendingKeyword } from '../../../hooks/useTrendingData';
 import type { Marketplace } from '../../../types/AITrends';
+
+const POLL_INTERVAL_MS = 60000;
 
 export function OpportunitiesView() {
   const { marketplace, setCurrentKeyword, triggerSearch } = useAITrends();
@@ -33,8 +36,14 @@ export function OpportunitiesView() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [selectedMarketplace, setSelectedMarketplace] = useState<Marketplace | undefined>(marketplace);
 
-  // Fetch opportunities
-  const { data, isLoading, error, refetch } = useOpportunities(selectedMarketplace);
+  // Fetch opportunities. Auto-refreshes on POLL_INTERVAL_MS — surface freshness
+  // via the LiveIndicator using react-query's dataUpdatedAt / isFetching.
+  const { data, isLoading, isFetching, dataUpdatedAt, error, refetch } = useOpportunities(
+    selectedMarketplace,
+    true,
+    POLL_INTERVAL_MS
+  );
+  const lastUpdatedAt = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
 
   // Filter and sort opportunities
   const filteredOpportunities = useMemo(() => {
@@ -194,13 +203,19 @@ export function OpportunitiesView() {
             <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           </div>
           
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <LiveIndicator
+            lastUpdatedAt={lastUpdatedAt}
+            isRefreshing={isFetching && !isLoading}
+            hasError={!!error}
+            intervalMs={POLL_INTERVAL_MS}
+          />
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => refetch()}
             className="gap-2"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={cn('w-4 h-4', isFetching && !isLoading && 'animate-spin')} />
             Refresh
           </Button>
         </div>

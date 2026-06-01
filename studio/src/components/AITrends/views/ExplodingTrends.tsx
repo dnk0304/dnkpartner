@@ -23,7 +23,13 @@ import {
 } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { Button } from '../../Button';
+import { LiveIndicator } from '../components/LiveIndicator';
 import type { ExplodingTrend, TrendCategory, TrendStoreStats } from '../../../types/AITrends';
+
+// Auto-refresh cadence for this view. Matches the existing 30–60s pattern from
+// DataSources / ScraperHealth. 45s on Exploding so it's slightly out of phase
+// with the 30s sources view (avoids thundering herd).
+const POLL_INTERVAL_MS = 45000;
 
 // Time range filter options
 type TimeRange = '7d' | '30d' | '90d' | 'all';
@@ -45,7 +51,9 @@ export function ExplodingTrends() {
   const [categories, setCategories] = useState<TrendCategory[]>([]);
   const [stats, setStats] = useState<TrendStoreStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   // Filter state
   const [searchFilter, setSearchFilter] = useState('');
@@ -56,11 +64,17 @@ export function ExplodingTrends() {
   const [sortBy, setSortBy] = useState<'explosionScore' | 'growthRate' | 'volume' | 'lastUpdated'>('explosionScore');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-  // Fetch data
-  const fetchData = async () => {
-    setIsLoading(true);
+  // Fetch data. Distinguishes initial load (shows the loading splash) from
+  // background refresh (silent — only the LiveIndicator dot pulses) so users
+  // don't see the whole section flash empty every 45s.
+  const fetchData = async (isBackground = false) => {
+    if (isBackground) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
     setError(null);
-    
+
     try {
       const [trendsRes, categoriesRes, statsRes] = await Promise.all([
         fetch('/api/trends/exploding?limit=100'),
@@ -79,15 +93,20 @@ export function ExplodingTrends() {
       setTrends(trendsData.trends || []);
       setCategories(categoriesData.categories || []);
       setStats(statsData.stats || null);
+      setLastUpdatedAt(new Date());
     } catch (err: any) {
       setError(err.message || 'Failed to load trends');
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
     fetchData();
+    // Auto-refresh on the same cadence as DataSources/ScraperHealth.
+    const interval = setInterval(() => fetchData(true), POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
   }, []);
 
   // Filter and sort trends
@@ -295,7 +314,7 @@ export function ExplodingTrends() {
         <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Error Loading Trends</h2>
         <p className="text-gray-500 max-w-md mb-4">{error}</p>
-        <Button onClick={fetchData} className="gap-2">
+        <Button onClick={() => fetchData()} className="gap-2">
           <RefreshCw className="w-4 h-4" />
           Retry
         </Button>
@@ -328,13 +347,19 @@ export function ExplodingTrends() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={fetchData}
+          <LiveIndicator
+            lastUpdatedAt={lastUpdatedAt}
+            isRefreshing={isRefreshing}
+            hasError={!!error}
+            intervalMs={POLL_INTERVAL_MS}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchData()}
             className="gap-2"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={cn('w-4 h-4', isRefreshing && 'animate-spin')} />
             Refresh
           </Button>
         </div>

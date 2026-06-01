@@ -5,6 +5,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card } from '../Card';
+import { LiveIndicator } from '../components/LiveIndicator';
+
+// Correlation analysis is heavier server-side (it re-aggregates trends),
+// so poll less aggressively — 90s, staggered 30s after the page load.
+const POLL_INTERVAL_MS = 90000;
+const POLL_STAGGER_MS = 30000;
 
 interface CorrelatedTrend {
   topic: string;
@@ -61,6 +67,8 @@ export const TrendCorrelation: React.FC = () => {
   const [investmentSignals, setInvestmentSignals] = useState<InvestmentSignal[]>([]);
   const [metrics, setMetrics] = useState<CrossPlatformMetrics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedTab, setSelectedTab] = useState<'overview' | 'signals' | 'trends'>('overview');
   const [minPlatforms, setMinPlatforms] = useState(2);
@@ -71,9 +79,27 @@ export const TrendCorrelation: React.FC = () => {
     loadData();
   }, [minPlatforms, signalFilter]);
 
-  const loadData = async () => {
+  // Independent polling effect — keeps filter-driven refetches separate from
+  // the background poll. Polls without touching the loading splash.
+  useEffect(() => {
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const startId = setTimeout(() => {
+      intervalId = setInterval(() => loadData(true), POLL_INTERVAL_MS);
+    }, POLL_STAGGER_MS);
+    return () => {
+      clearTimeout(startId);
+      if (intervalId) clearInterval(intervalId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [minPlatforms, signalFilter]);
+
+  const loadData = async (isBackground = false) => {
     try {
-      setLoading(true);
+      if (isBackground) {
+        setIsRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setError(null);
 
       // Load metrics
@@ -102,11 +128,13 @@ export const TrendCorrelation: React.FC = () => {
       if (signalsData.success) {
         setInvestmentSignals(signalsData.signals);
       }
+      setLastUpdatedAt(new Date());
     } catch (err: any) {
       setError(err.message || 'Failed to load correlation data');
       console.error('Error loading correlation data:', err);
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -182,7 +210,7 @@ export const TrendCorrelation: React.FC = () => {
         <h3 className="text-red-800 font-semibold mb-2">Error Loading Correlation Data</h3>
         <p className="text-red-600 mb-4">{error}</p>
         <button
-          onClick={loadData}
+          onClick={() => loadData()}
           className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
         >
           Retry
@@ -206,13 +234,21 @@ export const TrendCorrelation: React.FC = () => {
             </p>
           )}
         </div>
-        <button
-          onClick={refreshAnalysis}
-          disabled={loading}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading ? 'Analyzing...' : 'Refresh Analysis'}
-        </button>
+        <div className="flex items-center gap-3">
+          <LiveIndicator
+            lastUpdatedAt={lastUpdatedAt}
+            isRefreshing={isRefreshing}
+            hasError={!!error}
+            intervalMs={POLL_INTERVAL_MS}
+          />
+          <button
+            onClick={refreshAnalysis}
+            disabled={loading}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Analyzing...' : 'Refresh Analysis'}
+          </button>
+        </div>
       </div>
 
       {/* Metrics Overview */}

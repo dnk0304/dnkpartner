@@ -1,6 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '../../Card';
 import { Database, HardDrive, Calendar, TrendingUp, Archive, BarChart3, Clock, FileText } from 'lucide-react';
+import { LiveIndicator } from '../components/LiveIndicator';
+
+// Storage metrics change slowly. 90s is plenty and avoids stacking with
+// Dashboard which uses the same endpoint at 60s.
+const POLL_INTERVAL_MS = 90000;
+const POLL_STAGGER_MS = 20000;
 
 interface StorageMetrics {
   activeTrendsSizeMB: number;
@@ -22,23 +28,48 @@ interface StorageMetrics {
 export function StorageAnalytics() {
   const [metrics, setMetrics] = useState<StorageMetrics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
-  useEffect(() => {
-    fetchMetrics();
-  }, []);
-
-  const fetchMetrics = () => {
-    setLoading(true);
+  const fetchMetrics = (isBackground = false) => {
+    if (isBackground) {
+      setIsRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     fetch('/api/trends/storage-metrics')
       .then(res => res.json())
       .then(data => {
         if (data.success) {
           setMetrics(data.metrics);
+          setHasError(false);
+          setLastUpdatedAt(new Date());
+        } else {
+          setHasError(true);
         }
       })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+      .catch(err => {
+        console.error(err);
+        setHasError(true);
+      })
+      .finally(() => {
+        setLoading(false);
+        setIsRefreshing(false);
+      });
   };
+
+  useEffect(() => {
+    fetchMetrics();
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const startId = setTimeout(() => {
+      intervalId = setInterval(() => fetchMetrics(true), POLL_INTERVAL_MS);
+    }, POLL_STAGGER_MS);
+    return () => {
+      clearTimeout(startId);
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, []);
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return 'N/A';
@@ -81,8 +112,8 @@ export function StorageAnalytics() {
         <div className="text-center">
           <Database className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-500">Unable to load storage metrics</p>
-          <button 
-            onClick={fetchMetrics}
+          <button
+            onClick={() => fetchMetrics()}
             className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
           >
             Retry
@@ -97,9 +128,17 @@ export function StorageAnalytics() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Storage Analytics</h2>
-        <p className="text-gray-500">Track your trend data collection and storage usage</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Storage Analytics</h2>
+          <p className="text-gray-500">Track your trend data collection and storage usage</p>
+        </div>
+        <LiveIndicator
+          lastUpdatedAt={lastUpdatedAt}
+          isRefreshing={isRefreshing}
+          hasError={hasError}
+          intervalMs={POLL_INTERVAL_MS}
+        />
       </div>
 
       {/* Main Metrics Grid */}

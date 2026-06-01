@@ -19,9 +19,12 @@ import {
 } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { Button } from '../../Button';
+import { LiveIndicator } from '../components/LiveIndicator';
 import { useAITrends } from '../../../contexts/AITrendsContext';
 import { useTrendingKeywords, useCategories, TrendingKeyword } from '../../../hooks/useTrendingData';
 import type { Marketplace } from '../../../types/AITrends';
+
+const POLL_INTERVAL_MS = 60000;
 
 // Preset categories from the plan
 const PRESET_CATEGORIES = [
@@ -50,13 +53,17 @@ export function TrendingKeywords() {
   const [sortBy, setSortBy] = useState<'opportunityScore' | 'volumeChange7d' | 'searchVolume' | 'competitionScore'>('opportunityScore');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-  // Fetch trending keywords
-  const { data, isLoading, error, refetch } = useTrendingKeywords({
+  // Fetch trending keywords. refetchInterval is wired into the hook (60s), so
+  // the data auto-refreshes in the background; we surface freshness via the
+  // LiveIndicator below using react-query's dataUpdatedAt / isFetching.
+  const { data, isLoading, isFetching, dataUpdatedAt, error, refetch } = useTrendingKeywords({
     category: selectedCategory === 'All Categories' ? undefined : selectedCategory,
     marketplace,
     limit: 100,
     emergingOnly: showEmergingOnly,
+    refetchInterval: POLL_INTERVAL_MS,
   });
+  const lastUpdatedAt = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
 
   // Fetch categories
   const { data: categoriesData } = useCategories();
@@ -171,13 +178,19 @@ export function TrendingKeywords() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <LiveIndicator
+            lastUpdatedAt={lastUpdatedAt}
+            isRefreshing={isFetching && !isLoading}
+            hasError={!!error}
+            intervalMs={POLL_INTERVAL_MS}
+          />
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => refetch()}
             className="gap-2"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={cn('w-4 h-4', isFetching && !isLoading && 'animate-spin')} />
             Refresh
           </Button>
         </div>

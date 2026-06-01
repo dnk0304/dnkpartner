@@ -2,6 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '../../Card';
 import { BarChart3, TrendingUp, Users, DollarSign, Globe, ShoppingBag, Rocket, ArrowRight, Database } from 'lucide-react';
 import { Button } from '../../Button';
+import { LiveIndicator } from '../components/LiveIndicator';
+
+// Storage metrics tick over slowly (writes happen at scheduler cadence), so
+// 60s is plenty. Staggered 10s after Exploding so the two views don't fire
+// their first refresh on the same tick.
+const POLL_INTERVAL_MS = 60000;
+const POLL_STAGGER_MS = 10000;
 
 interface StorageMetrics {
   activeTrendsSizeMB: number;
@@ -17,29 +24,54 @@ interface StorageMetrics {
 export function Dashboard() {
   const [storageMetrics, setStorageMetrics] = useState<StorageMetrics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   useEffect(() => {
-    // Fetch storage metrics
-    setLoading(true);
-    fetch('/api/trends/storage-metrics')
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to fetch');
-        return res.json();
-      })
-      .then(data => {
-        if (data.success) {
-          setStorageMetrics(data.metrics);
-          setError(false);
-        } else {
+    // Fetch storage metrics. Background refreshes use isRefreshing so the
+    // numbers don't reset to placeholders ("...") on every poll.
+    const fetchMetrics = (isBackground = false) => {
+      if (isBackground) {
+        setIsRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      fetch('/api/trends/storage-metrics')
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to fetch');
+          return res.json();
+        })
+        .then(data => {
+          if (data.success) {
+            setStorageMetrics(data.metrics);
+            setError(false);
+            setLastUpdatedAt(new Date());
+          } else {
+            setError(true);
+          }
+        })
+        .catch(err => {
+          console.error('Storage metrics error:', err);
           setError(true);
-        }
-      })
-      .catch(err => {
-        console.error('Storage metrics error:', err);
-        setError(true);
-      })
-      .finally(() => setLoading(false));
+        })
+        .finally(() => {
+          setLoading(false);
+          setIsRefreshing(false);
+        });
+    };
+
+    fetchMetrics();
+    // Staggered start so we don't pile up with ExplodingTrends if both mount
+    // together (the route only renders one at a time, but better safe).
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const startId = setTimeout(() => {
+      intervalId = setInterval(() => fetchMetrics(true), POLL_INTERVAL_MS);
+    }, POLL_STAGGER_MS);
+    return () => {
+      clearTimeout(startId);
+      if (intervalId) clearInterval(intervalId);
+    };
   }, []);
 
   const formatDate = (dateStr: string | null) => {
@@ -57,9 +89,17 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
-        <p className="text-gray-500">Overview of your AI-powered market intelligence.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
+          <p className="text-gray-500">Overview of your AI-powered market intelligence.</p>
+        </div>
+        <LiveIndicator
+          lastUpdatedAt={lastUpdatedAt}
+          isRefreshing={isRefreshing}
+          hasError={error}
+          intervalMs={POLL_INTERVAL_MS}
+        />
       </div>
 
       {/* Quick Access Section */}
