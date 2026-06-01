@@ -63,15 +63,43 @@ export const ALL_STATUSES: Array<{ id: AuctionStatus; label: string }> = [
   { id: "finalizada-autoridad", label: "Finalizada (Autoridad)" },
 ];
 
-/** All auction types. */
-export const ALL_TYPES: Array<{ id: AuctionType; label: string }> = [
-  { id: "judicial", label: "Judicial" },
-  { id: "notarial", label: "Notarial" },
-  { id: "aeat", label: "Agencia Tributaria" },
-  { id: "tributaria", label: "Otras tributarias" },
-  { id: "administrativa", label: "Administrativa" },
-  { id: "bancaria", label: "Bancaria" },
+/**
+ * All auction types — Spanish labels + short (chip-friendly) labels.
+ *
+ * Order matches BOE "Tipo de subasta" listing density: judicial is by far the
+ * largest family (~1.1k active), then AEAT, then otras tributarias, notarial,
+ * administrativas. Bancaria is reserved for a future source.
+ *
+ * Legacy singular ids (`tributaria` / `administrativa`) are intentionally
+ * omitted from this list — the API folds them into the canonical plural ids
+ * before they ever reach the UI. Including them here would mean two chips
+ * for the same BOE family.
+ */
+export const ALL_TYPES: Array<{
+  id: AuctionType;
+  /** Long form — e.g. used inside the Advanced Filters sheet. */
+  label: string;
+  /** Short form — used on chips + card badges where space is tight. */
+  shortLabel: string;
+}> = [
+  { id: "judicial",          label: "Judicial",                 shortLabel: "Judicial" },
+  { id: "aeat",              label: "Hacienda (AEAT)",          shortLabel: "Hacienda" },
+  { id: "otras_tributarias", label: "Otras tributarias",        shortLabel: "Otras trib." },
+  { id: "notarial",          label: "Notarial",                 shortLabel: "Notarial" },
+  { id: "administrativas",   label: "Administrativas",          shortLabel: "Admin." },
+  { id: "bancaria",          label: "Bancaria",                 shortLabel: "Bancaria" },
 ];
+
+/** Quick lookup by id — used by chips/badges to render Spanish labels. */
+export const AUCTION_TYPE_LABEL: Record<string, { label: string; shortLabel: string }> = (() => {
+  const m: Record<string, { label: string; shortLabel: string }> = {};
+  for (const t of ALL_TYPES) m[t.id] = { label: t.label, shortLabel: t.shortLabel };
+  // Fold legacy singular ids onto the same canonical label, in case a stale
+  // URL or older API response still carries them.
+  m["tributaria"] = m["otras_tributarias"];
+  m["administrativa"] = m["administrativas"];
+  return m;
+})();
 
 /** Sort options — match Forge's whitelisted values on /api/auctions. */
 export type SortValue = "endsAt_asc" | "published_desc" | "price_asc" | "price_desc";
@@ -297,12 +325,17 @@ export const VEHICLE_CATEGORIES: AuctionCategory[] = [
   "Barcos",
 ];
 
-/** Preset identifiers — P0 (first 4) + P1 advanced (last 4). */
+/** Preset identifiers — P0 (first 4) + BOE family quick-picks + P1 advanced. */
 export type PresetId =
   | "viviendas-activas"
   | "coches"
   | "por-provincia"
   | "judiciales-boe"
+  // BOE family quick-picks — added when the per-category scrapers went live.
+  | "notariales-boe"
+  | "aeat-boe"
+  | "otras-tributarias-boe"
+  | "administrativas-boe"
   // P1 advanced
   | "viviendas-baratas"
   | "bajo-tasacion"
@@ -361,6 +394,30 @@ export function presetFilters(id: PresetId, opts?: { province?: string; now?: Da
       return {
         ...base,
         types: ["judicial"],
+        statuses: ["celebrandose", "proxima-apertura"],
+      };
+    case "notariales-boe":
+      return {
+        ...base,
+        types: ["notarial"],
+        statuses: ["celebrandose", "proxima-apertura"],
+      };
+    case "aeat-boe":
+      return {
+        ...base,
+        types: ["aeat"],
+        statuses: ["celebrandose", "proxima-apertura"],
+      };
+    case "otras-tributarias-boe":
+      return {
+        ...base,
+        types: ["otras_tributarias"],
+        statuses: ["celebrandose", "proxima-apertura"],
+      };
+    case "administrativas-boe":
+      return {
+        ...base,
+        types: ["administrativas"],
         statuses: ["celebrandose", "proxima-apertura"],
       };
     case "viviendas-baratas":

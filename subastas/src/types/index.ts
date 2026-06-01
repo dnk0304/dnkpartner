@@ -11,14 +11,21 @@ export type AuctionStatus =
   | 'finished' 
   | 'pre-auction';
 
-// Auction type (Tipo de Subasta)
-export type AuctionType = 
-  | 'judicial'        // Subastas Judiciales (courts)
-  | 'notarial'        // Subastas Notariales
-  | 'aeat'            // Agencia Tributaria
-  | 'tributaria'      // Otras administraciones tributarias
-  | 'administrativa'  // Subastas administrativas generales
-  | 'bancaria';       // Subastas Bancarias
+// Auction type (Tipo de Subasta) — canonical BOE families.
+// Canonical going-forward values match the BOE prefix scraper:
+//   judicial / notarial / aeat / otras_tributarias / administrativas.
+// Legacy singular forms (tributaria / administrativa) are kept so older
+// historical rows keep round-tripping; the API maps both spellings to the
+// same DB filter so a chip click matches every row of that family.
+export type AuctionType =
+  | 'judicial'           // Subastas Judiciales (SUB-JA/JV/JC)
+  | 'notarial'           // Subastas Notariales (SUB-NH/NN)
+  | 'aeat'               // Agencia Tributaria (SUB-AT)
+  | 'otras_tributarias'  // Otras administraciones tributarias (SUB-RC) — canonical new
+  | 'administrativas'    // Administrativas generales (SUB-GA) — canonical new
+  | 'tributaria'         // Legacy singular — kept for back-compat with older rows
+  | 'administrativa'     // Legacy singular — kept for back-compat with older rows
+  | 'bancaria';          // Subastas Bancarias
 
 export type AuctionSource = 
   | 'BOE Judiciales'

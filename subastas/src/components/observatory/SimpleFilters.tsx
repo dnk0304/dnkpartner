@@ -22,6 +22,7 @@ import {
   SIMPLE_KIND_OPTIONS,
   SIMPLE_WHEN_OPTIONS,
   ALL_STATUSES,
+  AUCTION_TYPE_LABEL,
   SORT_OPTIONS,
   DEFAULT_SORT,
 } from "./filters";
@@ -330,9 +331,10 @@ export function ActiveFilterChips({
     });
   }
   for (const t of filters.types) {
+    const meta = AUCTION_TYPE_LABEL[t];
     chips.push({
       key: `tp-${t}`,
-      label: t,
+      label: meta ? meta.label : t,
       onRemove: () => onChange({ types: filters.types.filter((x) => x !== t) }),
     });
   }

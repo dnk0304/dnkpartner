@@ -15,7 +15,21 @@
  */
 
 import * as React from "react";
-import { Home, Car, MapPin, Gavel, Tag, Percent, CalendarClock, Image as ImageIcon } from "lucide-react";
+import {
+  Home,
+  Car,
+  MapPin,
+  Gavel,
+  Tag,
+  Percent,
+  CalendarClock,
+  Image as ImageIcon,
+  FileSignature,
+  Landmark,
+  Receipt,
+  Building2,
+} from "lucide-react";
+import { AuctionType } from "@/types";
 import { apiFetch } from "@/lib/api-path";
 import {
   ObservatoryFilters,
@@ -51,9 +65,7 @@ export function PresetRow({
 }: PresetRowProps) {
   const [catCounts, setCatCounts] = React.useState<CountsBlob | null>(null);
   const [provCounts, setProvCounts] = React.useState<CountsBlob | null>(null);
-  const [typeCounts, setTypeCounts] = React.useState<{ judicialActive: number | null }>({
-    judicialActive: null,
-  });
+  const [typeCounts, setTypeCounts] = React.useState<Partial<Record<AuctionType, number>>>({});
 
   // Load category + province counts once (server caches 60s).
   React.useEffect(() => {
@@ -82,23 +94,39 @@ export function PresetRow({
     };
   }, []);
 
-  // Judicial count — counts endpoint doesn't groupBy auctionType, so fetch a
-  // tiny page to read totalCount. Cheap (limit=1).
+  // Per-type counts — counts endpoint doesn't groupBy auctionType, so we fire
+  // one cheap `limit=1` totalCount probe per BOE family in parallel. The
+  // server's 30s cache means the result is essentially free after first hit.
   React.useEffect(() => {
     let cancelled = false;
+    const families: AuctionType[] = [
+      "judicial",
+      "notarial",
+      "aeat",
+      "otras_tributarias",
+      "administrativas",
+    ];
     (async () => {
-      try {
-        const res = await apiFetch(
-          "/api/auctions?auctionTypes=judicial&statuses=celebrandose,proxima-apertura&page=1&limit=1",
-        );
-        if (cancelled || !res.ok) return;
-        const body = await res.json();
-        const n =
-          typeof body?.pagination?.totalCount === "number" ? body.pagination.totalCount : null;
-        setTypeCounts({ judicialActive: n });
-      } catch {
-        /* silent */
-      }
+      const results = await Promise.all(
+        families.map(async (t): Promise<[AuctionType, number | null]> => {
+          try {
+            const res = await apiFetch(
+              `/api/auctions?auctionTypes=${t}&statuses=celebrandose,proxima-apertura&page=1&limit=1`,
+            );
+            if (!res.ok) return [t, null];
+            const body = await res.json();
+            const n =
+              typeof body?.pagination?.totalCount === "number" ? body.pagination.totalCount : null;
+            return [t, n];
+          } catch {
+            return [t, null];
+          }
+        }),
+      );
+      if (cancelled) return;
+      const next: Partial<Record<AuctionType, number>> = {};
+      for (const [t, n] of results) if (typeof n === "number") next[t] = n;
+      setTypeCounts(next);
     })();
     return () => {
       cancelled = true;
@@ -151,7 +179,38 @@ export function PresetRow({
       id: "judiciales-boe",
       label: "Judiciales del BOE",
       icon: <Gavel className="h-4 w-4" aria-hidden="true" />,
-      count: typeCounts.judicialActive,
+      count: typeCounts.judicial ?? null,
+    },
+  ];
+
+  // BOE family quick-picks — secondary band. Surfaces every type now live in
+  // the data (per-category scrapers shipped 2026-06-01). Same card primitive
+  // as the main 4 so they feel native, but rendered below to keep the original
+  // hierarchy intact.
+  const familyCards: Array<PresetCardSpec> = [
+    {
+      id: "notariales-boe",
+      label: "Notariales",
+      icon: <FileSignature className="h-4 w-4" aria-hidden="true" />,
+      count: typeCounts.notarial ?? null,
+    },
+    {
+      id: "aeat-boe",
+      label: "Hacienda (AEAT)",
+      icon: <Landmark className="h-4 w-4" aria-hidden="true" />,
+      count: typeCounts.aeat ?? null,
+    },
+    {
+      id: "otras-tributarias-boe",
+      label: "Otras tributarias",
+      icon: <Receipt className="h-4 w-4" aria-hidden="true" />,
+      count: typeCounts.otras_tributarias ?? null,
+    },
+    {
+      id: "administrativas-boe",
+      label: "Administrativas",
+      icon: <Building2 className="h-4 w-4" aria-hidden="true" />,
+      count: typeCounts.administrativas ?? null,
     },
   ];
 
@@ -224,6 +283,32 @@ export function PresetRow({
             }
           />
         ))}
+      </div>
+
+      {/* BOE family band — secondary tier of quick-picks, one per type now live
+          in the data. Reuses the PresetCard primitive for visual consistency,
+          but indented below the headline 4 so hierarchy still reads. */}
+      <div className="mt-4">
+        <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[--color-ink-tertiary]">
+          Por tipo de subasta
+        </div>
+        <div
+          className={cn(
+            "flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory -mx-4 px-4",
+            "md:grid md:grid-cols-2 lg:grid-cols-4 md:overflow-visible md:mx-0 md:px-0 md:pb-0",
+          )}
+        >
+          {familyCards.map((c) => (
+            <PresetCard
+              key={c.id}
+              spec={c}
+              active={isPresetActive(filters, c.id)}
+              currentProvince={filters.province}
+              onClick={() => onApplyPreset(presetFilters(c.id))}
+              onProvincePick={() => {}}
+            />
+          ))}
+        </div>
       </div>
 
       {/* P1 — advanced presets band. All free, all visible. Compact chip styling

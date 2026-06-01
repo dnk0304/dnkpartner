@@ -88,12 +88,17 @@ const DB_TO_FRONTEND_STATUS: Record<string, string> = {
   CANCELLED: "cancelada",
 };
 
+// DB stores both new plural (per-category scrapers) and legacy singular for
+// "otras tributarias" / "administrativas". Fold both into the canonical
+// frontend identifier so the UI only sees one label per BOE family.
 const DB_TO_FRONTEND_TYPE: Record<string, string> = {
   JUDICIAL: "judicial",
   NOTARIAL: "notarial",
   AEAT: "aeat",
-  TRIBUTARIA: "tributaria",
-  ADMINISTRATIVA: "administrativa",
+  OTRAS_TRIBUTARIAS: "otras_tributarias",
+  TRIBUTARIA: "otras_tributarias",         // legacy → fold
+  ADMINISTRATIVAS: "administrativas",
+  ADMINISTRATIVA: "administrativas",       // legacy → fold
   BANCARIA: "bancaria",
 };
 

@@ -32,6 +32,7 @@ import { AuctionListRow } from "@/components/observatory/AuctionListRow";
 import { AuctionListCard } from "@/components/observatory/AuctionListCard";
 import { RegistroTable } from "@/components/observatory/RegistroTable";
 import { PresetRow } from "@/components/observatory/PresetRow";
+import { TypeFilterChips } from "@/components/observatory/TypeFilterChips";
 import { SortDropdown } from "@/components/observatory/SortDropdown";
 import {
   ObservatoryFilters,
@@ -260,6 +261,12 @@ export default function SubastasListClient() {
               onApplyPreset={(patch) => updateFilters(patch)}
               muted={advanced}
             />
+          </div>
+
+          {/* Tipo de subasta — primary BOE-family filter chips, surfaced as a
+              first-class dimension now that all 5 families are live in the data. */}
+          <div className="mb-5">
+            <TypeFilterChips filters={filters} onChange={updateFilters} />
           </div>
 
           {/* Mobile: filter trigger only in Advanced mode (otherwise presets cover the simple case) */}

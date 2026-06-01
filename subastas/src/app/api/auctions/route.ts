@@ -63,8 +63,20 @@ type DBStatus =
   // Legacy values
   | 'ACTIVE' | 'FINISHED' | 'PRE_AUCTION' | 'SUSPENDED' | 'CANCELLED';
 
-// Auction type values
-type DBAuctionType = 'JUDICIAL' | 'NOTARIAL' | 'AEAT' | 'TRIBUTARIA' | 'ADMINISTRATIVA' | 'BANCARIA';
+// Auction type values — DB stores either the new canonical plural form
+// (OTRAS_TRIBUTARIAS / ADMINISTRATIVAS) from the per-category scrapers, or
+// the legacy singular form (TRIBUTARIA / ADMINISTRATIVA) on older rows.
+// Both are accepted here; the mapAuctionType collapser folds them to a
+// single canonical frontend value so the UI never has to know.
+type DBAuctionType =
+  | 'JUDICIAL'
+  | 'NOTARIAL'
+  | 'AEAT'
+  | 'OTRAS_TRIBUTARIAS'
+  | 'TRIBUTARIA'         // legacy
+  | 'ADMINISTRATIVAS'
+  | 'ADMINISTRATIVA'     // legacy
+  | 'BANCARIA';
 
 interface AuctionFromDB {
   id: string;
@@ -134,16 +146,20 @@ function mapStatus(dbStatus: DBStatus): string {
   return statusMap[dbStatus] || 'celebrandose';
 }
 
-// Map DB auction type to frontend auction type
+// Map DB auction type to frontend auction type — legacy singular labels
+// (TRIBUTARIA / ADMINISTRATIVA) fold into the new canonical plurals so the UI
+// only ever sees one identifier per BOE family.
 function mapAuctionType(dbType: DBAuctionType | null): string | undefined {
   if (!dbType) return undefined;
   const typeMap: Record<DBAuctionType, string> = {
     'JUDICIAL': 'judicial',
     'NOTARIAL': 'notarial',
     'AEAT': 'aeat',
-    'TRIBUTARIA': 'tributaria',
-    'ADMINISTRATIVA': 'administrativa',
-    'BANCARIA': 'bancaria'
+    'OTRAS_TRIBUTARIAS': 'otras_tributarias',
+    'TRIBUTARIA': 'otras_tributarias',       // legacy → fold
+    'ADMINISTRATIVAS': 'administrativas',
+    'ADMINISTRATIVA': 'administrativas',     // legacy → fold
+    'BANCARIA': 'bancaria',
   };
   return typeMap[dbType];
 }
@@ -711,16 +727,38 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    // Filter by auction type
+    // Filter by auction type. The frontend speaks the canonical plural form
+    // (otras_tributarias / administrativas); the DB has BOTH the plural form
+    // (new per-category scrapers) and the legacy singular form (older rows).
+    // Expand each requested type to all DB labels that family ever used.
+    const TYPE_QUERY_TO_DB: Record<string, string[]> = {
+      JUDICIAL: ['JUDICIAL'],
+      NOTARIAL: ['NOTARIAL'],
+      AEAT: ['AEAT'],
+      OTRAS_TRIBUTARIAS: ['OTRAS_TRIBUTARIAS', 'TRIBUTARIA'],
+      TRIBUTARIA: ['OTRAS_TRIBUTARIAS', 'TRIBUTARIA'],
+      ADMINISTRATIVAS: ['ADMINISTRATIVAS', 'ADMINISTRATIVA'],
+      ADMINISTRATIVA: ['ADMINISTRATIVAS', 'ADMINISTRATIVA'],
+      BANCARIA: ['BANCARIA'],
+    };
     if (auctionTypes) {
       const typeList = auctionTypes.split(',').map(t => t.trim().toUpperCase());
-      if (typeList.length > 0) {
-        sql += ` AND auctionType IN (${typeList.map(() => '?').join(', ')})`;
-        params.push(...typeList);
+      const dbTypeSet = new Set<string>();
+      for (const t of typeList) {
+        const expanded = TYPE_QUERY_TO_DB[t];
+        if (expanded) expanded.forEach((v) => dbTypeSet.add(v));
+        else dbTypeSet.add(t); // unknown — pass through, never crash the query
+      }
+      const dbTypes = Array.from(dbTypeSet);
+      if (dbTypes.length > 0) {
+        sql += ` AND auctionType IN (${dbTypes.map(() => '?').join(', ')})`;
+        params.push(...dbTypes);
       }
     } else if (auctionType) {
-      sql += ' AND auctionType = ?';
-      params.push(auctionType.toUpperCase());
+      const upper = auctionType.toUpperCase();
+      const expanded = TYPE_QUERY_TO_DB[upper] ?? [upper];
+      sql += ` AND auctionType IN (${expanded.map(() => '?').join(', ')})`;
+      params.push(...expanded);
     }
     
     // Cursor-based pagination — cursor semantics depend on active sort.

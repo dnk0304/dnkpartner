@@ -136,13 +136,23 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
         className: 'bg-[--color-status-cancelled-soft] text-[--color-ink-primary] border border-[--color-status-cancelled]/40',
         icon: <Landmark className="w-3 h-3" />
       },
-      'tributaria': {
-        label: 'Tributaria',
+      'otras_tributarias': {
+        label: 'Otras tributarias',
         className: 'bg-[--color-status-suspended-soft] text-[--color-ink-primary] border border-[--color-status-suspended]/40',
         icon: <CircleDollarSign className="w-3 h-3" />
       },
+      'tributaria': {
+        label: 'Otras tributarias',
+        className: 'bg-[--color-status-suspended-soft] text-[--color-ink-primary] border border-[--color-status-suspended]/40',
+        icon: <CircleDollarSign className="w-3 h-3" />
+      },
+      'administrativas': {
+        label: 'Administrativas',
+        className: 'bg-[--color-surface-muted] text-[--color-ink-primary] border border-[--color-hairline]',
+        icon: <Building2 className="w-3 h-3" />
+      },
       'administrativa': {
-        label: 'Administrativa',
+        label: 'Administrativas',
         className: 'bg-[--color-surface-muted] text-[--color-ink-primary] border border-[--color-hairline]',
         icon: <Building2 className="w-3 h-3" />
       },

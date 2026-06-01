@@ -18,6 +18,7 @@ import Image from "next/image";
 import { ImageOff, MapPin } from "lucide-react";
 import { AuctionItem, type AuctionStatus } from "@/types";
 import { StatusBadge } from "./StatusBadge";
+import { AuctionTypeBadge } from "./AuctionTypeBadge";
 import { LiveCountdown } from "./LiveCountdown";
 import { FollowButton } from "@/components/notifications/FollowButton";
 import { formatPrice, capitalize, titleCase, displayTitle, formatDaysLeft } from "./format";
@@ -104,8 +105,9 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             <span className="text-[10px] uppercase tracking-wide">Sin foto disponible</span>
           </div>
         )}
-        <span className="pointer-events-none absolute top-2 left-2">
+        <span className="pointer-events-none absolute top-2 left-2 flex items-center gap-1.5">
           <StatusBadge status={effective} size="sm" />
+          {item.auctionType && <AuctionTypeBadge type={item.auctionType} size="sm" />}
         </span>
         {daysBadge && (
           <span

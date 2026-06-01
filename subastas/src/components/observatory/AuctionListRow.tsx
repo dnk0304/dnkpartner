@@ -17,6 +17,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { AuctionItem, type AuctionStatus } from "@/types";
 import { StatusDot } from "./StatusBadge";
+import { AuctionTypeBadge } from "./AuctionTypeBadge";
 import { LiveCountdown } from "./LiveCountdown";
 import { FollowButton } from "@/components/notifications/FollowButton";
 import { formatPrice, capitalize, titleCase, displayTitle } from "./format";
@@ -100,6 +101,11 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
               <span aria-hidden="true">·</span>
               <span className="truncate">{where}</span>
             </>
+          )}
+          {item.auctionType && (
+            <span className="hidden sm:inline-flex">
+              <AuctionTypeBadge type={item.auctionType} size="xs" />
+            </span>
           )}
         </div>
           </div>
