@@ -35,6 +35,62 @@ BOE_STATUS_MAP = {
     'FI': 'FINALIZADA_AUTORIDAD',  # Finalizada por Autoridad
 }
 
+# ---------------------------------------------------------------------------
+# Auction-type (category) derivation from the BOE identifier prefix.
+#
+# The BOE idSub carries an authoritative two-letter family code right after
+# "SUB-". These were VERIFIED LIVE on subastas.boe.es (2026-06-01) by filtering
+# the advanced-search "Tipo de subasta" radio (SUBASTA.ORIGEN) and reading the
+# resulting idSub prefixes — they do NOT match the NE/NV guesses in early
+# planning docs. The mapping below is the real one:
+#
+#   ORIGEN radio value  ->  idSub prefixes seen  ->  auctionType
+#   J  Judicial             SUB-JA / SUB-JV / SUB-JC   JUDICIAL
+#   N  Notarial             SUB-NH / SUB-NN            NOTARIAL
+#   A  AEAT                 SUB-AT                     AEAT
+#   R  Otras trib.          SUB-RC                     OTRAS_TRIBUTARIAS
+#   G  Admin. generales     SUB-GA                     ADMINISTRATIVAS
+#
+# The detail page's "Tipo de subasta" label is a secondary confirmation
+# (e.g. "NOTARIAL HIPOTECARIA", "AGENCIA TRIBUTARIA", "RECAUDACIÓN TRIBUTARIA",
+# "ADMINISTRATIVA GENERAL") but the prefix is cheapest + always present.
+#
+# NOTE: legacy historical rows were classified by the older text-based heuristic
+# and may carry the older labels TRIBUTARIA / ADMINISTRATIVA. The canonical
+# going-forward enum is the right-hand column here.
+BOE_PREFIX_AUCTION_TYPE = {
+    'JA': 'JUDICIAL', 'JV': 'JUDICIAL', 'JC': 'JUDICIAL',
+    'NH': 'NOTARIAL', 'NN': 'NOTARIAL', 'NE': 'NOTARIAL', 'NV': 'NOTARIAL',
+    'AT': 'AEAT',
+    'RC': 'OTRAS_TRIBUTARIAS',
+    'GA': 'ADMINISTRATIVAS',
+}
+
+# ORIGEN radio value (SUBASTA.ORIGEN) -> canonical auctionType, used by the
+# per-category scrapers so each script declares exactly one BOE family.
+ORIGEN_TO_AUCTION_TYPE = {
+    'J': 'JUDICIAL',
+    'N': 'NOTARIAL',
+    'A': 'AEAT',
+    'R': 'OTRAS_TRIBUTARIAS',
+    'G': 'ADMINISTRATIVAS',
+}
+
+
+def auction_type_from_boe_id(boe_id: Optional[str]) -> Optional[str]:
+    """
+    Derive the canonical auctionType from a BOE idSub prefix (SUB-XX-...).
+    Returns None when the id is missing or the prefix is unrecognised, so the
+    caller can fall back to the text-based heuristic.
+    """
+    if not boe_id:
+        return None
+    m = re.match(r'SUB-([A-Z]{2})', boe_id.upper())
+    if not m:
+        return None
+    return BOE_PREFIX_AUCTION_TYPE.get(m.group(1))
+
+
 # Status text to status code mapping
 BOE_STATUS_TEXT_MAP = {
     'próxima apertura': 'PROXIMA_APERTURA',
@@ -173,15 +229,29 @@ class BOEScraper(BaseScraper):
         
         return url
     
-    def detect_auction_type(self, autoridad_gestora: str, court_name: str = None) -> str:
+    def detect_auction_type(self, autoridad_gestora: str, court_name: str = None,
+                            boe_id: str = None) -> str:
         """
-        Detect auction type from Autoridad Gestora field
-        
-        Returns: JUDICIAL, NOTARIAL, AEAT, TRIBUTARIA, ADMINISTRATIVA, or BANCARIA
+        Detect the canonical auctionType for an auction.
+
+        Resolution order (most authoritative first):
+          1. The BOE idSub prefix (SUB-XX-...) via auction_type_from_boe_id —
+             this is the same classification the portal's "Tipo de subasta"
+             radio uses, so it is exact.
+          2. The Autoridad Gestora / court-name text heuristic (legacy fallback
+             for rows whose id we don't have or whose prefix is unknown).
+
+        Returns one of: JUDICIAL, NOTARIAL, AEAT, OTRAS_TRIBUTARIAS,
+        ADMINISTRATIVAS (canonical), or legacy TRIBUTARIA/ADMINISTRATIVA from the
+        text path.
         """
+        prefix_type = auction_type_from_boe_id(boe_id)
+        if prefix_type:
+            return prefix_type
+
         if not autoridad_gestora:
             autoridad_gestora = court_name or ''
-        
+
         text = autoridad_gestora.lower()
         
         # AEAT - Agencia Tributaria
@@ -287,8 +357,9 @@ class BOEScraper(BaseScraper):
             if not autoridad_gestora:
                 autoridad_gestora = self._extract_autoridad(full_text)
             
-            # Detect auction type
-            auction_type = self.detect_auction_type(autoridad_gestora)
+            # Detect auction type — prefer the authoritative idSub prefix,
+            # fall back to the autoridad-gestora text heuristic.
+            auction_type = self.detect_auction_type(autoridad_gestora, boe_id=boe_id)
             
             # Province: prefer self.province (set when scraping per-province),
             # otherwise derive from municipality or from full listing text.
@@ -811,7 +882,18 @@ class BOEScraper(BaseScraper):
         return None
 
     def _fetch_detail_info(self, boe_id: str) -> Dict[str, Optional[str]]:
-        """Fetch comprehensive detail information from auction detail page"""
+        """
+        Fetch comprehensive detail information from an auction detail page using
+        the SHARED browser_manager page.
+
+        Per-category scrapers that run their own sync-Playwright browser
+        (BOEParallelScraper / CategoryBOEScraper) MUST NOT use this path: opening
+        a second Playwright instance from inside a thread that already owns one
+        raises "using Playwright Sync API inside the asyncio loop" and the detail
+        fetch silently fails (=> NULL appraisal/minBid/deposit on every row).
+        Those classes override _fetch_detail_info to navigate with their OWN page
+        and then call _extract_detail_from_page (below) for the shared extraction.
+        """
         page = None
         try:
             page = self.browser_manager.get_page(stealth=True)
@@ -824,7 +906,35 @@ class BOEScraper(BaseScraper):
             # server-rendered in the initial HTML, so domcontentloaded is enough.
             page.goto(detail_url, wait_until='domcontentloaded', timeout=30000)
             random_delay(1.0, 2.0)
+            return self._extract_detail_from_page(page, boe_id, detail_url)
+        except Exception as e:
+            self.log_warning(f"Failed to fetch detail info for {boe_id}: {e}")
+            return self._empty_detail_info(boe_id)
+        finally:
+            if page:
+                self.browser_manager.close_page(page)
 
+    def _empty_detail_info(self, boe_id: str) -> Dict[str, Optional[str]]:
+        return {
+            'general_info': None,
+            'autoridad_gestora': None,
+            'bienes_info': None,
+            'pujas_info': None,
+            'warning': None,
+            'detail_url': f"{self.DETAIL_URL}?idSub={boe_id}",
+            'cadastral_ref': None,
+            'cadastral_data': None,
+        }
+
+    def _extract_detail_from_page(self, page: Any, boe_id: str,
+                                  detail_url: str) -> Dict[str, Optional[str]]:
+        """
+        Extract all detail-page fields from an ALREADY-NAVIGATED page. Shared by
+        the shared-browser path (_fetch_detail_info) and the own-browser path
+        (CategoryBOEScraper._fetch_detail_info), so the extraction logic lives in
+        exactly one place regardless of which browser opened the page.
+        """
+        try:
             # Extract all major sections
             general_info = (
                 self._extract_section_text(page, 'Información general') or
@@ -896,20 +1006,8 @@ class BOEScraper(BaseScraper):
                 'detail_status': detail_status,
             }
         except Exception as e:
-            self.log_warning(f"Failed to fetch detail info for {boe_id}: {e}")
-            return {
-                'general_info': None,
-                'autoridad_gestora': None,
-                'bienes_info': None,
-                'pujas_info': None,
-                'warning': None,
-                'detail_url': f"{self.DETAIL_URL}?idSub={boe_id}",
-                'cadastral_ref': None,
-                'cadastral_data': None,
-            }
-        finally:
-            if page:
-                self.browser_manager.close_page(page)
+            self.log_warning(f"Failed to extract detail info for {boe_id}: {e}")
+            return self._empty_detail_info(boe_id)
 
     def _extract_section_text(self, page: Any, title: str) -> Optional[str]:
         try:

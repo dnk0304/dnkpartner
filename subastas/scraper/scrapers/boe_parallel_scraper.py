@@ -79,7 +79,42 @@ class BOEParallelScraper(BOEScraper):
     
     def get_source_name(self) -> str:
         return f"BOE_PARALLEL_{self.scraper_id}"
-    
+
+    def _fetch_detail_info(self, boe_id):
+        """
+        Own-browser detail fetch (overrides the shared-browser path).
+
+        BUG FIX (2026-06-01, verified on SUB-NN-2026-1626077): the inherited
+        BOEScraper._fetch_detail_info opens the detail page on the SHARED
+        browser_manager. But this class drives its OWN sync-Playwright browser
+        (_get_own_page); opening a second Playwright instance from the same
+        thread raises "using Playwright Sync API inside the asyncio loop", so the
+        detail fetch failed for EVERY row and appraisal/minBid/deposit/title came
+        back NULL even when BOE published them. This affected the judicial daily
+        update too (this class is its scraper). Navigate with our own page and
+        reuse the shared _extract_detail_from_page so financial fields populate.
+        """
+        page = None
+        detail_url = f"{self.DETAIL_URL}?idSub={boe_id}"
+        try:
+            page = self._get_own_page()
+            random_delay(1.0, 2.0)
+            page.goto(detail_url, wait_until='domcontentloaded', timeout=30000)
+            random_delay(1.0, 2.0)
+            return self._extract_detail_from_page(page, boe_id, detail_url)
+        except Exception as e:
+            self.log_warning(f"Failed to fetch detail info for {boe_id}: {e}")
+            return self._empty_detail_info(boe_id)
+        finally:
+            if page is not None:
+                try:
+                    page.context.close()
+                except Exception:
+                    try:
+                        page.close()
+                    except Exception:
+                        pass
+
     def validate_auction_data(self, data: Dict[str, Any]) -> bool:
         """Relaxed validation - appraisal value optional.
 

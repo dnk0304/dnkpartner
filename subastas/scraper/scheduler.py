@@ -400,6 +400,43 @@ class ScraperScheduler:
             import traceback
             self.log(traceback.format_exc())
 
+    # -----------------------------------------------------------------------
+    # Per-category daily updates (Phase 2) — one method per BOE "Tipo de
+    # subasta" family, each registered 4x/day on its own schedule. The judicial
+    # family is already covered by run_daily_update_scraper (the unfiltered
+    # BOEParallelScraper); these add the four NEW families. Each imports its own
+    # per-category scraper module (Dennis's directive: one script per category)
+    # which all share the extraction guts via CategoryBOEScraper.
+    # -----------------------------------------------------------------------
+
+    def _run_category_update(self, module_name: str, label: str):
+        """Run one per-category daily update via its module's run_daily_update()."""
+        self.log(f"Running {label} category update...")
+        try:
+            sys.path.insert(0, '/')
+            import importlib
+            mod = importlib.import_module(f"app.scrapers.{module_name}")
+            progress = mod.run_daily_update()
+            total = (progress or {}).get('total_auctions', 0)
+            errors = len((progress or {}).get('errors', []))
+            self.log(f"  {label} update complete: fetched={total}, errors={errors}")
+        except Exception as e:
+            self.log(f"  {label} update exception: {e}")
+            import traceback
+            self.log(traceback.format_exc())
+
+    def run_notarial_update(self):
+        self._run_category_update("notarial_scraper", "NOTARIAL")
+
+    def run_aeat_update(self):
+        self._run_category_update("aeat_scraper", "AEAT")
+
+    def run_otras_tributarias_update(self):
+        self._run_category_update("otras_tributarias_scraper", "OTRAS_TRIBUTARIAS")
+
+    def run_administrativas_update(self):
+        self._run_category_update("administrativas_scraper", "ADMINISTRATIVAS")
+
     def trigger_alert_check(self):
         """Trigger /api/alerts/check after daily refresh jobs."""
         self.log("Triggering alert check endpoint...")
@@ -483,10 +520,25 @@ class ScraperScheduler:
         # Status monitor (expire + ending_soon) — every 30 min
         schedule.every(30).minutes.do(self.monitor_status_changes)
 
-        # Daily BOE update + alert trigger — 08:00, 14:00, 20:00
+        # Daily BOE update (JUDICIAL family) + alert trigger — 08:00, 14:00, 20:00
         schedule.every().day.at("08:00").do(self.run_daily_update_and_alerts)
         schedule.every().day.at("14:00").do(self.run_daily_update_and_alerts)
         schedule.every().day.at("20:00").do(self.run_daily_update_and_alerts)
+
+        # Phase 2: per-category updates, each 4x/day on its own staggered
+        # schedule (offset from the judicial slots + from each other so we never
+        # launch two Playwright browsers at the same minute on a small box).
+        # NOTARIAL is the proven template wired now; AEAT / OTRAS_TRIBUTARIAS /
+        # ADMINISTRATIVAS are registered the same way (Stage 2) once verified.
+        for t in ("06:30", "12:30", "18:30", "23:30"):
+            schedule.every().day.at(t).do(self.run_notarial_update)
+        # --- Stage 2 (uncomment when each is verified end-to-end) ---
+        # for t in ("06:45", "12:45", "18:45", "23:45"):
+        #     schedule.every().day.at(t).do(self.run_aeat_update)
+        # for t in ("07:00", "13:00", "19:00", "00:00"):
+        #     schedule.every().day.at(t).do(self.run_otras_tributarias_update)
+        # for t in ("07:15", "13:15", "19:15", "00:15"):
+        #     schedule.every().day.at(t).do(self.run_administrativas_update)
 
         # Wave 2b: dispatcher drain — every DISPATCH_INTERVAL_MIN minutes
         schedule.every(DISPATCH_INTERVAL_MIN).minutes.do(self.dispatch_outbox)
@@ -500,7 +552,8 @@ class ScraperScheduler:
         self.log("Schedule configured:")
         self.log("  Pulse (bid updates):  Every 35 min")
         self.log("  Status monitor:       Every 30 min")
-        self.log(f"  Daily BOE + alerts:   08:00, 14:00, 20:00")
+        self.log(f"  Daily BOE + alerts:   08:00, 14:00, 20:00 (JUDICIAL)")
+        self.log(f"  Notarial update:      06:30, 12:30, 18:30, 23:30 (4x/day)")
         self.log(f"  Dispatch outbox:      Every {DISPATCH_INTERVAL_MIN} min")
         self.log(f"  Geocode drain:        Every {geocode_interval} min (active rows only)")
         self.log(f"  ending_soon window:   {ENDING_SOON_HOURS}h before endsAt")
