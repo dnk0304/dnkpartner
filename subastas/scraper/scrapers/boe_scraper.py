@@ -626,7 +626,9 @@ class BOEScraper(BaseScraper):
             self.log_info(f"Updating bid for {boe_id}")
             
             random_delay(1.0, 2.5)
-            page.goto(detail_url, wait_until='networkidle', timeout=30000)
+            # domcontentloaded (see _fetch_detail_info): networkidle hangs on
+            # live-auction pages whose countdown keeps the network busy.
+            page.goto(detail_url, wait_until='domcontentloaded', timeout=30000)
             random_delay(1.5, 3.0)
             
             # Check if auction ended
@@ -815,7 +817,12 @@ class BOEScraper(BaseScraper):
             page = self.browser_manager.get_page(stealth=True)
             detail_url = f"{self.DETAIL_URL}?idSub={boe_id}"
             random_delay(1.0, 2.0)
-            page.goto(detail_url, wait_until='networkidle', timeout=30000)
+            # 'domcontentloaded', NOT 'networkidle': live-auction detail pages
+            # keep long-poll/countdown connections open, so networkidle often
+            # never fires and goto hangs past its timeout under load (the cause
+            # of batch re-scrapes stalling). All financial label/value pairs are
+            # server-rendered in the initial HTML, so domcontentloaded is enough.
+            page.goto(detail_url, wait_until='domcontentloaded', timeout=30000)
             random_delay(1.0, 2.0)
 
             # Extract all major sections
