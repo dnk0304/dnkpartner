@@ -30,6 +30,18 @@ export type LiveCountdownProps = {
   prefix?: string;
   /** Optional callback fired the moment target time passes. */
   onElapsed?: () => void;
+  /**
+   * Effective (clock-wins) status of the auction. When supplied and the
+   * status is non-terminal (live/upcoming/suspended-active) but `target` is
+   * already in the past — i.e. stale data where the row hasn't transitioned
+   * yet — the countdown renders "—" instead of "Finalizada". This preserves
+   * the invariant: the badge and the time field can never contradict.
+   *
+   * When effective status IS terminal (concluida/finalizada/cancelada), the
+   * existing "Finalizada" past-text is consistent with the badge and remains.
+   * When omitted, behaviour is unchanged (legacy callers).
+   */
+  effectiveStatus?: string | null;
   className?: string;
 };
 
@@ -58,11 +70,21 @@ function diffParts(targetMs: number): Parts {
   return { totalMs, days, hours, minutes, seconds, isPast };
 }
 
+// Terminal status set — kept local to avoid a circular import with status.ts.
+// Mirrors the concluded/cancelled buckets in STATUS_META there.
+const TERMINAL_STATUSES = new Set<string>([
+  "concluida-portal",
+  "finalizada-autoridad",
+  "finished",
+  "cancelada",
+]);
+
 export function LiveCountdown({
   target,
   size = "sm",
   prefix,
   onElapsed,
+  effectiveStatus,
   className,
 }: LiveCountdownProps) {
   const targetMs = React.useMemo(() => {
@@ -109,6 +131,27 @@ export function LiveCountdown({
   }
 
   if (parts.isPast) {
+    // Invariant guard: if the caller told us the auction's effective status
+    // is NON-terminal (still live / upcoming / suspended-as-active) but the
+    // target timestamp is already in the past, this is stale data — the row
+    // hasn't transitioned yet. Showing "Finalizada" here would contradict the
+    // badge alongside it. Render a neutral em-dash instead.
+    const isNonTerminalActive =
+      effectiveStatus != null && !TERMINAL_STATUSES.has(effectiveStatus);
+    if (isNonTerminalActive) {
+      return (
+        <span
+          className={cn(
+            "tnum text-[--color-ink-quiet]",
+            size === "lg" ? "text-base" : "text-xs",
+            className,
+          )}
+          aria-label="Fecha de cierre no disponible"
+        >
+          —
+        </span>
+      );
+    }
     return (
       <span
         className={cn(

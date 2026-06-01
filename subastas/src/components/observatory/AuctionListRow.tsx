@@ -15,12 +15,12 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { AuctionItem } from "@/types";
+import { AuctionItem, type AuctionStatus } from "@/types";
 import { StatusDot } from "./StatusBadge";
 import { LiveCountdown } from "./LiveCountdown";
 import { FollowButton } from "@/components/notifications/FollowButton";
 import { formatPrice, capitalize, titleCase, displayTitle } from "./format";
-import { getStatusMeta } from "./status";
+import { getStatusMeta, effectiveStatus } from "./status";
 import { cn } from "@/lib/utils";
 
 function isRealPhotoUrl(url?: string | null): boolean {
@@ -34,7 +34,10 @@ export type AuctionListRowProps = {
 };
 
 export function AuctionListRow({ item, className }: AuctionListRowProps) {
-  const meta = getStatusMeta(item.status);
+  // Clock-wins: a stale celebrandose row whose endDate has passed must render
+  // as concluded so the dot + label + countdown agree.
+  const effective = effectiveStatus(item.status, item.endDate) as AuctionStatus;
+  const meta = getStatusMeta(effective);
   const where = [item.municipality && titleCase(item.municipality), item.province && capitalize(item.province)]
     .filter(Boolean)
     .join(" · ");
@@ -58,7 +61,7 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
       )}
     >
       <td className="w-6 align-top py-3 pl-4">
-        <StatusDot status={item.status} size={8} className="mt-1.5" />
+        <StatusDot status={effective} size={8} className="mt-1.5" />
       </td>
 
       <td className="align-top py-3 pr-3 min-w-0">
@@ -149,7 +152,7 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
       </td>
 
       <td className="hidden md:table-cell align-top py-3 pr-3 text-right whitespace-nowrap">
-        <LiveCountdown target={item.endDate} size="sm" />
+        <LiveCountdown target={item.endDate} size="sm" effectiveStatus={effective} />
       </td>
 
       <td className="align-top py-3 pr-4 whitespace-nowrap">

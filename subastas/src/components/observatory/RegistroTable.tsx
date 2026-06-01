@@ -24,7 +24,8 @@ import {
   displayTitle,
   daysLeft,
 } from "./format";
-import { getStatusMeta } from "./status";
+import { getStatusMeta, effectiveStatus } from "./status";
+import type { AuctionStatus } from "@/types";
 import { WarnFlag } from "./WarnFlag";
 import { cn } from "@/lib/utils";
 
@@ -66,7 +67,13 @@ export function RegistroTable({ items, className }: Props) {
 }
 
 function RegistroRow({ item }: { item: AuctionItem }) {
-  const meta = getStatusMeta(item.status);
+  // Clock-wins: if the DB still says celebrandose/proxima but endDate is in
+  // the past (stale row not yet swept), every status-driven cell in this row
+  // — ESTADO column, countdown, warn-flags — must agree it's concluded.
+  // Otherwise ESTADO ("CELEBRÁNDOSE") contradicts CIERRE ("Finalizada"),
+  // which is the exact bug Dennis screenshotted.
+  const effective = effectiveStatus(item.status, item.endDate) as AuctionStatus;
+  const meta = getStatusMeta(effective);
   const where = [
     item.municipality && titleCase(item.municipality),
     item.province && capitalize(item.province),
@@ -75,7 +82,7 @@ function RegistroRow({ item }: { item: AuctionItem }) {
     .join(" · ");
   const title = displayTitle(item);
   const dl = daysLeft(item.endDate);
-  const critical = dl != null && dl <= 1 && item.status !== "concluida-portal" && item.status !== "finalizada-autoridad";
+  const critical = dl != null && dl <= 1 && effective !== "concluida-portal" && effective !== "finalizada-autoridad";
   const attention = dl != null && dl > 1 && dl <= 3;
 
   // Build small warn-flag set for the Avisos column.
@@ -93,7 +100,7 @@ function RegistroRow({ item }: { item: AuctionItem }) {
       </WarnFlag>
     );
   }
-  if (item.status === "suspendida") {
+  if (effective === "suspendida") {
     flags.push(
       <WarnFlag key="s" level="attention">
         Suspendida
@@ -121,7 +128,7 @@ function RegistroRow({ item }: { item: AuctionItem }) {
           className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[--color-ink-primary]"
           aria-label={`Estado: ${meta.label}`}
         >
-          <StatusDot status={item.status} size={8} />
+          <StatusDot status={effective} size={8} />
           <span className="whitespace-nowrap">{meta.label}</span>
         </Link>
       </td>
@@ -147,7 +154,7 @@ function RegistroRow({ item }: { item: AuctionItem }) {
       </td>
       <td className="hidden md:table-cell py-3 pr-3 align-top text-[12px] text-[--color-ink-primary] whitespace-nowrap">
         {item.endDate ? (
-          <LiveCountdown target={item.endDate} size="sm" />
+          <LiveCountdown target={item.endDate} size="sm" effectiveStatus={effective} />
         ) : (
           <span className="text-[--color-ink-quiet]">—</span>
         )}

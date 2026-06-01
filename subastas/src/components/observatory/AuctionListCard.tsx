@@ -16,11 +16,12 @@ import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ImageOff, MapPin } from "lucide-react";
-import { AuctionItem } from "@/types";
+import { AuctionItem, type AuctionStatus } from "@/types";
 import { StatusBadge } from "./StatusBadge";
 import { LiveCountdown } from "./LiveCountdown";
 import { FollowButton } from "@/components/notifications/FollowButton";
 import { formatPrice, capitalize, titleCase, displayTitle, formatDaysLeft } from "./format";
+import { effectiveStatus } from "./status";
 import { cn } from "@/lib/utils";
 
 /**
@@ -39,6 +40,9 @@ export type AuctionListCardProps = {
 };
 
 export function AuctionListCard({ item, className }: AuctionListCardProps) {
+  // Clock-wins: stale celebrandose row with past endDate renders as concluded
+  // so badge + countdown agree.
+  const effective = effectiveStatus(item.status, item.endDate) as AuctionStatus;
   const where = [item.municipality && titleCase(item.municipality), item.province && capitalize(item.province)]
     .filter(Boolean)
     .join(" · ");
@@ -101,7 +105,7 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
           </div>
         )}
         <span className="pointer-events-none absolute top-2 left-2">
-          <StatusBadge status={item.status} size="sm" />
+          <StatusBadge status={effective} size="sm" />
         </span>
         {daysBadge && (
           <span
@@ -186,7 +190,7 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             </span>
           )}
           {hasEndDate && (
-            <LiveCountdown target={item.endDate} size="sm" prefix="Termina en" />
+            <LiveCountdown target={item.endDate} size="sm" prefix="Termina en" effectiveStatus={effective} />
           )}
         </div>
 

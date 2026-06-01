@@ -87,7 +87,12 @@ export function DetailStatusPanel({
           <div className="text-[10px] font-semibold uppercase tracking-wider text-[--color-ink-tertiary]">
             {live ? "Tiempo restante" : "Abre en"}
           </div>
-          <LiveCountdown target={countdownTarget} size="lg" className="mt-1" />
+          <LiveCountdown
+            target={countdownTarget}
+            size="lg"
+            className="mt-1"
+            effectiveStatus={resolvedStatus}
+          />
           <div className="mt-1.5 text-xs text-[--color-ink-tertiary] tnum">
             {live
               ? auction.endsAt
