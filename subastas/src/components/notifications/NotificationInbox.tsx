@@ -202,8 +202,8 @@ export function NotificationInbox() {
               "px-3 h-7 text-xs font-medium rounded-full transition-colors",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1F3A5F]/40",
               filter === f
-                ? "bg-[#1F3A5F] text-white"
-                : "text-[#1F3A5F]/70 hover:text-[#1F3A5F]",
+                ? "bg-[--color-action-soft] border border-[--color-action] text-[--color-ink-primary]"
+                : "text-[--color-ink-primary] hover:bg-[--color-surface-muted]",
             )}
           >
             {f === "all" ? "Todas" : "Sin leer"}
@@ -275,7 +275,7 @@ function EmptyState({ filter }: { filter: Filter }) {
       <div className="mt-4">
         <Link
           href="/"
-          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-[#1F3A5F] text-white text-sm font-medium hover:bg-[#1F3A5F]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#1F3A5F]"
+          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-[--color-action-soft] border border-[--color-action] text-[--color-ink-primary] text-sm font-medium hover:bg-[--color-action-soft]/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[--color-action]"
         >
           Explorar subastas
         </Link>

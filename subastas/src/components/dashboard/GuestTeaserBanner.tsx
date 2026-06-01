@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Lock, TrendingUp } from 'lucide-react';
+import { ArrowRight, Lock } from 'lucide-react';
 import Link from 'next/link';
 
 interface GuestTeaserBannerProps {
@@ -10,44 +10,58 @@ interface GuestTeaserBannerProps {
   preAuctionCount: number;
 }
 
-export const GuestTeaserBanner: React.FC<GuestTeaserBannerProps> = ({ activeCount, preAuctionCount }) => {
+/**
+ * GuestTeaserBanner — anonymous-visitor banner.
+ *
+ * Redesign #3: light surface, black ink, Spanish copy, hairline borders.
+ * "Iniciar sesión" left as a ghost light-bg button. "Registrarse" CTA
+ * follows the login/signup exception (bg-black text-white per Dennis).
+ */
+export const GuestTeaserBanner: React.FC<GuestTeaserBannerProps> = ({
+  activeCount,
+  preAuctionCount,
+}) => {
   return (
-    <div className="bg-black text-white relative overflow-hidden">
-      {/* Abstract Background Pattern */}
-      <div className="absolute inset-0 opacity-20">
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-br from-purple-500 to-blue-500 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/3" />
-        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-gradient-to-tr from-yellow-500 to-red-500 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/3" />
-      </div>
-
-      <div className="max-w-7xl mx-auto px-6 py-4 relative z-10 flex flex-col sm:flex-row items-center justify-between gap-4">
-        
-        <div className="flex items-center gap-4">
-          <div className="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
-            <Lock className="w-5 h-5 text-yellow-400" />
+    <div className="bg-[--color-surface] hairline-b text-[--color-ink-primary] relative">
+      <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="p-2 bg-[--color-warn-attention-soft] rounded-lg border border-[--color-warn-attention]/30">
+            <Lock className="w-5 h-5 text-[--color-warn-attention]" />
           </div>
-          <div>
-            <p className="font-medium text-sm sm:text-base">
-              You are viewing a limited preview.
+          <div className="min-w-0">
+            <p className="font-semibold text-sm sm:text-base text-[--color-ink-primary]">
+              Estás viendo una versión limitada.
             </p>
-            <p className="text-xs sm:text-sm text-gray-400">
-              Unlock <span className="text-white font-bold">{activeCount} active auctions</span> and <span className="text-yellow-400 font-bold">{preAuctionCount} pre-auctions</span>.
+            <p className="text-xs sm:text-sm text-[--color-ink-secondary] tnum">
+              Desbloquea{' '}
+              <span className="font-semibold text-[--color-ink-primary]">
+                {activeCount.toLocaleString('es-ES')} subastas activas
+              </span>{' '}
+              y{' '}
+              <span className="font-semibold text-[--color-ink-primary]">
+                {preAuctionCount.toLocaleString('es-ES')} pre-subastas
+              </span>
+              .
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 w-full sm:w-auto">
+        <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
           <Link href="/login" className="w-full sm:w-auto">
-            <Button variant="ghost" className="w-full text-white hover:text-white hover:bg-white/10">
-              Log in
+            <Button
+              variant="ghost"
+              className="w-full text-[--color-ink-primary] hover:bg-[--color-surface-muted]"
+            >
+              Iniciar sesión
             </Button>
           </Link>
           <Link href="/register" className="w-full sm:w-auto">
-            <Button className="w-full bg-white text-black hover:bg-gray-100 font-bold gap-2">
-              Start Free Trial <ArrowRight className="w-4 h-4" />
+            {/* Login/signup exception per Dennis — bg-black text-white preserved */}
+            <Button className="w-full bg-black text-white hover:bg-gray-800 font-semibold gap-2">
+              Empezar prueba gratuita <ArrowRight className="w-4 h-4" />
             </Button>
           </Link>
         </div>
-
       </div>
     </div>
   );

@@ -5,65 +5,88 @@
 @custom-variant dark (&:is(.dark *));
 
 /**
- * dnksubastas — Visual Signature (Pixel, Wave 4 — subastas.io-led)
+ * dnksubastas — Visual Signature (Pixel, Redesign #3 — modern register)
  *
- * Palette: subastas.io wins where it conflicts with subastasia.com.
- *   - page #F8FAFC neutral slate (drops cream)
- *   - brand institutional near-black navy #001E2B (sio --corp)
- *   - interactive blue #0069D2 (sio --link) for links/active accents
- *   - live forest-green #228159 (sio) for trust
- *   - gold #B08A3E preserved as premium/featured accent (ours, replaces sio magenta)
- *   - borders #DFE3E7 (sio), soft shadows (sio rgba(23,35,59,.06))
- *   - radius middle-ground ~12px
+ * Palette: pure clinical white surfaces on slate frame, all-black ink,
+ * crisp functional status colour paired with soft tints so BLACK on tint
+ * is always legible. Inter Tight for display, Inter for body, no serifs.
  *
- * Token NAMES are stable (so the rest of the app keeps inheriting); only
- * VALUES change. New tokens added additively.
- *
- * Anti-AI-template rules: no purple, no neon, no glassmorphism, no
- * "AI"/"Inteligencia Artificial" copy, ever.
+ * Hard rules:
+ *   - ALL text BLACK on the site (one exception: logo glyph on brand-navy).
+ *   - Status badge: black ink, soft tint fill, status-colour dot + border.
+ *   - WarnFlag/WarnBar: 4-level (critical / attention / info / positive),
+ *     black ink on soft tint, max 3 per card, left-edge bar for critical.
+ *   - No purple, no neon, no glassmorphism, no AI copy.
  */
 
 @theme inline {
-  /* Color tokens — subastas.io-led palette */
-  --color-page: #F8FAFC;
+  /* Foundation */
+  --color-page: #F4F6F8;            /* slate frame around white surfaces */
   --color-surface: #FFFFFF;
-  --color-surface-muted: #F1F5F9;
-  --color-surface-alt: #F1F5F9;
-  --color-hairline: #DFE3E7;
+  --color-surface-muted: #EEF2F6;
+  --color-surface-alt: #EEF2F6;
+  --color-hairline: #D7DEE5;        /* defined card edges */
+  --color-hairline-soft: #E8EDF2;   /* table dividers */
 
-  --color-ink-primary: #0F172A;
-  --color-ink-secondary: #374151;
-  --color-ink-tertiary: #9CA3AF;
+  /* Ink — ALL TEXT BLACK */
+  --color-ink-primary: #0A0F1A;     /* near-black, warmer than slate-900 */
+  --color-ink-secondary: #1F2937;
+  --color-ink-tertiary: #4B5563;    /* AA-passing on white (7.0:1) */
+  --color-ink-quiet: #6B7280;       /* meta only, ≥14pt */
+  /* --color-ink-inverse kept ONLY for the logo-glyph exception */
   --color-ink-inverse: #FFFFFF;
 
-  --color-brand: #001E2B;            /* sio --corp, near-black navy */
+  /* Brand */
+  --color-brand: #001E2B;
   --color-brand-hover: #00131C;
-  --color-brand-soft: #0069D2;       /* sio --link, interactive blue */
-  --color-brand-soft-hover: #0057B0;
-  --color-gold: #B08A3E;             /* premium accent — ours */
+  --color-action: #0057D9;          /* punchier news-CTA blue */
+  --color-action-hover: #0046B0;
+  --color-action-soft: #E6EFFC;     /* hover-row tint, black on this = 12:1 */
+  --color-brand-soft: var(--color-action);          /* back-compat */
+  --color-brand-soft-hover: var(--color-action-hover);
+
+  --color-gold: #B08A3E;
   --color-gold-hover: #997632;
 
-  /* Status semantic colors — sio greens/reds + sia amber */
-  --color-status-live: #228159;       /* sio forest green */
-  --color-status-live-soft: #D1FAE5;
-  --color-status-upcoming: #C68A1E;
-  --color-status-upcoming-soft: #FEF3C7;
-  --color-status-suspended: #8A6D2F;
-  --color-status-cancelled: #E5304B;  /* sio red */
-  --color-status-cancelled-soft: #FFE6E6;
-  --color-status-concluded: #5A5A58;
-  --color-info-soft: #ECF4FA;         /* sio row-hover */
+  /* Status semantic colours — crisper, all paired with soft tint */
+  --color-status-live: #047857;
+  --color-status-live-soft: #D1FADF;
+  --color-status-upcoming: #B45309;
+  --color-status-upcoming-soft: #FEF0CC;
+  --color-status-suspended: #92400E;
+  --color-status-suspended-soft: #FDE7CF;
+  --color-status-cancelled: #B91C1C;
+  --color-status-cancelled-soft: #FEE2E2;
+  --color-status-concluded: #475569;
+  --color-status-concluded-soft: #E2E8F0;
+  --color-info-soft: var(--color-action-soft);  /* back-compat */
 
-  /* Soft elevation (sio-derived) */
+  /* Importance / warning palette — distinct from status */
+  --color-warn-critical: #B91C1C;
+  --color-warn-critical-soft: #FEE2E2;
+  --color-warn-attention: #B45309;
+  --color-warn-attention-soft: #FEF0CC;
+  --color-warn-info: #0057D9;
+  --color-warn-info-soft: #E6EFFC;
+  --color-warn-positive: #047857;
+  --color-warn-positive-soft: #D1FADF;
+
+  /* Soft elevation */
   --shadow-card: 0 4px 2px -2px rgba(23,35,59,0.06), 0 2px 8px rgba(23,35,59,0.04);
   --shadow-lift: 0 6px 4px -2px rgba(23,35,59,0.08), 0 4px 12px rgba(23,35,59,0.06);
+
+  /* Typography — drop the serif */
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-inter-tight);
+  --font-mono: var(--font-mono);
+  /* back-compat: legacy --font-serif now points at Inter Tight so any
+     leftover .font-serif class renders as a crisp news-grade heading
+     rather than the editorial serif. */
+  --font-serif: var(--font-inter-tight);
 
   /* Mapping shadcn tokens onto judicial palette so existing UI inherits */
   --color-background: var(--color-page);
   --color-foreground: var(--color-ink-primary);
-  --font-sans: var(--font-inter);
-  --font-serif: var(--font-serif-display);
-  --font-mono: var(--font-mono);
 
   --color-card: #FFFFFF;
   --color-card-foreground: var(--color-ink-primary);
@@ -71,7 +94,7 @@
   --color-popover-foreground: var(--color-ink-primary);
 
   --color-primary: var(--color-brand);
-  --color-primary-foreground: #FFFFFF;
+  --color-primary-foreground: var(--color-ink-inverse);
 
   --color-secondary: var(--color-surface-muted);
   --color-secondary-foreground: var(--color-ink-primary);
@@ -86,7 +109,7 @@
 
   --color-border: var(--color-hairline);
   --color-input: var(--color-hairline);
-  --color-ring: var(--color-brand);
+  --color-ring: var(--color-action);
 
   /* Charts (kept neutral; never purple) */
   --color-chart-1: var(--color-brand);
@@ -98,11 +121,11 @@
   --color-sidebar: var(--color-surface);
   --color-sidebar-foreground: var(--color-ink-primary);
   --color-sidebar-primary: var(--color-brand);
-  --color-sidebar-primary-foreground: #FFFFFF;
+  --color-sidebar-primary-foreground: var(--color-ink-inverse);
   --color-sidebar-accent: var(--color-surface-muted);
   --color-sidebar-accent-foreground: var(--color-ink-primary);
   --color-sidebar-border: var(--color-hairline);
-  --color-sidebar-ring: var(--color-brand);
+  --color-sidebar-ring: var(--color-action);
 
   --radius-sm: 4px;
   --radius-md: 8px;
@@ -122,7 +145,7 @@
   --popover: var(--color-surface);
   --popover-foreground: var(--color-ink-primary);
   --primary: var(--color-brand);
-  --primary-foreground: #FFFFFF;
+  --primary-foreground: var(--color-ink-inverse);
   --secondary: var(--color-surface-muted);
   --secondary-foreground: var(--color-ink-primary);
   --muted: var(--color-surface-muted);
@@ -132,16 +155,16 @@
   --destructive: var(--color-status-cancelled);
   --border: var(--color-hairline);
   --input: var(--color-hairline);
-  --ring: var(--color-brand);
+  --ring: var(--color-action);
 
   --sidebar: var(--color-surface);
   --sidebar-foreground: var(--color-ink-primary);
   --sidebar-primary: var(--color-brand);
-  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-primary-foreground: var(--color-ink-inverse);
   --sidebar-accent: var(--color-surface-muted);
   --sidebar-accent-foreground: var(--color-ink-primary);
   --sidebar-border: var(--color-hairline);
-  --sidebar-ring: var(--color-brand);
+  --sidebar-ring: var(--color-action);
 }
 
 @layer base {
@@ -167,10 +190,12 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  h1, h2, h3, h4, .font-serif {
-    font-family: var(--font-serif-display), Georgia, "Times New Roman", serif;
+  h1, h2, h3, h4, .font-display, .font-serif {
+    font-family: var(--font-inter-tight), var(--font-inter),
+      ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     font-weight: 600;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.015em;
+    color: var(--color-ink-primary);
   }
 
   /* Tabular numerals helper. Used for prices, dates, countdowns. */
@@ -179,7 +204,7 @@
     font-feature-settings: "tnum" 1;
   }
 
-  /* Hairline divider helper. Use instead of border-2 / box-shadow. */
+  /* Hairline divider helper. */
   .hairline {
     border: 1px solid var(--color-hairline);
   }
@@ -203,12 +228,20 @@
     .dnk-pulse { animation: none; opacity: 1; }
   }
 
-  /* Editorial layout helpers */
+  /* Register / comparison-page layout helpers */
   .max-w-editorial { max-width: 1280px; }
   .max-w-readable { max-width: 72ch; }
+
+  /* Critical left-edge bar (subastasia-inspired) */
+  .warn-bar-critical {
+    box-shadow: inset 8px 0 0 0 var(--color-warn-critical);
+  }
+  .warn-bar-attention {
+    box-shadow: inset 8px 0 0 0 var(--color-warn-attention);
+  }
 }
 
-/* Print: keep the off-white look usable, drop background fills */
+/* Print: drop background fills */
 @media print {
   body { background: white; }
 }

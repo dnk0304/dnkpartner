@@ -134,88 +134,100 @@ export default function HomeObservatory() {
     <div className="min-h-screen bg-[--color-page]">
       <ObservatoryHeader />
 
-      <main className="mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8 space-y-8 md:space-y-10">
-        {/* HERO — compressed editorial pitch (no big-number panel — that role
-            now belongs to the forex ticker beneath) */}
-        <section className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-6 lg:gap-10 items-start">
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-[--color-gold] font-semibold">
-              Observatorio de subastas públicas
-            </p>
-            <h1 className="mt-2 font-serif text-3xl md:text-4xl lg:text-5xl leading-[1.1] text-[--color-ink-primary]">
-              Las subastas del Estado, seguidas en{" "}
-              <span className="text-[--color-brand]">tiempo real</span>.
-            </h1>
-            <p className="mt-4 max-w-prose text-[15px] text-[--color-ink-secondary]">
-              Sincronizamos cada pocos minutos con el Portal de Subastas del BOE
-              y otras fuentes oficiales. Sigue las subastas que te interesan y
-              te avisamos en cuanto cambia el estado, llega una nueva puja o
-              se acerca el cierre.
-            </p>
-
-            <div className="mt-6 flex flex-wrap items-center gap-3 text-xs text-[--color-ink-tertiary] tnum">
-              <span className="inline-flex items-center gap-1.5">
-                <span aria-hidden="true" className="h-2 w-2 rounded-full bg-[--color-status-live] dnk-pulse" />
-                Última sincronización{" "}
-                {stats?.lastUpdateTime ? formatRelativeEs(stats.lastUpdateTime) : "…"}
-              </span>
-            </div>
-
-            <div className="mt-6 flex flex-wrap gap-2">
-              <Link
-                href="/subastas?when=activas"
-                className="rounded-md bg-[--color-brand] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[--color-brand-hover] transition-colors"
-              >
-                Ver subastas activas
-              </Link>
-              <Link
-                href="/subastas?when=proximas"
-                className="rounded-md border border-[--color-brand-soft]/30 px-4 py-2.5 text-sm font-semibold text-[--color-brand-soft] hover:bg-[--color-info-soft] transition-colors"
-              >
-                Próximas aperturas
-              </Link>
-            </div>
+      <main className="mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8 space-y-6 md:space-y-8">
+        {/* DIRECTION A — Live counter strip (Bloomberg-style) */}
+        <section
+          aria-label="Resumen en vivo"
+          className="rounded-lg border border-[--color-hairline] bg-[--color-surface] px-4 py-3"
+        >
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm tnum">
+            <span className="inline-flex items-center gap-2 text-[--color-ink-primary]">
+              <span
+                aria-hidden="true"
+                className="h-2 w-2 rounded-full bg-[--color-status-live] dnk-pulse"
+              />
+              <strong className="font-semibold">
+                {stats ? formatNumber(stats.trueLiveCount) : "—"}
+              </strong>
+              <span>celebrándose</span>
+            </span>
+            <span className="inline-flex items-center gap-2 text-[--color-ink-primary]">
+              <span
+                aria-hidden="true"
+                className="h-2 w-2 rounded-full bg-[--color-status-upcoming]"
+              />
+              <strong className="font-semibold">
+                {stats ? formatNumber(stats.trueUpcomingCount) : "—"}
+              </strong>
+              <span>próximas</span>
+            </span>
+            <span className="inline-flex items-center gap-2 text-[--color-ink-primary]">
+              <span
+                aria-hidden="true"
+                className="h-2 w-2 rounded-full bg-[--color-warn-info]"
+              />
+              <strong className="font-semibold">
+                {stats ? formatNumber(stats.trueActiveCount) : "—"}
+              </strong>
+              <span>activas en total</span>
+            </span>
+            <span className="ml-auto text-[--color-ink-tertiary]">
+              Actualizado{" "}
+              {stats?.lastUpdateTime ? formatRelativeEs(stats.lastUpdateTime) : "…"}
+            </span>
           </div>
+        </section>
 
-          {/* Big number panel */}
-          <div className="rounded-lg border border-[--color-hairline] bg-[--color-surface] p-5 md:p-6">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-[--color-ink-tertiary]">
-              Subastas activas ahora
-            </div>
-            <div className="mt-1 tnum font-serif text-[64px] md:text-[80px] leading-none text-[--color-brand]">
-              {stats ? formatNumber(stats.trueActiveCount) : "—"}
-            </div>
-            <p className="mt-2 text-sm text-[--color-ink-secondary]">
-              Subastas abiertas o próximas en este momento, según el Portal del
-              BOE. No es el total catalogado.
-            </p>
+        {/* HERO — modern register heading + inline search row */}
+        <section className="space-y-4">
+          <h1 className="font-display text-3xl md:text-4xl lg:text-[44px] leading-[1.1] tracking-tight text-[--color-ink-primary]">
+            Registro público de subastas judiciales y administrativas
+          </h1>
+          <p className="max-w-prose text-[15px] text-[--color-ink-secondary]">
+            Sincronizado con el Portal de Subastas del BOE y otras fuentes
+            oficiales. Sigue las subastas que te interesan; te avisamos cuando
+            cambia el estado, llega una nueva puja o se acerca el cierre.
+          </p>
 
-            <dl className="mt-5 grid grid-cols-2 gap-4 hairline-t pt-4">
-              <div>
-                <dt className="text-[10px] uppercase tracking-wider text-[--color-ink-tertiary]">
-                  Celebrándose
-                </dt>
-                <dd className="mt-0.5 tnum text-xl font-semibold text-[--color-status-live]">
-                  {stats ? formatNumber(stats.trueLiveCount) : "—"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[10px] uppercase tracking-wider text-[--color-ink-tertiary]">
-                  Próxima apertura
-                </dt>
-                <dd className="mt-0.5 tnum text-xl font-semibold text-[--color-status-upcoming]">
-                  {stats ? formatNumber(stats.trueUpcomingCount) : "—"}
-                </dd>
-              </div>
-              <div className="col-span-2 text-xs text-[--color-ink-tertiary] tnum">
-                <span className="text-[--color-ink-secondary]">Histórico total catalogado:</span>{" "}
-                <span className="text-[--color-ink-primary]">
-                  {stats ? formatNumber(stats.totalAuctions) : "—"}
-                </span>{" "}
-                · datos oficiales del Portal de Subastas del BOE.
-              </div>
-            </dl>
-          </div>
+          <form
+            role="search"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const data = new FormData(e.currentTarget);
+              const q = String(data.get("q") || "").trim();
+              const when = String(data.get("when") || "activas");
+              const qs = new URLSearchParams();
+              if (q) qs.set("q", q);
+              if (when) qs.set("when", when);
+              router.push(`/subastas?${qs.toString()}`);
+            }}
+            className="flex flex-col sm:flex-row gap-2"
+          >
+            <input
+              name="q"
+              type="search"
+              placeholder="Buscar por municipio, tipo, juzgado…"
+              aria-label="Buscar subastas"
+              className="flex-1 rounded-md border border-[--color-hairline] bg-[--color-surface] px-3 py-2.5 text-sm text-[--color-ink-primary] placeholder:text-[--color-ink-tertiary] focus:outline-none focus:border-[--color-action] focus:ring-2 focus:ring-[--color-action]/20"
+            />
+            <select
+              name="when"
+              defaultValue="activas"
+              aria-label="Cuándo"
+              className="rounded-md border border-[--color-hairline] bg-[--color-surface] px-3 py-2.5 text-sm text-[--color-ink-primary] focus:outline-none focus:border-[--color-action]"
+            >
+              <option value="activas">Activas</option>
+              <option value="proximas">Próximas</option>
+              <option value="todas">Todas</option>
+            </select>
+            <button
+              type="submit"
+              className="inline-flex items-center justify-center gap-1 rounded-md border border-[--color-ink-primary] bg-[--color-surface] px-4 py-2.5 text-sm font-semibold text-[--color-ink-primary] hover:bg-[--color-surface-muted] transition-colors"
+            >
+              Buscar
+              <span aria-hidden>→</span>
+            </button>
+          </form>
         </section>
 
         {/* FOREX-style ticker — compact-default so the map below stays near the fold */}
@@ -226,12 +238,12 @@ export default function HomeObservatory() {
         {/* Map — IMMEDIATELY visible per landing spec */}
         <section aria-labelledby="map-heading">
           <div className="mb-3 flex items-baseline justify-between">
-            <h2 id="map-heading" className="font-serif text-2xl text-[--color-ink-primary]">
+            <h2 id="map-heading" className="font-display text-2xl text-[--color-ink-primary]">
               Mapa de subastas activas
             </h2>
             <Link
               href="/subastas?view=map"
-              className="text-sm font-medium text-[--color-brand-soft] hover:underline"
+              className="text-sm font-medium text-[--color-action] hover:underline"
             >
               Abrir mapa completo →
             </Link>
@@ -251,7 +263,7 @@ export default function HomeObservatory() {
 
         {/* Province selector + grid */}
         <section aria-labelledby="provinces-heading" className="space-y-4">
-          <h2 id="provinces-heading" className="font-serif text-2xl text-[--color-ink-primary]">
+          <h2 id="provinces-heading" className="font-display text-2xl text-[--color-ink-primary]">
             Explora por provincia
           </h2>
           <div className="max-w-md">
@@ -272,7 +284,7 @@ export default function HomeObservatory() {
 
         {/* How it works — plain Spanish, no marketing fluff */}
         <section className="rounded-lg bg-[--color-surface-muted] p-6 md:p-8 max-w-readable">
-          <h2 className="font-serif text-xl text-[--color-ink-primary]">
+          <h2 className="font-display text-xl text-[--color-ink-primary]">
             Cómo funciona esto
           </h2>
           <p className="mt-3 text-[15px] leading-relaxed text-[--color-ink-secondary]">

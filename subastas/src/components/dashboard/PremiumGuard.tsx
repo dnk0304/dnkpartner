@@ -40,18 +40,18 @@ export const PremiumGuard: React.FC<PremiumGuardProps> = ({
         {children}
       </div>
 
-      {/* The Premium Overlay */}
-      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-950/40 backdrop-blur-[2px] transition-all group-hover:bg-slate-950/60">
-        <div className="bg-slate-900 border border-amber-500/50 p-4 rounded-2xl shadow-2xl flex flex-col items-center text-center max-w-[80%]">
-          <Lock className={`w-8 h-8 mb-2 ${tierRequired === 'DIAMOND' ? 'text-blue-400' : 'text-amber-500'}`} />
-          <h4 className="text-sm font-bold text-white uppercase tracking-wider">
-            {tierRequired} Content
+      {/* The Premium Overlay — light variant, all-black text */}
+      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[--color-surface]/70 backdrop-blur-[2px]">
+        <div className="bg-[--color-surface] border border-[--color-gold] p-4 rounded-2xl shadow-[var(--shadow-lift)] flex flex-col items-center text-center max-w-[80%]">
+          <Lock className={`w-8 h-8 mb-2 ${tierRequired === 'DIAMOND' ? 'text-[--color-action]' : 'text-[--color-gold]'}`} />
+          <h4 className="text-sm font-bold text-[--color-ink-primary] uppercase tracking-wider">
+            Contenido {tierRequired}
           </h4>
-          <p className="text-xs text-slate-300 mt-1 mb-4">
-            Unlock this deal and 45+ others in Las Palmas.
+          <p className="text-xs text-[--color-ink-secondary] mt-1 mb-4">
+            Desbloquea esta subasta y otras 45+ en tu zona.
           </p>
-          <Button size="sm" className="bg-amber-600 hover:bg-amber-500 text-white font-bold w-full">
-            Upgrade Now
+          <Button size="sm" className="bg-[--color-gold] hover:bg-[--color-gold-hover] text-[--color-ink-primary] font-bold w-full">
+            Mejorar plan
           </Button>
         </div>
       </div>

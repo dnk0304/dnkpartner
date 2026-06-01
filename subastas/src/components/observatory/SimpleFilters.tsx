@@ -111,8 +111,8 @@ export function SimpleFilters({
                   "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40",
                   active
-                    ? "border-[--color-brand] bg-[--color-brand] text-white"
-                    : "border-[--color-hairline] text-[--color-ink-secondary] hover:border-[--color-brand]/40 hover:text-[--color-brand]",
+                    ? "border-[--color-action] bg-[--color-action-soft] text-[--color-ink-primary]"
+                    : "border-[--color-hairline] text-[--color-ink-primary] hover:border-[--color-action]/40 hover:bg-[--color-action-soft]/40",
                 )}
                 aria-pressed={active}
               >

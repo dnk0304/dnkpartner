@@ -25,88 +25,67 @@ export type StatusMeta = {
   helper: string;
 };
 
+/**
+ * Redesign #3 palette: black ink on soft tint, status-colour dot + border.
+ * Tint values are hex (the new --color-status-*-soft tokens). Dot/border
+ * colour stays saturated to keep the status legible at glance.
+ */
+const LIVE: StatusMeta = {
+  label: "Celebrándose",
+  color: "#047857",
+  tint: "#D1FADF",
+  border: "rgba(4, 120, 87, 0.35)",
+  glyph: "●",
+  pulse: true,
+  helper: "Abierta a pujas ahora en el Portal del BOE.",
+};
+const UPCOMING: StatusMeta = {
+  label: "Próxima apertura",
+  color: "#B45309",
+  tint: "#FEF0CC",
+  border: "rgba(180, 83, 9, 0.35)",
+  glyph: "◐",
+  pulse: false,
+  helper: "Publicada pero todavía no abierta a pujas.",
+};
+const SUSPENDED: StatusMeta = {
+  label: "Suspendida",
+  color: "#92400E",
+  tint: "#FDE7CF",
+  border: "rgba(146, 64, 14, 0.35)",
+  glyph: "▲",
+  pulse: false,
+  helper: "El juzgado ha suspendido la subasta. Puede reanudarse.",
+};
+const CANCELLED: StatusMeta = {
+  label: "Cancelada",
+  color: "#B91C1C",
+  tint: "#FEE2E2",
+  border: "rgba(185, 28, 28, 0.35)",
+  glyph: "■",
+  pulse: false,
+  helper: "Subasta cancelada por la autoridad gestora.",
+};
+const CONCLUDED: StatusMeta = {
+  label: "Finalizada",
+  color: "#475569",
+  tint: "#E2E8F0",
+  border: "rgba(71, 85, 105, 0.35)",
+  glyph: "◌",
+  pulse: false,
+  helper: "Subasta finalizada.",
+};
+
 const STATUS_META: Record<AuctionStatus, StatusMeta> = {
-  "celebrandose": {
-    label: "Celebrándose",
-    color: "#1F7A4E",
-    tint: "rgba(31, 122, 78, 0.10)",
-    border: "rgba(31, 122, 78, 0.30)",
-    glyph: "●",
-    pulse: true,
-    helper: "Abierta a pujas ahora en el Portal del BOE.",
-  },
-  "active": {
-    label: "Celebrándose",
-    color: "#1F7A4E",
-    tint: "rgba(31, 122, 78, 0.10)",
-    border: "rgba(31, 122, 78, 0.30)",
-    glyph: "●",
-    pulse: true,
-    helper: "Abierta a pujas ahora en el Portal del BOE.",
-  },
-  "proxima-apertura": {
-    label: "Próxima apertura",
-    color: "#C68A1E",
-    tint: "rgba(198, 138, 30, 0.10)",
-    border: "rgba(198, 138, 30, 0.30)",
-    glyph: "◐",
-    pulse: false,
-    helper: "Publicada pero todavía no abierta a pujas.",
-  },
-  "pre-auction": {
-    label: "Próxima apertura",
-    color: "#C68A1E",
-    tint: "rgba(198, 138, 30, 0.10)",
-    border: "rgba(198, 138, 30, 0.30)",
-    glyph: "◐",
-    pulse: false,
-    helper: "Publicada pero todavía no abierta a pujas.",
-  },
-  "suspendida": {
-    label: "Suspendida",
-    color: "#8A6D2F",
-    tint: "rgba(138, 109, 47, 0.10)",
-    border: "rgba(138, 109, 47, 0.30)",
-    glyph: "▲",
-    pulse: false,
-    helper: "El juzgado ha suspendido la subasta. Puede reanudarse.",
-  },
-  "cancelada": {
-    label: "Cancelada",
-    color: "#7A2727",
-    tint: "rgba(122, 39, 39, 0.10)",
-    border: "rgba(122, 39, 39, 0.30)",
-    glyph: "■",
-    pulse: false,
-    helper: "Subasta cancelada por la autoridad gestora.",
-  },
-  "concluida-portal": {
-    label: "Concluida",
-    color: "#5A5A58",
-    tint: "rgba(90, 90, 88, 0.10)",
-    border: "rgba(90, 90, 88, 0.30)",
-    glyph: "◌",
-    pulse: false,
-    helper: "Concluida en el Portal de Subastas del BOE.",
-  },
-  "finalizada-autoridad": {
-    label: "Finalizada",
-    color: "#5A5A58",
-    tint: "rgba(90, 90, 88, 0.10)",
-    border: "rgba(90, 90, 88, 0.30)",
-    glyph: "◌",
-    pulse: false,
-    helper: "Finalizada y resuelta por la autoridad gestora.",
-  },
-  "finished": {
-    label: "Finalizada",
-    color: "#5A5A58",
-    tint: "rgba(90, 90, 88, 0.10)",
-    border: "rgba(90, 90, 88, 0.30)",
-    glyph: "◌",
-    pulse: false,
-    helper: "Subasta finalizada.",
-  },
+  "celebrandose": LIVE,
+  "active": LIVE,
+  "proxima-apertura": UPCOMING,
+  "pre-auction": UPCOMING,
+  "suspendida": SUSPENDED,
+  "cancelada": CANCELLED,
+  "concluida-portal": { ...CONCLUDED, label: "Concluida", helper: "Concluida en el Portal de Subastas del BOE." },
+  "finalizada-autoridad": { ...CONCLUDED, helper: "Finalizada y resuelta por la autoridad gestora." },
+  "finished": CONCLUDED,
 };
 
 export function getStatusMeta(status: AuctionStatus | string | null | undefined): StatusMeta {

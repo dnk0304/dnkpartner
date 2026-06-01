@@ -182,7 +182,7 @@ export function ForexCarousel({
         <div className="min-w-0 flex items-baseline gap-3">
           <h2
             id="forex-carousel-heading"
-            className="font-serif text-base md:text-lg text-[--color-ink-primary] whitespace-nowrap"
+            className="font-display text-base md:text-lg text-[--color-ink-primary] whitespace-nowrap"
           >
             Últimas actualizaciones
           </h2>
@@ -206,8 +206,8 @@ export function ForexCarousel({
               "inline-flex h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium transition-colors",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand-soft]/40",
               expanded
-                ? "border-[--color-brand] bg-[--color-brand] text-white"
-                : "border-[--color-hairline] bg-[--color-surface] text-[--color-ink-secondary] hover:border-[--color-brand-soft]/40 hover:text-[--color-brand-soft]",
+                ? "border-[--color-brand] bg-[--color-surface-muted] text-[--color-ink-primary] ring-1 ring-[--color-brand]"
+                : "border-[--color-hairline] bg-[--color-surface] text-[--color-ink-primary] hover:border-[--color-action]/40 hover:bg-[--color-action-soft]",
             )}
           >
             {expanded ? (
@@ -240,9 +240,10 @@ export function ForexCarousel({
           <Link
             href={seeAllHref}
             className={cn(
-              "inline-flex h-8 items-center gap-1 rounded-md bg-[--color-brand] px-3 text-xs font-semibold text-white",
-              "hover:bg-[--color-brand-hover] transition-colors",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand-soft]/40",
+              "inline-flex h-8 items-center gap-1 rounded-md border border-[--color-ink-primary] bg-[--color-surface] px-3 text-xs font-semibold",
+              "text-[--color-ink-primary]",
+              "hover:bg-[--color-surface-muted] transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-action]/40",
             )}
           >
             Ver todas
@@ -307,7 +308,7 @@ function CompactCard({ auction }: { auction: FeedAuction }) {
         "flex flex-col gap-1 transition-colors",
         "hover:border-[--color-brand-soft]/50 hover:bg-[--color-info-soft]/40",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand-soft]/40",
-        urgent ? "border-[--color-gold]/60" : "border-[--color-hairline]",
+        urgent ? "border-[--color-warn-critical]/60" : "border-[--color-hairline]",
       )}
       title={displayTitle(auction)}
     >
@@ -333,7 +334,7 @@ function CompactCard({ auction }: { auction: FeedAuction }) {
         <span
           className={cn(
             "tnum font-semibold",
-            urgent ? "text-[--color-gold]" : "text-[--color-ink-secondary]",
+            urgent ? "text-[--color-warn-critical]" : "text-[--color-ink-primary]",
           )}
         >
           {ended ? "Finalizada" : formatDaysLeft(endsAt)}
@@ -377,7 +378,7 @@ function ExpandedCard({ auction }: { auction: FeedAuction }) {
         "flex flex-col transition-colors",
         "hover:border-[--color-brand-soft]/50 hover:shadow-[var(--shadow-card)]",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand-soft]/40",
-        urgent ? "border-[--color-gold]/60" : "border-[--color-hairline]",
+        urgent ? "border-[--color-warn-critical]/60" : "border-[--color-hairline]",
       )}
     >
       <div className="relative aspect-[16/9] bg-[--color-surface-muted]">
@@ -401,9 +402,10 @@ function ExpandedCard({ auction }: { auction: FeedAuction }) {
         <span
           className={cn(
             "absolute top-1.5 right-1.5 tnum rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+            "text-[--color-ink-primary] border",
             urgent
-              ? "bg-[--color-gold] text-white"
-              : "bg-[--color-brand] text-white",
+              ? "bg-[--color-warn-critical-soft] border-[--color-warn-critical]/40"
+              : "bg-[--color-surface] border-[--color-hairline]",
           )}
         >
           {ended ? "Finalizada" : formatDaysLeft(endsAt)}
@@ -435,7 +437,7 @@ function ExpandedCard({ auction }: { auction: FeedAuction }) {
               <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
                 Puja mín.
               </div>
-              <div className="tnum text-[13px] font-semibold text-[--color-brand-soft] truncate">
+              <div className="tnum text-[13px] font-semibold text-[--color-ink-primary] truncate">
                 {formatPrice(minBid)}
               </div>
             </div>

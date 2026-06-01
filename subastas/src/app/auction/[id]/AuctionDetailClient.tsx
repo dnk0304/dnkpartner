@@ -464,7 +464,7 @@ export default function AuctionDetailClient({ id }: { id: string }) {
           href={auctionItem.boeLink ?? "https://subastas.boe.es"}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex-1 inline-flex items-center justify-center gap-2 rounded-md bg-[--color-brand] text-white px-4 py-2 text-sm font-semibold"
+          className="flex-1 inline-flex items-center justify-center gap-2 rounded-md bg-[--color-action-soft] border border-[--color-action] text-[--color-ink-primary] px-4 py-2 text-sm font-semibold hover:bg-[--color-action-soft]/80"
         >
           Ir al BOE
           <ExternalLink className="h-4 w-4" aria-hidden="true" />

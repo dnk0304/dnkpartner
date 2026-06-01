@@ -59,56 +59,56 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
       case 'proxima-apertura':
         return {
           label: 'Prox. apertura',
-          className: 'bg-amber-500 text-white',
+          className: 'bg-[--color-status-upcoming-soft] text-[--color-ink-primary] border border-[--color-status-upcoming]',
           icon: <Clock className="w-3 h-3" />
         };
       case 'celebrandose':
         return {
           label: 'Celebrándose',
-          className: 'bg-green-500 text-white',
+          className: 'bg-[--color-status-live-soft] text-[--color-ink-primary] border border-[--color-status-live]',
           icon: <CheckCircle className="w-3 h-3" />
         };
       case 'suspendida':
         return {
           label: 'Suspendida',
-          className: 'bg-yellow-500 text-white',
+          className: 'bg-[--color-status-suspended-soft] text-[--color-ink-primary] border border-[--color-status-suspended]',
           icon: <Pause className="w-3 h-3" />
         };
       case 'cancelada':
         return {
           label: 'Cancelada',
-          className: 'bg-red-500 text-white',
+          className: 'bg-[--color-status-cancelled-soft] text-[--color-ink-primary] border border-[--color-status-cancelled]',
           icon: <XCircle className="w-3 h-3" />
         };
       case 'concluida-portal':
         return {
           label: 'Concluida',
-          className: 'bg-gray-500 text-white',
+          className: 'bg-[--color-status-concluded-soft] text-[--color-ink-primary] border border-[--color-status-concluded]',
           icon: <CheckCircle className="w-3 h-3" />
         };
       case 'finalizada-autoridad':
         return {
           label: 'Finalizada',
-          className: 'bg-slate-500 text-white',
+          className: 'bg-[--color-status-concluded-soft] text-[--color-ink-primary] border border-[--color-status-concluded]',
           icon: <CheckCircle className="w-3 h-3" />
         };
       // Legacy statuses
       case 'pre-auction':
         return {
           label: 'Pre-Subasta',
-          className: 'bg-amber-500 text-white',
+          className: 'bg-[--color-status-upcoming-soft] text-[--color-ink-primary] border border-[--color-status-upcoming]',
           icon: <TrendingUp className="w-3 h-3" />
         };
       case 'active':
         return {
           label: 'Activa',
-          className: 'bg-green-500 text-white',
+          className: 'bg-[--color-status-live-soft] text-[--color-ink-primary] border border-[--color-status-live]',
           icon: <CheckCircle className="w-3 h-3" />
         };
       case 'finished':
         return {
           label: 'Finalizada',
-          className: 'bg-gray-500 text-white',
+          className: 'bg-[--color-status-concluded-soft] text-[--color-ink-primary] border border-[--color-status-concluded]',
           icon: <XCircle className="w-3 h-3" />
         };
       default:
@@ -123,32 +123,32 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
     const typeConfigs: Record<AuctionType, { label: string; className: string; icon: React.ReactNode }> = {
       'judicial': {
         label: 'Judicial',
-        className: 'bg-blue-500 text-white',
+        className: 'bg-[--color-action-soft] text-[--color-ink-primary] border border-[--color-action]/40',
         icon: <Gavel className="w-3 h-3" />
       },
       'notarial': {
         label: 'Notarial',
-        className: 'bg-purple-500 text-white',
+        className: 'bg-[--color-surface-muted] text-[--color-ink-primary] border border-[--color-hairline]',
         icon: <Building2 className="w-3 h-3" />
       },
       'aeat': {
         label: 'AEAT',
-        className: 'bg-red-500 text-white',
+        className: 'bg-[--color-status-cancelled-soft] text-[--color-ink-primary] border border-[--color-status-cancelled]/40',
         icon: <Landmark className="w-3 h-3" />
       },
       'tributaria': {
         label: 'Tributaria',
-        className: 'bg-orange-500 text-white',
+        className: 'bg-[--color-status-suspended-soft] text-[--color-ink-primary] border border-[--color-status-suspended]/40',
         icon: <CircleDollarSign className="w-3 h-3" />
       },
       'administrativa': {
         label: 'Administrativa',
-        className: 'bg-gray-600 text-white',
+        className: 'bg-[--color-surface-muted] text-[--color-ink-primary] border border-[--color-hairline]',
         icon: <Building2 className="w-3 h-3" />
       },
       'bancaria': {
         label: 'Bancaria',
-        className: 'bg-emerald-500 text-white',
+        className: 'bg-[--color-status-live-soft] text-[--color-ink-primary] border border-[--color-status-live]/40',
         icon: <Banknote className="w-3 h-3" />
       }
     };
@@ -217,8 +217,7 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
             </div>
           )}
           
-          {/* Gradient Overlay for Text Readability */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+          {/* (Gradient overlay removed — location chip is now on white per black-text rule.) */}
 
           {/* STATUS BADGES - Top Right Corner (Simple) */}
           <div className="absolute top-3 right-3 z-20 flex flex-col gap-1.5 items-end">
@@ -242,7 +241,7 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
             
             {/* Suspended Badge (from title) - only if not already showing suspended status */}
             {isSuspended && !isSuspendedStatus && (
-              <Badge className="bg-orange-500 text-white border-none font-bold shadow-lg backdrop-blur-sm px-3 py-1.5 text-xs">
+              <Badge className="bg-[--color-status-suspended-soft] text-[--color-ink-primary] border border-[--color-status-suspended] font-bold shadow-sm px-3 py-1.5 text-xs">
                 <span className="flex items-center gap-1.5">
                   <Pause className="w-3 h-3" />
                   Suspendida
@@ -252,7 +251,7 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
             
             {/* Rescheduled Badge */}
             {isRescheduled && !isSuspended && !isSuspendedStatus && (
-              <Badge className="bg-blue-500 text-white border-none font-bold shadow-lg backdrop-blur-sm px-3 py-1.5 text-xs">
+              <Badge className="bg-[--color-action-soft] text-[--color-ink-primary] border border-[--color-action] font-bold shadow-sm px-3 py-1.5 text-xs">
                 <span className="flex items-center gap-1.5">
                   <Calendar className="w-3 h-3" />
                   Nueva Fecha
@@ -261,10 +260,11 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
             )}
           </div>
 
-          {/* LOCATION BADGE - Bottom Left Overlay */}
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 pt-10">
-            <div className="flex items-center text-white text-sm font-medium">
-              <MapPin className="w-4 h-4 mr-1.5" />
+          {/* LOCATION BADGE — moved out of the photo overlay (no white text rule).
+              Rendered as a hairline-edged chip on white. */}
+          <div className="absolute bottom-2 left-2 right-2 z-10">
+            <div className="inline-flex items-center gap-1.5 rounded-md border border-[--color-hairline] bg-[--color-surface]/95 px-2 py-1 text-[12px] font-medium text-[--color-ink-primary] backdrop-blur-sm max-w-full">
+              <MapPin className="w-3.5 h-3.5 shrink-0" />
               <span className="truncate">
                 {item.municipality ? `${capitalizeLocation(item.municipality)}, ` : ''}
                 {item.province !== 'Desconocida' ? capitalizeLocation(item.province) : 'Sin ubicación'}
@@ -275,7 +275,7 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
           {/* URGENT BADGE - Below Location if urgent */}
           {urgent && (
             <div className="absolute top-14 left-3 z-20">
-              <Badge className="bg-red-500 text-white border-none font-bold animate-pulse shadow-lg shadow-red-500/40 backdrop-blur-sm px-3 py-1.5">
+              <Badge className="bg-[--color-warn-critical-soft] text-[--color-ink-primary] border border-[--color-warn-critical] font-bold shadow-sm px-3 py-1.5">
                 <Clock className="w-3 h-3 mr-1" />
                 Termina Pronto
               </Badge>

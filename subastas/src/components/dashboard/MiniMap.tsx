@@ -32,13 +32,12 @@ export const MiniMap: React.FC<MiniMapProps> = ({ items, onMarkerClick, onExpand
         <div className="absolute inset-0 bg-gray-100">
           <MapInner items={items} onMarkerClick={onMarkerClick} />
         </div>
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
-        <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between text-white">
+        <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between rounded-md bg-[--color-surface]/95 border border-[--color-hairline] px-2 py-1 text-[--color-ink-primary] backdrop-blur-sm">
           <div className="flex flex-col items-start">
             <span className="text-xs font-semibold">{items.length} subastas</span>
-            <span className="text-[10px] opacity-80">Click para expandir</span>
+            <span className="text-[10px] text-[--color-ink-secondary]">Click para expandir</span>
           </div>
-          <Maximize2 className="h-5 w-5" />
+          <Maximize2 className="h-4 w-4" />
         </div>
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none"></div>
       </button>
@@ -56,7 +55,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({ items, onMarkerClick, onExpand
           <div className="flex items-center gap-2">
             <button
               onClick={onExpand}
-              className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
+              className="px-4 py-2 bg-[--color-action-soft] border border-[--color-action] text-[--color-ink-primary] rounded-lg hover:bg-[--color-action-soft]/80 transition-colors text-sm font-medium"
             >
               <Maximize2 className="h-4 w-4 inline mr-2" />
               Ver en pantalla completa

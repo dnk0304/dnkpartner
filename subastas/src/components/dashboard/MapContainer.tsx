@@ -95,7 +95,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
           {isVisible && (
             <button
               onClick={onToggle}
-              className="absolute top-4 right-4 z-[1001] p-2 bg-gray-900/90 hover:bg-gray-800 text-white rounded-lg transition-colors"
+              className="absolute top-4 right-4 z-[1001] p-2 bg-[--color-surface]/95 hover:bg-[--color-surface-muted] border border-[--color-hairline] text-[--color-ink-primary] rounded-lg transition-colors"
               aria-label="Cerrar mapa"
             >
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -119,7 +119,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
             {/* Close button */}
             <button
               onClick={onToggle}
-              className="absolute top-4 right-4 z-[1001] p-3 bg-gray-900/90 hover:bg-gray-800 text-white rounded-lg transition-colors shadow-xl"
+              className="absolute top-4 right-4 z-[1001] p-3 bg-[--color-surface]/95 hover:bg-[--color-surface-muted] border border-[--color-hairline] text-[--color-ink-primary] rounded-lg transition-colors shadow-xl"
               aria-label="Cerrar mapa"
             >
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

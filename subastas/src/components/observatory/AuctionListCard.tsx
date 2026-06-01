@@ -106,10 +106,11 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
         {daysBadge && (
           <span
             className={cn(
-              "pointer-events-none absolute bottom-2 left-2 tnum rounded-full px-2 py-0.5 text-[11px] font-semibold",
+              "pointer-events-none absolute bottom-2 left-2 tnum rounded-full px-2 py-0.5 text-[11px] font-semibold border",
+              "text-[--color-ink-primary]",
               daysBadge === "Hoy" || daysBadge === "1 d"
-                ? "bg-[--color-gold] text-white"
-                : "bg-[--color-brand] text-white",
+                ? "bg-[--color-warn-critical-soft] border-[--color-warn-critical]/40"
+                : "bg-[--color-surface] border-[--color-hairline]",
             )}
           >
             {daysBadge}

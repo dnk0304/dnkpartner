@@ -1,22 +1,35 @@
 "use client";
 
+/**
+ * Diamond Dashboard — Diamond-tier pre-BOE pipeline view.
+ *
+ * Redesign #3: rebuilt LIGHT — pure white surfaces, slate frame, all-black
+ * ink, soft-tint warning chips per the palette tokens. No dark mode, no
+ * purple/pink gradients, no white text. Same data, register feel.
+ */
+
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Crown, 
-  TrendingUp, 
-  Calendar, 
-  AlertCircle, 
-  Building2, 
+import {
+  Crown,
+  TrendingUp,
+  Calendar,
+  AlertCircle,
+  Building2,
   FileText,
   Phone,
   CheckCircle2,
   Clock,
   MapPin,
-  Euro
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -38,18 +51,25 @@ interface PreAuctionItem {
   occupancyStatus?: string;
 }
 
+interface RemovedAuction {
+  id: string;
+  title: string;
+  province: string;
+  appraisalValue: number;
+  removedDate: string;
+  reason: string;
+}
+
 export default function DiamondDashboard() {
   const [preAuctions, setPreAuctions] = useState<PreAuctionItem[]>([]);
-  const [removedAuctions, setRemovedAuctions] = useState<any[]>([]);
+  const [removedAuctions, setRemovedAuctions] = useState<RemovedAuction[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('pipeline');
 
   useEffect(() => {
-    // Fetch Diamond-exclusive data
     const fetchDiamondData = async () => {
       try {
         setLoading(true);
-        // For now, mock data - will connect to API later
         const mockPreAuctions: PreAuctionItem[] = [
           {
             id: 'teju-1',
@@ -64,14 +84,12 @@ export default function DiamondDashboard() {
             courtName: 'Juzgado Primera Instancia nº 3',
             procedureNumber: 'PJ-2024-00453',
             address: 'Calle León y Castillo, 45, 3ºA',
-            cargasAnteriores: [
-              { type: 'Hipoteca', amount: 280000 }
-            ],
+            cargasAnteriores: [{ type: 'Hipoteca', amount: 280000 }],
             cargasPreferentes: [
               { type: 'IBI pendiente', amount: 1200 },
-              { type: 'Comunidad', amount: 800 }
+              { type: 'Comunidad', amount: 800 },
             ],
-            occupancyStatus: 'Desocupado'
+            occupancyStatus: 'Desocupado',
           },
           {
             id: 'teju-2',
@@ -86,57 +104,40 @@ export default function DiamondDashboard() {
             courtName: 'Juzgado Primera Instancia nº 5',
             procedureNumber: 'PJ-2024-00521',
             address: 'Calle Mayor de Triana, 89',
-            cargasAnteriores: [
-              { type: 'Hipoteca', amount: 180000 }
-            ],
-            cargasPreferentes: [
-              { type: 'IBI pendiente', amount: 2400 }
-            ],
-            occupancyStatus: 'Ocupado - Inquilino'
+            cargasAnteriores: [{ type: 'Hipoteca', amount: 180000 }],
+            cargasPreferentes: [{ type: 'IBI pendiente', amount: 2400 }],
+            occupancyStatus: 'Ocupado - Inquilino',
           },
           {
             id: 'teju-3',
             title: 'Piso con vistas al mar en Tafira',
             category: 'Viviendas',
             province: 'Las Palmas',
-            appraisalValue: 285000,
+            appraisalValue: 280000,
             estimatedDate: '2026-03-10',
             status: 'announced',
             source: 'TEJU',
             daysUntilAuction: 49,
-            courtName: 'Juzgado Primera Instancia nº 7',
-            procedureNumber: 'PJ-2024-00389',
-            address: 'Avenida Tafira Alta, 156, 5ºB',
-            cargasAnteriores: [],
-            cargasPreferentes: [
-              { type: 'Comunidad', amount: 1500 }
-            ],
-            occupancyStatus: 'Desocupado'
-          }
-        ];
-
-        const mockRemovedAuctions = [
-          {
-            id: 'removed-1',
-            title: 'Apartamento en Santa Catalina',
-            province: 'Las Palmas',
-            appraisalValue: 195000,
-            removedDate: '2026-01-15',
-            reason: 'Acuerdo entre partes',
-            savedDate: '2025-12-10'
+            courtName: 'Juzgado Primera Instancia nº 1',
+            procedureNumber: 'PJ-2024-00612',
+            address: 'Carretera del Centro, 145',
+            cargasAnteriores: [{ type: 'Hipoteca', amount: 150000 }],
+            cargasPreferentes: [],
+            occupancyStatus: 'Desocupado',
           },
-          {
-            id: 'removed-2',
-            title: 'Garaje en zona comercial',
-            province: 'Las Palmas',
-            appraisalValue: 28000,
-            removedDate: '2026-01-10',
-            reason: 'Pago de deuda',
-            savedDate: '2025-12-05'
-          }
         ];
-
         setPreAuctions(mockPreAuctions);
+
+        const mockRemovedAuctions: RemovedAuction[] = [
+          {
+            id: 'rm-1',
+            title: 'Vivienda en Vegueta',
+            province: 'Las Palmas',
+            appraisalValue: 220000,
+            removedDate: '2026-01-10',
+            reason: 'Acuerdo extrajudicial',
+          },
+        ];
         setRemovedAuctions(mockRemovedAuctions);
       } catch (err) {
         console.error('Error fetching Diamond data:', err);
@@ -151,52 +152,65 @@ export default function DiamondDashboard() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'judicial_process':
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
-          <Clock className="w-3 h-3 mr-1" />
-          En Tramitación
-        </Badge>;
+        return (
+          <Badge className="bg-[--color-action-soft] text-[--color-ink-primary] border border-[--color-action]/40">
+            <Clock className="w-3 h-3 mr-1" />
+            En tramitación
+          </Badge>
+        );
       case 'pending_publish':
-        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
-          <AlertCircle className="w-3 h-3 mr-1" />
-          Pendiente BOE
-        </Badge>;
+        return (
+          <Badge className="bg-[--color-warn-attention-soft] text-[--color-ink-primary] border border-[--color-warn-attention]/40">
+            <AlertCircle className="w-3 h-3 mr-1" />
+            Pendiente BOE
+          </Badge>
+        );
       case 'announced':
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
-          <CheckCircle2 className="w-3 h-3 mr-1" />
-          Anunciada
-        </Badge>;
+        return (
+          <Badge className="bg-[--color-status-live-soft] text-[--color-ink-primary] border border-[--color-status-live]/40">
+            <CheckCircle2 className="w-3 h-3 mr-1" />
+            Anunciada
+          </Badge>
+        );
       default:
         return null;
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      {/* Header */}
-      <div className="border-b border-white/10 bg-black/20 backdrop-blur-sm">
+    <div className="min-h-screen bg-[--color-page]">
+      {/* Header — white surface, all-black ink */}
+      <div className="hairline-b bg-[--color-surface]">
         <div className="container mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-3">
-                <Crown className="w-8 h-8 text-yellow-400" />
+                <Crown className="w-8 h-8 text-[--color-gold]" />
                 <div>
-                  <h1 className="text-2xl font-bold text-white">Diamond Dashboard</h1>
-                  <p className="text-sm text-gray-400">Acceso exclusivo a subastas pre-BOE</p>
+                  <h1 className="font-display text-2xl font-bold text-[--color-ink-primary]">
+                    Panel Diamond
+                  </h1>
+                  <p className="text-sm text-[--color-ink-secondary]">
+                    Acceso exclusivo a subastas pre-BOE
+                  </p>
                 </div>
               </div>
-              <Badge className="bg-gradient-to-r from-yellow-400 to-amber-500 text-black font-bold">
+              <Badge className="bg-[--color-warn-attention-soft] text-[--color-ink-primary] border border-[--color-warn-attention] font-bold">
                 DIAMOND
               </Badge>
             </div>
             <div className="flex gap-3">
               <Link href="/">
-                <Button variant="outline" className="border-white/20 text-white hover:bg-white/10">
-                  Ver Subastas Activas
+                <Button
+                  variant="outline"
+                  className="border-[--color-hairline] text-[--color-ink-primary] hover:bg-[--color-surface-muted]"
+                >
+                  Ver subastas activas
                 </Button>
               </Link>
-              <Button className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600">
+              <Button className="bg-[--color-action-soft] border border-[--color-action] text-[--color-ink-primary] hover:bg-[--color-action-soft]/80">
                 <Phone className="w-4 h-4 mr-2" />
-                Contactar Concierge
+                Contactar concierge
               </Button>
             </div>
           </div>
@@ -207,191 +221,194 @@ export default function DiamondDashboard() {
       <div className="container mx-auto px-6 py-8">
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card className="bg-white/10 backdrop-blur-sm border-white/20">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-gray-300">
-                Pre-Subastas Activas
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-white">{preAuctions.length}</div>
-              <p className="text-xs text-gray-400 mt-1">Oportunidades exclusivas</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white/10 backdrop-blur-sm border-white/20">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-gray-300">
-                Próxima en 30 días
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-white">
-                {preAuctions.filter(a => a.daysUntilAuction <= 30).length}
-              </div>
-              <p className="text-xs text-gray-400 mt-1">Requieren atención</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white/10 backdrop-blur-sm border-white/20">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-gray-300">
-                Retiradas del Mercado
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-white">{removedAuctions.length}</div>
-              <p className="text-xs text-gray-400 mt-1">Últimos 30 días</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white/10 backdrop-blur-sm border-white/20">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-gray-300">
-                Valor Total Pipeline
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-white">
-                €{(preAuctions.reduce((sum, a) => sum + a.appraisalValue, 0) / 1000000).toFixed(1)}M
-              </div>
-              <p className="text-xs text-gray-400 mt-1">En valoración</p>
-            </CardContent>
-          </Card>
+          <StatCard
+            label="Pre-Subastas activas"
+            value={preAuctions.length.toString()}
+            footnote="Oportunidades exclusivas"
+          />
+          <StatCard
+            label="Próxima en 30 días"
+            value={preAuctions
+              .filter((a) => a.daysUntilAuction <= 30)
+              .length.toString()}
+            footnote="Requieren atención"
+          />
+          <StatCard
+            label="Retiradas del mercado"
+            value={removedAuctions.length.toString()}
+            footnote="Últimos 30 días"
+          />
+          <StatCard
+            label="Valor total pipeline"
+            value={`€${(preAuctions.reduce((s, a) => s + a.appraisalValue, 0) / 1_000_000).toFixed(1)}M`}
+            footnote="En valoración"
+          />
         </div>
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="bg-white/10 backdrop-blur-sm border-white/20">
-            <TabsTrigger value="pipeline" className="data-[state=active]:bg-white/20">
+          <TabsList className="bg-[--color-surface] border border-[--color-hairline]">
+            <TabsTrigger
+              value="pipeline"
+              className="data-[state=active]:bg-[--color-surface-muted] text-[--color-ink-primary]"
+            >
               <TrendingUp className="w-4 h-4 mr-2" />
-              Pipeline Exclusivo
+              Pipeline exclusivo
             </TabsTrigger>
-            <TabsTrigger value="removed" className="data-[state=active]:bg-white/20">
+            <TabsTrigger
+              value="removed"
+              className="data-[state=active]:bg-[--color-surface-muted] text-[--color-ink-primary]"
+            >
               <AlertCircle className="w-4 h-4 mr-2" />
               Retiradas
             </TabsTrigger>
-            <TabsTrigger value="timeline" className="data-[state=active]:bg-white/20">
+            <TabsTrigger
+              value="timeline"
+              className="data-[state=active]:bg-[--color-surface-muted] text-[--color-ink-primary]"
+            >
               <Calendar className="w-4 h-4 mr-2" />
-              Línea Temporal
+              Línea temporal
             </TabsTrigger>
           </TabsList>
 
-          {/* Pipeline Tab */}
+          {/* Pipeline */}
           <TabsContent value="pipeline" className="space-y-4 mt-6">
             {loading ? (
               <div className="text-center py-12">
-                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-white border-r-transparent"></div>
-                <p className="mt-4 text-gray-400">Cargando datos exclusivos...</p>
+                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[--color-ink-primary] border-r-transparent" />
+                <p className="mt-4 text-[--color-ink-secondary]">
+                  Cargando datos exclusivos…
+                </p>
               </div>
             ) : (
               preAuctions.map((item) => (
-                <Card key={item.id} className="bg-white/10 backdrop-blur-sm border-white/20 hover:bg-white/15 transition-all">
+                <Card
+                  key={item.id}
+                  className="bg-[--color-surface] border border-[--color-hairline] hover:shadow-[var(--shadow-card)] transition-shadow"
+                >
                   <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <CardTitle className="text-xl text-white">{item.title}</CardTitle>
+                    <div className="flex items-start justify-between flex-wrap gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <CardTitle className="text-xl text-[--color-ink-primary]">
+                            {item.title}
+                          </CardTitle>
                           {getStatusBadge(item.status)}
                           {item.daysUntilAuction <= 30 && (
-                            <Badge variant="destructive">
+                            <Badge className="bg-[--color-warn-critical-soft] text-[--color-ink-primary] border border-[--color-warn-critical]">
                               <Clock className="w-3 h-3 mr-1" />
                               {item.daysUntilAuction} días
                             </Badge>
                           )}
                         </div>
-                        <CardDescription className="text-gray-300">
-                          {item.category} • {item.province}
+                        <CardDescription className="text-[--color-ink-secondary]">
+                          {item.category} · {item.province}
                         </CardDescription>
                       </div>
                       <div className="text-right">
-                        <p className="text-2xl font-bold text-white">€{item.appraisalValue.toLocaleString()}</p>
-                        <p className="text-sm text-gray-400">Tasación</p>
+                        <p className="text-2xl font-bold text-[--color-ink-primary] tnum">
+                          €{item.appraisalValue.toLocaleString('es-ES')}
+                        </p>
+                        <p className="text-sm text-[--color-ink-tertiary]">
+                          Tasación
+                        </p>
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {/* Details Grid */}
-                    <div className="grid grid-cols-2 gap-4 p-4 bg-black/20 rounded-lg">
-                      <div className="flex items-start gap-2">
-                        <Building2 className="w-4 h-4 text-gray-400 mt-1" />
-                        <div>
-                          <p className="text-xs text-gray-400">Juzgado</p>
-                          <p className="text-sm text-white font-medium">{item.courtName}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <FileText className="w-4 h-4 text-gray-400 mt-1" />
-                        <div>
-                          <p className="text-xs text-gray-400">Procedimiento</p>
-                          <p className="text-sm text-white font-medium">{item.procedureNumber}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <MapPin className="w-4 h-4 text-gray-400 mt-1" />
-                        <div>
-                          <p className="text-xs text-gray-400">Dirección</p>
-                          <p className="text-sm text-white font-medium">{item.address}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <Calendar className="w-4 h-4 text-gray-400 mt-1" />
-                        <div>
-                          <p className="text-xs text-gray-400">Fecha Estimada BOE</p>
-                          <p className="text-sm text-white font-medium">
-                            {new Date(item.estimatedDate).toLocaleDateString('es-ES')}
-                          </p>
-                        </div>
-                      </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-[--color-surface-muted] rounded-lg">
+                      <DetailRow
+                        icon={<Building2 className="w-4 h-4 text-[--color-ink-tertiary] mt-1" />}
+                        label="Juzgado"
+                        value={item.courtName}
+                      />
+                      <DetailRow
+                        icon={<FileText className="w-4 h-4 text-[--color-ink-tertiary] mt-1" />}
+                        label="Procedimiento"
+                        value={item.procedureNumber}
+                      />
+                      <DetailRow
+                        icon={<MapPin className="w-4 h-4 text-[--color-ink-tertiary] mt-1" />}
+                        label="Dirección"
+                        value={item.address}
+                      />
+                      <DetailRow
+                        icon={<Calendar className="w-4 h-4 text-[--color-ink-tertiary] mt-1" />}
+                        label="Fecha estimada BOE"
+                        value={new Date(item.estimatedDate).toLocaleDateString(
+                          'es-ES'
+                        )}
+                      />
                     </div>
 
-                    {/* Cargas y Occupación */}
+                    {/* Cargas y ocupación */}
                     <div className="space-y-3">
-                      {item.cargasAnteriores && item.cargasAnteriores.length > 0 && (
-                        <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
-                          <p className="text-xs font-semibold text-amber-400 mb-2">⚠️ Cargas Anteriores</p>
-                          {item.cargasAnteriores.map((carga, idx) => (
-                            <div key={idx} className="flex justify-between text-sm">
-                              <span className="text-gray-300">{carga.type}</span>
-                              <span className="text-white font-medium">€{carga.amount.toLocaleString()}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      {item.cargasAnteriores &&
+                        item.cargasAnteriores.length > 0 && (
+                          <div className="p-3 bg-[--color-warn-attention-soft] border border-[--color-warn-attention]/40 rounded-lg">
+                            <p className="text-xs font-semibold text-[--color-ink-primary] mb-2">
+                              Cargas anteriores
+                            </p>
+                            {item.cargasAnteriores.map((carga, idx) => (
+                              <div
+                                key={idx}
+                                className="flex justify-between text-sm text-[--color-ink-primary]"
+                              >
+                                <span>{carga.type}</span>
+                                <span className="font-semibold tnum">
+                                  €{carga.amount.toLocaleString('es-ES')}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
 
-                      {item.cargasPreferentes && item.cargasPreferentes.length > 0 && (
-                        <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                          <p className="text-xs font-semibold text-blue-400 mb-2">💡 Cargas Preferentes</p>
-                          {item.cargasPreferentes.map((carga, idx) => (
-                            <div key={idx} className="flex justify-between text-sm">
-                              <span className="text-gray-300">{carga.type}</span>
-                              <span className="text-white font-medium">€{carga.amount.toLocaleString()}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      {item.cargasPreferentes &&
+                        item.cargasPreferentes.length > 0 && (
+                          <div className="p-3 bg-[--color-action-soft] border border-[--color-action]/40 rounded-lg">
+                            <p className="text-xs font-semibold text-[--color-ink-primary] mb-2">
+                              Cargas preferentes
+                            </p>
+                            {item.cargasPreferentes.map((carga, idx) => (
+                              <div
+                                key={idx}
+                                className="flex justify-between text-sm text-[--color-ink-primary]"
+                              >
+                                <span>{carga.type}</span>
+                                <span className="font-semibold tnum">
+                                  €{carga.amount.toLocaleString('es-ES')}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
 
                       {item.occupancyStatus && (
-                        <div className={`p-3 rounded-lg ${
-                          item.occupancyStatus === 'Desocupado' 
-                            ? 'bg-green-500/10 border border-green-500/30' 
-                            : 'bg-red-500/10 border border-red-500/30'
-                        }`}>
-                          <p className="text-xs font-semibold mb-1" style={{
-                            color: item.occupancyStatus === 'Desocupado' ? '#4ade80' : '#f87171'
-                          }}>
-                            🏠 Estado de Ocupación
+                        <div
+                          className={`p-3 rounded-lg border ${
+                            item.occupancyStatus === 'Desocupado'
+                              ? 'bg-[--color-status-live-soft] border-[--color-status-live]/40'
+                              : 'bg-[--color-status-cancelled-soft] border-[--color-status-cancelled]/40'
+                          }`}
+                        >
+                          <p className="text-xs font-semibold mb-1 text-[--color-ink-primary]">
+                            Estado de ocupación
                           </p>
-                          <p className="text-sm text-white">{item.occupancyStatus}</p>
+                          <p className="text-sm text-[--color-ink-primary]">
+                            {item.occupancyStatus}
+                          </p>
                         </div>
                       )}
                     </div>
 
                     <div className="flex gap-3">
-                      <Button className="flex-1 bg-purple-600 hover:bg-purple-700">
-                        Ver Detalles Completos
+                      <Button className="flex-1 bg-[--color-action-soft] border border-[--color-action] text-[--color-ink-primary] hover:bg-[--color-action-soft]/80">
+                        Ver detalles completos
                       </Button>
-                      <Button variant="outline" className="border-white/20 text-white hover:bg-white/10">
+                      <Button
+                        variant="outline"
+                        className="border-[--color-hairline] text-[--color-ink-primary] hover:bg-[--color-surface-muted]"
+                      >
                         <Phone className="w-4 h-4" />
                       </Button>
                     </div>
@@ -401,17 +418,24 @@ export default function DiamondDashboard() {
             )}
           </TabsContent>
 
-          {/* Removed Tab */}
+          {/* Removed */}
           <TabsContent value="removed" className="space-y-4 mt-6">
             {removedAuctions.map((item) => (
-              <Card key={item.id} className="bg-white/10 backdrop-blur-sm border-white/20">
+              <Card
+                key={item.id}
+                className="bg-[--color-surface] border border-[--color-hairline]"
+              >
                 <CardHeader>
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between flex-wrap gap-3">
                     <div>
-                      <CardTitle className="text-lg text-white">{item.title}</CardTitle>
-                      <CardDescription className="text-gray-300">{item.province}</CardDescription>
+                      <CardTitle className="text-lg text-[--color-ink-primary]">
+                        {item.title}
+                      </CardTitle>
+                      <CardDescription className="text-[--color-ink-secondary]">
+                        {item.province}
+                      </CardDescription>
                     </div>
-                    <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300">
+                    <Badge className="bg-[--color-status-cancelled-soft] text-[--color-ink-primary] border border-[--color-status-cancelled]/40">
                       Retirada
                     </Badge>
                   </div>
@@ -419,18 +443,22 @@ export default function DiamondDashboard() {
                 <CardContent>
                   <div className="grid grid-cols-3 gap-4 text-sm">
                     <div>
-                      <p className="text-gray-400">Tasación</p>
-                      <p className="text-white font-medium">€{item.appraisalValue.toLocaleString()}</p>
+                      <p className="text-[--color-ink-tertiary]">Tasación</p>
+                      <p className="text-[--color-ink-primary] font-semibold tnum">
+                        €{item.appraisalValue.toLocaleString('es-ES')}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-gray-400">Retirada</p>
-                      <p className="text-white font-medium">
+                      <p className="text-[--color-ink-tertiary]">Retirada</p>
+                      <p className="text-[--color-ink-primary] font-semibold tnum">
                         {new Date(item.removedDate).toLocaleDateString('es-ES')}
                       </p>
                     </div>
                     <div>
-                      <p className="text-gray-400">Motivo</p>
-                      <p className="text-white font-medium">{item.reason}</p>
+                      <p className="text-[--color-ink-tertiary]">Motivo</p>
+                      <p className="text-[--color-ink-primary] font-semibold">
+                        {item.reason}
+                      </p>
                     </div>
                   </div>
                 </CardContent>
@@ -438,37 +466,72 @@ export default function DiamondDashboard() {
             ))}
           </TabsContent>
 
-          {/* Timeline Tab */}
+          {/* Timeline */}
           <TabsContent value="timeline" className="mt-6">
-            <Card className="bg-white/10 backdrop-blur-sm border-white/20">
+            <Card className="bg-[--color-surface] border border-[--color-hairline]">
               <CardHeader>
-                <CardTitle className="text-white">Proceso Judicial Típico</CardTitle>
-                <CardDescription className="text-gray-300">
+                <CardTitle className="text-[--color-ink-primary]">
+                  Proceso judicial típico
+                </CardTitle>
+                <CardDescription className="text-[--color-ink-secondary]">
                   Línea temporal desde embargo hasta subasta
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
                   {[
-                    { phase: 'Embargo', duration: '1-2 meses', icon: AlertCircle, color: 'red' },
-                    { phase: 'Tasación Pericial', duration: '2-3 meses', icon: FileText, color: 'yellow' },
-                    { phase: 'Publicación TEJU', duration: '1 mes', icon: Building2, color: 'blue' },
-                    { phase: 'Anuncio BOE', duration: '20 días', icon: Calendar, color: 'purple' },
-                    { phase: 'Subasta', duration: 'Día fijado', icon: TrendingUp, color: 'green' }
+                    {
+                      phase: 'Embargo',
+                      duration: '1-2 meses',
+                      icon: AlertCircle,
+                      tint: 'bg-[--color-warn-critical-soft]',
+                      ink: 'text-[--color-warn-critical]',
+                    },
+                    {
+                      phase: 'Tasación pericial',
+                      duration: '2-3 meses',
+                      icon: FileText,
+                      tint: 'bg-[--color-warn-attention-soft]',
+                      ink: 'text-[--color-warn-attention]',
+                    },
+                    {
+                      phase: 'Publicación TEJU',
+                      duration: '1 mes',
+                      icon: Building2,
+                      tint: 'bg-[--color-action-soft]',
+                      ink: 'text-[--color-action]',
+                    },
+                    {
+                      phase: 'Anuncio BOE',
+                      duration: '20 días',
+                      icon: Calendar,
+                      tint: 'bg-[--color-surface-muted]',
+                      ink: 'text-[--color-ink-secondary]',
+                    },
+                    {
+                      phase: 'Subasta',
+                      duration: 'Día fijado',
+                      icon: TrendingUp,
+                      tint: 'bg-[--color-status-live-soft]',
+                      ink: 'text-[--color-status-live]',
+                    },
                   ].map((step, idx) => {
                     const Icon = step.icon;
                     return (
                       <div key={idx} className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-full bg-${step.color}-500/20 flex items-center justify-center flex-shrink-0`}>
-                          <Icon className={`w-6 h-6 text-${step.color}-400`} />
+                        <div
+                          className={`w-12 h-12 rounded-full ${step.tint} flex items-center justify-center flex-shrink-0`}
+                        >
+                          <Icon className={`w-6 h-6 ${step.ink}`} />
                         </div>
                         <div className="flex-1">
-                          <p className="font-semibold text-white">{step.phase}</p>
-                          <p className="text-sm text-gray-400">{step.duration}</p>
+                          <p className="font-semibold text-[--color-ink-primary]">
+                            {step.phase}
+                          </p>
+                          <p className="text-sm text-[--color-ink-tertiary]">
+                            {step.duration}
+                          </p>
                         </div>
-                        {idx < 4 && (
-                          <div className="w-px h-8 bg-white/20 absolute ml-6 mt-12" />
-                        )}
                       </div>
                     );
                   })}
@@ -477,6 +540,54 @@ export default function DiamondDashboard() {
             </Card>
           </TabsContent>
         </Tabs>
+      </div>
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  footnote,
+}: {
+  label: string;
+  value: string;
+  footnote: string;
+}) {
+  return (
+    <Card className="bg-[--color-surface] border border-[--color-hairline]">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium text-[--color-ink-secondary]">
+          {label}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="text-3xl font-bold text-[--color-ink-primary] tnum">
+          {value}
+        </div>
+        <p className="text-xs text-[--color-ink-tertiary] mt-1">{footnote}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DetailRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value?: string;
+}) {
+  return (
+    <div className="flex items-start gap-2">
+      {icon}
+      <div className="min-w-0">
+        <p className="text-xs text-[--color-ink-tertiary]">{label}</p>
+        <p className="text-sm text-[--color-ink-primary] font-medium truncate">
+          {value ?? '—'}
+        </p>
       </div>
     </div>
   );

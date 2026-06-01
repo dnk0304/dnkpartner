@@ -42,7 +42,7 @@ export default function LayoutEditorPage() {
               <RotateCcw className="w-4 h-4" />
               Reset Defaults
             </Button>
-            <Button className="gap-2 bg-black text-white hover:bg-gray-800">
+            <Button className="gap-2 bg-[--color-surface] border-2 border-[--color-ink-primary] text-[--color-ink-primary] hover:bg-[--color-surface-muted]">
               <Save className="w-4 h-4" />
               Auto-Saved
             </Button>

@@ -22,7 +22,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
-import { LayoutList, LayoutGrid, Map as MapIcon, Loader2, SlidersHorizontal } from "lucide-react";
+import { LayoutList, LayoutGrid, Map as MapIcon, Loader2, SlidersHorizontal, Table2 } from "lucide-react";
 import { AuctionItem } from "@/types";
 import { apiFetch } from "@/lib/api-path";
 import { ObservatoryHeader } from "@/components/observatory/ObservatoryHeader";
@@ -30,6 +30,7 @@ import { SimpleFilters, ActiveFilterChips } from "@/components/observatory/Simpl
 import { AdvancedFiltersSheet } from "@/components/observatory/AdvancedFiltersSheet";
 import { AuctionListRow } from "@/components/observatory/AuctionListRow";
 import { AuctionListCard } from "@/components/observatory/AuctionListCard";
+import { RegistroTable } from "@/components/observatory/RegistroTable";
 import { PresetRow } from "@/components/observatory/PresetRow";
 import { SortDropdown } from "@/components/observatory/SortDropdown";
 import {
@@ -48,7 +49,7 @@ const HierarchicalMap = dynamic(
   { ssr: false, loading: () => <div className="h-full w-full bg-[--color-surface-muted] animate-pulse" /> },
 );
 
-type ViewMode = "list" | "cards" | "map";
+type ViewMode = "list" | "cards" | "registro" | "map";
 
 export default function SubastasListClient() {
   const router = useRouter();
@@ -322,8 +323,8 @@ export default function SubastasListClient() {
                   "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40",
                   advanced
-                    ? "border-[--color-brand] bg-[--color-brand] text-white"
-                    : "border-[--color-hairline] bg-[--color-surface] text-[--color-ink-secondary] hover:border-[--color-brand]/40 hover:text-[--color-brand]",
+                    ? "border-[--color-action] bg-[--color-action-soft] text-[--color-ink-primary] ring-1 ring-[--color-action]"
+                    : "border-[--color-hairline] bg-[--color-surface] text-[--color-ink-primary] hover:border-[--color-action]/40 hover:bg-[--color-action-soft]/40",
                 )}
                 title={advanced ? "Volver a filtros simples" : "Mostrar filtros avanzados"}
               >
@@ -358,6 +359,8 @@ export default function SubastasListClient() {
                 <AuctionListCard key={it.id} item={it} />
               ))}
             </div>
+          ) : viewMode === "registro" ? (
+            <RegistroTable items={filtered} />
           ) : (
             <div className="rounded-lg border border-[--color-hairline] bg-[--color-surface] overflow-hidden">
               <table className="w-full">
@@ -420,6 +423,7 @@ function ViewToggle({
   const opts: Array<{ id: ViewMode; label: string; icon: React.ReactNode }> = [
     { id: "list", label: "Lista", icon: <LayoutList className="h-4 w-4" /> },
     { id: "cards", label: "Tarjetas", icon: <LayoutGrid className="h-4 w-4" /> },
+    { id: "registro", label: "Registro", icon: <Table2 className="h-4 w-4" /> },
     { id: "map", label: "Mapa", icon: <MapIcon className="h-4 w-4" /> },
   ];
   return (
@@ -438,8 +442,8 @@ function ViewToggle({
             "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors",
             "focus-visible:outline-none focus-visible:bg-[--color-brand]/5",
             current === o.id
-              ? "bg-[--color-brand] text-white"
-              : "bg-[--color-surface] text-[--color-ink-secondary] hover:bg-[--color-surface-muted]",
+              ? "bg-[--color-action-soft] text-[--color-ink-primary] ring-1 ring-[--color-action]/40"
+              : "bg-[--color-surface] text-[--color-ink-primary] hover:bg-[--color-surface-muted]",
           )}
         >
           {o.icon}

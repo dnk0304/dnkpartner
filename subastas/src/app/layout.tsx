@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { Inter, Source_Serif_4, JetBrains_Mono } from "next/font/google";
+import { Inter, Inter_Tight, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { SessionProvider } from "@/components/SessionProvider";
 import { AdminSettingsProvider } from "@/context/AdminSettingsContext";
 
 /**
  * Typography — the single biggest "less AI" lever we have.
- *   - Source Serif 4 for editorial/judicial headings
+ *   - Inter Tight for display headings (news-grade, register feel)
  *   - Inter for UI/body (with tabular numerals enabled in globals.css)
  *   - JetBrains Mono available for code-like values
  *
@@ -18,11 +18,11 @@ const inter = Inter({
   display: "swap",
 });
 
-const serifDisplay = Source_Serif_4({
+const interTight = Inter_Tight({
   subsets: ["latin"],
-  variable: "--font-serif-display",
+  variable: "--font-inter-tight",
   display: "swap",
-  weight: ["400", "600", "700"],
+  weight: ["500", "600", "700"],
 });
 
 const jetbrainsMono = JetBrains_Mono({
@@ -45,7 +45,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body
-        className={`${inter.variable} ${serifDisplay.variable} ${jetbrainsMono.variable} antialiased`}
+        className={`${inter.variable} ${interTight.variable} ${jetbrainsMono.variable} antialiased`}
       >
         <SessionProvider>
           <AdminSettingsProvider>{children}</AdminSettingsProvider>

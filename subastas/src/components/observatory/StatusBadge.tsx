@@ -1,15 +1,18 @@
 "use client";
 
 /**
- * StatusBadge — the small chip that shows current auction status.
+ * StatusBadge — the SINGLE status chip for an auction.
  *
- * Two sizes:
- *   - "sm" (default): used in list rows, feed rows, card thumbnails
- *   - "lg":            used on the detail page panel
+ * REDESIGN #3 RULES (locked):
+ *   - One auction = exactly ONE status badge. Never render two state
+ *     chips on the same card. Use a typographic meta line for history
+ *     ("Finalizada el 28/05/2026") instead of a second pill.
+ *   - Black ink (--color-ink-primary) always; soft-tint fill; status-colour
+ *     dot + 35% border. Never white-on-saturated.
+ *   - Status value is the single source of truth from getStatusMeta().
  *
- * Visual rule: a 6px colored dot + label, hairline border, light tint.
- * The dot pulses only for live auctions (status === celebrandose) and
- * respects prefers-reduced-motion via the .dnk-pulse utility.
+ * Two sizes: "sm" (default, card overlays/list rows), "lg" (detail page).
+ * The dot pulses only for "Celebrándose" and respects prefers-reduced-motion.
  */
 
 import * as React from "react";
@@ -32,12 +35,12 @@ export function StatusBadge({ status, size = "sm", className, hideDot = false }:
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border font-medium uppercase tracking-wide whitespace-nowrap",
+        "inline-flex items-center gap-1.5 rounded-full border font-semibold uppercase tracking-wide whitespace-nowrap",
+        "text-[--color-ink-primary]",
         isSm ? "h-5 px-2 text-[10px]" : "h-7 px-3 text-xs",
         className,
       )}
       style={{
-        color: meta.color,
         backgroundColor: meta.tint,
         borderColor: meta.border,
       }}

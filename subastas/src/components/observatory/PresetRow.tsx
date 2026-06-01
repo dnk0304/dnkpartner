@@ -270,11 +270,11 @@ function AdvancedPresetChip({
         "snap-start shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all min-h-[36px]",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40",
         active
-          ? "border-[--color-brand] bg-[--color-brand] text-white shadow-sm"
-          : "border-[--color-hairline] bg-[--color-surface] text-[--color-ink-secondary] hover:border-[--color-brand]/40 hover:text-[--color-brand]",
+          ? "border-[--color-action] bg-[--color-action-soft] text-[--color-ink-primary] shadow-sm"
+          : "border-[--color-hairline] bg-[--color-surface] text-[--color-ink-primary] hover:border-[--color-action]/40 hover:bg-[--color-action-soft]/40",
       )}
     >
-      <span className={cn(active ? "text-white" : "text-[--color-ink-tertiary]")}>{spec.icon}</span>
+      <span className={cn(active ? "text-[--color-ink-primary]" : "text-[--color-ink-tertiary]")}>{spec.icon}</span>
       <span>{spec.label}</span>
     </button>
   );

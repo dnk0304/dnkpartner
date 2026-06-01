@@ -130,7 +130,7 @@ export function DetailStatusPanel({
           rel="noopener noreferrer"
           className={cn(
             "flex w-full items-center justify-center gap-2 rounded-md px-4 py-3 text-sm font-semibold transition-colors",
-            "bg-[--color-brand] text-white hover:bg-[--color-brand-hover]",
+            "bg-[--color-action-soft] border border-[--color-action] text-[--color-ink-primary] hover:bg-[--color-action-soft]/80",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40 focus-visible:ring-offset-2",
           )}
         >

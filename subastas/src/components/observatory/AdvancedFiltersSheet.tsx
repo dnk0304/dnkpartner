@@ -157,7 +157,7 @@ export function AdvancedFiltersSheet({
                 onSave?.();
                 onOpenChange(false);
               }}
-              className="bg-[--color-brand] text-white hover:bg-[--color-brand-hover]"
+              className="bg-[--color-action-soft] border border-[--color-action] text-[--color-ink-primary] hover:bg-[--color-action-soft]/80"
             >
               {resultCount != null ? `Ver ${resultCount.toLocaleString("es-ES")} resultados` : "Aplicar"}
             </Button>

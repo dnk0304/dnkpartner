@@ -174,7 +174,7 @@ export function NotificationBell({ className, inboxHref = "/notifications" }: No
               aria-hidden="true"
               className={cn(
                 "absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1",
-                "rounded-full bg-[#B08A3E] text-white text-[10px] font-semibold",
+                "rounded-full bg-[--color-warn-critical-soft] text-[--color-ink-primary] border border-[--color-warn-critical] text-[10px] font-semibold",
                 "flex items-center justify-center leading-none",
                 "ring-2 ring-white",
               )}
