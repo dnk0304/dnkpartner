@@ -100,21 +100,49 @@ class ScraperScheduler:
             now = datetime.utcnow()
 
             # ---- 1. Expire past-deadline live auctions ----
-            # Widened (2026-06-01 corrective): also retire expired PROXIMA_APERTURA
-            # (pre-auction window passed, never opened on portal) and stale
-            # SUSPENDIDA (old suspensions that never resumed). All land on
-            # CONCLUIDA_PORTAL with transitionedAt set.
+            # Lifecycle: PROXIMA_APERTURA -> (opensAt) -> CELEBRANDOSE ->
+            #            (endsAt) -> CONCLUIDA_PORTAL.
+            #
+            # SWEEP GUARD (2026-06-01, Ghost lifecycle fix): the prior widened
+            # form expired ANY PROXIMA_APERTURA whose endsAt passed. That was
+            # wrong — a pre-auction that never opened was swept straight to
+            # CONCLUIDA, skipping live entirely (155 rows retired in one batch).
+            # The promotion job (promote_pending_auctions) now owns the
+            # PROXIMA->CELEBRANDOSE flip when opensAt arrives.
+            #
+            # ACTIVE / CELEBRANDOSE / SUSPENDIDA still expire on a past endsAt.
+            # PROXIMA_APERTURA is EXCLUDED here and handled by the dedicated
+            # rule below so an un-opened pre-auction is never wrongly retired.
             cursor.execute("""
                 SELECT id, "boeId", "endsAt", status, title,
                        "boeLink", province, municipality,
                        "appraisalValue", "currentBid",
                        "suspensionReason", "resumeAt"
                 FROM "Auction"
-                WHERE status IN ('ACTIVE', 'CELEBRANDOSE', 'PROXIMA_APERTURA', 'SUSPENDIDA')
+                WHERE status IN ('ACTIVE', 'CELEBRANDOSE', 'SUSPENDIDA')
                   AND "endsAt" IS NOT NULL
                   AND "endsAt" < %s
             """, (now,))
-            expired = cursor.fetchall()
+            expired = list(cursor.fetchall())
+
+            # PROXIMA_APERTURA expiry — ONLY when the pre-auction genuinely ran
+            # its full window: it opened (opensAt IS NOT NULL AND opensAt <= now)
+            # AND its end passed (endsAt < now). A PROXIMA with opensAt NULL or
+            # still in the future is left untouched (it simply hasn't opened) so
+            # the promotion job can flip it live at the right moment.
+            cursor.execute("""
+                SELECT id, "boeId", "endsAt", status, title,
+                       "boeLink", province, municipality,
+                       "appraisalValue", "currentBid",
+                       "suspensionReason", "resumeAt"
+                FROM "Auction"
+                WHERE status = 'PROXIMA_APERTURA'
+                  AND "opensAt" IS NOT NULL
+                  AND "opensAt" <= %s
+                  AND "endsAt" IS NOT NULL
+                  AND "endsAt" < %s
+            """, (now, now))
+            expired.extend(cursor.fetchall())
 
             if expired:
                 self.log(f"  Found {len(expired)} expired live auctions")
@@ -261,6 +289,107 @@ class ScraperScheduler:
             conn.close()
         except Exception as e:
             self.log(f"  SQLite monitor error: {e}")
+
+    # -----------------------------------------------------------------------
+    # promote_pending_auctions — Ghost lifecycle fix (2026-06-01)
+    # The missing hinge in the lifecycle: PROXIMA_APERTURA -> CELEBRANDOSE.
+    # Time-driven promotion. Flips any pre-auction whose opensAt has arrived
+    # (and which hasn't already ended) to live, emitting auction.go_live +
+    # an AuctionStatusHistory row in the SAME transaction (mirrors the sweep).
+    # -----------------------------------------------------------------------
+
+    def promote_pending_auctions(self):
+        """
+        Promote PROXIMA_APERTURA -> CELEBRANDOSE when opensAt has arrived.
+
+        Rule: status='PROXIMA_APERTURA' AND opensAt IS NOT NULL AND opensAt <= now
+              AND (endsAt IS NULL OR endsAt > now).
+        The endsAt guard prevents promoting a window that has already closed
+        (that case is the sweep's job once both opensAt and endsAt are past).
+
+        Emits auction.go_live (via emit_status_change, which auto-selects the
+        go_live event type for a CELEBRANDOSE transition out of PROXIMA) and an
+        AuctionStatusHistory row, in the same psycopg2 transaction as the UPDATE.
+        """
+        self.log("Promoting pending pre-auctions (PROXIMA_APERTURA -> CELEBRANDOSE)...")
+
+        is_postgres = DATABASE_URL and ('postgresql://' in DATABASE_URL or 'postgres://' in DATABASE_URL)
+        if not is_postgres:
+            self.log("  Promotion skipped (not Postgres — no DATABASE_URL configured)")
+            return
+
+        try:
+            conn = self._get_pg_conn()
+            cursor = conn.cursor()
+            now = datetime.utcnow()
+
+            cursor.execute("""
+                SELECT id, "boeId", "endsAt", status, title,
+                       "boeLink", province, municipality,
+                       "appraisalValue", "currentBid", "opensAt"
+                FROM "Auction"
+                WHERE status = 'PROXIMA_APERTURA'
+                  AND "opensAt" IS NOT NULL
+                  AND "opensAt" <= %s
+                  AND ("endsAt" IS NULL OR "endsAt" > %s)
+            """, (now, now))
+            pending = cursor.fetchall()
+
+            if not pending:
+                self.log("  No pre-auctions due for promotion")
+                cursor.close()
+                conn.close()
+                return
+
+            self.log(f"  Found {len(pending)} pre-auctions to promote")
+
+            # Same import shim the sweep uses (sys.path '/' + app. prefix).
+            sys.path.insert(0, '/')
+            from app.database.outbox import emit_status_change
+
+            promoted_ids = [row[0] for row in pending]
+            cursor.execute("""
+                UPDATE "Auction"
+                SET status = 'CELEBRANDOSE',
+                    "transitionedAt" = %s,
+                    "updatedAt" = %s
+                WHERE id = ANY(%s)
+            """, (now, now, promoted_ids))
+
+            for (
+                auction_id, boe_id, ends_at, from_status, title,
+                boe_link, province, municipality,
+                appraisal_value, current_bid, opens_at,
+            ) in pending:
+                try:
+                    emit_status_change(
+                        cursor,
+                        auction_id=auction_id,
+                        boe_id=boe_id or "",
+                        boe_link=boe_link or f"https://subastas.boe.es/detalleSubasta.php?idSub={boe_id}",
+                        title=title or "",
+                        from_status=from_status,          # PROXIMA_APERTURA
+                        to_status="CELEBRANDOSE",         # -> go_live event
+                        province=province or "",
+                        municipality=municipality or "",
+                        appraisal_value=float(appraisal_value or 0),
+                        current_bid=float(current_bid) if current_bid else None,
+                        ends_at=ends_at,
+                        detected_by="scheduler.promote_pending_auctions",
+                    )
+                except Exception as e:
+                    self.log(f"  Warning: go_live outbox write failed for {boe_id}: {e}")
+
+            conn.commit()
+            self.log(f"  Promoted {len(pending)} pre-auctions to CELEBRANDOSE (go_live emitted)")
+
+            cursor.close()
+            conn.close()
+
+        except Exception as e:
+            self.log(f"  Error in promote_pending_auctions: {e}")
+            import traceback
+            self.log(traceback.format_exc())
 
     # -----------------------------------------------------------------------
     # scrape_pulse — Wave 1 close-out (direct psycopg2) + Wave 2a (outbox)
@@ -520,6 +649,10 @@ class ScraperScheduler:
         # Status monitor (expire + ending_soon) — every 30 min
         schedule.every(30).minutes.do(self.monitor_status_changes)
 
+        # Promotion (PROXIMA_APERTURA -> CELEBRANDOSE when opensAt arrives)
+        # — every 30 min. The time-driven hinge the lifecycle was missing.
+        schedule.every(30).minutes.do(self.promote_pending_auctions)
+
         # Daily BOE update (JUDICIAL family) + alert trigger — 08:00, 14:00, 20:00
         schedule.every().day.at("08:00").do(self.run_daily_update_and_alerts)
         schedule.every().day.at("14:00").do(self.run_daily_update_and_alerts)
@@ -552,6 +685,7 @@ class ScraperScheduler:
         self.log("Schedule configured:")
         self.log("  Pulse (bid updates):  Every 35 min")
         self.log("  Status monitor:       Every 30 min")
+        self.log("  Promotion (go-live):  Every 30 min (PROXIMA_APERTURA -> CELEBRANDOSE)")
         self.log(f"  Daily BOE + alerts:   08:00, 14:00, 20:00 (JUDICIAL)")
         self.log(f"  Notarial update:      06:30, 12:30, 18:30, 23:30 (4x/day)")
         self.log(f"  AEAT update:          06:45, 12:45, 18:45, 23:45 (4x/day)")
@@ -566,6 +700,9 @@ class ScraperScheduler:
         # Run initial checks immediately
         self.log("Running initial monitor check...")
         self.monitor_status_changes()
+        # Initial promotion sweep so any already-due pre-auction goes live on boot.
+        self.log("Running initial promotion check...")
+        self.promote_pending_auctions()
         # Initial dispatcher drain so anything queued before scheduler started
         # gets picked up on boot.
         self.log("Running initial dispatcher drain...")
@@ -589,6 +726,7 @@ def main():
     parser = argparse.ArgumentParser(description='DNKSubastas Scheduler')
     parser.add_argument('--once', action='store_true', help='Run monitor once and exit')
     parser.add_argument('--pulse-once', action='store_true', help='Run pulse once and exit')
+    parser.add_argument('--promote-once', action='store_true', help='Run promotion once and exit')
 
     args = parser.parse_args()
     scheduler = ScraperScheduler()
@@ -599,6 +737,9 @@ def main():
     elif args.pulse_once:
         scheduler.log("Running pulse once...")
         scheduler.scrape_pulse()
+    elif args.promote_once:
+        scheduler.log("Running promotion once...")
+        scheduler.promote_pending_auctions()
     else:
         scheduler.run()
 

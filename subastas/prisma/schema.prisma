@@ -55,6 +55,11 @@ model Auction {
 
   // Dates and times
   publishedAt DateTime
+  // opensAt: the auction's opening / "Fecha de inicio" — when a PROXIMA_APERTURA
+  // pre-auction begins live bidding. Nullable (additive migration; live rows
+  // pre-date the column). Drives the time-driven PROXIMA_APERTURA->CELEBRANDOSE
+  // promotion job in scheduler.promote_pending_auctions.
+  opensAt     DateTime?
   endsAt      DateTime?
   endDateTime DateTime?
 
@@ -127,6 +132,8 @@ model Auction {
   // Wave 1 composite/partial indexes for the live-state queries.
   @@index([status, endsAt])
   @@index([endsAt])
+  // Promotion query: PROXIMA_APERTURA rows whose opensAt has arrived.
+  @@index([status, opensAt])
   @@index([municipality, status])
 }
 

@@ -298,7 +298,7 @@ class DatabaseAdapter:
             cursor.execute("""
                 SELECT column_name FROM information_schema.columns
                 WHERE table_name = 'Auction'
-                  AND column_name IN ('suspensionReason', 'resumeAt', 'lastVerifiedAt')
+                  AND column_name IN ('suspensionReason', 'resumeAt', 'lastVerifiedAt', 'opensAt')
             """)
             forge_cols = {r[0] for r in cursor.fetchall()}
         except Exception:
@@ -379,6 +379,9 @@ class DatabaseAdapter:
             if 'lastVerifiedAt' in forge_cols:
                 update_fields.append('"lastVerifiedAt" = %s')
                 params.append(now)
+            if 'opensAt' in forge_cols and data.get('opens_at') is not None:
+                update_fields.append('"opensAt" = %s')
+                params.append(data['opens_at'])
 
             if not update_fields:
                 # Nothing to update — still stamp updatedAt
@@ -475,6 +478,10 @@ class DatabaseAdapter:
                 col_names.append('"lastVerifiedAt"')
                 placeholders.append('%s')
                 vals.append(now)
+            if 'opensAt' in forge_cols and data.get('opens_at') is not None:
+                col_names.append('"opensAt"')
+                placeholders.append('%s')
+                vals.append(data['opens_at'])
 
             sql = f'INSERT INTO "Auction" ({", ".join(col_names)}) VALUES ({", ".join(placeholders)})'
             cursor.execute(sql, tuple(vals))

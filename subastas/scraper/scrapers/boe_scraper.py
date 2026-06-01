@@ -437,6 +437,16 @@ class BOEScraper(BaseScraper):
                 if detail_info.get('ends_at') is not None:
                     auction_data['ends_at'] = detail_info['ends_at']
 
+                # --- Authoritative opening date from detail page ---
+                # "Fecha de inicio" = when the bidding window opens. For a
+                # PROXIMA_APERTURA pre-auction this is the future moment it goes
+                # live; the scheduler.promote_pending_auctions job watches this
+                # to flip PROXIMA_APERTURA -> CELEBRANDOSE when it arrives.
+                # Stored on every row (harmless for already-live rows) so a
+                # re-scrape can backfill existing PROXIMA rows.
+                if detail_info.get('start_at') is not None:
+                    auction_data['opens_at'] = detail_info['start_at']
+
                 # --- Title / identifier ---
                 # The listing card rarely carries a usable title, leaving the
                 # literal "Unknown". The detail-page Identificador is always
