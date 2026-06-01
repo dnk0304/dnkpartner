@@ -532,13 +532,13 @@ class ScraperScheduler:
         # ADMINISTRATIVAS are registered the same way (Stage 2) once verified.
         for t in ("06:30", "12:30", "18:30", "23:30"):
             schedule.every().day.at(t).do(self.run_notarial_update)
-        # --- Stage 2 (uncomment when each is verified end-to-end) ---
-        # for t in ("06:45", "12:45", "18:45", "23:45"):
-        #     schedule.every().day.at(t).do(self.run_aeat_update)
-        # for t in ("07:00", "13:00", "19:00", "00:00"):
-        #     schedule.every().day.at(t).do(self.run_otras_tributarias_update)
-        # for t in ("07:15", "13:15", "19:15", "00:15"):
-        #     schedule.every().day.at(t).do(self.run_administrativas_update)
+        # --- Stage 2 (verified end-to-end on live PG 2026-06-01) ---
+        for t in ("06:45", "12:45", "18:45", "23:45"):
+            schedule.every().day.at(t).do(self.run_aeat_update)
+        for t in ("07:00", "13:00", "19:00", "00:00"):
+            schedule.every().day.at(t).do(self.run_otras_tributarias_update)
+        for t in ("07:15", "13:15", "19:15", "00:15"):
+            schedule.every().day.at(t).do(self.run_administrativas_update)
 
         # Wave 2b: dispatcher drain — every DISPATCH_INTERVAL_MIN minutes
         schedule.every(DISPATCH_INTERVAL_MIN).minutes.do(self.dispatch_outbox)
@@ -554,6 +554,9 @@ class ScraperScheduler:
         self.log("  Status monitor:       Every 30 min")
         self.log(f"  Daily BOE + alerts:   08:00, 14:00, 20:00 (JUDICIAL)")
         self.log(f"  Notarial update:      06:30, 12:30, 18:30, 23:30 (4x/day)")
+        self.log(f"  AEAT update:          06:45, 12:45, 18:45, 23:45 (4x/day)")
+        self.log(f"  OtrasTrib update:     07:00, 13:00, 19:00, 00:00 (4x/day)")
+        self.log(f"  Administrativas:      07:15, 13:15, 19:15, 00:15 (4x/day)")
         self.log(f"  Dispatch outbox:      Every {DISPATCH_INTERVAL_MIN} min")
         self.log(f"  Geocode drain:        Every {geocode_interval} min (active rows only)")
         self.log(f"  ending_soon window:   {ENDING_SOON_HOURS}h before endsAt")
