@@ -147,8 +147,16 @@ def rescrape(conn):
         try:
             info = scraper._fetch_detail_info(boe_id)
             updates = {}
-            if info.get("appraisal_value") is not None:
-                updates['"appraisalValue"'] = info["appraisal_value"]
+            # Appraisal: prefer Tasación; but many judicial auctions render
+            # "Tasación 0,00 €" while carrying the real reference valuation in
+            # "Valor subasta". Use Valor subasta as the appraisal when Tasación
+            # is absent or literally 0 — that is the figure the UI should show.
+            appr = info.get("appraisal_value")
+            valor = info.get("valor_subasta")
+            if (appr is None or appr == 0) and valor not in (None, 0):
+                appr = valor
+            if appr is not None and appr != 0:
+                updates['"appraisalValue"'] = appr
             if info.get("minimum_bid") is not None:
                 updates['"minimumBid"'] = info["minimum_bid"]
             if info.get("deposit_amount") is not None:
