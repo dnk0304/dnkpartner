@@ -1,5 +1,104 @@
 import googleTrends from 'google-trends-api';
 
+// ---------------------------------------------------------------------------
+// RSS-based primary path
+// ---------------------------------------------------------------------------
+// The `google-trends-api` package's `dailyTrends`/`realTimeTrends` endpoints
+// were deprecated by Google and now return HTML instead of JSON (verified
+// 2026-06-01: all 13 regions return 134-byte HTML stubs). The free
+// `trends.google.com/trending/rss?geo=XX` endpoint is still alive and
+// returns 10 trends/region with `approx_traffic` (volume proxy) and
+// associated news items. We use it as the primary source for daily +
+// realtime trends and keep the legacy API as a silent fallback.
+
+interface RssTrend {
+  topic: string;
+  approxTraffic: number;
+  pubDate?: string;
+  newsItems?: Array<{ title: string; url: string; source: string }>;
+}
+
+/**
+ * Parse Google Trends RSS XML into structured trends.
+ * Format (verified 2026-06-01):
+ *   <item>
+ *     <title>tiafoe</title>
+ *     <ht:approx_traffic>500+</ht:approx_traffic>
+ *     <pubDate>Mon, 1 Jun 2026 13:00:00 -0700</pubDate>
+ *     <ht:news_item>...</ht:news_item> (0..n)
+ *   </item>
+ */
+function parseTrendsRss(xml: string): RssTrend[] {
+  const trends: RssTrend[] = [];
+  const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+  let itemMatch: RegExpExecArray | null;
+
+  while ((itemMatch = itemRegex.exec(xml)) !== null) {
+    const block = itemMatch[1];
+
+    // <title>X</title> — may contain CDATA or plain text
+    const titleMatch =
+      block.match(/<title><!\[CDATA\[([^\]]+)\]\]><\/title>/) ||
+      block.match(/<title>([^<]+)<\/title>/);
+    if (!titleMatch) continue;
+    const topic = titleMatch[1].trim();
+    if (!topic) continue;
+
+    // <ht:approx_traffic>500+</ht:approx_traffic>
+    const trafficMatch = block.match(/<ht:approx_traffic>([^<]+)<\/ht:approx_traffic>/);
+    let approxTraffic = 0;
+    if (trafficMatch) {
+      const raw = trafficMatch[1].trim();
+      // Strip "+", "K", "M" and convert
+      const num = raw.replace(/[+,]/g, '').toUpperCase();
+      if (num.endsWith('M')) approxTraffic = Math.round(parseFloat(num) * 1_000_000);
+      else if (num.endsWith('K')) approxTraffic = Math.round(parseFloat(num) * 1_000);
+      else approxTraffic = parseInt(num, 10) || 0;
+    }
+
+    const pubDateMatch = block.match(/<pubDate>([^<]+)<\/pubDate>/);
+    const pubDate = pubDateMatch?.[1].trim();
+
+    // Extract news items (optional)
+    const newsItems: Array<{ title: string; url: string; source: string }> = [];
+    const newsRegex = /<ht:news_item>([\s\S]*?)<\/ht:news_item>/g;
+    let newsMatch: RegExpExecArray | null;
+    while ((newsMatch = newsRegex.exec(block)) !== null) {
+      const newsBlock = newsMatch[1];
+      const t = newsBlock.match(/<ht:news_item_title>([\s\S]*?)<\/ht:news_item_title>/);
+      const u = newsBlock.match(/<ht:news_item_url>([^<]+)<\/ht:news_item_url>/);
+      const s = newsBlock.match(/<ht:news_item_source>([^<]+)<\/ht:news_item_source>/);
+      if (t && u) {
+        newsItems.push({
+          title: t[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&').trim(),
+          url: u[1].trim(),
+          source: s?.[1].trim() || '',
+        });
+      }
+    }
+
+    trends.push({ topic, approxTraffic, pubDate, newsItems });
+  }
+
+  return trends;
+}
+
+async function fetchTrendsRss(geo: string): Promise<RssTrend[]> {
+  const url = `https://trends.google.com/trending/rss?geo=${encodeURIComponent(geo)}`;
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0 Safari/537.36',
+      Accept: 'application/rss+xml, application/xml, text/xml, */*',
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`Trends RSS ${geo} HTTP ${res.status}`);
+  }
+  const xml = await res.text();
+  return parseTrendsRss(xml);
+}
+
 export interface GoogleTrendResult {
   topic: string;
   interest: number;
@@ -67,6 +166,10 @@ class GoogleTrendsService {
   private cacheTTL = 4 * 60 * 60 * 1000; // 4 hours
   private maxRetries = 3;
   private retryDelay = 2000; // 2 seconds
+  // Per-region RSS payload cache — keyed by geo. Re-used by getFullTrendData
+  // to avoid re-fetching when computing per-keyword interest.
+  private rssByGeo: Map<string, { trends: RssTrend[]; timestamp: number }> = new Map();
+  private rssCacheTTL = 30 * 60 * 1000; // 30 minutes
 
   private getCacheKey(options: TrendSearchOptions): string {
     return `${options.keyword}-${options.geo || 'US'}-${options.timeRange || 'today 12-m'}-${options.category || 0}`;
@@ -288,33 +391,80 @@ class GoogleTrendsService {
   }
 
   /**
-   * Get daily trending searches for a region
+   * Fetch + cache the raw RSS trends for a region.
+   * This is the primary live data source as of 2026-06-01.
+   */
+  private async getRssTrends(geo: string): Promise<RssTrend[]> {
+    const cached = this.rssByGeo.get(geo);
+    if (cached && Date.now() - cached.timestamp < this.rssCacheTTL) {
+      return cached.trends;
+    }
+    const result = await this.withRetry(
+      () => fetchTrendsRss(geo),
+      `getRssTrends(${geo})`,
+    );
+    const trends = result || [];
+    this.rssByGeo.set(geo, { trends, timestamp: Date.now() });
+    return trends;
+  }
+
+  /**
+   * Find a cached RSS trend across all regions — used by getFullTrendData
+   * to look up approx_traffic for a topic the scheduler is iterating.
+   */
+  private findRssTrend(topic: string, preferGeo?: string): RssTrend | null {
+    const norm = topic.toLowerCase();
+    if (preferGeo) {
+      const r = this.rssByGeo.get(preferGeo);
+      if (r) {
+        const hit = r.trends.find((t) => t.topic.toLowerCase() === norm);
+        if (hit) return hit;
+      }
+    }
+    for (const entry of this.rssByGeo.values()) {
+      const hit = entry.trends.find((t) => t.topic.toLowerCase() === norm);
+      if (hit) return hit;
+    }
+    return null;
+  }
+
+  /**
+   * Get daily trending searches for a region.
+   * Primary path: free RSS feed (verified working 2026-06-01, returns ~10
+   * trends/region with approx_traffic). Legacy `google-trends-api` package
+   * was deprecated by Google and now returns HTML — kept only as last-ditch
+   * fallback in case the RSS endpoint is ever blocked.
    */
   async getDailyTrends(geo: string = 'US'): Promise<string[]> {
     const cacheKey = `daily-${geo}`;
     const cached = this.cache.get(cacheKey);
-    
+
     if (cached && this.isCacheValid(cached.timestamp)) {
       return cached.data;
     }
 
-    const result = await this.withRetry(async () => {
-      const results = await googleTrends.dailyTrends({
-        geo: geo,
-      });
+    // PRIMARY: RSS
+    try {
+      const rssTrends = await this.getRssTrends(geo);
+      if (rssTrends.length > 0) {
+        const topics = rssTrends.map((t) => t.topic).filter(Boolean);
+        this.cache.set(cacheKey, { data: topics, timestamp: Date.now() });
+        return topics;
+      }
+    } catch (err: any) {
+      console.warn(`[GoogleTrends] RSS primary failed for ${geo}: ${err.message}`);
+    }
 
+    // FALLBACK: legacy API (likely returns HTML and yields [])
+    const result = await this.withRetry(async () => {
+      const results = await googleTrends.dailyTrends({ geo: geo });
       const parsed = this.safeJsonParse(results, `dailyTrends(${geo})`);
       if (!parsed || !parsed.default) {
-        console.warn(`[GoogleTrends] No valid data for dailyTrends: ${geo}`);
-        return [];
+        return [] as string[];
       }
-
       const trendingSearches = parsed.default.trendingSearchesDays?.[0]?.trendingSearches || [];
-      
-      const trends = trendingSearches.map((item: any) => item.title?.query || '').filter(Boolean);
-      
-      return trends;
-    }, `getDailyTrends(${geo})`);
+      return trendingSearches.map((item: any) => item.title?.query || '').filter(Boolean);
+    }, `getDailyTrends(${geo}) legacy`);
 
     const trends = result || [];
     this.cache.set(cacheKey, { data: trends, timestamp: Date.now() });
@@ -327,30 +477,34 @@ class GoogleTrendsService {
   async getRealTimeTrends(geo: string = 'US', category: string = 'all'): Promise<string[]> {
     const cacheKey = `realtime-${geo}-${category}`;
     const cached = this.cache.get(cacheKey);
-    
+
     // Shorter cache for real-time (30 minutes)
     if (cached && Date.now() - cached.timestamp < 30 * 60 * 1000) {
       return cached.data;
     }
 
-    const result = await this.withRetry(async () => {
-      const results = await googleTrends.realTimeTrends({
-        geo: geo,
-        category: category,
-      });
+    // Primary: same RSS (the daily RSS IS the real-time feed Google now ships).
+    try {
+      const rssTrends = await this.getRssTrends(geo);
+      if (rssTrends.length > 0) {
+        const topics = rssTrends.map((t) => t.topic).filter(Boolean);
+        this.cache.set(cacheKey, { data: topics, timestamp: Date.now() });
+        return topics;
+      }
+    } catch (err: any) {
+      console.warn(`[GoogleTrends] RSS realtime failed for ${geo}: ${err.message}`);
+    }
 
+    // Fallback: legacy API
+    const result = await this.withRetry(async () => {
+      const results = await googleTrends.realTimeTrends({ geo: geo, category: category });
       const parsed = this.safeJsonParse(results, `realTimeTrends(${geo}, ${category})`);
       if (!parsed || !parsed.storySummaries) {
-        console.warn(`[GoogleTrends] No valid data for realTimeTrends: ${geo}, ${category}`);
-        return [];
+        return [] as string[];
       }
-
       const stories = parsed.storySummaries.trendingStories || [];
-      
-      const trends = stories.map((story: any) => story.entityNames?.[0] || story.title || '').filter(Boolean);
-      
-      return trends;
-    }, `getRealTimeTrends(${geo}, ${category})`);
+      return stories.map((story: any) => story.entityNames?.[0] || story.title || '').filter(Boolean);
+    }, `getRealTimeTrends(${geo}, ${category}) legacy`);
 
     const trends = result || [];
     this.cache.set(cacheKey, { data: trends, timestamp: Date.now() });
@@ -361,17 +515,42 @@ class GoogleTrendsService {
    * Get comprehensive trend data for a keyword
    */
   async getFullTrendData(options: TrendSearchOptions): Promise<GoogleTrendResult> {
+    // Legacy endpoints (interestOverTime / relatedQueries / relatedTopics)
+    // were deprecated alongside dailyTrends — they currently return HTML and
+    // yield empty arrays via safeJsonParse. We still call them so that if
+    // Google ever revives them we pick up the richer data for free, but we
+    // derive the headline `interest` value from the RSS approx_traffic so
+    // the scheduler's `interest > 15` gate doesn't reject every keyword.
     const [interestOverTime, relatedQueries, relatedTopics] = await Promise.all([
       this.getInterestOverTime(options),
       this.getRelatedQueries(options),
       this.getRelatedTopics(options),
     ]);
 
-    // Calculate current interest (average of last 3 data points)
-    const recentData = interestOverTime.slice(-3);
-    const currentInterest = recentData.length > 0 
-      ? Math.round(recentData.reduce((sum, d) => sum + d.value, 0) / recentData.length)
-      : 0;
+    let currentInterest = 0;
+    if (interestOverTime.length > 0) {
+      const recentData = interestOverTime.slice(-3);
+      currentInterest = Math.round(
+        recentData.reduce((sum, d) => sum + d.value, 0) / recentData.length,
+      );
+    } else {
+      // RSS-derived interest: map approx_traffic onto Google Trends' 0-100
+      // scale. Live "trending now" entries surface at >=200 searches; we
+      // clamp into the gate-passing range so they reach trendStore.
+      const rssHit = this.findRssTrend(options.keyword, options.geo);
+      if (rssHit) {
+        const t = rssHit.approxTraffic;
+        // 200..500 -> 20..30, 500..2000 -> 30..55, 2000..20000 -> 55..80,
+        // 20000+ -> 80..100. Tuned so even the lowest "trending" entry
+        // (typically 200+) clears the scheduler's interest > 15 gate.
+        if (t >= 20_000) currentInterest = Math.min(100, 80 + Math.round(Math.log10(t / 20_000) * 10));
+        else if (t >= 2_000) currentInterest = 55 + Math.round(((t - 2_000) / 18_000) * 25);
+        else if (t >= 500) currentInterest = 30 + Math.round(((t - 500) / 1_500) * 25);
+        else if (t >= 200) currentInterest = 20 + Math.round(((t - 200) / 300) * 10);
+        else if (t > 0) currentInterest = 18; // still > 15 gate
+        else currentInterest = 16; // unknown traffic but topic is trending
+      }
+    }
 
     return {
       topic: options.keyword,

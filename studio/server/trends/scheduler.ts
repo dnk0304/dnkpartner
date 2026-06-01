@@ -1265,16 +1265,19 @@ class TrendScheduler {
       
       // Sync all Amazon keywords from historicalStore to trendStore
       const result = await amazonTrendBridge.syncAllToTrendStore('US');
-      
+
       const collected = result.synced;
       const duration = Date.now() - startTime;
-      
-      // Update last update timestamp if any data was collected
+
+      // amazonKeywords is a BRIDGE, not a scraper — it sums historicalStore
+      // (which only fills when users run Amazon keyword API queries). An
+      // empty bridge is a "no user activity yet" state, not a scraper
+      // failure. Record success/'live' with N=0 instead of failing health.
       if (collected > 0) {
         trendStore.setLastFullUpdate();
         scraperHealth.recordSuccess(source, collected, duration, 'live');
       } else {
-        scraperHealth.recordFailure(source, 'No keywords synced', duration);
+        scraperHealth.recordSuccess(source, 0, duration, 'live');
       }
       
       this.updateStatus(source, 'idle', collected);
