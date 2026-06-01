@@ -237,7 +237,9 @@ class BOEScraper(BaseScraper):
         try:
             # Extract title
             title_elem = element.locator('.resultado-titulo, .titulo-subasta')
-            title = title_elem.inner_text().strip() if title_elem.count() > 0 else 'Unknown'
+            # Do NOT default to the literal "Unknown" — leave it falsy so the
+            # detail-page Identificador (or boe_id) fills it in below.
+            title = title_elem.inner_text().strip() if title_elem.count() > 0 else None
             
             # Extract BOE ID from link
             link_elem = element.locator('a').first
@@ -259,8 +261,8 @@ class BOEScraper(BaseScraper):
             # Extract location
             municipality = self._extract_municipality(full_text)
             
-            # Categorize
-            category = get_category_type(title, full_text)
+            # Categorize (title may be None at this point — pass empty string)
+            category = get_category_type(title or '', full_text)
             
             # Extract dates
             ends_at = self._extract_end_date(full_text)
@@ -343,6 +345,34 @@ class BOEScraper(BaseScraper):
                     auction_data['cadastral_ref'] = detail_info['cadastral_ref']
                 if detail_info.get('cadastral_data'):
                     auction_data['cadastral_data'] = detail_info['cadastral_data']
+
+                # --- AUTHORITATIVE financial fields from detail page ---
+                # Only overwrite when the detail page actually yielded a value;
+                # never coerce a missing value to 0 (NULL is the honest signal).
+                if detail_info.get('appraisal_value') is not None:
+                    auction_data['appraisal_value'] = detail_info['appraisal_value']
+                if detail_info.get('minimum_bid') is not None:
+                    auction_data['minimum_bid'] = detail_info['minimum_bid']
+                if detail_info.get('deposit_amount') is not None:
+                    auction_data['deposit_amount'] = detail_info['deposit_amount']
+                if detail_info.get('claimed_amount') is not None:
+                    auction_data['claimed_amount'] = detail_info['claimed_amount']
+
+                # --- Title / identifier ---
+                # The listing card rarely carries a usable title, leaving the
+                # literal "Unknown". The detail-page Identificador is always
+                # present; prefer a real listing title, else the identifier.
+                if auction_data.get('title') in (None, '', 'Unknown'):
+                    auction_data['title'] = detail_info.get('identificador') or boe_id
+
+                # --- Authoritative status from detail page ---
+                # The search filter (status_override) tags rows by the query
+                # bucket, but an auction may have concluded/cancelled since.
+                # The detail banner is authoritative.
+                if detail_info.get('detail_status'):
+                    auction_data['status'] = detail_info['detail_status']
+
+
                 # Province enrichment from detail page text if still Unknown
                 if auction_data.get('province') == 'Unknown':
                     detail_text = " ".join(filter(None, [
@@ -353,7 +383,13 @@ class BOEScraper(BaseScraper):
                     derived = province_from_text(detail_text)
                     if derived:
                         auction_data['province'] = derived
-            
+
+            # Final safety: `title` is a non-null column in the schema. Never let
+            # the literal "Unknown" or None reach the DB — fall back to the BOE
+            # identifier, which is always present and meaningful.
+            if auction_data.get('title') in (None, '', 'Unknown'):
+                auction_data['title'] = boe_id
+
             return auction_data
         
         except Exception as e:
@@ -645,6 +681,55 @@ class BOEScraper(BaseScraper):
             return self._extract_currency(text, labels)
         except:
             return None
+
+    def _extract_label_value(self, text: str, labels: List[str]) -> Optional[str]:
+        """
+        Extract the value that follows a label on the BOE detail page.
+        Detail pages render label/value pairs; on a flattened inner_text the
+        value is on the next line (or after a colon). Returns None if not found.
+        """
+        if not text:
+            return None
+        for label in labels:
+            # BOE detail pages separate label/value with a tab, colon or newline
+            # (e.g. "Identificador\tSUB-JV-2026-255723"). Accept any of them.
+            pattern = rf"{re.escape(label)}\s*[:\t\n]\s*([^\t\n]+)"
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                value = match.group(1).strip()
+                if value:
+                    return value
+        return None
+
+    def _extract_minimum_bid(self, text: str) -> Optional[float]:
+        """
+        Extract 'Puja mínima'. BOE shows either a currency amount or the literal
+        'Sin puja mínima' (= no minimum). Returns the amount, or None when there
+        is genuinely no minimum bid (never coerced to 0).
+        """
+        if not text:
+            return None
+        # Explicit "no minimum" — honest None, NOT 0.
+        if re.search(r"Puja\s+m[ií]nima\s*[:\t\n]?\s*Sin\s+puja", text, re.IGNORECASE):
+            return None
+        return self._extract_currency(text, ['Puja mínima'])
+
+    def _extract_detail_status(self, text: str) -> Optional[str]:
+        """
+        Derive internal status from the detail-page status banner. The detail
+        page is authoritative for whether an auction has concluded/cancelled,
+        which the listing search-filter override cannot tell us once ended.
+        """
+        if not text:
+            return None
+        lowered = text.lower()
+        if 'cancelada' in lowered or 'anulada' in lowered:
+            return 'CANCELADA'
+        if 'suspendida' in lowered:
+            return 'SUSPENDIDA'
+        if any(w in lowered for w in ['concluida', 'cerrada', 'finalizada', 'la subasta ha finalizado']):
+            return 'CONCLUIDA_PORTAL'
+        return None
     
     def _extract_municipality(self, text: str) -> Optional[str]:
         """Extract municipality from text"""
@@ -713,6 +798,15 @@ class BOEScraper(BaseScraper):
 
             cadastral_ref, cadastral_data = extract_cadastral_refs(bienes)
 
+            # AUTHORITATIVE financial fields, identifier (title) and status live
+            # on the detail page as label/value pairs — NOT on the search listing
+            # card. The listing-card regex never matched these labels, which is the
+            # root cause of appraisal=0 / minimum_bid=None / title="Unknown".
+            try:
+                body_text = page.inner_text('body')
+            except Exception:
+                body_text = ''
+
             return {
                 'general_info': general_info,
                 'autoridad_gestora': autoridad,
@@ -722,6 +816,14 @@ class BOEScraper(BaseScraper):
                 'detail_url': detail_url,
                 'cadastral_ref': cadastral_ref,
                 'cadastral_data': cadastral_data,
+                'identificador': self._extract_label_value(body_text, ['Identificador']),
+                'appraisal_value': self._extract_currency(body_text, ['Tasación', 'Valoración']),
+                'valor_subasta': self._extract_currency(body_text, ['Valor subasta']),
+                'minimum_bid': self._extract_minimum_bid(body_text),
+                'deposit_amount': self._extract_currency(body_text, ['Importe del depósito', 'Depósito']),
+                'claimed_amount': self._extract_currency(body_text, ['Cantidad reclamada']),
+                'tipo_subasta': self._extract_label_value(body_text, ['Tipo de subasta']),
+                'detail_status': self._extract_detail_status(body_text),
             }
         except Exception as e:
             self.log_warning(f"Failed to fetch detail info for {boe_id}: {e}")

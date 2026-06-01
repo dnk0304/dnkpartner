@@ -25,7 +25,9 @@ datasource db {
 model Auction {
   id           String        @id @default(cuid())
   boeId        String        @unique
-  title        String
+  // Nullable so the scraper can write an honest NULL when no title is parsed,
+  // letting the app synthesise a display title. NEVER store the literal "Unknown".
+  title        String?
   category     String
   province     String
   municipality String?
@@ -33,7 +35,9 @@ model Auction {
   auctionType  String?       @default("JUDICIAL")
 
   // Core auction values
-  appraisalValue Float
+  // Nullable: the real Tasación comes from the BOE detail page; when genuinely
+  // absent the value is NULL (honest). NEVER coerce a missing value to 0.
+  appraisalValue Float?
   currentBid     Float?
   minimumBid     Float?
   depositAmount  Float?

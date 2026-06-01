@@ -81,16 +81,20 @@ class BOEParallelScraper(BOEScraper):
         return f"BOE_PARALLEL_{self.scraper_id}"
     
     def validate_auction_data(self, data: Dict[str, Any]) -> bool:
-        """Relaxed validation - appraisal value optional"""
+        """Relaxed validation - appraisal value optional.
+
+        ROOT-CAUSE FIX: previously coerced a missing appraisal_value to 0.0,
+        which is the source of the `appraisalValue = 0` garbage in production.
+        We no longer fabricate a 0. The detail-page parser populates the real
+        Tasación; when it is genuinely absent the value stays None (honest NULL).
+        The `appraisalValue` column must be nullable for this — see schema note.
+        """
         required_fields = ['boe_id', 'title', 'category', 'province', 'status']
-        
+
         for field in required_fields:
             if field not in data or data[field] is None:
                 return False
-        
-        if 'appraisal_value' not in data or data['appraisal_value'] is None:
-            data['appraisal_value'] = 0.0
-            
+
         return True
     
     def scrape_date_range(
