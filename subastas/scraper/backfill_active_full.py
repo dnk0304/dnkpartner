@@ -120,8 +120,21 @@ def rescrape(conn):
     if done:
         logger.info(f"  resuming: {len(done):,} already done per checkpoint")
     queue = [b for b in boe_ids if b not in done]
-    logger.info(f"  {len(queue):,} rows to process this run")
+
+    # --max-rows caps this invocation. The shared BrowserManager singleton in
+    # this container degrades after a few dozen page loads (goto stops firing,
+    # process sleeps forever with no live chrome). Running bounded batches as
+    # fresh processes — each with a brand-new browser — sidesteps that; the
+    # checkpoint makes it resume seamlessly. An external loop drives batches
+    # until the queue drains.
+    max_rows = None
+    if "--max-rows" in sys.argv:
+        max_rows = int(sys.argv[sys.argv.index("--max-rows") + 1])
+        queue = queue[:max_rows]
+
+    logger.info(f"  {len(queue):,} rows to process this run (cap={max_rows})")
     if not queue:
+        logger.info("  QUEUE_EMPTY")
         return
 
     os.environ.setdefault("BOE_FETCH_DETAIL", "1")
