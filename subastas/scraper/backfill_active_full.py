@@ -45,6 +45,21 @@ if not DATABASE_URL or DATABASE_URL.startswith("file:"):
     logger.error("DATABASE_URL must be a Postgres URL.")
     sys.exit(1)
 
+
+def _connect(retries: int = 30, delay: float = 5.0):
+    """Connect with retry — the box PG (max_connections=100) can momentarily
+    hit 'too many clients already' under load; a long re-scrape must not die
+    on a transient cap. Retries the initial connect, then reconnects on demand."""
+    last = None
+    for attempt in range(1, retries + 1):
+        try:
+            return psycopg2.connect(DATABASE_URL)
+        except psycopg2.OperationalError as e:
+            last = e
+            logger.warning(f"  connect attempt {attempt}/{retries} failed: {e}")
+            time.sleep(delay)
+    raise last
+
 ACTIVE_STATUSES = ("CELEBRANDOSE", "ACTIVE", "PROXIMA_APERTURA", "SUSPENDIDA")
 CHECKPOINT = os.environ.get("BACKFILL_CHECKPOINT", "/tmp/backfill_active_full.checkpoint.json")
 
@@ -90,8 +105,9 @@ def _save_ckpt(done):
         logger.warning(f"  checkpoint save failed: {e}")
 
 
-def rescrape(cur, conn):
+def rescrape(conn):
     logger.info("--- Re-scrape: full active pool ---")
+    cur = conn.cursor()
     cur.execute(f"""
         SELECT "boeId" FROM "Auction"
         WHERE status IN {ACTIVE_STATUSES} AND "boeId" IS NOT NULL
@@ -143,11 +159,22 @@ def rescrape(cur, conn):
                 if '"appraisalValue"' in updates:
                     enriched += 1
                 set_clause = ", ".join(f"{k} = %s" for k in updates) + ', "updatedAt" = NOW()'
-                cur.execute(
-                    f'UPDATE "Auction" SET {set_clause} WHERE "boeId" = %s',
-                    tuple(list(updates.values()) + [boe_id]),
-                )
-                conn.commit()
+                try:
+                    cur.execute(
+                        f'UPDATE "Auction" SET {set_clause} WHERE "boeId" = %s',
+                        tuple(list(updates.values()) + [boe_id]),
+                    )
+                    conn.commit()
+                except psycopg2.OperationalError:
+                    # connection dropped (e.g. transient cap) — reconnect + retry once
+                    logger.warning("  DB connection lost; reconnecting...")
+                    conn = _connect()
+                    cur = conn.cursor()
+                    cur.execute(
+                        f'UPDATE "Auction" SET {set_clause} WHERE "boeId" = %s',
+                        tuple(list(updates.values()) + [boe_id]),
+                    )
+                    conn.commit()
                 touched += 1
             done.add(boe_id)
             if i % 25 == 0:
@@ -162,16 +189,16 @@ def rescrape(cur, conn):
 
 
 def main():
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = _connect()
     conn.autocommit = False
     cur = conn.cursor()
     if "--phase1" in sys.argv:
         phase1_sql(cur, conn)
-    if "--rescrape" in sys.argv:
-        rescrape(cur, conn)
     if "--status-only" in sys.argv:
         status_sweep_sql(cur, conn)
     cur.close()
+    if "--rescrape" in sys.argv:
+        rescrape(conn)
     conn.close()
 
 
