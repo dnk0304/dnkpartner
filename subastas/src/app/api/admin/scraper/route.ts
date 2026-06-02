@@ -1,33 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { query } from '@/lib/db';
+import { requireAdmin } from '@/lib/auth-helpers';
 
 // Enhanced admin API for scraper management with configuration
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    
-    // In development, allow access if no user system is set up yet
-    const isDev = process.env.NODE_ENV === 'development';
-    
-    // TODO: Add proper admin role check
-    if (!session?.user && !isDev) {
-      console.error('Admin scraper API: No session found');
-      return NextResponse.json({ 
-        error: 'Unauthorized - Please log in to access admin features',
-        needsAuth: true 
-      }, { status: 401 });
-    }
-    
-    if (session?.user) {
-      console.log('Admin scraper API: User authenticated:', session.user.email);
-    } else {
-      console.log('Admin scraper API: Running in development mode without auth');
-    }
-    
+    // HARD ADMIN GATE. Previously this only checked `if (!session?.user)`,
+    // which let ANY logged-in user (registration is open) spawn python
+    // scraper processes. Live-exploitable privilege escalation. Fixed.
+    const gate = await requireAdmin();
+    if (gate instanceof NextResponse) return gate;
+
     const body = await request.json();
     const { action } = body;
     
@@ -465,25 +451,10 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
-    
-    // In development, allow access if no user system is set up yet
-    const isDev = process.env.NODE_ENV === 'development';
-    
-    if (!session?.user && !isDev) {
-      console.error('Admin scraper API GET: No session found');
-      return NextResponse.json({ 
-        error: 'Unauthorized - Please log in to access admin features',
-        needsAuth: true 
-      }, { status: 401 });
-    }
-    
-    if (session?.user) {
-      console.log('Admin scraper API GET: User authenticated:', session.user.email);
-    } else {
-      console.log('Admin scraper API GET: Running in development mode without auth');
-    }
-    
+    // HARD ADMIN GATE. See POST handler for rationale.
+    const gate = await requireAdmin();
+    if (gate instanceof NextResponse) return gate;
+
     // Get all available progress files
     const progressDir = path.join(process.cwd(), 'scraper', 'progress');
     
