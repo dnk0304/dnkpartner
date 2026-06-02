@@ -288,6 +288,123 @@
   }
 }
 
+/* ---------------------------------------------------------------------
+ * Article prose — used by /guia/[slug] for react-markdown output.
+ * Pinned to the project's design tokens (no @tailwindcss/typography).
+ * All ink BLACK, generous line-height for long-form reading, tables match
+ * the rest of the site's hairlines.
+ * ------------------------------------------------------------------ */
+.article-prose {
+  font-size: 16px;
+  line-height: 1.7;
+  max-width: 72ch;
+}
+.article-prose > * + * { margin-top: 1.1em; }
+.article-prose h2 {
+  font-family: var(--font-inter-tight), var(--font-inter), system-ui, sans-serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  margin-top: 2em;
+  margin-bottom: 0.5em;
+  color: var(--color-ink-primary);
+}
+.article-prose h3 {
+  font-family: var(--font-inter-tight), var(--font-inter), system-ui, sans-serif;
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-top: 1.6em;
+  margin-bottom: 0.4em;
+  color: var(--color-ink-primary);
+}
+.article-prose h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 1.4em;
+  margin-bottom: 0.3em;
+  color: var(--color-ink-primary);
+}
+.article-prose p { color: var(--color-ink-primary); }
+.article-prose strong { font-weight: 600; color: var(--color-ink-primary); }
+.article-prose em { font-style: italic; }
+.article-prose a {
+  color: var(--color-action);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+.article-prose a:hover { color: var(--color-action-hover); }
+.article-prose ul,
+.article-prose ol {
+  padding-left: 1.4em;
+}
+.article-prose ul { list-style: disc; }
+.article-prose ol { list-style: decimal; }
+.article-prose li { margin-top: 0.35em; }
+.article-prose li > p { margin: 0; }
+.article-prose blockquote {
+  border-left: 3px solid var(--color-action);
+  padding: 0.25em 0 0.25em 1em;
+  background-color: var(--color-action-soft);
+  border-radius: 0 4px 4px 0;
+  color: var(--color-ink-primary);
+  font-style: italic;
+}
+.article-prose code {
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.9em;
+  background-color: var(--color-surface-muted);
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+}
+.article-prose pre {
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.9em;
+  background-color: var(--color-surface-muted);
+  border: 1px solid var(--color-hairline);
+  padding: 1em;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+.article-prose pre code {
+  background: transparent;
+  padding: 0;
+}
+.article-prose hr {
+  border: 0;
+  border-top: 1px solid var(--color-hairline);
+  margin: 2em 0;
+}
+.article-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95em;
+  margin: 1.5em 0;
+  display: block;
+  overflow-x: auto;
+}
+.article-prose thead {
+  background-color: var(--color-surface-muted);
+}
+.article-prose th,
+.article-prose td {
+  border: 1px solid var(--color-hairline);
+  padding: 0.6em 0.8em;
+  text-align: left;
+  vertical-align: top;
+  color: var(--color-ink-primary);
+}
+.article-prose th {
+  font-weight: 600;
+}
+.article-prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+
 /* Print: drop background fills */
 @media print {
   body { background: white; }
