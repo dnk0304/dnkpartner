@@ -23,7 +23,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { ObservatoryHeader } from "@/components/observatory/ObservatoryHeader";
-import { ForexCarousel } from "@/components/observatory/ForexCarousel";
+import { HomeCarouselSection } from "@/components/observatory/HomeCarouselSection";
 import { ProvinceDropdown } from "@/components/observatory/ProvinceDropdown";
 import { apiFetch } from "@/lib/api-path";
 import { formatNumber, formatRelativeEs } from "@/components/observatory/format";
@@ -229,10 +229,11 @@ export default function HomeObservatory() {
           </form>
         </section>
 
-        {/* FOREX-style ticker — compact-default so the map below stays near the fold */}
-        <section>
-          <ForexCarousel limit={30} seeAllHref="/subastas?when=activas" />
-        </section>
+        {/* Endless marquee + quick-filter chips + click-to-modal (D + E + G).
+            Chips drive the marquee's data feed; marquee click opens the full
+            AuctionDetailModal in-place (no navigation). Component pauses the
+            drift on hover, on modal-open, and honours `prefers-reduced-motion`. */}
+        <HomeCarouselSection limit={30} seeAllHref="/subastas?when=activas" />
 
         {/* Map — IMMEDIATELY visible per landing spec */}
         <section aria-labelledby="map-heading">
