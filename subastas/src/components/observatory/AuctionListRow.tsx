@@ -157,7 +157,18 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
       </td>
 
       <td className="hidden md:table-cell align-top py-3 pr-3 text-xs text-[--color-ink-secondary] whitespace-nowrap">
-        {item.category}
+        {/* Item C — Viviendas reads as the hero category via a subtle
+            brand-tinted pill. All other categories keep the plain text. */}
+        {item.category === "Viviendas" ? (
+          <span
+            className="inline-flex items-center rounded-full border border-[--color-brand]/30 bg-[--color-brand]/[0.06] px-2 py-0.5 text-[11px] font-semibold text-[--color-brand]"
+            aria-label="Categoría destacada: Viviendas"
+          >
+            {item.category}
+          </span>
+        ) : (
+          item.category
+        )}
       </td>
 
       {/* Puja column = current bid if present, else min bid (active rows usually

@@ -433,6 +433,10 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
       propertyDescription: item.propertyDescription,
       lotDescription: item.lotDescription,
       chargesDetail: item.chargesDetail,
+      // Catastro RC — projected for the detail "Ver en Catastro" link.
+      // Locked-tier teasers still carry the RC because the link is
+      // public-government data, not a premium signal.
+      cadastralRef: item.cadastralRef,
       // #16 / #17 — null-safe; null = no badge on the card.
       pujaStatus,
       currentBidAmount,
@@ -479,6 +483,9 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
     propertyDescription: item.propertyDescription,
     lotDescription: item.lotDescription,
     chargesDetail: item.chargesDetail,
+    // Catastro RC — projected so the detail modal/page can render the
+    // "Ver en Catastro" external link when populated (~2.5% of active rows).
+    cadastralRef: item.cadastralRef,
     // #16 / #17 — null-safe; null = no badge on the card.
     pujaStatus,
     currentBidAmount,

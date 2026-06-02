@@ -30,10 +30,11 @@ import * as React from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { ArrowLeft, ExternalLink, FileText, MapPin, ImageOff } from "lucide-react";
+import { ArrowLeft, ExternalLink, FileText, Landmark, MapPin, ImageOff } from "lucide-react";
 import { apiFetch } from "@/lib/api-path";
 import { AuctionItem } from "@/types";
 import { resolveCardImage } from "@/lib/resolve-card-image";
+import { buildCatastroUrl } from "@/lib/catastro-url";
 import { ObservatoryHeader } from "@/components/observatory/ObservatoryHeader";
 import { effectiveStatus } from "@/components/observatory/status";
 import { DetailStatusPanel } from "@/components/observatory/DetailStatusPanel";
@@ -238,6 +239,9 @@ export default function AuctionDetailClient({ id }: { id: string }) {
     propertyDescription: raw.propertyDescription ?? null,
     lotDescription: raw.lotDescription ?? null,
     chargesDetail: raw.chargesDetail ?? null,
+    // Surface the cadastral ref so any modal embed reused on this page can
+    // resolve the "Ver en Catastro" link via buildCatastroUrl().
+    cadastralRef: raw.cadastralRef ?? null,
     startedAt: raw.endDateTime ?? null,
     endsAt: raw.endsAt ?? null,
   };
@@ -419,9 +423,40 @@ export default function AuctionDetailClient({ id }: { id: string }) {
                 Datos legales
               </h2>
               <dl className="mt-3 grid grid-cols-1 sm:grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
-                {raw.cadastralRef && (
-                  <KV label="Referencia catastral" value={raw.cadastralRef} mono />
-                )}
+                {raw.cadastralRef && (() => {
+                  // Build the public Sede Electrónica del Catastro URL. The
+                  // helper validates the 20-char shape and returns null on
+                  // malformed input — in that case we still show the RC,
+                  // just without the link, so the user sees the value either
+                  // way. Null-safe; no console error on the 97.5% without an RC.
+                  const catastroUrl = buildCatastroUrl(raw.cadastralRef);
+                  return (
+                    <KV
+                      label="Referencia catastral"
+                      value={
+                        catastroUrl ? (
+                          <span className="inline-flex flex-wrap items-center gap-2">
+                            <span className="font-mono">{raw.cadastralRef}</span>
+                            <a
+                              href={catastroUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label="Ver en la Sede Electrónica del Catastro (se abre en nueva pestaña)"
+                              className="inline-flex items-center gap-1 rounded-full border border-[--color-hairline] bg-[--color-surface-muted] px-2 py-0.5 text-[11px] font-medium text-[--color-ink-secondary] hover:border-[--color-brand]/40 hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40"
+                            >
+                              <Landmark className="h-3 w-3" aria-hidden="true" />
+                              Ver en Catastro
+                              <ExternalLink className="h-3 w-3 opacity-70" aria-hidden="true" />
+                            </a>
+                          </span>
+                        ) : (
+                          raw.cadastralRef
+                        )
+                      }
+                      mono={!catastroUrl}
+                    />
+                  );
+                })()}
                 {raw.registryInfo && (
                   <KV label="Registro" value={raw.registryInfo} />
                 )}

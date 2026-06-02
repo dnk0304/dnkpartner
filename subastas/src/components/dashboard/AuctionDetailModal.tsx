@@ -6,8 +6,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Clock, MapPin, Gavel, ExternalLink, FileText, Building2, TrendingUp, Calendar, Crown, Sparkles, Navigation, Eye, Bell, Check } from 'lucide-react';
+import { Clock, MapPin, Gavel, ExternalLink, FileText, Building2, TrendingUp, Calendar, Crown, Sparkles, Navigation, Eye, Bell, Check, Landmark } from 'lucide-react';
 import { capitalizeLocation } from '@/lib/utils';
+import { buildCatastroUrl } from '@/lib/catastro-url';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 
@@ -49,6 +50,12 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
   }, [auction?.id]);
 
   if (!auction) return null;
+
+  // Catastro URL — null-safe. Only renders for the ~2.5% of active rows where
+  // the BOE / Ghost pipeline captured a valid 20-char referencia catastral.
+  // For rows without an RC (or with a malformed one) the helper returns null
+  // and we render nothing — no broken link, no console error.
+  const catastroUrl = buildCatastroUrl(auction.cadastralRef);
 
   const formatCurrency = (amount: number | null) => {
     if (amount === null) return '---';
@@ -208,6 +215,24 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
                 <Eye className="h-6 w-6" />
                 Street View
               </Button>
+            )}
+
+            {/* Catastro button — public Sede Electrónica record.
+                Renders only when `cadastralRef` is a valid 20-char RC
+                (buildCatastroUrl returns null for everything else, so the
+                97.5% of rows with no RC render nothing at all here). */}
+            {catastroUrl && (
+              <a
+                href={catastroUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Abrir la ficha en la Sede Electrónica del Catastro (se abre en nueva pestaña)"
+                className="inline-flex h-14 items-center justify-center gap-2 rounded-md border-2 border-slate-300 bg-white px-4 text-lg font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+              >
+                <Landmark className="h-6 w-6" aria-hidden="true" />
+                Ver en Catastro
+                <ExternalLink className="h-4 w-4 opacity-70" aria-hidden="true" />
+              </a>
             )}
 
             {/* Directions button */}

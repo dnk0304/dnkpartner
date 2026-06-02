@@ -161,6 +161,10 @@ export function PresetRow({
       label: "Viviendas activas",
       icon: <Home className="h-4 w-4" aria-hidden="true" />,
       count: viviendasCount,
+      // Item C — Dennis's strategic direction: viviendas read as the hero
+      // category. Subtle ring + "Destacado" caption; the rest of the row is
+      // unchanged so the user can still pick any other category.
+      featured: true,
     },
     {
       id: "coches",
@@ -371,6 +375,13 @@ type PresetCardSpec = {
   icon: React.ReactNode;
   count: number | null;
   isProvincePicker?: boolean;
+  /**
+   * Mark as the hero quick-pick — adds a subtle warm-tint ring + a tiny
+   * "Destacado" caption. Used to promote Viviendas as the default-priority
+   * category (Dennis 2026-06-03, Item C). Intentionally light: not a layout
+   * change, not a colour explosion, just enough emphasis to read first.
+   */
+  featured?: boolean;
 };
 
 function PresetCard({
@@ -432,21 +443,35 @@ function PresetCard({
     );
   }
 
+  // Featured (Item C) — Viviendas reads as the hero quick-pick. Subtle ring
+  // tint in the inactive state, no layout change. When the user actively
+  // selects it, the active styling (brand-coloured border + tinted bg) wins.
+  const isFeatured = !!spec.featured;
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "snap-start shrink-0 w-[160px] md:w-auto text-left rounded-lg border bg-[--color-surface] p-3 transition-all min-h-[80px]",
+        "snap-start shrink-0 w-[160px] md:w-auto text-left rounded-lg border bg-[--color-surface] p-3 transition-all min-h-[80px] relative",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40",
         active
           ? "border-[--color-brand] bg-[--color-brand]/5 shadow-sm"
-          : "border-[--color-hairline] hover:border-[--color-brand]/40 hover:-translate-y-0.5 hover:shadow-sm",
+          : isFeatured
+            ? "border-[--color-brand]/40 bg-[--color-brand]/[0.03] hover:border-[--color-brand] hover:-translate-y-0.5 hover:shadow-sm"
+            : "border-[--color-hairline] hover:border-[--color-brand]/40 hover:-translate-y-0.5 hover:shadow-sm",
       )}
     >
+      {isFeatured && !active && (
+        <span
+          className="absolute top-1.5 right-2 text-[9px] font-semibold uppercase tracking-wider text-[--color-brand]"
+          aria-hidden="true"
+        >
+          Destacado
+        </span>
+      )}
       <div className="flex items-center gap-2">
-        <span className={cn(active ? "text-[--color-brand]" : "text-[--color-ink-tertiary]")}>
+        <span className={cn(active || isFeatured ? "text-[--color-brand]" : "text-[--color-ink-tertiary]")}>
           {spec.icon}
         </span>
         <span className="text-sm font-medium text-[--color-ink-primary]">{spec.label}</span>
