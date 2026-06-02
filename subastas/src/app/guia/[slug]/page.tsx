@@ -17,9 +17,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { getPublishedArticleBySlug } from "@/lib/articles";
+import { ArticleContent } from "@/components/blog/ArticleContent";
 import { BlogFooter } from "@/components/blog/BlogFooter";
 
 const SITE = "https://subastasactivas.com";
@@ -182,15 +181,13 @@ export default async function ArticlePage(
           </header>
 
           {/*
-            Prose container. We pin the typography to the design tokens
-            rather than @tailwindcss/typography (which isn't installed)
-            so the rendering is predictable + uses the project's ink colours.
+            Prose container — rendered via the shared <ArticleContent />
+            component so the admin editor's "Previsualizar" pane is the
+            EXACT same render path as this public page (true WYSIWYG).
+            Typography pinned to design tokens in `.article-prose`
+            (globals.css) rather than @tailwindcss/typography.
           */}
-          <div className="article-prose text-[--color-ink-primary]">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {article.bodyMarkdown}
-            </ReactMarkdown>
-          </div>
+          <ArticleContent body={article.bodyMarkdown} />
         </article>
 
         <div className="mt-12 border-t border-[--color-hairline-soft] pt-6">
