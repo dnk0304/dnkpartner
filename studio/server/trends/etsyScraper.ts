@@ -178,31 +178,90 @@ class EtsyScraper {
     }
   }
 
+  /**
+   * Official Etsy Open API v3 path (api_key only — NO OAuth required for these
+   * two public read endpoints; verified against developers.etsy.com reference
+   * 2026-06-02).
+   *
+   * Two-step shape, both authenticated with `x-api-key: <keystring>` only:
+   *   1. GET /v3/application/listings/active?keywords=...&limit=...
+   *        -> base listings (listing_id, title, price, url, tags, num_favorers).
+   *        NOTE: this endpoint does NOT support an `includes` param, so it
+   *        returns NO images and NO shop object. (Passing `includes` here is a
+   *        no-op at best.)
+   *   2. GET /v3/application/listings/batch?listing_ids=a,b,c&includes=Images,Shop
+   *        -> enriches the same listings with image URLs + shop_name in ONE
+   *        batched call (the `includes` param IS supported here).
+   *
+   * Cost: 2 requests per keyword. Standard quota is 10 QPS / 10,000 QPD per
+   * key, so this is comfortably within limits for our ~12 seed keywords/day.
+   */
   private async searchWithApi(query: string, options?: { limit?: number }): Promise<EtsyListing[]> {
     const { limit = SCRAPING_LIMITS.TOP_PRODUCTS_PER_PLATFORM } = options || {};
+    const headers = { 'x-api-key': this.etsyApiKey };
     try {
-      const params = new URLSearchParams({ keywords: query, limit: String(limit), includes: 'Images,Shop' });
-      const res = await fetch(`https://openapi.etsy.com/v3/application/listings/active?${params}`, {
-        headers: { 'x-api-key': this.etsyApiKey },
-      });
-      if (!res.ok) throw new Error(`Etsy API ${res.status} ${res.statusText}`);
+      // Step 1: keyword search of active listings (no includes supported here).
+      const searchParams = new URLSearchParams({ keywords: query, limit: String(limit) });
+      const res = await fetch(`https://openapi.etsy.com/v3/application/listings/active?${searchParams}`, { headers });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        // 403 "API key not found or not active" == key still PENDING ETSY APPROVAL.
+        if (res.status === 403 && /not active|not found/i.test(body)) {
+          console.warn(
+            `[EtsyScraper] Etsy API key PENDING APPROVAL (HTTP 403: ${body.slice(0, 120)}). ` +
+            `This is expected until Etsy activates the app. Returning [] (scheduler falls back to mock).`
+          );
+        } else {
+          console.error(`[EtsyScraper] Etsy API ${res.status} ${res.statusText}: ${body.slice(0, 200)}`);
+        }
+        return [];
+      }
       const data: any = await res.json();
-      const out: EtsyListing[] = [];
-      (data.results || []).forEach((it: any) => {
-        const img = it.images?.[0];
-        out.push({
-          id: String(it.listing_id || ''),
+      const baseResults: any[] = data.results || [];
+      if (!baseResults.length) {
+        console.log(`[EtsyScraper] Etsy API "${query}" -> 0 listings`);
+        return [];
+      }
+
+      // Step 2: batch-enrich with Images + Shop (includes IS supported here).
+      const imageById = new Map<string, string>();
+      const shopById = new Map<string, string>();
+      try {
+        const ids = baseResults.map((it) => it.listing_id).filter(Boolean).join(',');
+        if (ids) {
+          const batchParams = new URLSearchParams({ listing_ids: ids, includes: 'Images,Shop' });
+          const enrichRes = await fetch(`https://openapi.etsy.com/v3/application/listings/batch?${batchParams}`, { headers });
+          if (enrichRes.ok) {
+            const enrich: any = await enrichRes.json();
+            (enrich.results || []).forEach((it: any) => {
+              const lid = String(it.listing_id || '');
+              const img = it.images?.[0];
+              if (img) imageById.set(lid, img.url_570xN || img.url_340x270 || img.url_fullxfull || '');
+              if (it.shop?.shop_name) shopById.set(lid, it.shop.shop_name);
+            });
+          } else {
+            console.warn(`[EtsyScraper] Etsy batch-enrich ${enrichRes.status} — proceeding without images/shop`);
+          }
+        }
+      } catch (e: any) {
+        console.warn(`[EtsyScraper] Etsy batch-enrich failed (${e.message}) — proceeding without images/shop`);
+      }
+
+      const out: EtsyListing[] = baseResults.map((it: any) => {
+        const id = String(it.listing_id || '');
+        return {
+          id,
           title: it.title || '',
           price: it.price?.amount ? Number(it.price.amount) / Number(it.price.divisor || 100) : 0,
           currency: it.price?.currency_code || 'USD',
-          shopName: it.shop?.shop_name || '',
+          shopName: shopById.get(id) || '',
           url: it.url || '',
-          imageUrl: img?.url_340x270 || img?.url_570xN || '',
+          imageUrl: imageById.get(id) || '',
           reviewCount: it.num_favorers || 0,
           rating: 0, isBestseller: false, tags: it.tags || [],
-        });
+        };
       });
-      console.log(`[EtsyScraper] Etsy API "${query}" -> ${out.length} listings`);
+      console.log(`[EtsyScraper] Etsy API "${query}" -> ${out.length} listings (${imageById.size} w/ images)`);
       return out;
     } catch (err: any) {
       console.error('[EtsyScraper] Etsy API error:', err.message);
