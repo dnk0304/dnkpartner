@@ -79,9 +79,11 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
         <div className="flex items-baseline gap-3 min-w-0">
           <Link
             href="/"
-            className="font-serif text-xl font-semibold text-[--color-brand] hover:text-[--color-brand-hover] transition-colors whitespace-nowrap"
+            className="font-serif text-xl text-[--color-brand] hover:text-[--color-brand-hover] transition-colors whitespace-nowrap"
+            aria-label="SubastasActivas — inicio"
           >
-            dnk<span className="text-[--color-gold]">Subastas</span>
+            <span className="font-semibold">Subastas</span>
+            <span className="font-normal">Activas</span>
           </Link>
           <span className="hidden md:inline text-xs text-[--color-ink-tertiary] tnum truncate">
             {lastUpdate
