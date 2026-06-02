@@ -32,10 +32,10 @@ export interface DashboardProject {
 export const DASHBOARD_PROJECTS: readonly DashboardProject[] = [
   {
     id: 'subastas',
-    name: 'Subastas',
+    name: 'SubastasActivas',
     description: 'Spanish public auction tracker — BOE feed, filters, favourites.',
-    href: '/subastas',
-    external: false,
+    href: 'https://subastasactivas.com',
+    external: true,
     state: 'live',
   },
   {
