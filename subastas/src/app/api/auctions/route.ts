@@ -190,6 +190,64 @@ const PROPERTY_CATEGORIES = ['Viviendas', 'Locales', 'Terrenos', 'Garajes', 'Tra
 // Vehicle categories that should use generated vehicle images
 const VEHICLE_CATEGORIES = ['Turismos', 'Motocicletas', 'Vehículos Industriales', 'Barcos'];
 
+/**
+ * FORGE 2026-06-03 (Item C — promote properties primarily).
+ *
+ * Category → priority rank used by the DEFAULT sort (`category_rank`).
+ * Lower rank = floats higher in the default-sorted list. Within each tier
+ * recency is preserved (`publishedAt DESC`).
+ *
+ * Tiering — keep as a SINGLE source of truth so re-tiering is a one-line tweak:
+ *   0 = Viviendas (hero category)
+ *   1 = Other real-estate (Otros inmuebles, Locales, Naves industriales,
+ *       Oficinas, Fincas rústicas, Terrenos)
+ *   2 = Low-priority real-estate (Garajes, Trasteros)
+ *   3 = Everything else (vehicles, arte, misc, and any unknown category via
+ *       the SQL CASE ELSE branch below)
+ *
+ * Category labels are the exact accented Spanish strings as stored in DB
+ * (Auction.category) — see OFFICIAL_CATEGORIES in src/lib/constants.ts and
+ * the live category histogram in Ken's brief.
+ */
+export const CATEGORY_RANK: Record<string, number> = {
+  // Tier 0 — hero
+  'Viviendas': 0,
+  // Tier 1 — other real-estate
+  'Otros inmuebles': 1,
+  'Locales': 1,
+  'Naves industriales': 1,
+  'Oficinas': 1,
+  'Fincas rústicas': 1,
+  'Terrenos': 1,
+  // Tier 2 — low-priority real-estate
+  'Garajes': 2,
+  'Trasteros': 2,
+  // Tier 3 — vehicles + misc (vehicles listed explicitly so the CASE is
+  // self-documenting; unknown categories fall through to ELSE = 3)
+  'Turismos': 3,
+  'Motocicletas': 3,
+  'Camiones': 3,
+  'Barcos': 3,
+  'Embarcaciones': 3,
+  'Arte y antigüedades': 3,
+};
+const CATEGORY_RANK_DEFAULT = 3;
+
+/**
+ * Build the SQL `CASE` expression that maps `category` → rank for use in
+ * ORDER BY. Generated from CATEGORY_RANK above so re-tiering only requires
+ * editing the constant. Category literals are hardcoded (NOT user input),
+ * so SQL injection is not a concern — but we still single-quote-escape
+ * defensively in case a future entry contains an apostrophe.
+ */
+function buildCategoryRankCaseSql(): string {
+  const whenClauses = Object.entries(CATEGORY_RANK)
+    .map(([cat, rank]) => `WHEN '${cat.replace(/'/g, "''")}' THEN ${rank}`)
+    .join(' ');
+  return `(CASE category ${whenClauses} ELSE ${CATEGORY_RANK_DEFAULT} END)`;
+}
+const CATEGORY_RANK_CASE_SQL = buildCategoryRankCaseSql();
+
 function buildGeneralInfo(item: AuctionFromDB): string | null {
   const parts: string[] = [];
 
@@ -642,10 +700,27 @@ export async function GET(request: NextRequest) {
 
     // --- Sort whitelist (P0 dropdown) -----------------------------------
     // Whitelist input -> safe ORDER BY clause. Never interpolate raw input.
-    // Default = endsAt_asc (urgency-first per Pixel UX recommendation).
-    type SortKey = 'endsAt_asc' | 'published_desc' | 'price_asc' | 'price_desc';
+    //
+    // FORGE 2026-06-03 (Item C — promote properties primarily):
+    //   New default = `category_rank` — properties (viviendas first) float to
+    //   the top, with `publishedAt DESC` preserving recency WITHIN each tier
+    //   and `id DESC` as a stable deterministic tiebreak for pagination.
+    //   Implemented as a SQL CASE on `category` (NO migration, no new column).
+    //
+    //   Explicit `sort=` params still resolve to their existing plans below —
+    //   this only changes the DEFAULT when no sort is supplied. User choice
+    //   always wins.
+    //
+    //   Pagination: `category_rank` uses cursorMode='offset' because a CASE
+    //   expression cannot be cleanly keyset-paginated. The existing page-
+    //   fallback path (when `?page=N` is supplied without `?cursor=`) already
+    //   handles this — `usingOffset` is set further down. Counts and
+    //   teaserCounts are computed from snapshots taken BEFORE the ORDER BY
+    //   is appended, so this change cannot affect them.
+    type SortKey = 'category_rank' | 'endsAt_asc' | 'published_desc' | 'price_asc' | 'price_desc';
     const EFFECTIVE_PRICE = 'COALESCE("currentBid", "minimumBid", "appraisalValue")';
     const SORT_MAP: Record<SortKey, { orderBy: string; cursorMode: 'endsAt' | 'publishedAt' | 'offset' }> = {
+      category_rank:   { orderBy: `${CATEGORY_RANK_CASE_SQL} ASC, "publishedAt" DESC, id DESC`, cursorMode: 'offset' },
       endsAt_asc:      { orderBy: '"endsAt" ASC NULLS LAST, id ASC',     cursorMode: 'endsAt' },
       published_desc:  { orderBy: '"publishedAt" DESC, id DESC',          cursorMode: 'publishedAt' },
       price_asc:       { orderBy: `${EFFECTIVE_PRICE} ASC NULLS LAST, id ASC`,  cursorMode: 'offset' },
@@ -656,6 +731,7 @@ export async function GET(request: NextRequest) {
     // both spellings — keep both pointing at the same ORDER BY).
     const normalizedSort: SortKey = (() => {
       switch (rawSort) {
+        case 'category_rank':
         case 'endsAt_asc':
         case 'published_desc':
         case 'price_asc':
@@ -664,7 +740,9 @@ export async function GET(request: NextRequest) {
         case 'publishedAt_desc':
           return 'published_desc';
         default:
-          return 'endsAt_asc'; // server default (was publishedAt DESC pre-P0)
+          // FORGE 2026-06-03 (Item C): default is now properties-first.
+          // Was 'endsAt_asc' (urgency-first). Explicit sort still wins above.
+          return 'category_rank';
       }
     })();
     const sortPlan = SORT_MAP[normalizedSort];
