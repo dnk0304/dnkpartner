@@ -104,6 +104,62 @@ function stripAuthorNotes(body: string): string {
   return kept.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
 }
 
+/**
+ * Strip writer's-room scaffolding tokens baked into article bodies.
+ * Patterns observed in wave12 corpus (12 of 56 articles):
+ *  - `## H1: Foo`, `### H2: Bar`, `#### H3: Baz` — heading-type tokens after
+ *    the markdown # prefix. The H1: line typically duplicates the article title
+ *    and must be DROPPED entirely (title lives in its own column and the page
+ *    renders it). H2:/H3: tokens are stripped to leave clean `## Foo` headings.
+ *  - `**Definición (featured-snippet bait, ~55 palabras):**` and the broader
+ *    `**Label (<authoring note>):**` pattern where the parenthetical contains
+ *    SEO-process language ("bait", "palabras", "snippet"). Strip the
+ *    parenthetical, keep the bold label.
+ *
+ * Conservative by design: only strips KNOWN junk patterns. Real prose,
+ * tables, lists, blockquotes, and clean bodies pass through unchanged.
+ *
+ * Exported for unit testing.
+ */
+export function stripScaffolding(body: string, title?: string): string {
+  const lines = body.split('\n');
+  const kept: string[] = [];
+  for (const line of lines) {
+    // Match a markdown heading line: leading optional whitespace, 1-6 # chars,
+    // a space, then optional `H1:` / `H2:` / `H3:` / `H4:` / `H5:` / `H6:` token.
+    const headMatch = /^(\s*)(#{1,6})\s+H([1-6]):\s*(.*)$/.exec(line);
+    if (headMatch) {
+      const [, leading, hashes, hLevel, rest] = headMatch;
+      const restTrim = rest.trim();
+      // An `H1:` token marks the article's main heading — the on-page H1
+      // is rendered from the title column, so this line is structurally
+      // redundant and must be DROPPED entirely (regardless of whether the
+      // text is a literal byte-for-byte duplicate of title).
+      if (hLevel === '1') {
+        continue;
+      }
+      // H2:/H3:/H4:/H5:/H6: tokens — strip the token, keep the heading text.
+      kept.push(`${leading}${hashes} ${restTrim}`);
+      continue;
+    }
+
+    // Strip authoring-note parentheticals inside bold labels:
+    //   **Definición (featured-snippet bait, ~55 palabras):**  →  **Definición:**
+    //   **Intro (los primeros 100 palabras responden la query):**  →  **Intro:**
+    // Trigger only when the parenthetical contains SEO-process language
+    // ("bait", "palabras", "snippet", "callout"). This avoids touching real
+    // prose like `**Hipoteca (garantía de un préstamo):**`.
+    let processed = line.replace(
+      /\*\*([^*()]+?)\s*\(([^)]*(?:bait|palabras|snippet|callout)[^)]*)\):\*\*/gi,
+      '**$1:**',
+    );
+
+    kept.push(processed);
+  }
+  // Collapse 3+ blank lines to 2, no trailing whitespace.
+  return kept.join('\n').replace(/\n{3,}/g, '\n\n');
+}
+
 // Match a `Key: value` line (or with bold markdown), normalized to lowercase.
 const KEY_ALIASES: Record<string, keyof ParsedArticle | 'secondaryKeywordsRaw'> = {
   'slug': 'slug',
@@ -346,9 +402,19 @@ export function parseArticleFile(filePath: string): ParseResult {
   }
 
   let body = src.slice(bodyStart);
+  const titleStr = stripQuotes(fields.title).trim();
+
+  // Strip writer's-room scaffolding tokens (H1:/H2:/H3: prefixes,
+  // authoring-note parentheticals) before the leading-H1 dedupe so the
+  // dedupe sees the cleaned heading text.
+  body = stripScaffolding(body, titleStr);
+
   // Drop a leading H1 if it duplicates the title (we keep title in DB column;
-  // public page renders title separately).
+  // public page renders title separately). Preserves original wave12 behavior
+  // for the 44 clean articles (yaml/bold-after-h1 styles where the H1 line
+  // immediately precedes the body and is a near-duplicate of the title).
   body = body.replace(/^\s*#\s+.+\n+/, '');
+
   body = stripAuthorNotes(body);
 
   const secondaryKeywords = parseSecondaryKeywords(fields.secondaryKeywordsRaw);
