@@ -24,6 +24,27 @@
  *                 longer active/upcoming (e.g. bulk "concluida-portal" cleanup
  *                 status-events). Forces the fallback path to surface real
  *                 ACTIVE auctions. Used by the ForexCarousel. Default: false.
+ *   category    — exact accented Spanish label as stored in DB (e.g.
+ *                 "Viviendas"). Narrows BOTH the event-driven items AND the
+ *                 starvation-fallback rows. Unknown/blank value → ignored
+ *                 (graceful no-op). Used by the home quick-filter chips.
+ *   province    — exact province string as stored in DB. Same semantics as
+ *                 `category` (filters event side + fallback `where`).
+ *                 Unknown/blank → ignored.
+ *   when        — bucket alias: "active"/"activas" (active right now),
+ *                 "proximas"/"upcoming" (upcoming), "todas"/"all" (any
+ *                 status — disables both the activeOnly-style status filter
+ *                 AND the clock-ended guard, so finished/cancelled auctions
+ *                 can appear). Unknown value → ignored (treated as default,
+ *                 same as current behavior — active-or-upcoming).
+ *
+ * Properties-first ordering (Forge 2026-06-03):
+ *   When `category` is NOT provided, the merged feed is sorted by
+ *   (categoryRank ASC, at DESC) — Viviendas surfaces first, with recency
+ *   preserved within each tier. When `category` IS provided, ordering
+ *   reverts to pure `at DESC` (every row is the same rank anyway). Rank
+ *   table lives in `@/lib/category-rank` (shared with the future
+ *   /api/auctions default sort — see sa/promote-properties-sort).
  *
  * Performance: each side fetches `limit` rows (so the merged set is at most 3*limit),
  *              relies on the (auctionId, changedAt|seenAt DESC) indexes from
@@ -33,6 +54,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { boeLinkFor } from "@/lib/boe-link";
+import { categoryRankOf } from "@/lib/category-rank";
 
 export const dynamic = "force-dynamic";
 
@@ -280,6 +302,46 @@ export async function GET(req: NextRequest) {
     const wantAuctionFallback = types.has("auction");
     const activeOnlyParam = (url.searchParams.get("activeOnly") ?? "").toLowerCase();
     const activeOnly = activeOnlyParam === "1" || activeOnlyParam === "true";
+
+    // ─── Quick-filter params (Forge 2026-06-03, home chips) ─────────────────
+    // category/province are exact-match against the DB-stored values.
+    // Trim + treat blank as absent. Invalid (e.g. unknown) categories are
+    // accepted at the WHERE layer — Prisma returns 0 rows instead of throwing,
+    // so the feed stays empty rather than 500-ing. That's the desired
+    // "graceful ignore on bad input" the brief asks for.
+    const rawCategory = (url.searchParams.get("category") ?? "").trim();
+    const categoryFilter = rawCategory.length > 0 ? rawCategory : null;
+    const rawProvince = (url.searchParams.get("province") ?? "").trim();
+    const provinceFilter = rawProvince.length > 0 ? rawProvince : null;
+
+    // `when` bucket — match the semantics already used by the listing page.
+    // Aliases:
+    //   active   | activas    → active-now (CELEBRANDOSE/ACTIVE only)
+    //   proximas | upcoming   → upcoming-only (PROXIMA_APERTURA/PRE_AUCTION)
+    //   todas    | all        → no status filter, no clock-ended guard
+    //   (absent / unknown)    → default: active OR upcoming (today's behavior)
+    const rawWhen = (url.searchParams.get("when") ?? "").trim().toLowerCase();
+    type WhenBucket = "active" | "proximas" | "todas" | "default";
+    const whenBucket: WhenBucket = (() => {
+      switch (rawWhen) {
+        case "active":
+        case "activas":
+          return "active";
+        case "proximas":
+        case "próximas":
+        case "upcoming":
+          return "proximas";
+        case "todas":
+        case "all":
+          return "todas";
+        default:
+          return "default";
+      }
+    })();
+    const ACTIVE_DB_STATUSES = ["CELEBRANDOSE", "ACTIVE"] as const;
+    const UPCOMING_DB_STATUSES = ["PROXIMA_APERTURA", "PRE_AUCTION"] as const;
+    const ACTIVE_FRONTEND_STATUSES_ACTIVE_ONLY = new Set(["celebrandose"]);
+    const ACTIVE_FRONTEND_STATUSES_UPCOMING_ONLY = new Set(["proxima-apertura"]);
     // Mapped (frontend-canonical) statuses that count as genuinely live for
     // the activeOnly filter. SUSPENDIDA removed 2026-06-02 (Forge, issue #2):
     // suspended auctions are not "active" from a user POV and must not appear
@@ -371,7 +433,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // ─── activeOnly filter ──────────────────────────────────────────────────
+    // ─── activeOnly / when / category / province filters ────────────────────
     // When the caller (e.g. the ForexCarousel) only wants currently-active
     // auctions, drop event rows whose underlying auction has moved to a
     // terminal state. Without this, a flood of "concluida-portal" cleanup
@@ -380,11 +442,35 @@ export async function GET(req: NextRequest) {
     // Clock-wins guard: an auction whose endsAt has passed is NOT active,
     // even if its stored status still says CELEBRANDOSE (sweep lag). Mirrors
     // the `effectiveStatus` rule in components/observatory/status.ts.
+    //
+    // The quick-filter chips (Forge 2026-06-03) add three orthogonal filters
+    // applied to the SAME event-row set: category, province, and when-bucket.
+    // when="todas" disables BOTH the active/upcoming status filter AND the
+    // clock-ended guard, so finished/cancelled rows can appear.
+    // Decide whether to enforce a status/clock filter on the event side:
+    //   - activeOnly=1     → enforce active+upcoming + clock guard (legacy)
+    //   - when=active      → enforce active-only + clock guard
+    //   - when=proximas    → enforce upcoming-only + clock guard
+    //   - when=todas       → DO NOT enforce status or clock guard
+    //   - default (none)   → DO NOT enforce status (today's contract)
+    const enforceEventStatus =
+      activeOnly || whenBucket === "active" || whenBucket === "proximas";
+    const allowedFrontendStatuses: Set<string> =
+      whenBucket === "active"
+        ? ACTIVE_FRONTEND_STATUSES_ACTIVE_ONLY
+        : whenBucket === "proximas"
+          ? ACTIVE_FRONTEND_STATUSES_UPCOMING_ONLY
+          : ACTIVE_FRONTEND_STATUSES; // activeOnly legacy → active+upcoming
+
     let workingItems = items;
-    if (activeOnly) {
+    if (enforceEventStatus || categoryFilter || provinceFilter) {
       workingItems = items.filter((it) => {
-        if (!ACTIVE_FRONTEND_STATUSES.has(it.auction.status)) return false;
-        if (it.auction.endsAt && it.auction.endsAt <= nowIso) return false;
+        if (enforceEventStatus) {
+          if (!allowedFrontendStatuses.has(it.auction.status)) return false;
+          if (it.auction.endsAt && it.auction.endsAt <= nowIso) return false;
+        }
+        if (categoryFilter && it.auction.category !== categoryFilter) return false;
+        if (provinceFilter && it.auction.province !== provinceFilter) return false;
         return true;
       });
     }
@@ -398,18 +484,42 @@ export async function GET(req: NextRequest) {
       const need = limit - workingItems.length;
       // Pull a generous superset so we can skip dupes already in items.
       const excludeIds = new Set(workingItems.map((it) => it.auctionId));
+
+      // Status set for the fallback `where`:
+      //   - when=active   → ACTIVE_DB_STATUSES only
+      //   - when=proximas → UPCOMING_DB_STATUSES only
+      //   - when=todas    → no status constraint (any state goes)
+      //   - default       → ACTIVE_OR_UPCOMING (today's behavior)
+      const fallbackStatuses: readonly string[] | null =
+        whenBucket === "active"
+          ? (ACTIVE_DB_STATUSES as unknown as readonly string[])
+          : whenBucket === "proximas"
+            ? (UPCOMING_DB_STATUSES as unknown as readonly string[])
+            : whenBucket === "todas"
+              ? null
+              : (ACTIVE_OR_UPCOMING_DB_STATUSES as unknown as readonly string[]);
+
+      // Build the where dynamically so when=todas drops both the status
+      // constraint AND the clock guard (finished auctions are allowed).
+      const fallbackWhere: Record<string, unknown> = {
+        // Province is non-nullable in the schema; guard against blank strings
+        // so we don't surface rows the rest of the UI can't filter back to.
+        province: provinceFilter ? provinceFilter : { not: '' },
+        id: { notIn: Array.from(excludeIds) },
+      };
+      if (fallbackStatuses !== null) {
+        fallbackWhere.status = { in: fallbackStatuses as string[] };
+        // Clock-wins guard: drop rows whose endsAt is in the past — sweep
+        // lag would otherwise let stale CELEBRANDOSE rows surface here.
+        // Null endsAt is allowed (no clock set yet, e.g. PROXIMA_APERTURA).
+        fallbackWhere.OR = [{ endsAt: null }, { endsAt: { gt: new Date() } }];
+      }
+      if (categoryFilter) {
+        fallbackWhere.category = categoryFilter;
+      }
+
       const fallbackRows = await prisma.auction.findMany({
-        where: {
-          status: { in: ACTIVE_OR_UPCOMING_DB_STATUSES as unknown as string[] } as never,
-          // Province is non-nullable in the schema; guard against blank strings
-          // so we don't surface rows the rest of the UI can't filter back to.
-          province: { not: '' },
-          id: { notIn: Array.from(excludeIds) },
-          // Clock-wins guard: drop rows whose endsAt is in the past — sweep
-          // lag would otherwise let stale CELEBRANDOSE rows surface here.
-          // Null endsAt is allowed (no clock set yet, e.g. PROXIMA_APERTURA).
-          OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }],
-        },
+        where: fallbackWhere as never,
         orderBy: [{ transitionedAt: "desc" }, { updatedAt: "desc" }],
         take: need * 2,
         select: AUCTION_CARD_SELECT,
@@ -440,8 +550,23 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, data: [] });
     }
 
-    // Sort by `at` desc, truncate to limit.
-    workingItems.sort((a, b) => b.at.localeCompare(a.at));
+    // Sort: properties-first by default (categoryRank ASC, then at DESC) so
+    // Viviendas surfaces at the top of the home carousel. When the caller
+    // pins a single `category`, every row shares the same rank — fall back to
+    // pure `at DESC` recency. Rank table is the SAME one used by the
+    // /api/auctions default sort (see @/lib/category-rank) so the home
+    // carousel and the listing page never disagree about which category is
+    // "hero".
+    if (categoryFilter) {
+      workingItems.sort((a, b) => b.at.localeCompare(a.at));
+    } else {
+      workingItems.sort((a, b) => {
+        const ra = categoryRankOf(a.auction.category);
+        const rb = categoryRankOf(b.auction.category);
+        if (ra !== rb) return ra - rb;
+        return b.at.localeCompare(a.at);
+      });
+    }
     const trimmed = workingItems.slice(0, limit);
 
     return NextResponse.json({ success: true, data: trimmed });
