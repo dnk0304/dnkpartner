@@ -537,6 +537,48 @@ function applyTierMasking(auctions: AuctionFromDB[], userTier: UserTier | 'GUEST
   return maskedList;
 }
 
+/**
+ * FORGE 2026-06-02 — cursor encoding for endsAt_asc that handles the
+ * NULLS-LAST tail. Format = `<isoOrNULL>|<uuid>` (pipe-delimited so it
+ * survives URL encoding without further escaping).
+ *
+ *  - `2026-08-01T10:00:00.000Z|0193a...` → non-null endsAt, keyset across
+ *    `(endsAt > ? OR (endsAt = ? AND id > ?) OR endsAt IS NULL)`.
+ *  - `NULL|0193a...` → already in the null tail, keyset on `id > ?`.
+ *  - Legacy plain ISO (no pipe) → backward-compatible; we widen the
+ *    predicate to `endsAt > ? OR endsAt IS NULL` so the null tail is reached
+ *    once future-endsAt rows are exhausted.
+ *
+ * Invariant: cursors are opaque to all callers (the frontend round-trips
+ * `pagination.nextCursor`); we may rev the format freely.
+ */
+type EndsAtCursor =
+  | { kind: 'legacy'; endsAt: string }
+  | { kind: 'nonNull'; endsAt: string; id: string }
+  | { kind: 'null'; id: string };
+
+function parseEndsAtCursor(raw: string): EndsAtCursor {
+  const pipe = raw.indexOf('|');
+  if (pipe === -1) {
+    // Legacy plain-ISO cursor from a pre-fix client.
+    return { kind: 'legacy', endsAt: raw };
+  }
+  const left = raw.slice(0, pipe);
+  const id = raw.slice(pipe + 1);
+  if (left === 'NULL') {
+    return { kind: 'null', id };
+  }
+  return { kind: 'nonNull', endsAt: left, id };
+}
+
+function encodeEndsAtCursor(endsAt: string | Date | null, id: string): string {
+  if (endsAt == null) return `NULL|${id}`;
+  // pg returns timestamp columns as Date objects. Normalize to ISO so the
+  // cursor is a stable URL-safe string that can be parsed back unambiguously.
+  const iso = endsAt instanceof Date ? endsAt.toISOString() : endsAt;
+  return `${iso}|${id}`;
+}
+
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
   
@@ -674,7 +716,17 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Build optimized SQL query with filters at database level
+    // Build optimized SQL query with filters at database level.
+    //
+    // FORGE 2026-06-02 (P1 count-vs-list reconciliation):
+    // The list WHERE and the badge-count WHERE MUST share a single predicate.
+    // Previously teaserCounts.active was derived from a bare
+    // `status IN (…)` SELECT with no province/junk-row filter, so it returned
+    // 466 while the list returned 447 (~19 province-null/junk rows hidden by
+    // the list but counted by the badge). We now build the WHERE clause in
+    // layered snapshots so the list SELECT, the list COUNT, and the teaser
+    // counts ALL reuse the same upstream filters (province + category +
+    // advanced filters + auction type). Single source of truth.
     let sql = `SELECT * FROM Auction WHERE 1=1
       AND province IS NOT NULL
       AND LOWER(province) NOT IN ('unknown', 'desconocida', 'mapa de la zona', 'mapa del municipio', 'null', 'undefined')
@@ -729,6 +781,13 @@ export async function GET(request: NextRequest) {
       sql += ` AND "imageUrl" IS NOT NULL AND ("imageUrl" LIKE '/api/auction-image/%' OR "imageUrl" LIKE '/streetview/%')`;
     }
     
+    // FORGE 2026-06-02: snapshot AFTER all non-status, non-pagination filters.
+    // This is the "filters minus status" prefix the teaser-count queries reuse,
+    // so e.g. teaserCounts.active honors a `?province=Madrid` filter exactly
+    // the same way the list does.
+    const preStatusSqlLen = sql.length;
+    const preStatusParamsLen = params.length;
+
     // Filter by status at SQL level for better performance
     if (statuses) {
       // Multiple statuses support (comma-separated)
@@ -817,22 +876,66 @@ export async function GET(request: NextRequest) {
       params.push(...expanded);
     }
     
+    // FORGE 2026-06-02: snapshot AFTER status/type filters, BEFORE cursor and
+    // pagination. This is the canonical "list predicate" used by the totalCount
+    // query so the badge and totalCount reconcile against the SAME row set.
+    const preCursorSqlLen = sql.length;
+    const preCursorParamsLen = params.length;
+
     // Cursor-based pagination — cursor semantics depend on active sort.
-    //   endsAt_asc      -> cursor is endsAt ISO string, advance with endsAt > ?
-    //   published_desc  -> cursor is publishedAt ISO string, advance with publishedAt < ?
-    //   price_asc/desc  -> cursor pagination not supported (price has NULLs and
-    //                      duplicates; correct keyset is non-trivial). UI must
-    //                      use page= for these two sorts. Cursor is ignored.
+    //
+    // FORGE 2026-06-02 (P1 null-tail reachability fix):
+    //   endsAt_asc cursor was previously `endsAt > ?` with `endsAt IS NOT NULL`,
+    //   which permanently stranded the NULLS-LAST tail (46 SUSPENDIDA rows with
+    //   null endsAt today): they were counted but unreachable by scrolling.
+    //   Cursor now encodes BOTH endsAt and id as `<isoOrNULL>|<uuid>` (URL-safe,
+    //   pipe-delimited) so we can correctly keyset across the null boundary.
+    //
+    //   The cursor format is backward-compatible: a legacy plain-ISO cursor
+    //   (no pipe) is parsed as `<iso>|""` and we fall back to the old
+    //   `endsAt > ?` predicate; the new format adds the null-tail predicate.
+    //
+    //   published_desc unchanged (no null tail — publishedAt is NOT NULL).
+    //   price_asc/desc cursor pagination unsupported (use page=/OFFSET).
+    //
+    // FORGE 2026-06-02 (P1 page-fallback):
+    //   The UI sends `page=` (not `cursor=`) on infinite scroll, so even with
+    //   the cursor fix above, exhaustion was impossible on endsAt_asc /
+    //   published_desc — no OFFSET was being appended on those sorts. We now
+    //   fall back to OFFSET whenever a cursor-capable sort is paginated by
+    //   page= alone. Both strategies share the same deterministic ORDER BY
+    //   (`endsAt ASC NULLS LAST, id ASC` etc.) so they remain consistent and
+    //   both reach the null tail.
     let usingOffset = false;
     if (cursor && sortPlan.cursorMode === 'endsAt') {
-      sql += ' AND "endsAt" IS NOT NULL AND "endsAt" > ?';
-      params.push(cursor);
+      const parsed = parseEndsAtCursor(cursor);
+      if (parsed.kind === 'legacy') {
+        // Old plain-ISO cursor — keep prior semantics for in-flight clients,
+        // BUT relax `IS NOT NULL` so the null tail becomes reachable once the
+        // future-endsAt rows are exhausted.
+        sql += ' AND ("endsAt" > ? OR "endsAt" IS NULL)';
+        params.push(parsed.endsAt);
+      } else if (parsed.kind === 'nonNull') {
+        // Standard 2-column keyset under ORDER BY endsAt ASC NULLS LAST, id ASC.
+        sql += ' AND ("endsAt" > ? OR ("endsAt" = ? AND id > ?) OR "endsAt" IS NULL)';
+        params.push(parsed.endsAt, parsed.endsAt, parsed.id);
+      } else {
+        // parsed.kind === 'null' — we're already inside the NULL tail.
+        sql += ' AND "endsAt" IS NULL AND id > ?';
+        params.push(parsed.id);
+      }
     } else if (cursor && sortPlan.cursorMode === 'publishedAt') {
       sql += ' AND "publishedAt" < ?';
       params.push(cursor);
     } else if (sortPlan.cursorMode === 'offset') {
       // Price sorts: fall back to LIMIT/OFFSET pagination using the existing
       // `page` param. Do NOT honor cursor here — it would silently misalign.
+      usingOffset = true;
+    } else if (!cursor && page > 1 && (sortPlan.cursorMode === 'endsAt' || sortPlan.cursorMode === 'publishedAt')) {
+      // FORGE 2026-06-02: UI sends ?page=N without a cursor on infinite scroll.
+      // Without OFFSET that would return page 1 forever on endsAt_asc /
+      // published_desc. Fall through to OFFSET pagination for backward compat;
+      // the deterministic ORDER BY (with id tiebreak) keeps pages stable.
       usingOffset = true;
     }
 
@@ -861,21 +964,30 @@ export async function GET(request: NextRequest) {
     if (hasMore && results.length > 0) {
       const last = results[results.length - 1];
       if (sortPlan.cursorMode === 'endsAt') {
-        nextCursor = last.endsAt; // may be null only at boundary; UI should fall back to page
+        // FORGE 2026-06-02: encode endsAt + id so we can keyset across the
+        // NULLS-LAST boundary. `last.endsAt === null` is no longer a dead-end;
+        // it advances inside the null tail by id.
+        nextCursor = encodeEndsAtCursor(last.endsAt, last.id);
       } else if (sortPlan.cursorMode === 'publishedAt') {
         nextCursor = last.publishedAt;
       }
     }
 
-    // Get total count (only if needed for pagination UI)
-    let totalCount = null;
+    // Get total count (only if needed for pagination UI).
+    //
+    // FORGE 2026-06-02: the COUNT runs against the snapshot AT preCursorSqlLen
+    // — i.e. base + non-status filters + status filter, NOT cursor or
+    // pagination. This is the canonical "list predicate" and the same one we
+    // reuse below for teaserCounts so the badge and totalCount can never drift
+    // again. (The prior implementation tail-stripped LIMIT/OFFSET from the
+    // already-mutated `sql` string, which silently included whatever cursor
+    // was applied — wrong on the first paginated request.)
+    let totalCount: number | null = null;
     if (page === 1) {
-      const countSql = sql.replace('SELECT *', 'SELECT COUNT(*) as count')
-                          .replace(/ORDER BY[\s\S]*/, '');
-      // Strip LIMIT and (if appended) OFFSET params from the tail of params.
-      const trailingParamCount = usingOffset && offset > 0 ? 2 : 1;
-      const countParams = params.slice(0, -trailingParamCount);
-      const countRow = await queryOne<{ count: string | number }>(countSql, countParams);
+      const listPredicateSql = sql.slice(0, preCursorSqlLen);
+      const listPredicateParams = params.slice(0, preCursorParamsLen);
+      const countSql = `SELECT COUNT(*) as count FROM Auction WHERE ${listPredicateSql.replace(/^SELECT \* FROM Auction WHERE /, '')}`;
+      const countRow = await queryOne<{ count: string | number }>(countSql, listPredicateParams);
       // PG returns COUNT(*) as bigint -> string; coerce.
       totalCount = countRow ? Number(countRow.count) : 0;
     }
@@ -885,20 +997,42 @@ export async function GET(request: NextRequest) {
     const maskedAuctions = applyTierMasking(results, tier, hasActiveTrial);
     const maskTime = Date.now() - maskStart;
     
-    // Get teaser counts for guests
+    // Get teaser counts for guests.
+    //
+    // FORGE 2026-06-02 (P1 count-vs-list reconciliation):
+    // The badge counts now reuse the SAME base predicate as the list
+    // (province junk filter + province=, category, categories, advanced
+    // filters, auction type — everything EXCEPT status), so the badge
+    // numbers always match what the user can actually browse to. The status
+    // set is the only thing that varies per badge.
+    //
+    // Canonical predicate = list base (preStatusSqlLen snapshot) AND
+    //                       status IN (<badge's status set>)
+    //
+    // For ?status=active specifically: badge "active" → SAME 4-status set the
+    // list uses → identical row set → teaserCounts.active === totalCount.
     let teaserCounts = null;
     if (tier === 'GUEST' && page === 1) {
-      const activeRow = await queryOne<{ count: string | number }>(`
-        SELECT COUNT(*) as count FROM Auction WHERE status IN ('ACTIVE', 'SUSPENDED', 'CELEBRANDOSE', 'SUSPENDIDA')
-      `, []);
-      const preAuctionRow = await queryOne<{ count: string | number }>(`
-        SELECT COUNT(*) as count FROM Auction WHERE status IN ('PRE_AUCTION', 'PROXIMA_APERTURA')
-      `, []);
+      const basePredicateSql = sql.slice(0, preStatusSqlLen);
+      const basePredicateParams = params.slice(0, preStatusParamsLen);
+      const baseWhere = basePredicateSql.replace(/^SELECT \* FROM Auction WHERE /, '');
 
-      teaserCounts = {
-        active: activeRow ? Number(activeRow.count) : 0,
-        preAuction: preAuctionRow ? Number(preAuctionRow.count) : 0,
+      const countWithStatus = async (statusSet: string[]): Promise<number> => {
+        const placeholders = statusSet.map(() => '?').join(', ');
+        const countSql = `SELECT COUNT(*) as count FROM Auction WHERE ${baseWhere} AND status IN (${placeholders})`;
+        const row = await queryOne<{ count: string | number }>(
+          countSql,
+          [...basePredicateParams, ...statusSet],
+        );
+        return row ? Number(row.count) : 0;
       };
+
+      const [active, preAuction] = await Promise.all([
+        countWithStatus(['ACTIVE', 'SUSPENDED', 'CELEBRANDOSE', 'SUSPENDIDA']),
+        countWithStatus(['PRE_AUCTION', 'PROXIMA_APERTURA']),
+      ]);
+
+      teaserCounts = { active, preAuction };
     }
 
     const response = {

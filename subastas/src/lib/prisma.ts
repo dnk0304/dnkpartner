@@ -17,6 +17,25 @@
  * env (no DATABASE_URL set), and Prisma 7's constructor throws if the URL is
  * empty. We defer construction to first use via a lazy proxy so build never
  * trips the constructor.
+ *
+ * FORGE 2026-06-02 — P1 connection exhaustion (P2037) fix:
+ *   Previously the singleton was ONLY cached when `NODE_ENV !== 'production'`.
+ *   In production every `getClient()` call ran `buildClient()` — a brand new
+ *   PrismaClient + brand new `PrismaPg` adapter pool (default max 10). Worse,
+ *   the lazy proxy invokes `getClient()` on EVERY property access, so a single
+ *   `prisma.auction.findUnique({...})` spawned multiple pools per call. Under
+ *   burst load the app trivially blew past PG's `max_connections=100`.
+ *
+ *   We now cache the singleton in production too — globalThis survives every
+ *   warm Lambda/Node invocation and we want exactly ONE pool per process.
+ *   The cached client is memoized on first access so the proxy stops thrashing
+ *   pools.
+ *
+ *   Pool size is taken from `PRISMA_POOL_MAX` (env). Ken's recommended split
+ *   on the 100-conn box (see DISPATCH-BRIEF-FORGE-pg-connection-exhaustion-
+ *   P2037.md): app gets PG_POOL_MAX=15 + PRISMA_POOL_MAX=10 = 25; scheduler +
+ *   superuser keep the remaining ~75. The pool also honors `pool_timeout`
+ *   (ms) via the adapter so a brief queue beats an instant 500 under burst.
  */
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -32,11 +51,15 @@ function buildClient(): PrismaClient {
       'DATABASE_URL is not set. Set it before importing @/lib/prisma at runtime.',
     );
   }
+  // Pool tuning — keep in sync with the PG_POOL_MAX setting used by @/lib/db.
+  // App total = PG_POOL_MAX + PRISMA_POOL_MAX. Budget against PG max_connections.
+  const max = Number(process.env.PRISMA_POOL_MAX ?? 10);
+  const connectionTimeoutMillis = Number(process.env.PRISMA_POOL_TIMEOUT_MS ?? 5_000);
   const adapter = new PrismaPg({
     connectionString: url,
-    max: Number(process.env.PRISMA_POOL_MAX ?? 10),
+    max,
     idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 5_000,
+    connectionTimeoutMillis,
   });
   return new PrismaClient({
     adapter,
@@ -46,18 +69,20 @@ function buildClient(): PrismaClient {
 
 function getClient(): PrismaClient {
   if (globalForPrisma.__subastasPrisma) return globalForPrisma.__subastasPrisma;
+  // FORGE 2026-06-02: cache in production too (was dev-only). See file header.
   const client = buildClient();
-  if (process.env.NODE_ENV !== 'production') {
-    globalForPrisma.__subastasPrisma = client;
-  }
+  globalForPrisma.__subastasPrisma = client;
   return client;
 }
 
 /**
- * Lazy proxy: any property access constructs the client on first use, then
- * forwards. Build-time imports (no DATABASE_URL) won't trigger construction
- * unless a route actually calls `prisma.someModel.…` — which it doesn't during
- * "Collect page data".
+ * Lazy proxy: any property access reuses the cached client (memoized on first
+ * call). Build-time imports (no DATABASE_URL) don't trigger construction
+ * unless a route actually calls `prisma.someModel.…` — which it doesn't
+ * during "Collect page data".
+ *
+ * FORGE 2026-06-02: getClient() is now globally memoized, so this proxy no
+ * longer spawns a new PrismaClient per property access in production.
  */
 export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
   get(_target, prop, receiver) {
