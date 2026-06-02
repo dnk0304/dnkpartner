@@ -191,7 +191,7 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ onUpgradeClick
           {user.email === 'dennis.kotlenko@gmail.com' && (
             <>
               <DropdownMenuItem
-                onClick={() => window.location.href = '/admin/dashboard'}
+                onClick={() => window.location.href = '/admin'}
                 className="cursor-pointer py-3"
               >
                 <Shield className="h-4 w-4 mr-3 text-blue-600" />

@@ -1,427 +1,544 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from 'react';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Activity,
+  Database,
+  Users,
+  Mail,
   AlertCircle,
   CheckCircle2,
-  Database,
-  RefreshCw,
-  Server,
-  Users,
   Clock,
-  Search,
-  AlertTriangle,
-  Bell,
-} from "lucide-react";
-import Link from "next/link";
+  BarChart3,
+  RefreshCw,
+  Shield
+} from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { apiFetch } from "@/lib/api-path";
 
 /**
- * Admin root dashboard.
+ * Admin root dashboard — FULL real-data version.
  *
- * Pulls REAL data from the (now admin-gated) /api/admin/health endpoint.
- * Previously this page rendered a hardcoded `mockHealth` object — looked
- * legit but was fiction. Mock-only fields (api.responseTime, requestsToday,
- * errorRate, notifications.emailsSent/smsSent/failedDeliveries,
- * scrapers.*.successRate, database.lastBackup) have been DELETED rather
- * than shown as fake numbers. The corresponding tabs/cards are removed.
+ * Dennis's wave18 directive: the full dashboard lives at /admin (not at
+ * /admin/dashboard). This page was promoted from /admin/dashboard.
+ * /admin/dashboard now redirects here.
  *
- * Page-shell auth is enforced by /admin/layout.tsx (server redirect).
+ * Page-shell auth is enforced by /admin/layout.tsx (server gate via
+ * requireAdmin). The previously-inline client-side email check has been
+ * removed — it was redundant with the server gate and only ran AFTER the
+ * client bundle loaded.
+ *
+ * Data sources: /api/admin/backfill, /stats, /users, /emails (all gated).
  */
 
-interface SystemHealth {
-  database: {
-    status: "healthy" | "warning" | "error";
-    auctionCount: number;
-    userCount: number;
-    alertCount: number;
-  };
-  scrapers: {
-    boe: {
-      status: "running" | "idle" | "error";
-      lastRun: string | null;
-      auctionsFound: number;
-    };
+interface BackfillStatus {
+  isRunning: boolean;
+  completedMonths: string[];
+  totalAuctions: number;
+  errors: any[];
+  progress: {
+    total: number;
+    completed: number;
+    remaining: number;
+    percentage: number;
   };
 }
 
+interface AuctionStats {
+  total: number;
+  byStatus: { status: string; count: number }[];
+  byCategory: { category: string; count: number }[];
+  bySource: { source: string; count: number }[];
+  byProvince: { province: string; count: number }[];
+  coordinates: {
+    withCoords: number;
+    withoutCoords: number;
+  };
+  dateRange: {
+    earliest: string | null;
+    latest: string | null;
+  };
+}
+
+interface UsersData {
+  users: any[];
+  summary: {
+    total: number;
+    byTier: { tier: string; count: number }[];
+    withSubscriptions: number;
+    withActiveTrials: number;
+  };
+}
+
+interface EmailData {
+  totalAlerts: number;
+  activeAlerts: number;
+  inactiveAlerts: number;
+  topUsers: any[];
+  recentActivity: any[];
+}
+
 export default function AdminDashboard() {
-  const [health, setHealth] = useState<SystemHealth | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [backfillStatus, setBackfillStatus] = useState<BackfillStatus | null>(null);
+  const [auctionStats, setAuctionStats] = useState<AuctionStats | null>(null);
+  const [usersData, setUsersData] = useState<UsersData | null>(null);
+  const [emailData, setEmailData] = useState<EmailData | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'backfill' | 'users' | 'emails'>('overview');
 
   useEffect(() => {
-    fetchHealthData();
-    const interval = setInterval(fetchHealthData, 30000);
-    return () => clearInterval(interval);
+    fetchAllData();
   }, []);
 
-  const fetchHealthData = async () => {
+  const fetchAllData = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      setError(null);
-      const res = await apiFetch("/api/admin/health");
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-      const body = (await res.json()) as {
-        success: boolean;
-        data?: SystemHealth;
-        error?: string;
-      };
-      if (!body.success || !body.data) {
-        throw new Error(body.error || "Failed to load health data");
-      }
-      setHealth(body.data);
-      setLastUpdated(new Date());
-    } catch (e) {
-      console.error("Error fetching health data:", e);
-      setError(e instanceof Error ? e.message : "Unknown error");
+      const [backfill, stats, users, emails] = await Promise.all([
+        apiFetch('/api/admin/backfill').then(r => r.json()),
+        apiFetch('/api/admin/stats').then(r => r.json()),
+        apiFetch('/api/admin/users').then(r => r.json()),
+        apiFetch('/api/admin/emails').then(r => r.json())
+      ]);
+
+      setBackfillStatus(backfill);
+      setAuctionStats(stats);
+      setUsersData(users);
+      setEmailData(emails);
+    } catch (error) {
+      console.error('Error fetching admin data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "healthy":
-      case "running":
-        return (
-          <Badge className="bg-green-100 text-green-700 border-green-300">
-            <CheckCircle2 className="w-3 h-3 mr-1" />
-            Activo
-          </Badge>
-        );
-      case "idle":
-        return (
-          <Badge
-            variant="outline"
-            className="bg-blue-50 text-blue-700 border-blue-300"
-          >
-            <Clock className="w-3 h-3 mr-1" />
-            En Espera
-          </Badge>
-        );
-      case "warning":
-      case "degraded":
-        return (
-          <Badge
-            variant="outline"
-            className="bg-yellow-50 text-yellow-700 border-yellow-300"
-          >
-            <AlertTriangle className="w-3 h-3 mr-1" />
-            Advertencia
-          </Badge>
-        );
-      case "error":
-      case "down":
-        return (
-          <Badge variant="destructive">
-            <AlertCircle className="w-3 h-3 mr-1" />
-            Error
-          </Badge>
-        );
-      default:
-        return null;
-    }
-  };
-
-  const formatTimeAgo = (dateString: string | null) => {
-    if (!dateString) return "Sin datos";
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-
-    if (diffMins < 1) return "Justo ahora";
-    if (diffMins < 60) return `Hace ${diffMins} min`;
-
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `Hace ${diffHours}h`;
-
-    const diffDays = Math.floor(diffHours / 24);
-    return `Hace ${diffDays}d`;
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <p className="text-gray-600">Cargando panel de administración...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 p-6">
       {/* Header */}
-      <div className="border-b bg-white">
-        <div className="container mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Activity className="w-8 h-8 text-blue-600" />
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                  Panel de Administración
-                </h1>
-                <p className="text-sm text-gray-600">
-                  Monitoreo de base de datos y scrapers
-                </p>
-              </div>
-            </div>
+      <div className="max-w-7xl mx-auto mb-8">
+        <div className="flex items-center justify-between">
+          <div>
             <div className="flex items-center gap-3">
-              <div className="text-right mr-4">
-                <p className="text-xs text-gray-500">Última actualización</p>
-                <p className="text-sm font-medium">
-                  {lastUpdated.toLocaleTimeString("es-ES")}
-                </p>
-              </div>
-              <Button
-                onClick={fetchHealthData}
-                variant="outline"
-                size="sm"
-                disabled={loading}
-              >
-                <RefreshCw
-                  className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`}
-                />
-                Actualizar
-              </Button>
-              <Link href="/">
-                <Button variant="outline" size="sm">
-                  Volver
-                </Button>
-              </Link>
+              <Shield className="h-8 w-8 text-blue-600" />
+              <h1 className="text-3xl font-bold text-gray-900">Panel de Administración</h1>
             </div>
+            <p className="text-gray-600 mt-1">Gestión del sistema y monitoreo</p>
           </div>
+          <Button onClick={fetchAllData} variant="outline" className="gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Actualizar
+          </Button>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="flex gap-2 mt-6 border-b border-gray-200">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`px-4 py-2 font-medium ${
+              activeTab === 'overview'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <BarChart3 className="inline h-4 w-4 mr-2" />
+            Resumen
+          </button>
+          <button
+            onClick={() => setActiveTab('backfill')}
+            className={`px-4 py-2 font-medium ${
+              activeTab === 'backfill'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Database className="inline h-4 w-4 mr-2" />
+            Scraper Backfill
+          </button>
+          <button
+            onClick={() => setActiveTab('users')}
+            className={`px-4 py-2 font-medium ${
+              activeTab === 'users'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Users className="inline h-4 w-4 mr-2" />
+            Usuarios
+          </button>
+          <button
+            onClick={() => setActiveTab('emails')}
+            className={`px-4 py-2 font-medium ${
+              activeTab === 'emails'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Mail className="inline h-4 w-4 mr-2" />
+            Emails & Alertas
+          </button>
         </div>
       </div>
 
-      <div className="container mx-auto px-6 py-8">
-        {loading && !health ? (
-          <div className="text-center py-12">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent"></div>
-            <p className="mt-4 text-gray-500">Cargando datos del sistema...</p>
-          </div>
-        ) : error && !health ? (
-          <div className="text-center py-12">
-            <AlertCircle className="w-8 h-8 text-red-500 mx-auto" />
-            <p className="mt-4 text-red-600">
-              No se pudo cargar el estado del sistema: {error}
-            </p>
-          </div>
-        ) : health ? (
-          <>
-            {/* Overview Cards — REAL DB-sourced only */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Overview Tab */}
+        {activeTab === 'overview' && auctionStats && (
+          <div className="space-y-6">
+            {/* Key Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <Card>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm font-medium text-gray-600">
-                      Base de Datos
-                    </CardTitle>
-                    <Database className="w-5 h-5 text-gray-400" />
-                  </div>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600">Total Subastas</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold">
-                    {health.database.auctionCount.toLocaleString()}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">Subastas totales</p>
+                  <div className="text-3xl font-bold text-gray-900">{auctionStats.total.toLocaleString()}</div>
+                  <p className="text-xs text-gray-500 mt-1">En toda la base de datos</p>
                 </CardContent>
               </Card>
 
               <Card>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm font-medium text-gray-600">
-                      Usuarios
-                    </CardTitle>
-                    <Users className="w-5 h-5 text-gray-400" />
-                  </div>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600">Con Coordenadas</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold">
-                    {health.database.userCount.toLocaleString()}
+                  <div className="text-3xl font-bold text-green-600">
+                    {auctionStats.coordinates.withCoords.toLocaleString()}
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">Registrados</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {Math.round((auctionStats.coordinates.withCoords / auctionStats.total) * 100)}% del total
+                  </p>
                 </CardContent>
               </Card>
 
               <Card>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm font-medium text-gray-600">
-                      Alertas
-                    </CardTitle>
-                    <Bell className="w-5 h-5 text-gray-400" />
-                  </div>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600">Sin Coordenadas</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold">
-                    {health.database.alertCount.toLocaleString()}
+                  <div className="text-3xl font-bold text-orange-600">
+                    {auctionStats.coordinates.withoutCoords.toLocaleString()}
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">Configuradas</p>
+                  <p className="text-xs text-gray-500 mt-1">Pendientes de geocodificación</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600">Progreso Backfill</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-blue-600">
+                    {backfillStatus?.progress.percentage || 0}%
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {backfillStatus?.progress.completed || 0} / {backfillStatus?.progress.total || 72} meses
+                  </p>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Scrapers + DB tabs only. API + Notifications tabs removed
-                until a real metrics/email-log source exists. */}
-            <Tabs defaultValue="scrapers" className="space-y-6">
-              <TabsList>
-                <TabsTrigger value="scrapers">
-                  <Search className="w-4 h-4 mr-2" />
-                  Scrapers
-                </TabsTrigger>
-                <TabsTrigger value="database">
-                  <Database className="w-4 h-4 mr-2" />
-                  Base de Datos
-                </TabsTrigger>
-              </TabsList>
-
-              {/* Scrapers Tab — BOE only (TEJU removed; no real source) */}
-              <TabsContent value="scrapers" className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle>BOE Scraper</CardTitle>
-                        <CardDescription>
-                          Actividad del scraper de subastas BOE (últimas 24h)
-                        </CardDescription>
-                      </div>
-                      {getStatusBadge(health.scrapers.boe.status)}
+            {/* Top Categories */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Top Categorías</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {auctionStats.byCategory.slice(0, 10).map((cat) => (
+                    <div key={cat.category} className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-700">{cat.category}</span>
+                      <Badge variant="secondary">{cat.count.toLocaleString()}</Badge>
                     </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-gray-600">
-                          Última ingestión
-                        </p>
-                        <p className="font-semibold">
-                          {formatTimeAgo(health.scrapers.boe.lastRun)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600">
-                          Subastas nuevas (24h)
-                        </p>
-                        <p className="font-semibold">
-                          {health.scrapers.boe.auctionsFound.toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      Derivado de filas insertadas en Auction. Para control
-                      manual de scrapers visita{" "}
-                      <Link
-                        href="/admin/scraper"
-                        className="underline hover:text-gray-700"
-                      >
-                        /admin/scraper
-                      </Link>
-                      .
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Programación de Tareas</CardTitle>
-                    <CardDescription>
-                      Frecuencia configurada del scheduler
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <Clock className="w-5 h-5 text-gray-600" />
-                          <div>
-                            <p className="font-medium">
-                              BOE Discovery (Nuevas subastas)
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              Busca nuevas publicaciones en el BOE
-                            </p>
-                          </div>
-                        </div>
-                        <Badge variant="outline">Cada 6 horas</Badge>
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <Clock className="w-5 h-5 text-gray-600" />
-                          <div>
-                            <p className="font-medium">
-                              BOE Pulse (Actualización de pujas)
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              Actualiza pujas de subastas activas
-                            </p>
-                          </div>
-                        </div>
-                        <Badge variant="outline">Cada 15 min</Badge>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              {/* Database Tab — real counts only */}
-              <TabsContent value="database" className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm">Subastas</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-3xl font-bold">
-                        {health.database.auctionCount.toLocaleString()}
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Registros totales
-                      </p>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm">Usuarios</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-3xl font-bold">
-                        {health.database.userCount.toLocaleString()}
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Cuentas registradas
-                      </p>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm">
-                        Alertas Activas
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-3xl font-bold">
-                        {health.database.alertCount.toLocaleString()}
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">Configuradas</p>
-                    </CardContent>
-                  </Card>
+                  ))}
                 </div>
-              </TabsContent>
-            </Tabs>
-          </>
-        ) : null}
+              </CardContent>
+            </Card>
+
+            {/* Top Provinces */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Top Provincias</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {auctionStats.byProvince.map((prov) => (
+                    <div key={prov.province} className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-700">{prov.province}</span>
+                      <Badge variant="secondary">{prov.count.toLocaleString()}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Backfill Tab */}
+        {activeTab === 'backfill' && backfillStatus && (
+          <div className="space-y-6">
+            {/* Status Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Estado del Scraper Backfill</span>
+                  {backfillStatus.isRunning ? (
+                    <Badge className="bg-green-500">
+                      <Clock className="h-3 w-3 mr-1 animate-pulse" />
+                      En Ejecución
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary">Detenido</Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {/* Progress Bar */}
+                  <div>
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="font-medium">Progreso Total</span>
+                      <span>{backfillStatus.progress.percentage}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-4">
+                      <div
+                        className="bg-blue-600 h-4 rounded-full transition-all duration-300"
+                        style={{ width: `${backfillStatus.progress.percentage}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>{backfillStatus.progress.completed} meses completados</span>
+                      <span>{backfillStatus.progress.remaining} meses restantes</span>
+                    </div>
+                  </div>
+
+                  {/* Stats */}
+                  <div className="grid grid-cols-3 gap-4 pt-4 border-t">
+                    <div>
+                      <p className="text-sm text-gray-600">Total Subastas</p>
+                      <p className="text-2xl font-bold text-gray-900">{backfillStatus.totalAuctions.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Meses Completados</p>
+                      <p className="text-2xl font-bold text-green-600">{backfillStatus.progress.completed}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Errores</p>
+                      <p className="text-2xl font-bold text-red-600">{backfillStatus.errors.length}</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Errors */}
+            {backfillStatus.errors.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-red-600">
+                    <AlertCircle className="h-5 w-5" />
+                    Errores ({backfillStatus.errors.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {backfillStatus.errors.map((err: any, idx: number) => (
+                      <div key={idx} className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <p className="font-medium text-sm text-red-900">{err.month}</p>
+                        <p className="text-xs text-red-700 mt-1">{err.error}</p>
+                        <p className="text-xs text-gray-500 mt-1">{new Date(err.timestamp).toLocaleString()}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Completed Months */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Meses Completados ({backfillStatus.completedMonths.length})</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-6 gap-2">
+                  {backfillStatus.completedMonths.sort().reverse().map((month) => (
+                    <Badge key={month} variant="outline" className="justify-center">
+                      <CheckCircle2 className="h-3 w-3 mr-1 text-green-600" />
+                      {month}
+                    </Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Users Tab */}
+        {activeTab === 'users' && usersData && (
+          <div className="space-y-6">
+            {/* Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600">Total Usuarios</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-gray-900">{usersData.summary.total}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600">Con Suscripción</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-green-600">{usersData.summary.withSubscriptions}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600">Trials Activos</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-blue-600">{usersData.summary.withActiveTrials}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600">Usuarios Free</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-gray-600">
+                    {usersData.summary.byTier.find(t => t.tier === 'FREE')?.count || 0}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Users List */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Lista de Usuarios</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-2 px-4">Email</th>
+                        <th className="text-left py-2 px-4">Nombre</th>
+                        <th className="text-left py-2 px-4">Tier</th>
+                        <th className="text-left py-2 px-4">Alertas</th>
+                        <th className="text-left py-2 px-4">Suscripción</th>
+                        <th className="text-left py-2 px-4">Registro</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {usersData.users.map((user) => (
+                        <tr key={user.id} className="border-b hover:bg-gray-50">
+                          <td className="py-2 px-4">{user.email}</td>
+                          <td className="py-2 px-4">{user.name || '-'}</td>
+                          <td className="py-2 px-4">
+                            <Badge variant={user.tier === 'FREE' ? 'secondary' : 'default'}>
+                              {user.tier}
+                            </Badge>
+                          </td>
+                          <td className="py-2 px-4">{user.alertCount}</td>
+                          <td className="py-2 px-4">
+                            {user.hasSubscription ? (
+                              <CheckCircle2 className="h-4 w-4 text-green-600" />
+                            ) : (
+                              '-'
+                            )}
+                          </td>
+                          <td className="py-2 px-4 text-gray-600">
+                            {new Date(user.createdAt).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Emails Tab */}
+        {activeTab === 'emails' && emailData && (
+          <div className="space-y-6">
+            {/* Email Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600">Total Alertas</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-gray-900">{emailData.totalAlerts}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600">Alertas Activas</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-green-600">{emailData.activeAlerts}</div>
+                  <p className="text-xs text-gray-500 mt-1">Enviando notificaciones</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600">Alertas Inactivas</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-gray-600">{emailData.inactiveAlerts}</div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Top Alert Users */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Usuarios con Más Alertas</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {emailData.topUsers.map((user) => (
+                    <div key={user.userId} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded">
+                      <span className="text-sm font-medium text-gray-700">{user.email}</span>
+                      <Badge>{user.count} alertas</Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Recent Activity */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Actividad Reciente (Últimos 30 días)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {emailData.recentActivity.map((activity) => (
+                    <div key={activity.date} className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">{activity.date}</span>
+                      <Badge variant="secondary">{activity.count} alertas creadas</Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   );
