@@ -57,55 +57,89 @@ async function importToDb(rows: ParseRow[]): Promise<{ inserted: number; updated
   let skippedPublished = 0;
   const failed: string[] = [];
 
-  for (const row of rows) {
-    if (!row.result.ok || !row.result.article) continue;
-    const a = row.result.article;
-    try {
-      const existing = await prisma.article.findUnique({ where: { slug: a.slug } });
-      if (existing) {
-        const preservePublished = existing.status === 'PUBLISHED';
-        await prisma.article.update({
-          where: { slug: a.slug },
-          data: {
-            title: a.title,
-            seoTitle: a.seoTitle,
-            metaDescription: a.metaDescription,
-            primaryKeyword: a.primaryKeyword,
-            secondaryKeywords: a.secondaryKeywords,
-            cluster: a.cluster,
-            imageAlt: a.imageAlt,
-            canonicalUrl: a.canonicalUrl,
-            bodyMarkdown: a.bodyMarkdown,
-            // never demote
-            ...(preservePublished ? {} : { status: 'DRAFT' as const }),
-          },
-        });
-        if (preservePublished) skippedPublished++;
-        updated++;
-      } else {
-        await prisma.article.create({
-          data: {
-            slug: a.slug,
-            title: a.title,
-            seoTitle: a.seoTitle,
-            metaDescription: a.metaDescription,
-            primaryKeyword: a.primaryKeyword,
-            secondaryKeywords: a.secondaryKeywords,
-            cluster: a.cluster,
-            imageAlt: a.imageAlt,
-            canonicalUrl: a.canonicalUrl,
-            bodyMarkdown: a.bodyMarkdown,
-            status: 'DRAFT',
-            authorEmail: 'dennis.kotlenko@gmail.com',
-          },
-        });
-        inserted++;
+  try {
+    // Sequential — single PrismaClient, one row at a time. Avoids the
+    // "too many clients" exhaustion that killed the wave12 first run.
+    for (const row of rows) {
+      if (!row.result.ok || !row.result.article) continue;
+      const a = row.result.article;
+      try {
+        const existing = await prisma.article.findUnique({ where: { slug: a.slug } });
+        if (existing) {
+          const preservePublished = existing.status === 'PUBLISHED';
+          // Update content/SEO fields only. Never touch status (unless explicitly
+          // resetting drafts), publishedAt, or authorEmail — those are owned by
+          // the publish flow and must survive a re-import.
+          await prisma.article.update({
+            where: { slug: a.slug },
+            data: {
+              title: a.title,
+              seoTitle: a.seoTitle,
+              metaDescription: a.metaDescription,
+              primaryKeyword: a.primaryKeyword,
+              secondaryKeywords: a.secondaryKeywords,
+              cluster: a.cluster,
+              imageAlt: a.imageAlt,
+              canonicalUrl: a.canonicalUrl,
+              bodyMarkdown: a.bodyMarkdown,
+              // never demote, never reset publishedAt, never overwrite authorEmail
+              ...(preservePublished ? {} : { status: 'DRAFT' as const }),
+            },
+          });
+          if (preservePublished) skippedPublished++;
+          updated++;
+        } else {
+          await prisma.article.create({
+            data: {
+              slug: a.slug,
+              title: a.title,
+              seoTitle: a.seoTitle,
+              metaDescription: a.metaDescription,
+              primaryKeyword: a.primaryKeyword,
+              secondaryKeywords: a.secondaryKeywords,
+              cluster: a.cluster,
+              imageAlt: a.imageAlt,
+              canonicalUrl: a.canonicalUrl,
+              bodyMarkdown: a.bodyMarkdown,
+              status: 'DRAFT',
+              authorEmail: 'dennis.kotlenko@gmail.com',
+            },
+          });
+          inserted++;
+        }
+      } catch (e) {
+        failed.push(`${a.slug}: ${String(e)}`);
       }
-    } catch (e) {
-      failed.push(`${a.slug}: ${String(e)}`);
     }
+  } finally {
+    // Always release the connection pool so the script exits cleanly.
+    await prisma.$disconnect();
   }
   return { inserted, updated, skippedPublished, failed };
+}
+
+/**
+ * Dry-run diff: parse-only, no DB connection required. For each parsed slug,
+ * prints body length + a short body head so Ken can eyeball what will be
+ * written. Junk patterns (H1:/H2:/featured-snippet bait) MUST be absent
+ * from these previews.
+ */
+function dryRunDiff(rows: ParseRow[]): void {
+  console.log(`\n=== DRY-RUN PER-SLUG PREVIEW ===`);
+  for (const row of rows) {
+    if (!row.result.ok || !row.result.article) {
+      console.log(`  FAIL ${path.basename(row.file)}: ${row.result.error}`);
+      continue;
+    }
+    const a = row.result.article;
+    const head = a.bodyMarkdown.slice(0, 160).replace(/\n/g, ' ');
+    const hasJunk =
+      /(^|\n)\s*#{1,6}\s+H[1-6]:/.test(a.bodyMarkdown) ||
+      /featured-snippet bait/i.test(a.bodyMarkdown) ||
+      /\(~?\d+\s*palabras\)/i.test(a.bodyMarkdown);
+    const flag = hasJunk ? ' [JUNK!]' : '';
+    console.log(`  ${a.slug.padEnd(48)} body=${String(a.bodyMarkdown.length).padStart(5)}  ${head.slice(0, 80)}…${flag}`);
+  }
 }
 
 async function main() {
@@ -169,6 +203,7 @@ async function main() {
   }
 
   if (opts.dryRun) {
+    dryRunDiff(rows);
     console.log(`\n[dry-run] Skipping DB writes.`);
     process.exit(failed.length > 0 ? 2 : 0);
   }
