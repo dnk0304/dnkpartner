@@ -62,9 +62,30 @@ export async function GET(
   // Derive the per-auction BOE URL at projection time so the detail page
   // never falls back to the BOE homepage when `boeLink` is NULL (only 630
   // of 1,699 active rows carry a stored value — see lib/boe-link.ts).
+  //
+  // BigInt coercion (P0 fix — 2026-06-02): the two BigInt columns on
+  // `Auction` (`loteNumber`, `currentBidAmount`) cannot be serialized by
+  // `JSON.stringify` and the bare `findUnique` above pulls every column,
+  // so `NextResponse.json` would throw `TypeError: Do not know how to
+  // serialize a BigInt` → 500. Mirror the cents→euros / Number coercion
+  // the list APIs (`/api/auctions`, `/api/auctions/recent`) already do
+  // for the same two columns so the detail payload matches the card
+  // payload. Null-safe: null/undefined stay null. Non-finite or
+  // non-positive bid amounts collapse to null to match the card layer.
+  const loteNumberSafe =
+    auction.loteNumber == null ? null : Number(auction.loteNumber);
+  const currentBidAmountSafe = (() => {
+    const raw = auction.currentBidAmount;
+    if (raw == null) return null;
+    const cents = typeof raw === 'bigint' ? Number(raw) : Number(raw);
+    if (!Number.isFinite(cents) || cents <= 0) return null;
+    return cents / 100; // cents → euros (matches /api/auctions card projection)
+  })();
   const projectedAuction = {
     ...auction,
     boeLink: boeLinkFor(auction.boeId, auction.boeLink),
+    loteNumber: Number.isFinite(loteNumberSafe as number) ? loteNumberSafe : null,
+    currentBidAmount: currentBidAmountSafe,
   };
 
   return NextResponse.json({
