@@ -315,6 +315,15 @@ export default function HomeObservatory() {
             ? `actualización ${formatRelativeEs(stats.lastUpdateTime)}`
             : "sincronización en curso"}
         </p>
+        <nav className="mt-3 flex items-center justify-center gap-4 text-xs">
+          <Link href="/blog" className="hover:text-[--color-ink-primary]">
+            Guías
+          </Link>
+          <span aria-hidden>·</span>
+          <Link href="/subastas" className="hover:text-[--color-ink-primary]">
+            Subastas
+          </Link>
+        </nav>
       </footer>
     </div>
   );
