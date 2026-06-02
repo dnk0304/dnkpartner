@@ -73,8 +73,11 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         {/* Backdrop */}
         {isVisible && (
           <div
-            className="fixed inset-0 bg-black/50 z-30 transition-opacity duration-300"
+            className="fixed inset-0 bg-black/50 z-30 transition-opacity duration-300 cursor-pointer"
             onClick={onToggle}
+            role="button"
+            tabIndex={-1}
+            aria-label="Cerrar mapa"
           />
         )}
         

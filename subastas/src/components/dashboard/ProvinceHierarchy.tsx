@@ -247,7 +247,10 @@ export const ProvinceHierarchy: React.FC<ProvinceHierarchyProps> = ({
                   {/* Province checkbox and name */}
                   <div
                     onClick={() => onProvinceToggle(province)}
-                    className="flex-1 flex items-center gap-3"
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onProvinceToggle(province); } }}
+                    className="flex-1 flex items-center gap-3 cursor-pointer"
                   >
                     <div
                       className={`

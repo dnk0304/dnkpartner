@@ -112,8 +112,11 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
               {/* Show "See More" card at the end if there are more items */}
               {auctions.length > 12 && (
                 <div
-                  className="flex-shrink-0 w-[320px] snap-start"
+                  className="flex-shrink-0 w-[320px] snap-start cursor-pointer"
                   onClick={onSeeAll}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSeeAll?.(); } }}
                 >
                   <div className={`h-full border-2 border-dashed ${borderColor} rounded-lg flex flex-col items-center justify-center p-8 cursor-pointer hover:${bgColor} transition-colors`}>
                     <div className={`w-16 h-16 rounded-full ${bgColor} flex items-center justify-center mb-4`}>
