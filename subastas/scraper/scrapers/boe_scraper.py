@@ -220,6 +220,64 @@ def extract_cadastral_refs(bienes_text: Optional[str]) -> tuple:
     return (found[0], '\n'.join(found))
 
 
+# Property street address in the BOE "Bienes" block sits behind a label, with
+# the value tab/colon/newline-separated on the same line (verified live on
+# CELEBRANDOSE pages: "Dirección\tC/MANUEL MUÑOZ GUILLEN planta 1ª letra B portal 2").
+# Primary label is "Dirección"/"Direccion"; some pages use "Domicilio" or
+# "Localización". We anchor on the label (NOT blind-grep) to avoid capturing
+# description prose, take the value up to the next tab/newline, then append the
+# locality ("Localidad") when present and not already contained, so the geocoder
+# gets street + municipality. Multi-lot blocks repeat the label — we take the
+# FIRST match (the lead property). Returns None when no address label is present
+# (province/municipality remain the geocoder's fallback context — we do NOT
+# fabricate an address from them).
+_ADDR_LABELS = r'(?:Direcci[oó]n|Domicilio|Localizaci[oó]n)'
+_ADDR_LABEL_RE = re.compile(
+    _ADDR_LABELS + r'\s*[:\t\n]\s*([^\t\n]+)',
+    re.IGNORECASE,
+)
+_LOCALIDAD_RE = re.compile(
+    r'Localidad\s*[:\t\n]\s*([^\t\n]+)',
+    re.IGNORECASE,
+)
+_ADDR_MAX_LEN = 200
+
+
+def extract_address(bienes_text: Optional[str]) -> Optional[str]:
+    """
+    Extract the property's street address from a Bienes-section text blob.
+
+    Anchors on the address label ("Dirección" / "Domicilio" / "Localización"),
+    captures the value up to the next tab/newline, normalizes whitespace, and
+    appends the locality ("Localidad") when it adds geocoding context. Returns a
+    clean single-line string capped at 200 chars, or None when no address label
+    is present. Mirrors `extract_cadastral_refs` (anchored regex, first match).
+    """
+    if not bienes_text:
+        return None
+
+    m = _ADDR_LABEL_RE.search(bienes_text)
+    if not m:
+        return None
+    address = re.sub(r'\s+', ' ', m.group(1)).strip()
+    # Drop BOE's explicit "no data" sentinels rather than geocode garbage.
+    if not address or address.lower() in ('no consta', 'no costa', '-', 'n/a'):
+        return None
+
+    # Enrich with the locality when present and not already part of the street.
+    loc_m = _LOCALIDAD_RE.search(bienes_text)
+    if loc_m:
+        locality = re.sub(r'\s+', ' ', loc_m.group(1)).strip()
+        if locality and locality.lower() not in ('no consta', 'no costa') \
+                and locality.lower() not in address.lower():
+            address = f'{address}, {locality}'
+
+    address = address.strip(' ,;-')
+    if not address:
+        return None
+    return address[:_ADDR_MAX_LEN]
+
+
 class BOEScraper(BaseScraper):
     """
     BOE Portal de Subastas scraper
@@ -465,6 +523,13 @@ class BOEScraper(BaseScraper):
                         auction_data['court_name'] = detail_info['autoridad_gestora']
                 if detail_info.get('bienes_info'):
                     auction_data['lot_description'] = detail_info['bienes_info']
+                    # Extract the property street address from the same Bienes
+                    # blob so the geocoder (address -> lat/lng) can place a map
+                    # pin. Adapter persists data['address'] into the "address"
+                    # column; null-safe when BOE genuinely omits an address.
+                    addr = extract_address(detail_info.get('bienes_info'))
+                    if addr:
+                        auction_data['address'] = addr
                 if detail_info.get('pujas_info'):
                     auction_data['property_description'] = detail_info['pujas_info']
                 if detail_info.get('warning'):
