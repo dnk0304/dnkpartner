@@ -1,41 +1,29 @@
-import { Suspense } from "react";
-import AuctionDetailClient from "./AuctionDetailClient";
-
-type PageProps = {
-  params: Promise<{ id: string }>;
-};
-
 /**
- * /auction/[id] — the observatory detail page.
+ * /auction/[id] — LEGACY route. Now 301-redirects to /subastas/subasta/{slug}.
  *
- * Server shell wraps the client view in a Suspense boundary so the page is
- * SSR-friendly. The actual fetch happens client-side to keep the route fast,
- * tolerant to DB hiccups, and to allow the live countdown to start
- * immediately on hydrate.
+ * Standing rule 07 §1.7 (Dennis directive #15, 2026-06-02): the detail page
+ * lives at /subastas/subasta/{slug}. This route stays only to issue a
+ * permanent 301 so old indexed URLs + inbound links don't 404.
+ *
+ * The middleware (src/middleware.ts) also handles this at the edge; this
+ * file-route is the in-app fallback for cases where middleware doesn't
+ * intercept (e.g. internal navigation).
  */
-export default async function AuctionDetailPage({ params }: PageProps) {
-  const { id } = await params;
-  return (
-    <Suspense fallback={<DetailSkeleton />}>
-      <AuctionDetailClient id={id} />
-    </Suspense>
-  );
-}
 
-function DetailSkeleton() {
-  return (
-    <div className="min-h-screen bg-[--color-page]">
-      <div className="mx-auto max-w-editorial px-4 md:px-6 py-8 space-y-6">
-        <div className="h-7 w-1/3 bg-[--color-surface-muted] rounded animate-pulse" />
-        <div className="h-12 w-2/3 bg-[--color-surface-muted] rounded animate-pulse" />
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_360px] gap-6">
-          <div className="space-y-3">
-            <div className="h-64 bg-[--color-surface-muted] rounded animate-pulse" />
-            <div className="h-32 bg-[--color-surface-muted] rounded animate-pulse" />
-          </div>
-          <div className="h-96 bg-[--color-surface-muted] rounded animate-pulse" />
-        </div>
-      </div>
-    </div>
-  );
+import { redirect, permanentRedirect, notFound } from 'next/navigation';
+import { prisma } from '@/lib/prisma';
+import { buildAuctionSlug } from '@/lib/seo/auction-slug';
+
+type PageProps = { params: Promise<{ id: string }> };
+
+export default async function LegacyAuctionRedirect({ params }: PageProps) {
+  const { id } = await params;
+  if (!id) notFound();
+  const auction = await prisma.auction.findUnique({
+    where: { id },
+    select: { id: true, auctionType: true, province: true, municipality: true },
+  });
+  if (!auction) notFound();
+  const slug = buildAuctionSlug(auction);
+  permanentRedirect(`/subastas/subasta/${slug}`);
 }
