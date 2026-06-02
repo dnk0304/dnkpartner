@@ -104,6 +104,12 @@ class BOEParallelScraper(BOEScraper):
             random_delay(1.0, 2.0)
             page.goto(detail_url, wait_until='domcontentloaded', timeout=30000)
             random_delay(1.0, 2.0)
+            # Same tab activations as the shared-browser path (this override
+            # otherwise skipped them): general-info loads the AJAX date/status
+            # panel (endsAt), bienes restores the "Datos del bien subastado"
+            # block (Dirección -> address pin). Both best-effort / null-safe.
+            self._activate_general_info_tab(page)
+            self._activate_bienes_tab(page)
             info = self._extract_detail_from_page(page, boe_id, detail_url)
             info['lote_numbers'] = self._enumerate_lote_numbers(page)
             # #16 pujas LAST (own-browser path): same page -> ver=5, after the

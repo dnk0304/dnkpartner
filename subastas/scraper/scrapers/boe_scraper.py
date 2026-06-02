@@ -1288,6 +1288,12 @@ class BOEScraper(BaseScraper):
             # SUB-RC-2026-0026I20250049: pre-click body lacked the date,
             # post-click body had "Fecha de conclusion 15-06-2026 ...".)
             self._activate_general_info_tab(page)
+            # Restore the Lotes/Bienes panel (general-info activation can switch
+            # away from it on multi-lot pages) so the "Datos del bien subastado"
+            # block — Dirección -> address, cadastral ref, occupancy — is in the
+            # DOM before extraction. Without it bienes_info stays None and no
+            # map pin is written. Best-effort / null-safe.
+            self._activate_bienes_tab(page)
             info = self._extract_detail_from_page(page, boe_id, detail_url)
             # Enumerate lote links here while the page is live (the split path
             # needs the lote count; harmless for single auctions -> []).
@@ -1317,6 +1323,28 @@ class BOEScraper(BaseScraper):
                 random_delay(1.2, 2.2)
         except Exception as e:
             self.log_warning(f"general-info tab activation skipped: {e}")
+
+    def _activate_bienes_tab(self, page: Any) -> None:
+        """Activate the "Lotes" tab so the property block ("Datos del bien
+        subastado" -> Dirección/cadastral/occupancy) is present in the DOM before
+        extraction. On the ver=3 view this tab is the default-active one and the
+        block is server-rendered, so the click is normally a harmless no-op — BUT
+        _activate_general_info_tab runs first and on multi-lot auctions switches
+        the active panel to "Información general", which can hide the per-lote
+        bien block. Clicking the Lotes/Bienes tab back restores it. Mirrors
+        _activate_general_info_tab: best-effort, any failure (selector absent,
+        already active) is swallowed so extraction proceeds on whatever rendered.
+        The BOE tab control is a <label for=dropDownFiltro> ("Lotes"); we target
+        the visible tab link by text and fall back to that label."""
+        try:
+            tab = page.locator('text=Lotes').first
+            if tab.count() == 0:
+                tab = page.locator('label[for="dropDownFiltro"]').first
+            if tab.count() > 0:
+                tab.click(timeout=5000)
+                random_delay(1.0, 2.0)
+        except Exception as e:
+            self.log_warning(f"bienes tab activation skipped: {e}")
 
     def _empty_detail_info(self, boe_id: str) -> Dict[str, Optional[str]]:
         return {
@@ -1533,7 +1561,21 @@ class BOEScraper(BaseScraper):
                 general_info = f"{general_info}\n{complement}" if general_info else complement
 
             autoridad = self._extract_section_text(page, 'Autoridad Gestora')
-            bienes = self._extract_section_text(page, 'Bienes')
+            # The property block (which carries "Dirección" -> address, plus the
+            # cadastral ref, occupancy, charges) is rendered on the ver=3 view
+            # under the heading "Datos del bien subastado" / "Bien N - Inmueble"
+            # — NOT a heading literally named "Bienes". The old single 'Bienes'
+            # title therefore matched no <h3>/<h4> and returned None on every
+            # SUB-* detail page, so bienes_info stayed null -> extract_address got
+            # None -> address never written -> map never pinned. Try the real
+            # heading first, fall back to the legacy titles. (Verified live
+            # 2026-06-02 on SUB-RC-2026-0026I20250049 / -JA-2024-235417 /
+            # -GA-2026-2801400126E01: 'Bienes'->None, 'Datos del bien
+            # subastado'->full block incl. "Dirección CL ...".)
+            bienes = (
+                self._extract_section_text(page, 'Datos del bien subastado') or
+                self._extract_section_text(page, 'Bienes')
+            )
             pujas = self._extract_section_text(page, 'Pujas')
             
             warning = (
