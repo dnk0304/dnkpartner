@@ -41,6 +41,7 @@ import { DetailStatusPanel } from "@/components/observatory/DetailStatusPanel";
 import { DetailTimeline } from "@/components/observatory/DetailTimeline";
 import { StatusBadge } from "@/components/observatory/StatusBadge";
 import { FollowButton } from "@/components/notifications/FollowButton";
+import { GatedField } from "@/components/dashboard/GatedField";
 import {
   formatDateLong,
   formatRelativeEs,
@@ -339,16 +340,23 @@ export default function AuctionDetailClient({ id }: { id: string }) {
             {hasCoords ? (
               <section aria-labelledby="map-heading">
                 <h2 id="map-heading" className="sr-only">Ubicación</h2>
-                <div className="rounded-lg overflow-hidden border border-[--color-hairline]">
-                  <div className="h-72 md:h-96 relative">
-                    <AuctionLocationMap auction={auctionItem} />
+                {/* Item H: precise map pin + exact street address are
+                    registration-gated. Province/municipality stay visible in
+                    the hero (SEO-public). Signed-out viewers see the frosted
+                    blur tease with a "Regístrate para ver" CTA; any signed-in
+                    user (incl. FREE) sees the real pin and address. */}
+                <GatedField level="register" label="Ubicación precisa">
+                  <div className="rounded-lg overflow-hidden border border-[--color-hairline]">
+                    <div className="h-72 md:h-96 relative">
+                      <AuctionLocationMap auction={auctionItem} />
+                    </div>
                   </div>
-                </div>
-                {raw.address && (
-                  <p className="mt-2 text-xs text-[--color-ink-tertiary] flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5" aria-hidden="true" /> {raw.address}
-                  </p>
-                )}
+                  {raw.address && (
+                    <p className="mt-2 text-xs text-[--color-ink-tertiary] flex items-center gap-1.5">
+                      <MapPin className="h-3.5 w-3.5" aria-hidden="true" /> {raw.address}
+                    </p>
+                  )}
+                </GatedField>
               </section>
             ) : (!photoUrl || photoFailed) ? (
               // Rung 3 — neither photo nor coords. The detail page must NEVER be
@@ -466,7 +474,17 @@ export default function AuctionDetailClient({ id }: { id: string }) {
                 )}
                 {raw.visitable && <KV label="Visitable" value={raw.visitable} />}
                 {raw.procedureNumber && (
-                  <KV label="Expediente" value={raw.procedureNumber} mono />
+                  // Item H: procedure number is part of juzgado detail —
+                  // registration-gated. Wrapping the value (not the KV pair)
+                  // keeps the <dl>/<dt>/<dd> semantics intact.
+                  <KV
+                    label="Expediente"
+                    value={
+                      <GatedField level="register" label="Expediente">
+                        <span className="font-mono">{raw.procedureNumber}</span>
+                      </GatedField>
+                    }
+                  />
                 )}
               </dl>
             </section>
@@ -478,8 +496,30 @@ export default function AuctionDetailClient({ id }: { id: string }) {
                   Documentos oficiales
                 </h2>
                 <ul className="mt-3 space-y-2 text-sm">
+                  {/* SEO-public: BOE anuncio PDF + portal ficha. NEVER gated. */}
                   {raw.pdfUrl && <DocLink href={raw.pdfUrl} label="Anuncio del BOE (PDF)" />}
-                  {raw.edictUrl && <DocLink href={raw.edictUrl} label="Edicto del juzgado (PDF)" />}
+                  {/* Item H: edicto del juzgado is registration-gated.
+                      Signed-out viewers see the row blurred + a "Regístrate
+                      para ver" tease; any signed-in user sees the live link.
+                      Rendered as a bare <li> wrapping a <GatedField> around
+                      the inline link content (not a nested DocLink), so the
+                      <ul>/<li> nesting stays valid. */}
+                  {raw.edictUrl && (
+                    <li>
+                      <GatedField level="register" label="Edicto del juzgado">
+                        <a
+                          href={raw.edictUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-[--color-brand] hover:underline focus-visible:outline-none focus-visible:underline"
+                        >
+                          <FileText className="h-4 w-4" aria-hidden="true" />
+                          Edicto del juzgado (PDF)
+                          <ExternalLink className="h-3.5 w-3.5 opacity-60" aria-hidden="true" />
+                        </a>
+                      </GatedField>
+                    </li>
+                  )}
                   {raw.boeLink && (
                     <DocLink href={raw.boeLink} label="Ficha completa en el Portal de Subastas del BOE" />
                   )}

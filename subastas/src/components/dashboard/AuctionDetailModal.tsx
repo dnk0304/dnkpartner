@@ -11,6 +11,7 @@ import { capitalizeLocation } from '@/lib/utils';
 import { buildCatastroUrl } from '@/lib/catastro-url';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
+import { GatedField } from './GatedField';
 
 // Dynamically import the per-auction location map (Leaflet needs `window`).
 // Use AuctionLocationMap (single-property focus) rather than the Spain-wide
@@ -166,14 +167,19 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
             )}
 
             {auction.edictUrl && !auction.isLocked && (
-              <Button
-                variant="outline"
-                className="gap-2 h-14 text-lg font-semibold border-2"
-                onClick={() => window.open(auction.edictUrl!, '_blank')}
-              >
-                <FileText className="h-6 w-6" />
-                Edicto Original
-              </Button>
+              // Item H: Edicto PDF is a registration-gated field. Signed-out
+              // viewers see a frosted blur + "Regístrate para ver" CTA over
+              // the button shape; any signed-in user (incl. FREE) sees it.
+              <GatedField level="register" label="Edicto Original">
+                <Button
+                  variant="outline"
+                  className="gap-2 h-14 text-lg font-semibold border-2 w-full"
+                  onClick={() => window.open(auction.edictUrl!, '_blank')}
+                >
+                  <FileText className="h-6 w-6" />
+                  Edicto Original
+                </Button>
+              </GatedField>
             )}
 
             {auction.pdfUrl && !auction.isLocked && (
@@ -374,25 +380,36 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
               </h3>
 
               <div className="space-y-4 text-lg">
+                {/* Item H: court / juzgado detail is registration-gated.
+                    Signed-out viewers see frosted blur tease; any signed-in
+                    user sees the real value. NOT SEO-public (we already
+                    expose category/province/municipality as the public
+                    locality signal). */}
                 {auction.courtName && (
-                  <div className="p-5 bg-gray-50 rounded-lg">
-                    <span className="font-semibold text-gray-700 block mb-2">Juzgado:</span>
-                    <p className="text-gray-900">{auction.courtName}</p>
-                  </div>
+                  <GatedField level="register" label="Juzgado">
+                    <div className="p-5 bg-gray-50 rounded-lg">
+                      <span className="font-semibold text-gray-700 block mb-2">Juzgado:</span>
+                      <p className="text-gray-900">{auction.courtName}</p>
+                    </div>
+                  </GatedField>
                 )}
 
                 {auction.procedureNumber && (
-                  <div className="p-5 bg-gray-50 rounded-lg">
-                    <span className="font-semibold text-gray-700 block mb-2">Número de Procedimiento:</span>
-                    <p className="text-gray-900 font-mono text-base">{auction.procedureNumber}</p>
-                  </div>
+                  <GatedField level="register" label="Número de Procedimiento">
+                    <div className="p-5 bg-gray-50 rounded-lg">
+                      <span className="font-semibold text-gray-700 block mb-2">Número de Procedimiento:</span>
+                      <p className="text-gray-900 font-mono text-base">{auction.procedureNumber}</p>
+                    </div>
+                  </GatedField>
                 )}
 
                 {auction.courtReference && (
-                  <div className="p-5 bg-gray-50 rounded-lg">
-                    <span className="font-semibold text-gray-700 block mb-2">Referencia Judicial (NIG):</span>
-                    <p className="text-gray-900 font-mono text-base">{auction.courtReference}</p>
-                  </div>
+                  <GatedField level="register" label="Referencia Judicial">
+                    <div className="p-5 bg-gray-50 rounded-lg">
+                      <span className="font-semibold text-gray-700 block mb-2">Referencia Judicial (NIG):</span>
+                      <p className="text-gray-900 font-mono text-base">{auction.courtReference}</p>
+                    </div>
+                  </GatedField>
                 )}
 
                 <div className="p-5 bg-gray-50 rounded-lg">
@@ -420,22 +437,34 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
                 Ubicación
               </h3>
 
+              {/* Item H: exact street address is registration-gated. The
+                  SEO-public locality (province + municipality) stays visible
+                  in the header badge above — only the precise street goes
+                  behind the gate. */}
               {auction.address && (
-                <div className="p-5 bg-gray-50 rounded-lg">
-                  <span className="font-semibold text-gray-700 block mb-2 text-lg">Dirección:</span>
-                  <p className="text-gray-900 text-lg">{auction.address}</p>
-                </div>
+                <GatedField level="register" label="Dirección exacta">
+                  <div className="p-5 bg-gray-50 rounded-lg">
+                    <span className="font-semibold text-gray-700 block mb-2 text-lg">Dirección:</span>
+                    <p className="text-gray-900 text-lg">{auction.address}</p>
+                  </div>
+                </GatedField>
               )}
 
               {auction.latitude && auction.longitude ? (
-                <div className="space-y-4">
-                  <div className="h-72">
-                    <AuctionLocationMap auction={auction} />
+                // Item H: precise map pin + coordinates are registration-
+                // gated. The locality badge above gives the public,
+                // SEO-indexable geo signal; this exposes a building-level pin
+                // and is reserved for registered users.
+                <GatedField level="register" label="Mapa preciso">
+                  <div className="space-y-4">
+                    <div className="h-72">
+                      <AuctionLocationMap auction={auction} />
+                    </div>
+                    <div className="text-base text-gray-600 text-center">
+                      Coordenadas: {auction.latitude.toFixed(6)}, {auction.longitude.toFixed(6)}
+                    </div>
                   </div>
-                  <div className="text-base text-gray-600 text-center">
-                    Coordenadas: {auction.latitude.toFixed(6)}, {auction.longitude.toFixed(6)}
-                  </div>
-                </div>
+                </GatedField>
               ) : (
                 <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
                   <MapPin className="mx-auto h-7 w-7 text-gray-400" aria-hidden="true" />
