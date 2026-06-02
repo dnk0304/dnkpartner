@@ -172,6 +172,53 @@
     border-color: var(--color-hairline);
   }
 
+  /* ---------------------------------------------------------------------
+   * Cursor standard — every interactive element shows the hand cursor.
+   * Non-negotiable: every clickable surface (link, button, role=button,
+   * onclick handler, label-for-input, summary, clickable card, anything
+   * tagged data-clickable) resolves to `cursor: pointer`.
+   * Disabled controls resolve to `not-allowed`. Text and inputs keep
+   * their normal cursors (text/i-beam) — we do NOT use the universal
+   * selector. Clickable non-native elements (divs/li acting as buttons)
+   * MUST either be a native <a>/<button> OR get role="button" + tabIndex
+   * OR receive the .clickable class / data-clickable attribute.
+   * ------------------------------------------------------------------ */
+  a[href],
+  area[href],
+  button,
+  [role="button"],
+  [role="link"],
+  [role="tab"],
+  [role="menuitem"],
+  [role="menuitemradio"],
+  [role="menuitemcheckbox"],
+  [role="option"],
+  [role="switch"],
+  [role="checkbox"]:not(input),
+  [role="radio"]:not(input),
+  summary,
+  label[for],
+  select,
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="file"],
+  input[type="submit"],
+  input[type="reset"],
+  input[type="button"],
+  input[type="range"],
+  input[type="color"],
+  .clickable,
+  [data-clickable] {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [aria-disabled="true"],
+  [data-disabled="true"],
+  .disabled {
+    cursor: not-allowed;
+  }
+
   html {
     background-color: var(--color-page);
     color: var(--color-ink-primary);
