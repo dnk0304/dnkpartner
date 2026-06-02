@@ -62,7 +62,12 @@ model Auction {
   // self-describing too, but explicit columns keep the backfill + any
   // "other lotes of this auction" query trivial (hence the index).
   sourceIdSub     String?
-  loteNumber      Int?
+  // BigInt: BOE legacy lote identifiers can be 15-digit numbers (e.g.
+  // 120240073010647) that overflow PG int4 (max 2.1B). Widened to BIGINT in
+  // wave13-hotfix migration 20260602_widen_lote_number_bigint. Existing int
+  // values fit in BIGINT — additive, lossless. Adapter writes Python int
+  // (psycopg2 handles BIGINT natively).
+  loteNumber      BigInt?
 
   // Dates and times
   publishedAt DateTime

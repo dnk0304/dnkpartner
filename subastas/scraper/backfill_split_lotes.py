@@ -103,11 +103,36 @@ def main():
         if not rows:
             continue
         logger.info(f"{boe_id}: SPLIT into {len(rows)} lotes")
-        if not args.dry_run:
-            scraper._upsert_split_lotes(rows)
+        # wave13-hotfix: suppress-after-success ordering.
+        #
+        # Old order (bug): we suppressed the umbrella to CONCLUIDA_PORTAL
+        # UNCONDITIONALLY, then upserted the children. If ANY child failed (e.g.
+        # the 32 `integer out of range` rows on SUB-RC-2026-0155000330073
+        # before the BIGINT widen) the umbrella was already hidden — the
+        # property vanished from the feed entirely. Ken had to manually
+        # restore it to CELEBRANDOSE.
+        #
+        # New order: upsert ALL children first; only if every single one saved
+        # do we suppress the umbrella. On any partial failure leave the umbrella
+        # active (it stays in the feed as the umbrella row) and log it so it
+        # can be retried after the underlying defect is fixed. Re-running this
+        # backfill is idempotent (boeId upsert) so the 32 existing wave13 rows
+        # re-upsert cleanly.
+        expected = len(rows)
+        if args.dry_run:
+            logger.info(f"[dry-run] would upsert {expected} lotes for {boe_id} then suppress umbrella")
+            saved = expected
+        else:
+            saved = scraper._upsert_split_lotes(rows)
+        if saved < expected:
+            logger.error(
+                f"{boe_id}: only {saved}/{expected} lote children saved — "
+                f"LEAVING umbrella active (not suppressing). Re-run after defect fix."
+            )
+            continue
         suppress_umbrella(adapter, boe_id, args.dry_run)
         split_count += 1
-        lote_rows += len(rows)
+        lote_rows += saved
 
     logger.info(
         f"DONE: {split_count} umbrellas split into {lote_rows} independent lote rows "
