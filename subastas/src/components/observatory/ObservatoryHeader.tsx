@@ -17,6 +17,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useTranslations } from "next-intl";
 import { Search, User } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { apiFetch } from "@/lib/api-path";
@@ -32,6 +33,7 @@ export type ObservatoryHeaderProps = {
 export function ObservatoryHeader({ hideSearch = false, className }: ObservatoryHeaderProps) {
   const router = useRouter();
   const { data: session } = useSession();
+  const t = useTranslations("header");
   const [searchTerm, setSearchTerm] = React.useState("");
   const [lastUpdate, setLastUpdate] = React.useState<string | null>(null);
 
@@ -80,28 +82,28 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
           <Link
             href="/"
             className="font-serif text-xl text-[--color-brand] hover:text-[--color-brand-hover] transition-colors whitespace-nowrap"
-            aria-label="SubastasActivas — inicio"
+            aria-label={t("wordmarkAria")}
           >
             <span className="font-semibold">Subastas</span>
             <span className="font-normal">Activas</span>
           </Link>
           <span className="hidden md:inline text-xs text-[--color-ink-tertiary] tnum truncate">
             {lastUpdate
-              ? `Datos actualizados ${formatRelativeEs(lastUpdate)}`
-              : "Sincronizando datos…"}
+              ? t("trustSignalUpdated", { when: formatRelativeEs(lastUpdate) })
+              : t("trustSignalSyncing")}
           </span>
         </div>
 
         {/* Primary nav */}
         <nav
           className="hidden md:flex items-center gap-5 text-sm text-[--color-ink-secondary]"
-          aria-label="Navegación principal"
+          aria-label={t("navPrimaryAria")}
         >
           <Link href="/subastas" className="hover:text-[--color-brand] transition-colors">
-            Subastas
+            {t("navAuctions")}
           </Link>
           <Link href="/" className="hover:text-[--color-brand] transition-colors">
-            Últimas actualizaciones
+            {t("navLatest")}
           </Link>
         </nav>
 
@@ -113,7 +115,7 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
             className="ml-auto hidden md:flex items-center flex-1 max-w-md"
           >
             <label htmlFor="obs-search" className="sr-only">
-              Buscar subastas
+              {t("searchLabel")}
             </label>
             <div className="relative w-full">
               <Search
@@ -125,7 +127,7 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
                 type="search"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="ID, ref. catastral, ciudad…"
+                placeholder={t("searchPlaceholder")}
                 className={cn(
                   "tnum w-full rounded-md border bg-white py-2 pl-9 pr-3 text-sm",
                   "border-[--color-hairline] text-[--color-ink-primary] placeholder:text-[--color-ink-tertiary]",
@@ -145,14 +147,14 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
               className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-[--color-ink-secondary] hover:text-[--color-brand] hover:bg-[--color-brand]/5 transition-colors"
             >
               <User className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">Mi panel</span>
+              <span className="hidden sm:inline">{t("myPanel")}</span>
             </Link>
           ) : (
             <Link
               href="/login"
               className="inline-flex items-center rounded-md border border-[--color-brand]/30 px-3 py-1.5 text-sm font-medium text-[--color-brand] hover:bg-[--color-brand]/5 transition-colors"
             >
-              Entrar
+              {t("signIn")}
             </Link>
           )}
         </div>
@@ -174,7 +176,7 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
               type="search"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="ID, ref. catastral, ciudad…"
+              placeholder={t("searchPlaceholder")}
               className="tnum w-full rounded-md border border-[--color-hairline] bg-white py-2 pl-9 pr-3 text-sm focus:outline-none focus:border-[--color-brand] focus:ring-2 focus:ring-[--color-brand]/15"
             />
           </div>

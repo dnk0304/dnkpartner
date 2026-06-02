@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Inter_Tight, JetBrains_Mono } from "next/font/google";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages } from "next-intl/server";
 import "./globals.css";
 import { SessionProvider } from "@/components/SessionProvider";
 import { AdminSettingsProvider } from "@/context/AdminSettingsContext";
@@ -41,19 +43,27 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Locale + messages come from src/i18n/request.ts via the middleware-set
+  // `x-locale` header. Default = 'es'. Drives both <html lang> and the
+  // NextIntlClientProvider that serves translations to client components.
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
-    <html lang="es">
+    <html lang={locale}>
       <body
         className={`${inter.variable} ${interTight.variable} ${jetbrainsMono.variable} antialiased`}
       >
-        <SessionProvider>
-          <AdminSettingsProvider>{children}</AdminSettingsProvider>
-        </SessionProvider>
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <SessionProvider>
+            <AdminSettingsProvider>{children}</AdminSettingsProvider>
+          </SessionProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

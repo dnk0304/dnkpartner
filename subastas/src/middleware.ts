@@ -1,24 +1,28 @@
 /**
- * Edge middleware — handles SEO routing rules (Wave B2).
+ * Edge middleware — composes i18n locale detection (Wave C7 Phase 7a) with
+ * the existing SEO routing rules (Wave B2).
  *
- * Responsibilities (in execution order):
+ * Execution order:
+ *  0. Locale detection (NEW):
+ *       • If pathname starts with `/en` → strip prefix, remember locale='en'.
+ *       • Else read NEXT_LOCALE cookie → if 'en' it's a soft preference but
+ *         doesn't change the URL (Spanish is the default URL space).
+ *       • Default locale = 'es'.
+ *     The detected locale is passed downstream via the `x-locale` request
+ *     header so `src/i18n/request.ts` can return the right messages bundle,
+ *     and so layout.tsx can render `<html lang>` correctly.
  *  1. Dev CSP header passthrough (unchanged).
  *  2. Legacy auction-detail 301:
- *       /auction/{id}           → /subastas/subasta/{id}  (defer slug-resolve to the page)
+ *       /auction/{id}           → /subastas/subasta/{id}
  *       /subastas/auction/{id}  → /subastas/subasta/{id}
- *     The slug page resolves the trailing-id token → exact row → 301 to its
- *     canonical slug (belt-and-braces, so a bare id link still works).
- *  3. Case / accent normalisation on the SEO routes:
- *       /subastas/PROVINCIA/Barcelona → /subastas/provincia/barcelona
- *  4. Province / category alias 301s:
- *       /subastas/provincia/la-coruna → /subastas/provincia/a-coruna
- *       /subastas/vehiculo            → /subastas/turismo
- *  5. Query-param → path 301:
- *       /subastas?province=Madrid → /subastas/provincia/madrid
+ *  3. Case / accent normalisation on the SEO routes.
+ *  4. Province / category alias 301s.
+ *  5. Query-param → path 301.
  *
- * Designed to compose cleanly with a later i18n middleware (#7): all rules
- * key off the path tail, not a hard-coded /subastas root, so an /en prefix
- * can be inserted at the front without rewriting this file.
+ * Composition contract: SEO rules run AFTER the `/en` prefix is stripped, so
+ * `/en/subastas/PROVINCIA/Barcelona` normalises to `/en/subastas/provincia/barcelona`.
+ * When the SEO rules emit a 301 redirect, we re-attach the `/en` prefix to the
+ * target path so the user stays in the same locale across the redirect.
  *
  * Routing-only — does NOT touch auth.
  */
@@ -33,6 +37,7 @@ import {
   TIPO_ALIAS_TO_CANONICAL,
   TIPO_SLUG_TO_DB_KEYS,
 } from '@/lib/seo/slugs';
+import { defaultLocale, isLocale, LOCALE_COOKIE, LOCALE_HEADER, type Locale } from '@/i18n/routing';
 
 function normaliseSlugToken(s: string): string {
   return s
@@ -42,30 +47,60 @@ function normaliseSlugToken(s: string): string {
     .replace(/[̀-ͯ]/g, '');
 }
 
+/**
+ * Detect locale from pathname/cookie. Returns the canonical locale and the
+ * pathname with any `/en` prefix stripped (so SEO rules see a locale-agnostic
+ * path). When the locale was carried in the URL, `urlHadLocale` is true and
+ * any downstream 301 redirects must re-prepend `/en`.
+ */
+function detectLocale(request: NextRequest): {
+  locale: Locale;
+  pathname: string;
+  urlHadLocale: boolean;
+} {
+  const original = request.nextUrl.pathname;
+  // Match `/en` or `/en/...`
+  const m = original.match(/^\/en(?:\/(.*))?$/);
+  if (m) {
+    const rest = m[1] ?? '';
+    return {
+      locale: 'en',
+      pathname: '/' + rest,
+      urlHadLocale: true,
+    };
+  }
+  const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value;
+  const locale: Locale = isLocale(cookieLocale) ? cookieLocale : defaultLocale;
+  return { locale, pathname: original, urlHadLocale: false };
+}
+
+/** Prepend `/en` to a path if the request was locale-prefixed. */
+function relocale(path: string, urlHadLocale: boolean): string {
+  if (!urlHadLocale) return path;
+  if (path === '/') return '/en';
+  return '/en' + path;
+}
+
 export function middleware(request: NextRequest) {
-  const { pathname, search, searchParams } = request.nextUrl;
+  const { locale, pathname, urlHadLocale } = detectLocale(request);
+  const { search, searchParams } = request.nextUrl;
 
   // ---- Rule 2: legacy auction detail → /subastas/subasta/{id} ------------
-  // Match /auction/{id} OR /subastas/auction/{id}. We pass the bare id as a
-  // candidate slug — the slug page does the row lookup and 301-resolves to
-  // the canonical {tipo}-{provincia}-{municipio}-{id} composition.
   const legacyAuction = pathname.match(/^\/(?:subastas\/)?auction\/([^/?#]+)\/?$/);
   if (legacyAuction) {
     const id = legacyAuction[1];
     const url = request.nextUrl.clone();
-    url.pathname = `/subastas/subasta/${id}`;
+    url.pathname = relocale(`/subastas/subasta/${id}`, urlHadLocale);
     return NextResponse.redirect(url, 301);
   }
 
   // ---- Rule 5: /subastas?province=... → /subastas/provincia/{slug} -------
-  // Only when path is exactly /subastas (or /subastas/) — don't poach sub-routes.
   if (pathname === '/subastas' || pathname === '/subastas/') {
     const provinceQuery = searchParams.get('province');
     const typeQuery = searchParams.get('type') ?? searchParams.get('auctionType');
     const categoryQuery = searchParams.get('category');
     if (provinceQuery) {
       const norm = normaliseSlugToken(provinceQuery).replace(/\s+/g, '-');
-      // Match against canonical slugs OR DB labels (case-insensitive accent-folded)
       let canonical = norm in PROVINCE_SLUG_TO_DB_KEY ? norm : null;
       if (!canonical) {
         for (const [slug, key] of Object.entries(PROVINCE_SLUG_TO_DB_KEY)) {
@@ -81,7 +116,7 @@ export function middleware(request: NextRequest) {
       }
       if (canonical) {
         const url = request.nextUrl.clone();
-        url.pathname = `/subastas/provincia/${canonical}`;
+        url.pathname = relocale(`/subastas/provincia/${canonical}`, urlHadLocale);
         url.search = '';
         return NextResponse.redirect(url, 301);
       }
@@ -90,7 +125,7 @@ export function middleware(request: NextRequest) {
       const canonical = (norm in TIPO_SLUG_TO_DB_KEYS) ? norm : TIPO_ALIAS_TO_CANONICAL[norm];
       if (canonical) {
         const url = request.nextUrl.clone();
-        url.pathname = `/subastas/tipo/${canonical}`;
+        url.pathname = relocale(`/subastas/tipo/${canonical}`, urlHadLocale);
         url.search = '';
         return NextResponse.redirect(url, 301);
       }
@@ -100,7 +135,7 @@ export function middleware(request: NextRequest) {
       if (!canonical) canonical = CATEGORY_ALIAS_TO_CANONICAL[norm] ?? null;
       if (canonical) {
         const url = request.nextUrl.clone();
-        url.pathname = `/subastas/${canonical}`;
+        url.pathname = relocale(`/subastas/${canonical}`, urlHadLocale);
         url.search = '';
         return NextResponse.redirect(url, 301);
       }
@@ -108,7 +143,6 @@ export function middleware(request: NextRequest) {
   }
 
   // ---- Rule 3 + 4: normalisation + alias 301s on SEO routes --------------
-  // /subastas/provincia/{slug}
   const provinciaMatch = pathname.match(/^\/subastas\/provincia\/([^/?#]+)\/?$/);
   if (provinciaMatch) {
     const raw = provinciaMatch[1];
@@ -119,12 +153,11 @@ export function middleware(request: NextRequest) {
     if (aliased) target = aliased;
     if (target && target !== raw) {
       const url = request.nextUrl.clone();
-      url.pathname = `/subastas/provincia/${target}`;
+      url.pathname = relocale(`/subastas/provincia/${target}`, urlHadLocale);
       return NextResponse.redirect(url, 301);
     }
   }
 
-  // /subastas/tipo/{slug}
   const tipoMatch = pathname.match(/^\/subastas\/tipo\/([^/?#]+)\/?$/);
   if (tipoMatch) {
     const raw = tipoMatch[1];
@@ -135,17 +168,15 @@ export function middleware(request: NextRequest) {
     if (aliased) target = aliased;
     if (target && target !== raw) {
       const url = request.nextUrl.clone();
-      url.pathname = `/subastas/tipo/${target}`;
+      url.pathname = relocale(`/subastas/tipo/${target}`, urlHadLocale);
       return NextResponse.redirect(url, 301);
     }
   }
 
-  // /subastas/{categoria} — only categories, not real sub-routes (subasta, provincia, tipo).
   const catMatch = pathname.match(/^\/subastas\/([^/?#]+)\/?$/);
   if (catMatch) {
     const raw = catMatch[1];
     const norm = normaliseSlugToken(raw);
-    // Don't 301 the real sub-route prefixes — they are not categories.
     const isSubRoute = raw === 'provincia' || raw === 'tipo' || raw === 'subasta' || raw === 'provincias' || raw === 'tipos';
     if (!isSubRoute) {
       let target: string | null = null;
@@ -154,14 +185,44 @@ export function middleware(request: NextRequest) {
       if (aliased) target = aliased;
       if (target && target !== raw) {
         const url = request.nextUrl.clone();
-        url.pathname = `/subastas/${target}`;
+        url.pathname = relocale(`/subastas/${target}`, urlHadLocale);
         return NextResponse.redirect(url, 301);
       }
     }
   }
 
-  // ---- Default passthrough + dev CSP -------------------------------------
-  const response = NextResponse.next();
+  // ---- Default passthrough -----------------------------------------------
+  // If the URL was `/en/...`, rewrite internally to the locale-agnostic path
+  // so existing routes (which live at the un-prefixed locations) handle the
+  // request. The detected locale is carried via the `x-locale` request header
+  // for getRequestConfig + layout.
+  let response: NextResponse;
+  if (urlHadLocale) {
+    const rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = pathname;
+    // Forward the locale header on the rewritten request
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set(LOCALE_HEADER, locale);
+    response = NextResponse.rewrite(rewriteUrl, {
+      request: { headers: requestHeaders },
+    });
+  } else {
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set(LOCALE_HEADER, locale);
+    response = NextResponse.next({
+      request: { headers: requestHeaders },
+    });
+  }
+
+  // Persist the locale choice so a cookie-only revisit picks up the right messages.
+  if (urlHadLocale) {
+    response.cookies.set(LOCALE_COOKIE, locale, {
+      path: '/',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 365,
+    });
+  }
+
   if (process.env.NODE_ENV === 'development') {
     response.headers.set('Content-Security-Policy', "script-src 'self' 'unsafe-eval' 'unsafe-inline';");
   }
@@ -175,4 +236,3 @@ export const config = {
     '/((?!api|_next/static|_next/image|favicon.ico).*)',
   ],
 };
-

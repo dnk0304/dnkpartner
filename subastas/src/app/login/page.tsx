@@ -9,6 +9,7 @@ import { ArrowRight, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 
 /**
  * Inline Google "G" mark. SVG so it renders without an extra asset fetch
@@ -45,6 +46,7 @@ function GoogleIcon({ className }: { className?: string }) {
 
 export default function LoginPage() {
   const router = useRouter();
+  const t = useTranslations('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -64,13 +66,13 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        setError('Correo o contraseña incorrectos. Inténtalo de nuevo.');
+        setError(t('errorBadCredentials'));
       } else if (result?.ok) {
         router.push('/');
         router.refresh();
       }
     } catch (err) {
-      setError('Se ha producido un error inesperado. Inténtalo de nuevo.');
+      setError(t('errorUnexpected'));
       console.error('Sign in error:', err);
     } finally {
       setIsLoading(false);
@@ -83,7 +85,7 @@ export default function LoginPage() {
     try {
       await signIn('google', { callbackUrl: '/' });
     } catch (err) {
-      setError('No se pudo iniciar sesión con Google. Inténtalo de nuevo.');
+      setError(t('errorGoogle'));
       console.error('google sign in error:', err);
       setSocialLoading(null);
     }
@@ -102,15 +104,15 @@ export default function LoginPage() {
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-black text-white shadow-xl">
             <span className="text-xl font-bold">S</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Bienvenido de nuevo a SubastasActivas</h1>
-          <p className="mt-2 text-sm text-gray-600">La plataforma de inteligencia para subastas judiciales.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">{t('welcomeTitle')}</h1>
+          <p className="mt-2 text-sm text-gray-600">{t('tagline')}</p>
         </div>
 
         <Card className="border-gray-200 shadow-xl">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-xl text-gray-900">Iniciar sesión</CardTitle>
+            <CardTitle className="text-xl text-gray-900">{t('cardTitle')}</CardTitle>
             <CardDescription className="text-gray-700">
-              Introduce tu correo y contraseña para acceder a tu panel
+              {t('cardDescription')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -124,12 +126,12 @@ export default function LoginPage() {
               {socialLoading === 'google' ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Conectando con Google…
+                  {t('connectingGoogle')}
                 </>
               ) : (
                 <>
                   <GoogleIcon className="mr-2 h-4 w-4" />
-                  Continuar con Google
+                  {t('continueWithGoogle')}
                 </>
               )}
             </Button>
@@ -139,17 +141,17 @@ export default function LoginPage() {
                 <span className="w-full border-t border-gray-200" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-gray-600">o</span>
+                <span className="bg-white px-2 text-gray-600">{t('or')}</span>
               </div>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-gray-900">Correo electrónico</Label>
+                <Label htmlFor="email" className="text-gray-900">{t('emailLabel')}</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="nombre@ejemplo.com"
+                  placeholder={t('emailPlaceholder')}
                   className="bg-gray-50/50 text-gray-900"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -160,9 +162,9 @@ export default function LoginPage() {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-gray-900">Contraseña</Label>
+                  <Label htmlFor="password" className="text-gray-900">{t('passwordLabel')}</Label>
                   <Link href="/forgot-password" className="text-xs font-medium text-gray-700 hover:text-black hover:underline">
-                    ¿Olvidaste tu contraseña?
+                    {t('forgotPassword')}
                   </Link>
                 </div>
                 <Input
@@ -190,20 +192,20 @@ export default function LoginPage() {
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Iniciando sesión…
+                    {t('submitting')}
                   </>
                 ) : (
                   <>
-                    Entrar <ArrowRight className="ml-2 h-4 w-4" />
+                    {t('submit')} <ArrowRight className="ml-2 h-4 w-4" />
                   </>
                 )}
               </Button>
             </form>
 
             <div className="pt-4 text-center text-xs text-gray-700">
-              ¿Aún no tienes cuenta?{' '}
+              {t('noAccount')}{' '}
               <Link href="/register" className="font-medium text-black hover:underline">
-                Regístrate
+                {t('signUp')}
               </Link>
             </div>
           </CardContent>
