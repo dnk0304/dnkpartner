@@ -97,6 +97,16 @@ export interface AuctionItem {
   propertyDescription?: string | null;
   lotDescription?: string | null;
   chargesDetail?: string | null;
+  // #16 — pujas / bids (parsed from BOE "Pujas" tab).
+  //   pujaStatus       : 'CON_PUJA' | 'SIN_PUJA' | null (null = unscraped)
+  //   currentBidAmount : highest bid in EUROS (server already converts the
+  //                      BIGINT-cents column to a finite number). Null when
+  //                      BOE hides the figure behind login but bids exist.
+  pujaStatus?: 'CON_PUJA' | 'SIN_PUJA' | string | null;
+  currentBidAmount?: number | null;
+  // #17 — Situación posesoria.
+  //   'OCUPADO' | 'NO_OCUPADO' | 'NO_CONSTA' | null (null = unscraped).
+  occupancy?: 'OCUPADO' | 'NO_OCUPADO' | 'NO_CONSTA' | string | null;
 }
 
 export type UserTier = 'free' | 'gold' | 'diamond';
