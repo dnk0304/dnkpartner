@@ -255,12 +255,25 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
           </div>
         )}
 
-        {/* Bottom meta strip: category + live countdown. */}
+        {/* Bottom meta strip: category + live countdown.
+            Viviendas is rendered as a subtle brand-tinted pill so the hero
+            category is recognisable at a glance (Item C). All other
+            categories keep the plain caption style — emphasis only, no
+            visual hierarchy overhaul. */}
         <div className="hairline-t pt-2 flex items-center justify-between gap-2">
           {item.category && (
-            <span className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary] truncate">
-              {item.category}
-            </span>
+            item.category === "Viviendas" ? (
+              <span
+                className="inline-flex items-center rounded-full border border-[--color-brand]/30 bg-[--color-brand]/[0.06] px-2 py-0.5 text-[10px] uppercase tracking-wide font-semibold text-[--color-brand] truncate"
+                aria-label="Categoría destacada: Viviendas"
+              >
+                {item.category}
+              </span>
+            ) : (
+              <span className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary] truncate">
+                {item.category}
+              </span>
+            )
           )}
           {hasEndDate && (
             <LiveCountdown target={item.endDate} size="sm" prefix="Termina en" effectiveStatus={effective} />

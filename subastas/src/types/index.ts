@@ -107,6 +107,14 @@ export interface AuctionItem {
   // #17 — Situación posesoria.
   //   'OCUPADO' | 'NO_OCUPADO' | 'NO_CONSTA' | null (null = unscraped).
   occupancy?: 'OCUPADO' | 'NO_OCUPADO' | 'NO_CONSTA' | string | null;
+  /**
+   * Referencia catastral — the 20-character Spanish cadastral identifier.
+   * Only ~2.5% of active rows currently carry a value (the BOE-gazette
+   * enrichment was shelved at low yield); when present, the detail surface
+   * renders a "Ver en Catastro" external link via `buildCatastroUrl()`.
+   * Null on the 97.5% of rows without one.
+   */
+  cadastralRef?: string | null;
 }
 
 export type UserTier = 'free' | 'gold' | 'diamond';

@@ -32,6 +32,33 @@ import { getVehicleCategoryImageUrl } from './vehicle-images';
 
 const REAL_PHOTO_PREFIXES = ['/api/auction-image/', '/streetview/'] as const;
 
+/**
+ * URL fragments that identify a map-tile / static-map URL — anything that
+ * matches MUST be treated as rung-2, never rung-1. Used by the rung-1 check
+ * to avoid mis-promoting a server-side fallback map URL into the "real photo"
+ * slot when `hasImage` happens to be unset.
+ *
+ * Kept lower-cased so the test is a simple `includes` against the lower-cased
+ * URL — no regex cost in the hot path.
+ */
+const MAP_URL_FRAGMENTS = [
+  'tile.openstreetmap',
+  'staticmap.openstreetmap',
+  '/tiles/',
+  'maps.googleapis',
+] as const;
+
+/**
+ * Path fragments that identify a category-placeholder SVG (the rung-3
+ * fallback). These must never be mis-promoted to rung 1 either — a card with
+ * `imageUrl: "/images/property-viviendas.svg"` is rung 3, not rung 1.
+ */
+const PLACEHOLDER_PATH_FRAGMENTS = [
+  '/images/property-',
+  '/images/vehicle-',
+  '/images/map-placeholder',
+] as const;
+
 const PROPERTY_CATEGORIES = new Set([
   'Viviendas',
   'Locales',
@@ -104,6 +131,27 @@ function isRealPhotoUrl(url: string | null | undefined): boolean {
   return REAL_PHOTO_PREFIXES.some((prefix) => url.startsWith(prefix));
 }
 
+/**
+ * True when the URL is clearly a static-map / tile URL (i.e. rung-2 content
+ * masquerading in the `imageUrl` slot). The server API can choose to bake a
+ * map URL into `imageUrl` when there's no real photo — we must NOT treat
+ * that as a rung-1 photo.
+ */
+function isMapTileUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  return MAP_URL_FRAGMENTS.some((frag) => lower.includes(frag));
+}
+
+/**
+ * True when the URL is one of our local category-placeholder SVGs. Same logic
+ * as map detection — these are rung-3 content; never mis-promote.
+ */
+function isPlaceholderSvgUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  return PLACEHOLDER_PATH_FRAGMENTS.some((frag) => url.includes(frag));
+}
+
 function placeholderFor(category: string | null | undefined): string {
   if (!category) return getPropertyCategoryImageUrl('Otros inmuebles');
   if (VEHICLE_CATEGORIES.has(category)) return getVehicleCategoryImageUrl(category);
@@ -137,12 +185,38 @@ export function resolveCardImage(input: ResolveCardImageInput): ResolvedCardImag
     size = 'card',
   } = input;
 
-  // Rung 1 — real scraped photo (Catastro / Street View / migrated).
-  // `hasImage` is the authoritative flag from /api/auctions; we cross-check
-  // the prefix because other endpoints (detail, recent) may not project the
-  // flag but still hand us a real-photo URL.
+  // ────────────────────────────────────────────────────────────────────────
+  // Rung 1 — REAL PHOTO ALWAYS WINS.
+  //
+  // A real photo is identified by ANY of the following (in priority order):
+  //
+  //   (a) The server-side `hasImage` flag is explicitly true. This is the
+  //       authoritative signal from /api/auctions.
+  //   (b) `imageUrl` starts with `/api/auction-image/` or `/streetview/` —
+  //       the two prefixes the resolver pipeline writes for real photos
+  //       (Catastro / Street View). Used as a cross-check on endpoints
+  //       (detail, recent) that don't project `hasImage`.
+  //   (c) `imageUrl` is a string that is NEITHER a map-tile URL NOR a
+  //       category-placeholder SVG AND `hasImage` is not explicitly false.
+  //       Catches the future case where Ghost stores a real photo URL on
+  //       a different prefix — better to show a real photo than a map.
+  //
+  // Critically: rung 1 NEVER falls through to rung 2 (the map-pin) just
+  // because coords also exist. If we have a photo, we show the photo. The
+  // map-pin is the second-best signal, not a competitor to the photo.
+  // ────────────────────────────────────────────────────────────────────────
   const looksLikeRealPhoto = isRealPhotoUrl(imageUrl ?? null);
-  if ((hasImage === true || looksLikeRealPhoto) && imageUrl) {
+  const looksLikeMapUrl = isMapTileUrl(imageUrl ?? null);
+  const looksLikePlaceholder = isPlaceholderSvgUrl(imageUrl ?? null);
+  const isUntaggedRealPhoto =
+    !!imageUrl &&
+    !looksLikeMapUrl &&
+    !looksLikePlaceholder &&
+    hasImage !== false;
+  if (
+    imageUrl &&
+    (hasImage === true || looksLikeRealPhoto || isUntaggedRealPhoto)
+  ) {
     return {
       src: imageUrl,
       alt: title ? `Foto de ${title}` : 'Foto del bien',
