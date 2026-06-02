@@ -107,12 +107,33 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
           className={cn(
             resolved.isPlaceholder ? "object-contain p-6 opacity-80" : "object-cover",
           )}
+          // For rung-2 we pan the 256px tile so the property's lat/lng sits
+          // at the centre of the rendered card. The pin overlay below is
+          // therefore drawn at 50%/50% and visually marks the real location.
+          style={
+            resolved.isMap && !imgFailed && resolved.mapPin
+              ? { objectPosition: `${resolved.mapPin.xPct}% ${resolved.mapPin.yPct}%` }
+              : undefined
+          }
           loading="lazy"
           unoptimized={resolved.isMap}
           onError={() => setImgFailed(true)}
         />
-        {/* Subtle rung-2 affordance: small pin chip so users know it's a
-            location preview, not a photo. */}
+        {/* Rung-2 pin marker — sits at the centre of the rendered card
+            because the tile underneath has been panned to put the
+            property's lat/lng under this point. */}
+        {resolved.isMap && !imgFailed && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full"
+          >
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[--color-warn-critical] text-white shadow-[0_2px_6px_rgba(0,0,0,0.35)] ring-2 ring-white">
+              <MapPin className="h-4 w-4" strokeWidth={2.5} />
+            </span>
+          </span>
+        )}
+        {/* Subtle rung-2 affordance chip — labels the thumbnail as a
+            location preview rather than a photo. */}
         {resolved.isMap && !imgFailed && (
           <span
             aria-hidden="true"

@@ -400,6 +400,9 @@ function ExpandedCard({ auction }: { auction: FeedAuction }) {
       : null;
   // 3-rung imagery ladder. The carousel never goes blank — rung 2 (static
   // map pin) and rung 3 (per-category SVG) backstop every row.
+  // Per-card `imgFailed` is safe here because ExpandedCard is its own
+  // function component — each rendered card gets its own useState slot.
+  const [imgFailed, setImgFailed] = React.useState(false);
   const resolved = resolveCardImage({
     imageUrl: auction.imageUrl,
     latitude: auction.latitude,
@@ -408,6 +411,12 @@ function ExpandedCard({ auction }: { auction: FeedAuction }) {
     title: title,
     size: "thumbnail",
   });
+  // Fall back to the rung-3 category SVG if the photo or tile 404s.
+  const imageSrc =
+    imgFailed && resolved.rung !== "placeholder"
+      ? resolveCardImage({ category: auction.category, title: title, size: "thumbnail" }).src
+      : resolved.src;
+  const showMapPin = resolved.isMap && !imgFailed;
   // Clock wins over stale DB status — same rule as CompactCard.
   const effectiveStatus = ended ? "concluida-portal" : auction.status;
   const noPriceData =
@@ -427,17 +436,36 @@ function ExpandedCard({ auction }: { auction: FeedAuction }) {
     >
       <div className="relative aspect-[16/9] bg-[--color-surface-muted]">
         <Image
-          src={resolved.src}
+          src={imageSrc}
           alt={resolved.alt}
           fill
           sizes="260px"
           className={
-            resolved.isPlaceholder ? "object-contain p-4 opacity-80" : "object-cover"
+            resolved.isPlaceholder || (imgFailed && resolved.rung !== "placeholder")
+              ? "object-contain p-4 opacity-80"
+              : "object-cover"
+          }
+          // Rung-2: pan tile so lat/lng sits under the centred pin overlay.
+          style={
+            showMapPin && resolved.mapPin
+              ? { objectPosition: `${resolved.mapPin.xPct}% ${resolved.mapPin.yPct}%` }
+              : undefined
           }
           loading="lazy"
-          unoptimized={resolved.isMap}
+          unoptimized={resolved.isMap && !imgFailed}
+          onError={() => setImgFailed(true)}
         />
-        {resolved.isMap && (
+        {showMapPin && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full"
+          >
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[--color-warn-critical] text-white shadow-[0_2px_6px_rgba(0,0,0,0.35)] ring-2 ring-white">
+              <MapPin className="h-3.5 w-3.5" strokeWidth={2.5} />
+            </span>
+          </span>
+        )}
+        {showMapPin && (
           <span
             aria-hidden="true"
             className="absolute bottom-1 right-1 inline-flex items-center gap-1 rounded-full border border-[--color-hairline] bg-[--color-surface]/90 px-1.5 py-0.5 text-[9px] font-medium text-[--color-ink-secondary]"

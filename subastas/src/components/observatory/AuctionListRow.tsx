@@ -97,16 +97,24 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
               className={cn(
                 resolved.isPlaceholder ? "object-contain p-1 opacity-80" : "object-cover",
               )}
+              // Rung-2: pan tile so lat/lng sits under the centred pin overlay.
+              style={
+                resolved.isMap && !imgFailed && resolved.mapPin
+                  ? { objectPosition: `${resolved.mapPin.xPct}% ${resolved.mapPin.yPct}%` }
+                  : undefined
+              }
               loading="lazy"
               unoptimized={resolved.isMap}
               onError={() => setImgFailed(true)}
             />
+            {/* Tiny centred pin marker — at this thumbnail scale (64×48) a
+                small filled dot reads more cleanly than a full pin glyph. */}
             {resolved.isMap && !imgFailed && (
               <span
                 aria-hidden="true"
-                className="absolute bottom-0 right-0 inline-flex h-3.5 w-3.5 items-center justify-center rounded-tl bg-[--color-surface]/90 text-[--color-ink-secondary]"
+                className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
               >
-                <MapPin className="h-2.5 w-2.5" />
+                <span className="block h-2.5 w-2.5 rounded-full bg-[--color-warn-critical] ring-2 ring-white shadow-[0_1px_3px_rgba(0,0,0,0.4)]" />
               </span>
             )}
           </Link>

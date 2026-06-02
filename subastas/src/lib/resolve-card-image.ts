@@ -24,6 +24,7 @@
 import {
   generateMapImageUrl,
   generateResponsiveMapImages,
+  getMapPinPosition,
   getOptimalZoom,
 } from './map-image';
 import { getPropertyCategoryImageUrl } from './property-images';
@@ -64,6 +65,13 @@ export type ResolvedCardImage = {
   isMap: boolean;
   /** True when the resolved src is the per-category SVG fallback (rung 3). */
   isPlaceholder: boolean;
+  /**
+   * For rung 2 only: the property's fractional intra-tile position, expressed
+   * as percentages 0–100. Callers feed `xPct%/yPct%` into the tile image's
+   * `object-position` (so the point pans to centre of the rendered box) and
+   * render a centred pin overlay on top. Null on rung 1 / 3 / no-coords.
+   */
+  mapPin: { xPct: number; yPct: number } | null;
 };
 
 export type ResolveCardImageInput = {
@@ -142,6 +150,7 @@ export function resolveCardImage(input: ResolveCardImageInput): ResolvedCardImag
       isRealPhoto: true,
       isMap: false,
       isPlaceholder: false,
+      mapPin: null,
     };
   }
 
@@ -164,6 +173,7 @@ export function resolveCardImage(input: ResolveCardImageInput): ResolvedCardImag
       isRealPhoto: false,
       isMap: true,
       isPlaceholder: false,
+      mapPin: getMapPinPosition(latitude!, longitude!, zoom),
     };
   }
 
@@ -175,6 +185,7 @@ export function resolveCardImage(input: ResolveCardImageInput): ResolvedCardImag
     isRealPhoto: false,
     isMap: false,
     isPlaceholder: true,
+    mapPin: null,
   };
 }
 

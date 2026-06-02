@@ -169,6 +169,7 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
 
   // Centralized 3-rung imagery ladder — identical logic across dashboard
   // card, observatory card/row, carousel, detail. See lib/resolve-card-image.
+  const [imgFailed, setImgFailed] = React.useState(false);
   const resolved = resolveCardImage({
     imageUrl: item.imageUrl,
     hasImage: (item as { hasImage?: boolean | null }).hasImage,
@@ -178,11 +179,21 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
     title: item.title,
     size: 'medium',
   });
-  const imageSrc = resolved.src;
+  // onError safety net: a transient 404 on the real photo or the OSM tile
+  // host drops cleanly to the rung-3 category SVG (purely local, cannot 404).
+  const imageSrc =
+    imgFailed && resolved.rung !== 'placeholder'
+      ? resolveCardImage({ category: item.category, title: item.title, size: 'medium' }).src
+      : resolved.src;
   const imageAlt = resolved.alt;
-  // Center-pin overlay reserved for the rung-3 category SVG (the static map
-  // already renders its own pin in the OSM tile).
-  const showPinOverlay = resolved.isPlaceholder;
+  // Pin overlay rules:
+  //   - Rung-2 (map tile, still loaded): draw a real pin at the property's
+  //     centred lat/lng (the tile is panned so the point is at 50%/50%).
+  //   - Rung-3 (category SVG) OR fallen-back image: draw the generic
+  //     "we lack precise imagery" pin in the centre.
+  const fellBackToPlaceholder = imgFailed && resolved.rung !== 'placeholder';
+  const showMapPin = resolved.isMap && !imgFailed;
+  const showGenericPin = resolved.isPlaceholder || fellBackToPlaceholder;
   // Ghost's split-multilot rows carry the "Varios Lotes" title and no price.
   // Show "Precio no disponible" treatment instead of "Sin Pujas" in the price
   // slot for those rows.
@@ -210,15 +221,30 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
             fill
             sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
             className={
-              resolved.isPlaceholder
+              resolved.isPlaceholder || fellBackToPlaceholder
                 ? 'object-contain p-6 opacity-80 transition-transform duration-700 group-hover:scale-105'
                 : 'object-cover transition-transform duration-700 group-hover:scale-105'
             }
-            unoptimized={resolved.isMap}
+            // Rung-2: pan tile so lat/lng sits under the centred pin overlay.
+            style={
+              showMapPin && resolved.mapPin
+                ? { objectPosition: `${resolved.mapPin.xPct}% ${resolved.mapPin.yPct}%` }
+                : undefined
+            }
+            unoptimized={resolved.isMap && !imgFailed}
             loading="lazy"
+            onError={() => setImgFailed(true)}
           />
 
-          {showPinOverlay && (
+          {showMapPin && (
+            <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[--color-warn-critical] text-white shadow-[0_2px_8px_rgba(0,0,0,0.35)] ring-2 ring-white">
+                <MapPin className="h-5 w-5" strokeWidth={2.5} />
+              </div>
+            </div>
+          )}
+
+          {showGenericPin && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="rounded-full bg-white/90 p-2 shadow-lg">
                 <MapPin className="w-6 h-6 text-red-600" />

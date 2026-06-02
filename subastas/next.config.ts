@@ -16,8 +16,11 @@ const nextConfig: NextConfig = {
         hostname: "images.unsplash.com",
       },
       {
+        // Rung-2 OSM raster tile host. Replaced the dead
+        // staticmap.openstreetmap.de entry on 2026-06-02 — that service was
+        // discontinued and its DNS no longer resolves. See lib/map-image.ts.
         protocol: "https",
-        hostname: "staticmap.openstreetmap.de",
+        hostname: "tile.openstreetmap.org",
       },
     ],
   },
