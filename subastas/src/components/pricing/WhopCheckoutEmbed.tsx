@@ -1,44 +1,47 @@
 "use client";
 
 /**
- * WhopCheckoutEmbed — embeds the Whop checkout for the Acceso plan
- * (`plan_c4MzcxWSJP7eT`) directly inside the /precios page via an iframe.
+ * WhopCheckoutEmbed — renders Whop's official embedded checkout for the
+ * Acceso plan (`plan_c4MzcxWSJP7eT`) inside the /precios page.
  *
- * Why iframe (not the Whop React SDK)?
- *   The Whop embed SDK package + method names change frequently (per Forge's
- *   F#10 brief note). The signed checkout URL is the stable, documented
- *   surface and supports `?embed=true` to render in an iframe-friendly mode.
- *   Once Forge pins a concrete SDK version we can swap the implementation
- *   without touching the parent page — this component is the seam.
+ * Why the official package (and not a raw iframe)
+ * -----------------------------------------------
+ * Whop's checkout response (`https://whop.com/checkout/<plan>`) returns
+ * `Content-Security-Policy: frame-ancestors 'self' https://app.contentful.com`
+ * + `X-Frame-Options: SAMEORIGIN`, so a hand-rolled `<iframe>` is blocked by
+ * the browser (`ERR_BLOCKED_BY_RESPONSE`) and the user sees a blank box.
+ * The `@whop/checkout/react` package mounts an iframe against an
+ * EMBED-friendly Whop origin and is the only supported way to embed.
  *
- * Identity linking (CRITICAL — see /api/whop/webhook):
- *   We pass the locally-authenticated user's id as `metadata[userId]` on the
- *   checkout URL. Whop echoes it back on every `membership.activated` /
- *   `membership.deactivated` event under `data.metadata.userId`, which is how
- *   the webhook maps the new Whop membership → the local `User` row and
- *   upgrades them to ACCESO. Without this query param the upgrade can still
- *   work via the email fallback, but linking by id is the reliable path.
+ * Identity linking (CRITICAL — see /api/whop/webhook)
+ * ----------------------------------------------------
+ * The official embed has NO `metadata` prop — you can only attach metadata by
+ * creating a checkout configuration server-side via the Whop API and passing
+ * the returned id (`ch_…`) as `sessionId`. That's what `/api/whop/checkout-session`
+ * does: it auth-gates, calls Whop with `metadata: { userId, email }`, and
+ * returns the `ch_…` id. Whop then echoes the metadata back on every
+ * `membership.activated` / `membership.deactivated` event under
+ * `data.metadata.userId`, which the webhook reads to upgrade the local User.
  *
- * Accessibility:
- *   - The iframe gets `title` (required for a11y) + `loading="lazy"`.
- *   - `allow="payment"` lets Whop's checkout call the Payment Request API
- *     (Apple Pay / Google Pay) where the browser supports it.
- *   - We render a skeleton until `load` fires so users don't stare at a blank
- *     box while the third-party frame initialises.
+ * Render flow
+ * -----------
+ *   1. Mount with a skeleton.
+ *   2. POST /api/whop/checkout-session to mint a session id bound to userId.
+ *   3. Render <WhopCheckoutEmbed sessionId={…} prefill={{ email }} />.
+ *   4. On error, surface a retry control — never silently leave a blank box.
  */
 
 import * as React from "react";
 import { useTranslations } from "next-intl";
+import { WhopCheckoutEmbed as OfficialWhopCheckoutEmbed } from "@whop/checkout/react";
 
 export const WHOP_ACCESO_PLAN_ID = "plan_c4MzcxWSJP7eT" as const;
-const WHOP_CHECKOUT_BASE = `https://whop.com/checkout/${WHOP_ACCESO_PLAN_ID}` as const;
 
 export type WhopCheckoutEmbedProps = {
   /**
-   * The logged-in local user's id. When present, it's attached to the
-   * checkout URL as `metadata[userId]=...` so the webhook can link the
-   * resulting Whop membership to this local user. When `null`, the parent
-   * should render the sign-in prompt instead of this component.
+   * The logged-in local user's id. Passed to the server route which attaches
+   * it as `metadata.userId` on the upstream Whop checkout configuration.
+   * When empty/null the parent should render the sign-in prompt instead.
    */
   userId: string;
   /** Optional email passthrough to pre-fill the Whop form. */
@@ -46,37 +49,75 @@ export type WhopCheckoutEmbedProps = {
   className?: string;
 };
 
+type SessionState =
+  | { status: "loading" }
+  | { status: "ready"; sessionId: string }
+  | { status: "error"; message: string };
+
+async function mintSession(): Promise<
+  { ok: true; sessionId: string } | { ok: false; message: string }
+> {
+  try {
+    const res = await fetch("/api/whop/checkout-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ planId: WHOP_ACCESO_PLAN_ID }),
+    });
+    const data = (await res.json().catch(() => null)) as
+      | { success?: boolean; sessionId?: string; error?: string }
+      | null;
+    if (!res.ok || !data?.success || !data.sessionId) {
+      return { ok: false, message: data?.error ?? `http_${res.status}` };
+    }
+    return { ok: true, sessionId: data.sessionId };
+  } catch (err) {
+    return {
+      ok: false,
+      message: err instanceof Error ? err.message : "unknown",
+    };
+  }
+}
+
 export function WhopCheckoutEmbed({
   userId,
   userEmail,
   className,
 }: WhopCheckoutEmbedProps) {
   const t = useTranslations("pricing");
-  const [loaded, setLoaded] = React.useState(false);
+  const [state, setState] = React.useState<SessionState>({ status: "loading" });
+  const [attempt, setAttempt] = React.useState(0);
 
-  // Build the checkout URL with the metadata.userId wire-up. We use
-  // `metadata[userId]` (bracket form) which Whop's checkout-with-metadata
-  // contract accepts and forwards to the membership event payload as
-  // `data.metadata.userId` — exactly what the webhook reads.
-  const checkoutUrl = React.useMemo(() => {
-    const params = new URLSearchParams();
-    params.set("embed", "true");
-    params.set("metadata[userId]", userId);
-    if (userEmail) params.set("email", userEmail);
-    return `${WHOP_CHECKOUT_BASE}?${params.toString()}`;
-  }, [userId, userEmail]);
+  // Mint a checkout session whenever the userId or retry counter changes. We
+  // intentionally exclude `userEmail` from the deps — re-creating a session
+  // just because the email object identity shifted would burn API calls.
+  React.useEffect(() => {
+    let cancelled = false;
+    setState({ status: "loading" });
+    void mintSession().then((r) => {
+      if (cancelled) return;
+      if (r.ok) setState({ status: "ready", sessionId: r.sessionId });
+      else setState({ status: "error", message: r.message });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, attempt]);
 
-  return (
-    <div
-      className={[
-        "relative w-full overflow-hidden rounded-xl border border-[--color-hairline] bg-[--color-surface]",
-        className ?? "",
-      ].join(" ")}
-    >
-      {!loaded && (
+  const wrapperCls = [
+    "relative w-full overflow-hidden rounded-xl border border-[--color-hairline] bg-[--color-surface]",
+    className ?? "",
+  ].join(" ");
+
+  if (state.status === "loading") {
+    return (
+      <div
+        className={wrapperCls}
+        data-whop-plan-id={WHOP_ACCESO_PLAN_ID}
+        data-whop-metadata-user-id={userId}
+      >
         <div
-          className="absolute inset-0 z-10 flex items-center justify-center bg-[--color-surface]"
-          aria-hidden="true"
+          className="flex min-h-[420px] items-center justify-center"
+          aria-live="polite"
         >
           <div className="flex flex-col items-center gap-3">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-[--color-hairline] border-t-[--color-ink-primary]" />
@@ -85,21 +126,60 @@ export function WhopCheckoutEmbed({
             </p>
           </div>
         </div>
-      )}
-      <iframe
-        // The data-* attribute makes the wiring trivially inspectable in
-        // verification (Pixel paste evidence) and any future debugging.
+      </div>
+    );
+  }
+
+  if (state.status === "error") {
+    return (
+      <div
+        className={wrapperCls}
         data-whop-plan-id={WHOP_ACCESO_PLAN_ID}
         data-whop-metadata-user-id={userId}
-        src={checkoutUrl}
-        title={t("checkoutHeading")}
-        loading="lazy"
-        // `payment` is the modern Permissions-Policy token for the Payment
-        // Request API; Whop checkout uses it for Apple Pay / Google Pay.
-        allow="payment *; clipboard-write"
-        referrerPolicy="strict-origin-when-cross-origin"
-        onLoad={() => setLoaded(true)}
-        className="block h-[720px] w-full border-0"
+        data-whop-checkout-error={state.message}
+      >
+        <div className="flex min-h-[260px] flex-col items-center justify-center gap-3 px-6 py-10 text-center">
+          <p className="text-sm font-medium text-[--color-ink-primary]">
+            {t("checkoutLoading")}
+          </p>
+          <p className="text-xs text-[--color-ink-tertiary]">{state.message}</p>
+          <button
+            type="button"
+            onClick={() => setAttempt((n) => n + 1)}
+            className="cursor-pointer rounded-md border border-[--color-hairline] bg-transparent px-3 py-1.5 text-xs font-medium text-[--color-ink-primary] hover:bg-[--color-surface-muted]"
+          >
+            {t("checkoutHeading")}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Ready — hand off to the official embed. The package's discriminated
+  // union accepts either `planId` OR `sessionId`; we pass `sessionId` only
+  // (the plan_id is already baked into the server-minted configuration, and
+  // metadata travels with it).
+  return (
+    <div
+      className={wrapperCls}
+      data-whop-plan-id={WHOP_ACCESO_PLAN_ID}
+      data-whop-metadata-user-id={userId}
+      data-whop-session-id={state.sessionId}
+    >
+      <OfficialWhopCheckoutEmbed
+        sessionId={state.sessionId}
+        theme="light"
+        prefill={userEmail ? { email: userEmail } : undefined}
+        fallback={
+          <div className="flex min-h-[420px] items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-[--color-hairline] border-t-[--color-ink-primary]" />
+              <p className="text-sm text-[--color-ink-tertiary]">
+                {t("checkoutLoading")}
+              </p>
+            </div>
+          </div>
+        }
       />
     </div>
   );
