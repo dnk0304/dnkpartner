@@ -13,8 +13,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { ArticleContent } from "@/components/blog/ArticleContent";
 
 type Status = "DRAFT" | "PUBLISHED";
 
@@ -395,11 +394,17 @@ export function AdminBlogEditor({ slugParam }: { slugParam: string }) {
               required
             >
               {showPreview ? (
-                <div className="min-h-[400px] rounded-md border border-[--color-hairline] bg-[--color-surface] p-6">
-                  <div className="article-prose text-[--color-ink-primary]">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {state.bodyMarkdown || "*Sin contenido aún.*"}
-                    </ReactMarkdown>
+                // Preview pane — renders via the SHARED <ArticleContent />
+                // component (same render path as /guia/[slug]) so what Dennis
+                // sees here is byte-for-byte what publishes live. We mirror
+                // the public page's reading column (`max-w-3xl mx-auto px-6`)
+                // inside the admin panel so width/padding match too — true
+                // WYSIWYG, modulo the surrounding admin chrome.
+                <div className="min-h-[400px] rounded-md border border-[--color-hairline] bg-[--color-surface] py-10">
+                  <div className="mx-auto max-w-3xl px-6">
+                    <ArticleContent
+                      body={state.bodyMarkdown || "*Sin contenido aún.*"}
+                    />
                   </div>
                 </div>
               ) : (
