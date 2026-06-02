@@ -1,10 +1,28 @@
 /**
- * TikTok Trends Scraper
- * Scrapes trending hashtags and viral content from TikTok using Puppeteer
- * Uses browser automation for more reliable scraping of JS-rendered content
+ * TikTok Trends Scraper — Isolated Stealth Edition (rebuilt 2026-06)
+ * --------------------------------------------------------------------------
+ * BLOCK DIAGNOSED (live, 2026-06): /discover returns HTTP 200 with a full
+ * ~520KB page — TikTok does NOT hard-block it. The old scraper returned 0
+ * because of TWO regressions:
+ *   1. It read trending tags out of `__UNIVERSAL_DATA_FOR_REHYDRATION__
+ *      .__DEFAULT_SCOPE__["webapp.discover"]`. TikTok REMOVED that scope — the
+ *      rehydration blob now only carries app-context/i18n/abtest keys, so the
+ *      JSON path yields nothing. (Confirmed live: scope keys are
+ *      webapp.app-context, webapp.biz-context, webapp.i18n-translation,
+ *      seo.abtest, webapp.a-b — no discover.)
+ *   2. Its `({.*?});` regex assumed an assignment; the data now lives in a
+ *      `<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__">` element's textContent.
+ *
+ * The live page DOES still render real `<a href="/tag/...">` links (~38 of
+ * them). FIX: extract trending hashtags from those DOM links, force en-US
+ * locale (a datacenter EU IP otherwise gets Spanish tags), and pull hashtag
+ * view/video stats from the challenge page's rehydration element when present.
+ *
+ * Each instance owns its own IsolatedBrowser so a TikTok flag never touches
+ * eBay/Etsy.
  */
 
-import { browserHelper } from './browserHelper.js';
+import { IsolatedBrowser } from './isolatedBrowser.js';
 import { SCRAPING_LIMITS } from './scrapingConfig.js';
 import type { Page } from 'puppeteer';
 
@@ -45,498 +63,252 @@ export interface TikTokDiscoverItem {
   type: 'hashtag' | 'sound' | 'effect';
 }
 
-// Product-related keywords for filtering
 const PRODUCT_KEYWORDS = [
-  'must have',
-  'viral product',
-  'amazon find',
-  'tiktok made me buy',
-  'trending product',
-  'best buy',
-  'gift idea',
-  'under $',
-  'affordable',
-  'game changer',
-  'worth it',
-  'life hack',
-  'organization',
-  'aesthetic',
+  'must have', 'viral product', 'amazon find', 'tiktok made me buy',
+  'trending product', 'best buy', 'gift idea', 'under $', 'affordable',
+  'game changer', 'worth it', 'life hack', 'organization', 'aesthetic',
 ];
 
 class TikTokScraper {
   private baseUrl = 'https://www.tiktok.com';
   private cache: Map<string, { data: any; timestamp: number }> = new Map();
-  private cacheTTL = 6 * 60 * 60 * 1000; // 6 hours
-  private usePuppeteer = true; // Enable Puppeteer by default
+  private cacheTTL = 6 * 60 * 60 * 1000;
+  private browser = new IsolatedBrowser({
+    name: 'tiktok',
+    proxyUrl: process.env.TIKTOK_PROXY_URL || process.env.PROXY_URL,
+  });
 
-  /**
-   * Get trending hashtags from TikTok discover page using Puppeteer
-   */
+  /** Trending hashtags from the discover page DOM (/tag/ links). */
   async getTrendingHashtags(): Promise<string[]> {
     const cacheKey = 'trending-hashtags';
     const cached = this.cache.get(cacheKey);
-    
-    if (cached && Date.now() - cached.timestamp < this.cacheTTL) {
-      return cached.data;
-    }
+    if (cached && Date.now() - cached.timestamp < this.cacheTTL) return cached.data;
 
-    console.log('[TikTokScraper] Fetching trending hashtags with Puppeteer...');
-    
+    console.log('[TikTokScraper] fetching trending hashtags...');
+    let page: Page | null = null;
     try {
-      const page = await browserHelper.createPage({ randomizeViewport: true });
-      
-      try {
-        const url = `${this.baseUrl}/discover`;
-        const success = await browserHelper.navigateWithRetry(page, url, {
-          maxRetries: 3,
-          timeout: 45000,
-          waitUntil: 'networkidle2'
-        });
-
-        if (!success) {
-          throw new Error('Failed to navigate to TikTok discover page');
-        }
-
-        // Human-like scrolling to load more content
-        await browserHelper.humanScroll(page, 3);
-        await browserHelper.randomDelay(2000, 4000);
-
-        // Extract hashtags from the page
-        const hashtags = await page.evaluate(() => {
-          const results: string[] = [];
-          
-          // Try multiple selectors for hashtags
-          const selectors = [
-            '[data-e2e="trending-hashtag"]',
-            '[data-e2e="challenge-item"]',
-            'a[href*="/tag/"]',
-            '.tiktok-hashtag',
-            '[class*="DivChallengeCard"]',
-            '[class*="hashtag"]'
-          ];
-
-          for (const selector of selectors) {
-            const elements = document.querySelectorAll(selector);
-            elements.forEach((el) => {
-              const text = el.textContent?.trim() || '';
-              const href = (el as HTMLAnchorElement).href || '';
-              
-              if (text.startsWith('#')) {
-                results.push(text.replace('#', ''));
-              } else if (href.includes('/tag/')) {
-                const match = href.match(/\/tag\/([^?\/]+)/);
-                if (match && match[1]) {
-                  results.push(decodeURIComponent(match[1]));
-                }
-              }
-            });
-          }
-
-          // Also try to extract from JSON data in scripts
-          const scripts = document.querySelectorAll('script');
-          scripts.forEach((script) => {
-            const content = script.textContent || '';
-            if (content.includes('__UNIVERSAL_DATA_FOR_REHYDRATION__')) {
-              try {
-                const match = content.match(/__UNIVERSAL_DATA_FOR_REHYDRATION__\s*=\s*({.*?});/s);
-                if (match && match[1]) {
-                  const data = JSON.parse(match[1]);
-                  const discoverData = data?.__DEFAULT_SCOPE__?.['webapp.discover'];
-                  if (discoverData?.discoverList) {
-                    discoverData.discoverList.forEach((item: any) => {
-                      if (item.type === 1 && item.cardItem?.title) {
-                        results.push(item.cardItem.title.replace('#', ''));
-                      }
-                    });
-                  }
-                }
-              } catch (e) {
-                // JSON parsing failed, continue
-              }
-            }
-          });
-
-          return results;
-        });
-
-        const uniqueHashtags = [...new Set(hashtags)].slice(0, 50);
-        console.log(`[TikTokScraper] Found ${uniqueHashtags.length} trending hashtags`);
-        
-        this.cache.set(cacheKey, { data: uniqueHashtags, timestamp: Date.now() });
-        return uniqueHashtags;
-      } finally {
-        await browserHelper.closePage(page);
+      page = await this.browser.newPage();
+      // /discover is the route that renders trending <a href="/tag/..."> links
+      // (verified live: 38 tags). /explore is a video feed with no tag anchors,
+      // so it is only a fallback.
+      let success = await this.navigate(page, `${this.baseUrl}/discover`);
+      if (success) {
+        await this.browser.humanScroll(page, 4);
+        await this.browser.humanDwell(page, 2000, 4000);
+        const tagCount = await page.$$eval('a[href*="/tag/"]', els => els.length).catch(() => 0);
+        if (tagCount === 0) success = false;
       }
-    } catch (error) {
-      console.error('[TikTokScraper] Error fetching trending hashtags:', error);
-      
-      // Fallback to fetch-based method
-      return this.getTrendingHashtagsFallback();
-    }
-  }
+      if (!success) {
+        await this.navigate(page, `${this.baseUrl}/explore`);
+        await this.browser.humanScroll(page, 4);
+        await this.browser.humanDwell(page, 2000, 4000);
+      }
 
-  /**
-   * Fallback fetch-based method for getting hashtags
-   */
-  private async getTrendingHashtagsFallback(): Promise<string[]> {
-    console.log('[TikTokScraper] Using fallback fetch method...');
-    
-    try {
-      const response = await fetch(`${this.baseUrl}/discover`, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.5',
-        },
+      const hashtags = await page.evaluate(() => {
+        const results: string[] = [];
+        // Primary: real /tag/ anchor links rendered in the DOM.
+        document.querySelectorAll('a[href*="/tag/"]').forEach((el) => {
+          const href = (el as HTMLAnchorElement).getAttribute('href') || '';
+          const m = href.match(/\/tag\/([^?\/#]+)/);
+          if (m && m[1]) {
+            const tag = decodeURIComponent(m[1]);
+            if (tag.length > 1 && tag.length < 60) results.push(tag);
+          }
+          const txt = el.textContent?.trim() || '';
+          if (txt.startsWith('#')) results.push(txt.slice(1));
+        });
+        // Secondary: data-e2e hashtag nodes if present.
+        document.querySelectorAll('[data-e2e="trending-hashtag"], [data-e2e="challenge-item"]').forEach((el) => {
+          const t = el.textContent?.trim().replace(/^#/, '') || '';
+          if (t.length > 1 && t.length < 60) results.push(t);
+        });
+        return results;
       });
 
-      if (!response.ok) {
-        throw new Error(`Fetch failed: ${response.status}`);
-      }
-
-      const html = await response.text();
-      const hashtags: string[] = [];
-
-      // Extract from JSON data
-      const jsonMatch = html.match(/__UNIVERSAL_DATA_FOR_REHYDRATION__\s*=\s*({.*?});/s);
-      if (jsonMatch && jsonMatch[1]) {
-        try {
-          const data = JSON.parse(jsonMatch[1]);
-          const discoverData = data?.__DEFAULT_SCOPE__?.['webapp.discover'];
-          if (discoverData?.discoverList) {
-            discoverData.discoverList.forEach((item: any) => {
-              if (item.type === 1 && item.cardItem?.title) {
-                hashtags.push(item.cardItem.title.replace('#', ''));
-              }
-            });
-          }
-        } catch (e) {
-          // JSON parsing failed
-        }
-      }
-
-      // Extract from HTML
-      const tagMatches = html.matchAll(/\/tag\/([^"?\/]+)/g);
-      for (const match of tagMatches) {
-        if (match[1]) {
-          hashtags.push(decodeURIComponent(match[1]));
-        }
-      }
-
-      return [...new Set(hashtags)].slice(0, 50);
-    } catch (error) {
-      console.error('[TikTokScraper] Fallback also failed:', error);
+      const unique = [...new Set(hashtags)].slice(0, 50);
+      console.log(`[TikTokScraper] found ${unique.length} trending hashtags`);
+      if (unique.length > 0) this.cache.set(cacheKey, { data: unique, timestamp: Date.now() });
+      return unique;
+    } catch (err: any) {
+      console.error('[TikTokScraper] hashtag fetch failed:', err.message);
       return [];
+    } finally {
+      if (page) await page.close().catch(() => {});
     }
   }
 
-  /**
-   * Get hashtag details using Puppeteer
-   */
-  async getHashtagDetails(hashtag: string): Promise<TikTokTrend | null> {
-    const cleanHashtag = hashtag.replace('#', '');
-    const cacheKey = `hashtag-${cleanHashtag}`;
-    const cached = this.cache.get(cacheKey);
-    
-    if (cached && Date.now() - cached.timestamp < this.cacheTTL) {
-      return cached.data;
-    }
-
-    console.log(`[TikTokScraper] Fetching details for #${cleanHashtag}...`);
-
+  private async navigate(page: Page, url: string): Promise<boolean> {
     try {
-      const page = await browserHelper.createPage({ randomizeViewport: true });
-      
-      try {
-        const url = `${this.baseUrl}/tag/${encodeURIComponent(cleanHashtag)}`;
-        const success = await browserHelper.navigateWithRetry(page, url, {
-          maxRetries: 2,
-          timeout: 30000,
-          waitUntil: 'networkidle2'
-        });
+      const resp = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      await this.browser.humanDwell(page, 2000, 4000);
+      const block = await this.browser.detectBlock(page);
+      if (block) {
+        console.warn(`[TikTokScraper] block detected (${block}) at ${url}`);
+        return false;
+      }
+      return !resp || resp.status() < 400;
+    } catch {
+      return false;
+    }
+  }
 
-        if (!success) {
-          throw new Error('Failed to navigate to hashtag page');
+  /** Hashtag stats from the challenge page rehydration element. */
+  async getHashtagDetails(hashtag: string): Promise<TikTokTrend | null> {
+    const clean = hashtag.replace('#', '');
+    const cacheKey = `hashtag-${clean}`;
+    const cached = this.cache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < this.cacheTTL) return cached.data;
+
+    let page: Page | null = null;
+    try {
+      page = await this.browser.newPage();
+      const ok = await this.navigate(page, `${this.baseUrl}/tag/${encodeURIComponent(clean)}`);
+      if (!ok) return this.minimalTrend(clean);
+
+      const data = await page.evaluate(() => {
+        let viewCount = 0, videoCount = 0;
+        const related: string[] = [];
+
+        // Rehydration data now lives in a <script id> element's textContent.
+        const el = document.getElementById('__UNIVERSAL_DATA_FOR_REHYDRATION__');
+        if (el?.textContent) {
+          try {
+            const json = JSON.parse(el.textContent);
+            const scope = json.__DEFAULT_SCOPE__ || {};
+            const cd = scope['webapp.challenge-detail'];
+            const stats = cd?.challengeInfo?.challenge?.stats || cd?.challengeInfo?.stats;
+            if (stats) {
+              viewCount = parseInt(stats.viewCount || '0') || 0;
+              videoCount = parseInt(stats.videoCount || '0') || 0;
+            }
+          } catch { /* ignore */ }
         }
 
-        await browserHelper.randomDelay(1000, 2000);
-
-        // Extract hashtag data
-        const data = await page.evaluate(() => {
-          let viewCount = 0;
-          let videoCount = 0;
-          const relatedHashtags: string[] = [];
-
-          // Try to extract from JSON data
-          const scripts = document.querySelectorAll('script');
-          scripts.forEach((script) => {
-            const content = script.textContent || '';
-            if (content.includes('__UNIVERSAL_DATA_FOR_REHYDRATION__')) {
-              try {
-                const match = content.match(/__UNIVERSAL_DATA_FOR_REHYDRATION__\s*=\s*({.*?});/s);
-                if (match && match[1]) {
-                  const jsonData = JSON.parse(match[1]);
-                  const challengeData = jsonData?.__DEFAULT_SCOPE__?.['webapp.challenge-detail'];
-                  if (challengeData?.challengeInfo?.challenge?.stats) {
-                    const stats = challengeData.challengeInfo.challenge.stats;
-                    viewCount = parseInt(stats.viewCount || '0');
-                    videoCount = parseInt(stats.videoCount || '0');
-                  }
-                }
-              } catch (e) {
-                // JSON parsing failed
-              }
+        // DOM fallback for view counts.
+        if (viewCount === 0) {
+          const nodes = document.querySelectorAll('[data-e2e="challenge-vvcount"], [data-e2e="challenge-view-count"], [title*="view" i]');
+          nodes.forEach((n) => {
+            const m = (n.textContent || '').match(/([\d.]+)\s*([KMB])?/i);
+            if (m) {
+              const mult = m[2]?.toUpperCase() === 'K' ? 1e3 : m[2]?.toUpperCase() === 'M' ? 1e6 : m[2]?.toUpperCase() === 'B' ? 1e9 : 1;
+              viewCount = Math.max(viewCount, Math.round(parseFloat(m[1]) * mult));
             }
           });
+        }
 
-          // Fallback: extract from DOM
-          if (viewCount === 0) {
-            const viewElements = document.querySelectorAll('[data-e2e="challenge-view-count"], .view-count, [class*="viewCount"]');
-            viewElements.forEach((el) => {
-              const text = el.textContent || '';
-              const match = text.match(/([\d.]+)([KMB]?)/i);
-              if (match) {
-                const num = parseFloat(match[1]);
-                const multiplier = match[2]?.toUpperCase() === 'K' ? 1000 : 
-                                   match[2]?.toUpperCase() === 'M' ? 1000000 : 
-                                   match[2]?.toUpperCase() === 'B' ? 1000000000 : 1;
-                viewCount = Math.round(num * multiplier);
-              }
-            });
-          }
-
-          // Extract related hashtags
-          const hashtagLinks = document.querySelectorAll('a[href*="/tag/"]');
-          hashtagLinks.forEach((el) => {
-            const href = (el as HTMLAnchorElement).href || '';
-            const match = href.match(/\/tag\/([^?\/]+)/);
-            if (match && match[1]) {
-              relatedHashtags.push(decodeURIComponent(match[1]));
-            }
-          });
-
-          return { viewCount, videoCount, relatedHashtags };
+        document.querySelectorAll('a[href*="/tag/"]').forEach((el) => {
+          const m = (el as HTMLAnchorElement).getAttribute('href')?.match(/\/tag\/([^?\/#]+)/);
+          if (m && m[1]) related.push(decodeURIComponent(m[1]));
         });
 
-        // Determine if viral
-        const isViral = data.viewCount > 10000000 || data.videoCount > 10000;
-        
-        // Estimate growth rate
-        const growthRate = isViral ? Math.min(100, (data.viewCount / 1000000) * 10) : 
-                          data.viewCount > 1000000 ? 20 : 5;
-        
-        const category = this.detectCategory(cleanHashtag);
-        
-        const trend: TikTokTrend = {
-          hashtag: cleanHashtag,
-          viewCount: data.viewCount,
-          videoCount: data.videoCount,
-          growthRate,
-          category,
-          isViral,
-          relatedHashtags: [...new Set(data.relatedHashtags)].filter(h => h !== cleanHashtag).slice(0, 10),
-          topVideos: [],
-          firstDetected: new Date().toISOString(),
-          lastUpdated: new Date().toISOString(),
-        };
-        
-        this.cache.set(cacheKey, { data: trend, timestamp: Date.now() });
-        return trend;
-      } finally {
-        await browserHelper.closePage(page);
-      }
-    } catch (error) {
-      console.error(`[TikTokScraper] Error fetching hashtag "${hashtag}":`, error);
-      return null;
+        return { viewCount, videoCount, related };
+      });
+
+      const isViral = data.viewCount > 10_000_000 || data.videoCount > 10_000;
+      const growthRate = isViral ? Math.min(100, (data.viewCount / 1_000_000) * 10)
+        : data.viewCount > 1_000_000 ? 20 : 5;
+
+      const trend: TikTokTrend = {
+        hashtag: clean,
+        viewCount: data.viewCount,
+        videoCount: data.videoCount,
+        growthRate,
+        category: this.detectCategory(clean),
+        isViral,
+        relatedHashtags: [...new Set(data.related)].filter(h => h !== clean).slice(0, 10),
+        topVideos: [],
+        firstDetected: new Date().toISOString(),
+        lastUpdated: new Date().toISOString(),
+      };
+      this.cache.set(cacheKey, { data: trend, timestamp: Date.now() });
+      return trend;
+    } catch (err: any) {
+      console.error(`[TikTokScraper] hashtag "${hashtag}" failed:`, err.message);
+      return this.minimalTrend(clean);
+    } finally {
+      if (page) await page.close().catch(() => {});
     }
   }
 
-  /**
-   * Get all trending topics with analysis
-   */
+  /** A discover-page hashtag with no stats page reachable is still a real
+   *  trending signal — emit it with zeroed stats rather than dropping it. */
+  private minimalTrend(clean: string): TikTokTrend {
+    return {
+      hashtag: clean, viewCount: 0, videoCount: 0, growthRate: 5,
+      category: this.detectCategory(clean), isViral: false, relatedHashtags: [],
+      topVideos: [], firstDetected: new Date().toISOString(), lastUpdated: new Date().toISOString(),
+    };
+  }
+
   async getAllTrends(): Promise<TikTokTrend[]> {
     const hashtags = await this.getTrendingHashtags();
     const trends: TikTokTrend[] = [];
-
-    // Analyze top 20 hashtags
-    for (const hashtag of hashtags.slice(0, SCRAPING_LIMITS.TOP_HASHTAGS)) {
-      try {
-        const trend = await this.getHashtagDetails(hashtag);
-        if (trend && trend.viewCount > 100000) {
-          trends.push(trend);
+    try {
+      for (const h of hashtags.slice(0, SCRAPING_LIMITS.TOP_HASHTAGS)) {
+        try {
+          const t = await this.getHashtagDetails(h);
+          if (t) trends.push(t);
+          await new Promise(r => setTimeout(r, 1500 + Math.floor(Math.random() * 2000)));
+        } catch (err: any) {
+          console.error(`[TikTokScraper] analyze "${h}":`, err.message);
         }
-        
-        // Small delay between requests
-        await browserHelper.randomDelay(1000, 2000);
-      } catch (error) {
-        console.error(`[TikTokScraper] Error analyzing hashtag "${hashtag}":`, error);
       }
+    } finally {
+      await this.browser.close();
     }
-
-    console.log(`[TikTokScraper] Collected ${trends.length} TikTok trends`);
+    console.log(`[TikTokScraper] collected ${trends.length} TikTok trends`);
     return trends.sort((a, b) => b.viewCount - a.viewCount);
   }
 
-  /**
-   * Get product-related trends
-   */
   async getProductTrends(): Promise<TikTokTrend[]> {
-    const allTrends = await this.getAllTrends();
-    
-    return allTrends.filter(trend => {
-      const hashtagLower = trend.hashtag.toLowerCase();
-      
-      return PRODUCT_KEYWORDS.some(keyword => 
-        hashtagLower.includes(keyword.toLowerCase().replace(/\s+/g, ''))
-      ) || 
-      ['product', 'musthave', 'viral', 'amazon', 'haul', 'review', 'unboxing', 'gift'].some(kw => 
-        hashtagLower.includes(kw)
-      );
+    const all = await this.getAllTrends();
+    return all.filter(t => {
+      const h = t.hashtag.toLowerCase();
+      return PRODUCT_KEYWORDS.some(k => h.includes(k.toLowerCase().replace(/\s+/g, '')))
+        || ['product', 'musthave', 'viral', 'amazon', 'haul', 'review', 'unboxing', 'gift'].some(k => h.includes(k));
     });
   }
 
-  /**
-   * Search for hashtags
-   */
   async searchHashtags(query: string): Promise<string[]> {
-    const cacheKey = `search-${query}`;
-    const cached = this.cache.get(cacheKey);
-    
-    if (cached && Date.now() - cached.timestamp < this.cacheTTL) {
-      return cached.data;
-    }
-
-    try {
-      const allHashtags = await this.getTrendingHashtags();
-      const queryLower = query.toLowerCase();
-      const matching = allHashtags.filter(tag => 
-        tag.toLowerCase().includes(queryLower)
-      );
-      
-      this.cache.set(cacheKey, { data: matching, timestamp: Date.now() });
-      return matching;
-    } catch (error) {
-      console.error(`[TikTokScraper] Error searching for "${query}":`, error);
-      return [];
-    }
+    const all = await this.getTrendingHashtags();
+    const q = query.toLowerCase();
+    return all.filter(t => t.toLowerCase().includes(q));
   }
 
-  /**
-   * Detect category from hashtag
-   */
   private detectCategory(hashtag: string): string {
-    const hashtagLower = hashtag.toLowerCase();
-    
-    const categoryKeywords: Record<string, string[]> = {
-      'fashion': ['fashion', 'style', 'outfit', 'ootd', 'clothing', 'shoes', 'accessories'],
-      'beauty': ['beauty', 'makeup', 'skincare', 'hair', 'cosmetics', 'nails'],
-      'food': ['food', 'recipe', 'cooking', 'baking', 'foodie', 'eat', 'dinner'],
-      'home': ['home', 'decor', 'interior', 'organization', 'cleaning', 'diy'],
-      'fitness': ['fitness', 'workout', 'gym', 'exercise', 'health', 'yoga'],
-      'tech': ['tech', 'technology', 'gadget', 'phone', 'app', 'gaming'],
-      'books': ['book', 'reading', 'booktok', 'author', 'novel', 'literature'],
-      'art': ['art', 'drawing', 'painting', 'creative', 'artist', 'design'],
-      'kids': ['kids', 'baby', 'parenting', 'toy', 'children', 'family'],
-      'lifestyle': ['lifestyle', 'vlog', 'daily', 'morning', 'routine', 'life'],
+    const h = hashtag.toLowerCase();
+    const map: Record<string, string[]> = {
+      fashion: ['fashion', 'style', 'outfit', 'ootd', 'clothing', 'shoes'],
+      beauty: ['beauty', 'makeup', 'skincare', 'hair', 'nails'],
+      food: ['food', 'recipe', 'cooking', 'baking', 'foodie'],
+      home: ['home', 'decor', 'interior', 'organization', 'diy'],
+      fitness: ['fitness', 'workout', 'gym', 'yoga'],
+      tech: ['tech', 'gadget', 'phone', 'app', 'gaming'],
+      books: ['book', 'reading', 'booktok', 'novel'],
+      art: ['art', 'drawing', 'painting', 'creative', 'design'],
+      kids: ['kids', 'baby', 'parenting', 'toy', 'family'],
+      lifestyle: ['lifestyle', 'vlog', 'daily', 'routine', 'verano', 'primavera'],
     };
-
-    for (const [category, keywords] of Object.entries(categoryKeywords)) {
-      if (keywords.some(kw => hashtagLower.includes(kw))) {
-        return category;
-      }
-    }
-
+    for (const [cat, kws] of Object.entries(map)) if (kws.some(k => h.includes(k))) return cat;
     return 'other';
   }
 
-  /**
-   * Calculate trend velocity
-   */
   calculateVelocity(trend: TikTokTrend): number {
     if (trend.videoCount === 0) return 0;
-    
-    const viewsPerVideo = trend.viewCount / trend.videoCount;
-    
-    if (viewsPerVideo > 100000) return 10;
-    if (viewsPerVideo > 50000) return 7;
-    if (viewsPerVideo > 10000) return 5;
-    if (viewsPerVideo > 1000) return 3;
-    
+    const v = trend.viewCount / trend.videoCount;
+    if (v > 100000) return 10;
+    if (v > 50000) return 7;
+    if (v > 10000) return 5;
+    if (v > 1000) return 3;
     return 1;
   }
 
-  /**
-   * Get discover page items
-   */
   async getDiscoverItems(): Promise<TikTokDiscoverItem[]> {
-    const cacheKey = 'discover-items';
-    const cached = this.cache.get(cacheKey);
-    
-    if (cached && Date.now() - cached.timestamp < this.cacheTTL) {
-      return cached.data;
-    }
-
-    try {
-      const page = await browserHelper.createPage({ randomizeViewport: true });
-      
-      try {
-        const url = `${this.baseUrl}/discover`;
-        await browserHelper.navigateWithRetry(page, url);
-        await browserHelper.humanScroll(page, 2);
-
-        const items = await page.evaluate(() => {
-          const results: { title: string; subtitle: string; cover: string; id: string; type: string }[] = [];
-          
-          // Try to extract from JSON
-          const scripts = document.querySelectorAll('script');
-          scripts.forEach((script) => {
-            const content = script.textContent || '';
-            if (content.includes('__UNIVERSAL_DATA_FOR_REHYDRATION__')) {
-              try {
-                const match = content.match(/__UNIVERSAL_DATA_FOR_REHYDRATION__\s*=\s*({.*?});/s);
-                if (match && match[1]) {
-                  const data = JSON.parse(match[1]);
-                  const discoverData = data?.__DEFAULT_SCOPE__?.['webapp.discover'];
-                  if (discoverData?.discoverList) {
-                    discoverData.discoverList.forEach((item: any) => {
-                      if (item.cardItem) {
-                        results.push({
-                          title: item.cardItem.title || '',
-                          subtitle: item.cardItem.description || '',
-                          cover: item.cardItem.cover || '',
-                          id: item.cardItem.id || '',
-                          type: item.type === 1 ? 'hashtag' : item.type === 2 ? 'sound' : 'effect',
-                        });
-                      }
-                    });
-                  }
-                }
-              } catch (e) {
-                // JSON parsing failed
-              }
-            }
-          });
-
-          return results;
-        }) as TikTokDiscoverItem[];
-
-        this.cache.set(cacheKey, { data: items, timestamp: Date.now() });
-        return items;
-      } finally {
-        await browserHelper.closePage(page);
-      }
-    } catch (error) {
-      console.error('[TikTokScraper] Error fetching discover items:', error);
-      return [];
-    }
+    const tags = await this.getTrendingHashtags();
+    return tags.map(t => ({ title: t, subtitle: '', cover: '', id: t, type: 'hashtag' as const }));
   }
 
-  /**
-   * Clear the cache
-   */
-  clearCache(): void {
-    this.cache.clear();
-  }
+  clearCache(): void { this.cache.clear(); }
 }
 
 export const tiktokScraper = new TikTokScraper();
