@@ -20,37 +20,43 @@
  */
 
 @theme inline {
-  /* Foundation */
-  --color-page: #F4F6F8;            /* slate frame around white surfaces */
-  --color-surface: #FFFFFF;
-  --color-surface-muted: #EEF2F6;
-  --color-surface-alt: #EEF2F6;
-  --color-hairline: #D7DEE5;        /* defined card edges */
-  --color-hairline-soft: #E8EDF2;   /* table dividers */
+  /* ---------------------------------------------------------------------
+   * PREVIEW: crisp-white + winter-green refresh (2026-06-03)
+   * Token-only swap so the whole site re-skins from this layer.
+   * Winter-green = cool, muted evergreen/pine/sage. NOT lime/mint/teal.
+   * ------------------------------------------------------------------ */
 
-  /* Ink — ALL TEXT BLACK */
-  --color-ink-primary: #0A0F1A;     /* near-black, warmer than slate-900 */
+  /* Foundation — crisp white surfaces on a paper-white green-axis page */
+  --color-page: #F7FAF8;            /* page frame, very faint green wash */
+  --color-surface: #FFFFFF;         /* cards/panels — pure clinical white */
+  --color-surface-muted: #ECF3EE;   /* secondary block fill — winter-green wash */
+  --color-surface-alt: #ECF3EE;
+  --color-hairline: #D2DED6;        /* defined card edges, faint green-grey */
+  --color-hairline-soft: #E4EDE7;   /* table dividers */
+
+  /* Ink — ALL TEXT BLACK (unchanged) */
+  --color-ink-primary: #0A0F1A;     /* near-black */
   --color-ink-secondary: #1F2937;
-  --color-ink-tertiary: #4B5563;    /* AA-passing on white (7.0:1) */
+  --color-ink-tertiary: #4B5563;    /* AA-passing on white */
   --color-ink-quiet: #6B7280;       /* meta only, ≥14pt */
-  /* --color-ink-inverse kept ONLY for the logo-glyph exception */
   --color-ink-inverse: #FFFFFF;
 
-  /* Brand */
-  --color-brand: #001E2B;
-  --color-brand-hover: #00131C;
-  --color-action: #0057D9;          /* punchier news-CTA blue */
-  --color-action-hover: #0046B0;
-  --color-action-soft: #E6EFFC;     /* hover-row tint, black on this = 12:1 */
+  /* Brand — winter-green is the new signature */
+  --color-brand: #1F4A3A;           /* deep pine — header/footer surface */
+  --color-brand-hover: #163A2D;
+  --color-action: #2F6F4F;          /* winter-green sage — primary CTA (5.9:1 on white) */
+  --color-action-hover: #245A40;
+  --color-action-soft: #DCEAE1;     /* hover/active tint, black on this = 11:1 */
   --color-brand-soft: var(--color-action);          /* back-compat */
   --color-brand-soft-hover: var(--color-action-hover);
 
-  --color-gold: #B08A3E;
-  --color-gold-hover: #997632;
+  /* Gold demoted — kept as token for back-compat only */
+  --color-gold: #8C7339;
+  --color-gold-hover: #6F5A2C;
 
-  /* Status semantic colours — crisper, all paired with soft tint */
-  --color-status-live: #047857;
-  --color-status-live-soft: #D1FADF;
+  /* Status semantic colours — re-tuned so live = winter-green family */
+  --color-status-live: #2F6F4F;     /* same hue family as action — cohesive */
+  --color-status-live-soft: #DCEAE1;
   --color-status-upcoming: #B45309;
   --color-status-upcoming-soft: #FEF0CC;
   --color-status-suspended: #92400E;
@@ -61,15 +67,15 @@
   --color-status-concluded-soft: #E2E8F0;
   --color-info-soft: var(--color-action-soft);  /* back-compat */
 
-  /* Importance / warning palette — distinct from status */
+  /* Importance / warning palette — info shifts to winter-green */
   --color-warn-critical: #B91C1C;
   --color-warn-critical-soft: #FEE2E2;
   --color-warn-attention: #B45309;
   --color-warn-attention-soft: #FEF0CC;
-  --color-warn-info: #0057D9;
-  --color-warn-info-soft: #E6EFFC;
-  --color-warn-positive: #047857;
-  --color-warn-positive-soft: #D1FADF;
+  --color-warn-info: #2F6F4F;       /* was blue; now winter-green */
+  --color-warn-info-soft: #DCEAE1;
+  --color-warn-positive: #2F6F4F;
+  --color-warn-positive-soft: #DCEAE1;
 
   /* Soft elevation */
   --shadow-card: 0 4px 2px -2px rgba(23,35,59,0.06), 0 2px 8px rgba(23,35,59,0.04);
