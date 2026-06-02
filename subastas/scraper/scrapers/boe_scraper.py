@@ -77,6 +77,65 @@ ORIGEN_TO_AUCTION_TYPE = {
 }
 
 
+# ---------------------------------------------------------------------------
+# #14 MULTI-LOT SPLIT TRIGGER
+#
+# When a BOE auction's lotes are sold SEPARATELY (each its own price/property),
+# the "Información general" detail page declares it explicitly. Dennis quoted the
+# declaration as "(los lotes se subastan de forma independiente)". RECON
+# (subastas.boe.es, 2026-06-02, rendered via Playwright on the live example
+# SUB-GA-2026-2801400126E01) shows BOE actually renders:
+#
+#     "La subasta contiene varios lotes que se subastan de forma separada."
+#
+# i.e. BOE's wording is "de forma SEPARADA", not "de forma INDEPENDIENTE". Both
+# are the SAME BOE declaration of lot independence; BOE has used both over time.
+# So the trigger matches EITHER tail, anchored on "se subastan de forma
+# (separada|independiente)" — case-insensitive, accent/whitespace tolerant. It is
+# a specific declaration string, NOT merely "more than one lote exists": auctions
+# whose lotes are sold as ONE unit do NOT carry it and MUST stay a single row.
+_SPLIT_TRIGGER_RE = re.compile(
+    r'se\s+subastan\s+de\s+forma\s+(?:separada|independiente)',
+    re.IGNORECASE,
+)
+
+# Hard ceiling so a pathological auction (BOE has had 100+-lote dumps) can't stall
+# a batch by multiplying page loads without bound. Logged when exceeded.
+MAX_LOTES_PER_AUCTION = 50
+
+
+def is_split_auction(text: Optional[str]) -> bool:
+    """True iff the auction-detail text declares its lotes are sold separately
+    (the #14 split trigger). False for normal single/sold-together auctions."""
+    if not text:
+        return False
+    return bool(_SPLIT_TRIGGER_RE.search(text))
+
+
+def make_lote_boe_id(source_id_sub: str, lote_number: int) -> str:
+    """Stable, unique composite id for a split lote row: '<idSub>-L<N>'.
+    Same lote -> same id -> upsert UPDATES (idempotent), never duplicates."""
+    return f"{source_id_sub}-L{lote_number}"
+
+
+# Composite split-lote id: "<idSub>-L<N>". The "-L<N>" suffix is anchored at the
+# END so a bare idSub (which never ends in "-L<digits>") is never misparsed.
+_LOTE_COMPOSITE_RE = re.compile(r'^(?P<idsub>.+)-L(?P<lote>\d+)$')
+
+
+def parse_lote_boe_id(boe_id: Optional[str]) -> Optional[tuple]:
+    """Recover (source_id_sub, lote_number:int) from a composite split-lote
+    boeId, or None when `boe_id` is a bare (non-split) idSub. Lets the pulse/bid
+    path rebuild the correct lote detail URL (idSub=...&idLote=N) for split rows
+    instead of requesting the malformed '?idSub=<idSub>-L<N>'."""
+    if not boe_id:
+        return None
+    m = _LOTE_COMPOSITE_RE.match(boe_id)
+    if not m:
+        return None
+    return (m.group('idsub'), int(m.group('lote')))
+
+
 def auction_type_from_boe_id(boe_id: Optional[str]) -> Optional[str]:
     """
     Derive the canonical auctionType from a BOE idSub prefix (SUB-XX-...).
@@ -479,6 +538,23 @@ class BOEScraper(BaseScraper):
             if auction_data.get('title') in (None, '', 'Unknown'):
                 auction_data['title'] = boe_id
 
+            # --- #14 MULTI-LOT SPLIT ---------------------------------------
+            # If BOE declares the lotes are sold separately (trigger string on
+            # the detail page), DO NOT emit this umbrella row. Instead emit one
+            # INDEPENDENT auction row per lote (own price/property/page), keyed
+            # boeId = "<idSub>-L<N>". The caller upserts the list. When the
+            # trigger is absent (the overwhelming majority), this is skipped
+            # entirely and behaviour is exactly as before (single row).
+            if os.getenv('BOE_SPLIT_LOTES', '1') != '0':
+                # detail_info only exists if BOE_FETCH_DETAIL ran; guard it.
+                _di = locals().get('detail_info')
+                if _di is not None:
+                    split_rows = self._maybe_split_into_lotes(boe_id, auction_data, _di)
+                    if split_rows:
+                        # Sentinel the caller checks: upsert these N rows instead
+                        # of the umbrella. Keep the umbrella dict out of the feed.
+                        auction_data['_split_lotes'] = split_rows
+
             return auction_data
         
         except Exception as e:
@@ -565,8 +641,13 @@ class BOEScraper(BaseScraper):
                 for item in auction_items[:SCRAPE_MAX_ITEMS_PER_PAGE]:
                     try:
                         auction_data = self.parse_listing(item, status_override=status_override)
-                        
-                        if auction_data and self.validate_auction_data(auction_data):
+
+                        if auction_data and auction_data.get('_split_lotes'):
+                            # #14: declared-split auction -> upsert N independent
+                            # lote rows, NOT the umbrella row.
+                            saved = self._upsert_split_lotes(auction_data['_split_lotes'])
+                            self.increment_stat('items_saved', saved)
+                        elif auction_data and self.validate_auction_data(auction_data):
                             # Save to database
                             self.db_adapter.upsert_auction(auction_data)
                             self.results.append(auction_data)
@@ -702,8 +783,17 @@ class BOEScraper(BaseScraper):
         page = None
         try:
             page = self.browser_manager.get_page(stealth=True)
-            
-            detail_url = f"{self.DETAIL_URL}?idSub={boe_id}"
+
+            # #14: split lote rows are keyed by a composite "<idSub>-L<N>".
+            # Their live page is idSub=<idSub>&idLote=N&ver=3, NOT
+            # idSub=<idSub>-L<N> (which 404s). Rebuild the right URL for them;
+            # bare idSubs are unaffected.
+            parsed = parse_lote_boe_id(boe_id)
+            if parsed:
+                src, lote_n = parsed
+                detail_url = f"{self.DETAIL_URL}?idSub={src}&idLote={lote_n}&ver=3"
+            else:
+                detail_url = self._detail_url(boe_id)
             self.log_info(f"Updating bid for {boe_id}")
             
             random_delay(1.0, 2.5)
@@ -745,6 +835,11 @@ class BOEScraper(BaseScraper):
     
     # Helper methods
     
+    def _detail_url(self, boe_id: str) -> str:
+        """Full detail-view URL (ver=3) for an auction. ver=3 is required for the
+        per-lote tab bar (idLote=N links) to render — see _fetch_detail_info."""
+        return f"{self.DETAIL_URL}?idSub={boe_id}&ver=3"
+
     def _extract_boe_id(self, url: str) -> str:
         """Extract BOE ID from URL"""
         if not url:
@@ -901,13 +996,30 @@ class BOEScraper(BaseScraper):
         a second Playwright instance from inside a thread that already owns one
         raises "using Playwright Sync API inside the asyncio loop" and the detail
         fetch silently fails (=> NULL appraisal/minBid/deposit on every row).
-        Those classes override _fetch_detail_info to navigate with their OWN page
-        and then call _extract_detail_from_page (below) for the shared extraction.
+        Those classes override _navigate_and_extract to navigate with their OWN
+        page and then call _extract_detail_from_page (below) for the shared
+        extraction.
+
+        ver=3 is the FULL detail view: it renders the per-lote tab bar (the
+        idLote=N links the #14 split path enumerates) and every financial
+        label/value pair. Without it BOE serves a summary view with NO lote links
+        (verified live 2026-06-02), so the split detection would see zero lotes.
+        """
+        detail_url = self._detail_url(boe_id)
+        return self._navigate_and_extract(boe_id, detail_url)
+
+    def _navigate_and_extract(self, boe_id: str, detail_url: str) -> Dict[str, Optional[str]]:
+        """
+        Navigate `detail_url` on the SHARED browser_manager page and run the
+        shared extraction. Split out from _fetch_detail_info so the multi-lot
+        split path (#14) can fetch an arbitrary lote URL (idSub + idLote=N)
+        through the very same navigation + extraction, with no URL hardcoding.
+        Own-browser subclasses (BOEParallelScraper) override this, not the two
+        callers, so the split path inherits the correct browser automatically.
         """
         page = None
         try:
             page = self.browser_manager.get_page(stealth=True)
-            detail_url = f"{self.DETAIL_URL}?idSub={boe_id}"
             random_delay(1.0, 2.0)
             # 'domcontentloaded', NOT 'networkidle': live-auction detail pages
             # keep long-poll/countdown connections open, so networkidle often
@@ -916,7 +1028,11 @@ class BOEScraper(BaseScraper):
             # server-rendered in the initial HTML, so domcontentloaded is enough.
             page.goto(detail_url, wait_until='domcontentloaded', timeout=30000)
             random_delay(1.0, 2.0)
-            return self._extract_detail_from_page(page, boe_id, detail_url)
+            info = self._extract_detail_from_page(page, boe_id, detail_url)
+            # Enumerate lote links here while the page is live (the split path
+            # needs the lote count; harmless for single auctions -> []).
+            info['lote_numbers'] = self._enumerate_lote_numbers(page)
+            return info
         except Exception as e:
             self.log_warning(f"Failed to fetch detail info for {boe_id}: {e}")
             return self._empty_detail_info(boe_id)
@@ -934,7 +1050,179 @@ class BOEScraper(BaseScraper):
             'detail_url': f"{self.DETAIL_URL}?idSub={boe_id}",
             'cadastral_ref': None,
             'cadastral_data': None,
+            'lote_numbers': [],
         }
+
+    def _enumerate_lote_numbers(self, page: Any) -> List[int]:
+        """
+        Return the sorted distinct lote numbers for the auction on `page` by
+        reading every `?...idLote=N...` link in the DOM (the per-lote tab bar).
+        A single-lot auction has no such links (or only idLote= empty) -> [].
+        Used by the #14 split path to know how many independent lote rows to mint.
+        """
+        try:
+            hrefs = page.eval_on_selector_all(
+                "a[href*='idLote=']",
+                "els => els.map(e => e.getAttribute('href'))",
+            )
+        except Exception:
+            return []
+        nums = set()
+        for h in hrefs or []:
+            m = re.search(r'idLote=(\d+)', h or '')
+            if m:
+                nums.add(int(m.group(1)))
+        return sorted(nums)
+
+    def _upsert_split_lotes(self, lote_rows: List[Dict[str, Any]]) -> int:
+        """Validate + upsert each split-lote row as an independent auction.
+        Returns the count actually saved. Shared by both scrape loops."""
+        saved = 0
+        for rec in lote_rows:
+            try:
+                if self.validate_auction_data(rec):
+                    self.db_adapter.upsert_auction(rec)
+                    self.results.append(rec)
+                    saved += 1
+                else:
+                    self.increment_stat('items_skipped')
+            except Exception as e:
+                self.log_error(f"Failed to upsert lote {rec.get('boe_id')}: {e}")
+                self.increment_stat('errors')
+        return saved
+
+    def _maybe_split_into_lotes(self, source_id_sub: str,
+                                umbrella: Dict[str, Any],
+                                detail_info: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+        """
+        #14: If `source_id_sub`'s detail page declares its lotes are sold
+        separately, fetch EACH lote page and return a list of independent
+        auction_data dicts (one per lote, composite boeId). Returns None when
+        the auction is NOT a declared-split (the trigger string is absent) — the
+        caller then keeps the single umbrella row, unchanged behaviour.
+
+        The trigger is tested against the detail-page text we already fetched
+        (general_info + bienes + the whole-page warning), NOT the lote count:
+        many auctions have several lotes sold as one unit and MUST stay one row.
+        """
+        trigger_text = ' '.join(filter(None, [
+            detail_info.get('general_info'),
+            detail_info.get('bienes_info'),
+            detail_info.get('warning'),
+        ]))
+        if not is_split_auction(trigger_text):
+            return None
+
+        lote_numbers = detail_info.get('lote_numbers') or []
+        if not lote_numbers:
+            # Declared split but no enumerable lote links — do NOT split blindly
+            # (we'd produce zero rows and drop the auction). Keep the umbrella.
+            self.log_warning(
+                f"{source_id_sub}: split trigger present but no idLote links found; "
+                f"keeping single umbrella row"
+            )
+            return None
+
+        if len(lote_numbers) > MAX_LOTES_PER_AUCTION:
+            self.log_warning(
+                f"{source_id_sub}: {len(lote_numbers)} lotes exceeds cap "
+                f"{MAX_LOTES_PER_AUCTION}; capping enumeration"
+            )
+            lote_numbers = lote_numbers[:MAX_LOTES_PER_AUCTION]
+
+        self.log_info(
+            f"{source_id_sub}: SPLIT auction — {len(lote_numbers)} independent lotes"
+        )
+
+        rows: List[Dict[str, Any]] = []
+        for n in lote_numbers:
+            try:
+                rec = self._build_lote_record(source_id_sub, n, umbrella)
+                if rec is not None:
+                    rows.append(rec)
+            except Exception as e:
+                self.log_error(f"{source_id_sub} lote {n}: failed to build record: {e}")
+        return rows or None
+
+    def _build_lote_record(self, source_id_sub: str, lote_number: int,
+                           umbrella: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Fetch one lote's detail page (idSub + idLote=N) and build a COMPLETE,
+        independent auction_data dict — own pricing/property/dates/status — keyed
+        boeId = '<idSub>-L<N>'. Reuses the exact same per-page extractors as any
+        single auction (the lote page layout is identical to a single-auction
+        page), so no new parsing logic is needed.
+        """
+        lote_url = f"{self.DETAIL_URL}?idSub={source_id_sub}&idLote={lote_number}&ver=3"
+        info = self._navigate_and_extract(
+            make_lote_boe_id(source_id_sub, lote_number), lote_url
+        )
+
+        composite_id = make_lote_boe_id(source_id_sub, lote_number)
+
+        # auctionType is a property of the BOE PROCEDURE — shared by all lotes —
+        # so carry the umbrella's type (derived from the shared idSub prefix).
+        auction_type = umbrella.get('auction_type') or auction_type_from_boe_id(source_id_sub)
+
+        # appraisalValue: prefer Tasación, fall back to Valor subasta. BOE lote
+        # pages frequently render "Valor de tasación 0,00 €" while carrying the
+        # real figure under "Valor Subasta" (verified on SUB-JA-2024-235417),
+        # so treat a 0/missing tasación as absent and use Valor subasta — never
+        # let a row land with a meaningless appraisal=0.
+        appraisal = info.get('appraisal_value')
+        if not appraisal:  # None or 0.0
+            appraisal = info.get('valor_subasta')
+
+        # Province/municipality come from the LOTE's own page text (lotes can
+        # differ — that's the whole point of independent listing). Fall back to
+        # the umbrella's province when the lote page yields nothing.
+        lote_text = ' '.join(filter(None, [
+            info.get('general_info'), info.get('bienes_info'),
+            info.get('autoridad_gestora'),
+        ]))
+        province = province_from_text(lote_text) or umbrella.get('province') or 'Unknown'
+
+        title = info.get('identificador') or f"{source_id_sub} - Lote {lote_number}"
+
+        category = umbrella.get('category')
+        # Re-derive category from the lote's own description when possible.
+        if lote_text:
+            category = get_category_type('', lote_text) or category
+        if not category:
+            category = umbrella.get('category') or 'Otros'
+
+        rec: Dict[str, Any] = {
+            'boe_id': composite_id,
+            'title': title,
+            'category': category,
+            'province': province,
+            'municipality': umbrella.get('municipality'),
+            'status': info.get('detail_status') or umbrella.get('status') or 'CELEBRANDOSE',
+            'auction_type': auction_type,
+            'source': 'BOE',
+            'appraisal_value': appraisal,
+            'minimum_bid': info.get('minimum_bid'),
+            'deposit_amount': info.get('deposit_amount'),
+            'claimed_amount': info.get('claimed_amount'),
+            'boe_link': lote_url,
+            'boe_announcement': info.get('general_info'),
+            'lot_description': info.get('bienes_info'),
+            'property_description': info.get('pujas_info'),
+            'charges_detail': info.get('warning'),
+            'court_name': info.get('autoridad_gestora') or umbrella.get('court_name'),
+            'cadastral_ref': info.get('cadastral_ref'),
+            'cadastral_data': info.get('cadastral_data'),
+            'published_at': umbrella.get('published_at') or (datetime.now() - timedelta(days=5)),
+            'ends_at': info.get('ends_at') or umbrella.get('ends_at'),
+            'opens_at': info.get('start_at'),
+            # Provenance (additive columns; written via adapter schema guard).
+            'source_id_sub': source_id_sub,
+            'lote_number': lote_number,
+            # auctionId carries the umbrella idSub so the Bienes/Catastro path
+            # can still reach the source procedure.
+            'auction_id': source_id_sub,
+        }
+        return rec
 
     def _extract_detail_from_page(self, page: Any, boe_id: str,
                                   detail_url: str) -> Dict[str, Optional[str]]:

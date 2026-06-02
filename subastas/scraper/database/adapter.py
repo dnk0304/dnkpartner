@@ -298,7 +298,8 @@ class DatabaseAdapter:
             cursor.execute("""
                 SELECT column_name FROM information_schema.columns
                 WHERE table_name = 'Auction'
-                  AND column_name IN ('suspensionReason', 'resumeAt', 'lastVerifiedAt', 'opensAt')
+                  AND column_name IN ('suspensionReason', 'resumeAt', 'lastVerifiedAt', 'opensAt',
+                                      'sourceIdSub', 'loteNumber')
             """)
             forge_cols = {r[0] for r in cursor.fetchall()}
         except Exception:
@@ -382,6 +383,13 @@ class DatabaseAdapter:
             if 'opensAt' in forge_cols and data.get('opens_at') is not None:
                 update_fields.append('"opensAt" = %s')
                 params.append(data['opens_at'])
+            # #14 split provenance (additive, guarded).
+            if 'sourceIdSub' in forge_cols and data.get('source_id_sub') is not None:
+                update_fields.append('"sourceIdSub" = %s')
+                params.append(data['source_id_sub'])
+            if 'loteNumber' in forge_cols and data.get('lote_number') is not None:
+                update_fields.append('"loteNumber" = %s')
+                params.append(data['lote_number'])
 
             if not update_fields:
                 # Nothing to update — still stamp updatedAt
@@ -482,6 +490,15 @@ class DatabaseAdapter:
                 col_names.append('"opensAt"')
                 placeholders.append('%s')
                 vals.append(data['opens_at'])
+            # #14 split provenance (additive, guarded).
+            if 'sourceIdSub' in forge_cols and data.get('source_id_sub') is not None:
+                col_names.append('"sourceIdSub"')
+                placeholders.append('%s')
+                vals.append(data['source_id_sub'])
+            if 'loteNumber' in forge_cols and data.get('lote_number') is not None:
+                col_names.append('"loteNumber"')
+                placeholders.append('%s')
+                vals.append(data['lote_number'])
 
             sql = f'INSERT INTO "Auction" ({", ".join(col_names)}) VALUES ({", ".join(placeholders)})'
             cursor.execute(sql, tuple(vals))
