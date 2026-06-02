@@ -315,6 +315,10 @@ export default function HomeObservatory() {
           <Link href="/subastas" className="hover:text-[--color-ink-primary]">
             {t("footerAuctions")}
           </Link>
+          <span aria-hidden>·</span>
+          <Link href="/precios" className="hover:text-[--color-ink-primary]">
+            {t("footerPricing")}
+          </Link>
         </nav>
       </footer>
     </div>
