@@ -19,6 +19,7 @@ import { notFound, redirect } from 'next/navigation';
 import type { Metadata } from 'next';
 import { prisma } from '@/lib/prisma';
 import { buildAuctionSlug, resolveAuctionIdFromSlug } from '@/lib/seo/auction-slug';
+import { isLegacyRow } from '@/lib/seo/legacy-rows';
 import AuctionDetailClient from '@/app/auction/[id]/AuctionDetailClient';
 
 type PageProps = { params: Promise<{ slug: string }> };
@@ -37,6 +38,7 @@ async function loadAuction(slug: string) {
       municipality: true,
       status: true,
       auctionType: true,
+      boeId: true,
     },
   });
   return auction;
@@ -46,6 +48,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { slug } = await params;
   const a = await loadAuction(slug);
   if (!a) return { title: 'Subasta no encontrada', robots: 'noindex' };
+  // Legacy "junk auction" row → middleware normally serves 410 for the cuid
+  // shape; this catches the residual boeId-0x edge case (UUID id but legacy
+  // boeId). noindex metadata + the page itself returns notFound() (404).
+  // See: src/lib/seo/legacy-rows.ts
+  if (isLegacyRow(a)) return { title: 'Subasta retirada', robots: 'noindex,follow' };
   const canonicalSlug = buildAuctionSlug(a);
   const where = [a.municipality, a.province].filter(Boolean).join(', ') || 'España';
   const title = `${a.title || a.category} en ${where} · subasta pública | dnksubastas`;
@@ -65,6 +72,10 @@ export default async function SubastaDetailPage({ params }: PageProps) {
   const { slug } = await params;
   const a = await loadAuction(slug);
   if (!a) notFound();
+  // Legacy junk row → retire (Ken brief 2026-06-02). Middleware already
+  // 410s the cuid-id case before we get here; this handles the residual
+  // boeId-0x edge case where the id is a UUID. notFound() = 404.
+  if (isLegacyRow(a)) notFound();
   // If the slug arrived non-canonical (e.g. somebody linked a derived form),
   // 301 to the canonical composition. This is the dedup belt-and-braces.
   const canonical = buildAuctionSlug(a);
