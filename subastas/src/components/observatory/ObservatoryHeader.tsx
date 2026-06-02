@@ -20,6 +20,7 @@ import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { Search, User } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 import { apiFetch } from "@/lib/api-path";
 import { formatRelativeEs } from "./format";
 import { cn } from "@/lib/utils";
@@ -140,6 +141,7 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
 
         {/* Right cluster */}
         <div className={cn("flex items-center gap-2 shrink-0", hideSearch && "ml-auto")}>
+          <LanguageSwitcher />
           <NotificationBell />
           {session?.user ? (
             <Link

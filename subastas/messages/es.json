@@ -9,7 +9,8 @@
     "searchLabel": "Buscar subastas",
     "searchPlaceholder": "ID, ref. catastral, ciudad…",
     "myPanel": "Mi panel",
-    "signIn": "Entrar"
+    "signIn": "Entrar",
+    "languageSwitcherAria": "Cambiar idioma"
   },
   "home": {
     "liveSummaryAria": "Resumen en vivo",

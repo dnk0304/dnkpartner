@@ -9,7 +9,8 @@
     "searchLabel": "Search auctions",
     "searchPlaceholder": "ID, cadastral ref., city…",
     "myPanel": "My dashboard",
-    "signIn": "Sign in"
+    "signIn": "Sign in",
+    "languageSwitcherAria": "Change language"
   },
   "home": {
     "liveSummaryAria": "Live summary",
