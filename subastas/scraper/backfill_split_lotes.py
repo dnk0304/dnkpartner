@@ -103,8 +103,8 @@ def candidate_umbrellas(adapter, limit, done):
         """
         SELECT "boeId", "auctionType", province, category, status, municipality
         FROM "Auction"
-        WHERE "boeId" LIKE 'SUB-%'
-          AND "boeId" NOT LIKE '%-L%'
+        WHERE "boeId" LIKE 'SUB-%%'
+          AND "boeId" NOT LIKE '%%-L%%'
           AND "sourceIdSub" IS NULL
           AND status IN ('CELEBRANDOSE','PROXIMA_APERTURA','SUSPENDIDA')
         """ + done_clause + """
