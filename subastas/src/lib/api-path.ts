@@ -1,22 +1,22 @@
 /**
  * Client-side API path helper.
  *
- * Next.js basePath ("/subastas") auto-prefixes server-rendered links and
- * Next-imported routes, but `fetch("/api/...")` from client code does NOT
- * get the basePath applied — it hits site root and 404s when the app is
- * mounted under a subpath. Use `apiUrl(path)` or `apiFetch(path, init)`
- * for every client-side API call so we get one consistent prefixed URL.
+ * Historical context: when the app ran under Next basePath "/subastas"
+ * (dnkpartner.com/subastas), `fetch("/api/...")` from the browser did NOT
+ * get the basePath applied automatically — so this helper existed to inject
+ * the prefix. As of 2026-06-02 the app is root-mounted at subastasactivas.com
+ * and BASE_PATH defaults to "" — meaning apiUrl is now effectively an identity
+ * function unless NEXT_PUBLIC_BASE_PATH is set. Kept so callers (and the SW
+ * scope helper) don't have to change; safe to inline later.
  *
- * Configured via NEXT_PUBLIC_BASE_PATH (defaults to "/subastas" to match
- * next.config.ts). Empty string for root-mounted dev.
+ * Configured via NEXT_PUBLIC_BASE_PATH (defaults to "" for root mount).
  */
 
-const BASE_PATH = (process.env.NEXT_PUBLIC_BASE_PATH ?? "/subastas").replace(/\/$/, "");
+const BASE_PATH = (process.env.NEXT_PUBLIC_BASE_PATH ?? "").replace(/\/$/, "");
 
 /**
- * Prefix an API path with the app basePath.
- * apiUrl("/api/auctions/stats") -> "/subastas/api/auctions/stats"
- * apiUrl("/api/x?y=1") -> "/subastas/api/x?y=1"
+ * Prefix an API path with the app basePath (no-op at root mount).
+ * apiUrl("/api/auctions/stats") -> "/api/auctions/stats" (root mount)
  */
 export function apiUrl(path: string): string {
   if (!path.startsWith("/")) {

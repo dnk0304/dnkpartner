@@ -310,7 +310,7 @@ export default function HomeObservatory() {
 
       <footer className="hairline-t mt-12 py-8 text-center text-xs text-[--color-ink-tertiary]">
         <p className="tnum">
-          dnkSubastas · datos oficiales del Portal de Subastas del BOE ·{" "}
+          SubastasActivas · datos oficiales del Portal de Subastas del BOE ·{" "}
           {stats?.lastUpdateTime
             ? `actualización ${formatRelativeEs(stats.lastUpdateTime)}`
             : "sincronización en curso"}

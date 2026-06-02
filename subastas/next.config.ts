@@ -1,8 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  basePath: "/subastas",
-  assetPrefix: "/subastas",
+  // basePath/assetPrefix removed 2026-06-02: app moved from
+  // dnkpartner.com/subastas → subastasactivas.com root. The `/subastas`
+  // route folder remains as the auction-listing page at root domain
+  // (subastasactivas.com/subastas = the listing). Asset + API paths now
+  // emit at root.
   images: {
     remotePatterns: [
       {

@@ -48,8 +48,9 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 ENDING_SOON_HOURS = int(os.getenv("ENDING_SOON_HOURS", "24"))
 
 # Wave 2b: dispatcher cron trigger — POST to /api/dispatch/run on schedule.
-# DISPATCH_ENDPOINT overrides the URL (use http://dnksubastas-app:3005/subastas/api/dispatch/run
-# inside docker network so we don't bounce through Traefik + auth gate).
+# DISPATCH_ENDPOINT overrides the URL (use http://dnksubastas-app:3005/api/dispatch/run
+# inside docker network so we don't bounce through Traefik). basePath removed
+# 2026-06-02 — endpoint no longer carries the /subastas prefix.
 DISPATCH_ENDPOINT = os.getenv(
     "DISPATCH_ENDPOINT",
     f"{APP_BASE_URL}/api/dispatch/run",

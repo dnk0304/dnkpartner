@@ -42,7 +42,7 @@ export async function fetchCatastroFacade(
       signal: controller.signal,
       headers: {
         // Spanish gov sites occasionally block default fetch UAs; identify ourselves.
-        'User-Agent': 'dnksubastas/1.0 (+https://dnkpartner.com/subastas)',
+        'User-Agent': 'subastasactivas/1.0 (+https://subastasactivas.com)',
         Accept: 'image/jpeg,image/*;q=0.8',
       },
     });

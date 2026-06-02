@@ -87,7 +87,7 @@ function newStats(): DispatchStats {
 const APP_URL =
   process.env.NEXT_PUBLIC_APP_URL ??
   process.env.NEXT_PUBLIC_URL ??
-  'https://dnkpartner.com/subastas';
+  'https://subastasactivas.com';
 
 // Lazy: don't construct Resend at module load (build-time env-check trap).
 let resendClient: Resend | null = null;
@@ -101,7 +101,7 @@ function getResend(): Resend | null {
 function fromEmail(): string {
   return (
     process.env.RESEND_FROM_EMAIL ??
-    'DNK Subastas <notifications@dnkpartner.com>'
+    'SubastasActivas <notifications@subastasactivas.com>'
   );
 }
 

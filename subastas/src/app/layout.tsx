@@ -32,9 +32,13 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "dnkSubastas — Observatorio de subastas públicas de España",
+  metadataBase: new URL("https://subastasactivas.com"),
+  title: "SubastasActivas — Observatorio de subastas públicas de España",
   description:
     "Seguimos en tiempo real las subastas judiciales del BOE y te avisamos cuando algo cambia. Datos oficiales, sin AI-hype.",
+  alternates: {
+    canonical: "/",
+  },
 };
 
 export default function RootLayout({

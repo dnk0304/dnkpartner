@@ -14,13 +14,13 @@
  * the user toggled "Push" in their notify-prefs). The first call to
  * `requestPushSubscription()` triggers the browser permission prompt.
  *
- * Notes on the SW path: the basePath ("/subastas") means our service worker
- * registers under that scope. Browsers REQUIRE the SW file to be served from
- * (or above) the scope it controls, so we register `/subastas/sw.js` with an
- * explicit `{ scope: "/subastas/" }`.
+ * Notes on the SW path: BASE_PATH derives from NEXT_PUBLIC_BASE_PATH
+ * (default "" — root mount at subastasactivas.com as of 2026-06-02). The SW
+ * file is served at `${BASE_PATH}/sw.js` and registered with
+ * `{ scope: "${BASE_PATH}/" }` so browsers grant the expected scope.
  */
 
-const BASE_PATH = (process.env.NEXT_PUBLIC_BASE_PATH ?? "/subastas").replace(/\/$/, "");
+const BASE_PATH = (process.env.NEXT_PUBLIC_BASE_PATH ?? "").replace(/\/$/, "");
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
 
 export type PushSupport =
@@ -63,7 +63,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
 }
 
 async function registerServiceWorker(): Promise<ServiceWorkerRegistration> {
-  // basePath-aware: SW file is served at /subastas/sw.js, scope must match.
+  // basePath-aware: SW file is served at `${BASE_PATH}/sw.js`, scope must match.
   const swUrl = `${BASE_PATH}/sw.js`;
   const scope = `${BASE_PATH}/`;
   const existing = await navigator.serviceWorker.getRegistration(scope);
