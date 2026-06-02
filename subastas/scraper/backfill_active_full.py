@@ -160,7 +160,7 @@ def rescrape(conn):
 
     os.environ.setdefault("BOE_FETCH_DETAIL", "1")
     sys.path.insert(0, "/")
-    from app.scrapers.boe_scraper import BOEScraper
+    from app.scrapers.boe_scraper import BOEScraper, extract_address
     scraper = BOEScraper()
 
     enriched = swept = touched = failed = 0
@@ -193,6 +193,13 @@ def rescrape(conn):
             new_status = info.get("detail_status")
             if new_status:
                 updates['status'] = new_status
+            # Street address for the geocoder (address -> lat/lng map pin),
+            # mirroring parse_listing in boe_scraper.py. The "address" column
+            # is lowercase/unquoted, so the bare key is correct. Null-safe:
+            # only set when BOE actually exposes an address.
+            addr = extract_address(info.get("bienes_info"))
+            if addr:
+                updates['address'] = addr
 
             if updates:
                 if 'status' in updates and updates['status'] == 'CONCLUIDA_PORTAL':
