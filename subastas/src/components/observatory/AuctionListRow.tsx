@@ -15,6 +15,7 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { MapPin } from "lucide-react";
 import { AuctionItem, type AuctionStatus } from "@/types";
 import { StatusDot } from "./StatusBadge";
 import { AuctionTypeBadge } from "./AuctionTypeBadge";
@@ -24,14 +25,10 @@ import { FollowButton } from "@/components/notifications/FollowButton";
 import { formatPrice, capitalize, titleCase, displayTitle } from "./format";
 import { getStatusMeta, effectiveStatus } from "./status";
 import { cn } from "@/lib/utils";
-
-function isRealPhotoUrl(url?: string | null): boolean {
-  if (!url) return false;
-  return url.startsWith("/api/auction-image/") || url.startsWith("/streetview/");
-}
+import { resolveCardImage, isVariosLotesTitle } from "@/lib/resolve-card-image";
 
 export type AuctionListRowProps = {
-  item: AuctionItem;
+  item: AuctionItem & { hasImage?: boolean | null };
   className?: string;
 };
 
@@ -49,11 +46,27 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
     municipality: item.municipality,
     province: item.province,
   });
-  const realPhoto = isRealPhotoUrl(item.imageUrl);
   const [imgFailed, setImgFailed] = React.useState(false);
+  // Tiny row thumbnail: 64×48. Use 'thumbnail' size on rung 2 so the static
+  // map fetch matches the rendered box.
+  const resolved = resolveCardImage({
+    imageUrl: item.imageUrl,
+    hasImage: item.hasImage,
+    latitude: item.latitude,
+    longitude: item.longitude,
+    category: item.category,
+    title: item.title,
+    size: "thumbnail",
+  });
+  const imageSrc =
+    imgFailed && resolved.rung !== "placeholder"
+      ? resolveCardImage({ category: item.category, title: item.title, size: "thumbnail" }).src
+      : resolved.src;
   const hasCurrentBid = item.currentBid != null && Number.isFinite(item.currentBid);
   const hasTasacion = item.appraisalValue != null && Number.isFinite(item.appraisalValue);
   const hasMinBid = item.minimumBid != null && Number.isFinite(item.minimumBid as number);
+  const noPriceData = !hasTasacion && !hasMinBid && !hasCurrentBid;
+  const isVariosLotes = isVariosLotesTitle(item.title);
 
   return (
     <tr
@@ -68,24 +81,35 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
 
       <td className="align-top py-3 pr-3 min-w-0">
         <div className="flex items-start gap-3 min-w-0">
-          {realPhoto && !imgFailed && (
-            <Link
-              href={`/auction/${encodeURIComponent(item.id)}`}
-              tabIndex={-1}
-              aria-hidden="true"
-              className="relative shrink-0 w-16 h-12 rounded overflow-hidden bg-[--color-surface-muted] border border-[--color-hairline] hidden sm:block"
-            >
-              <Image
-                src={item.imageUrl}
-                alt=""
-                fill
-                sizes="64px"
-                className="object-cover"
-                loading="lazy"
-                onError={() => setImgFailed(true)}
-              />
-            </Link>
-          )}
+          {/* Row thumbnail — always rendered through the 3-rung ladder. Hidden
+              below sm: to keep the dense row scannable on mobile. */}
+          <Link
+            href={`/auction/${encodeURIComponent(item.id)}`}
+            tabIndex={-1}
+            aria-hidden="true"
+            className="relative shrink-0 w-16 h-12 rounded overflow-hidden bg-[--color-surface-muted] border border-[--color-hairline] hidden sm:block cursor-pointer"
+          >
+            <Image
+              src={imageSrc}
+              alt=""
+              fill
+              sizes="64px"
+              className={cn(
+                resolved.isPlaceholder ? "object-contain p-1 opacity-80" : "object-cover",
+              )}
+              loading="lazy"
+              unoptimized={resolved.isMap}
+              onError={() => setImgFailed(true)}
+            />
+            {resolved.isMap && !imgFailed && (
+              <span
+                aria-hidden="true"
+                className="absolute bottom-0 right-0 inline-flex h-3.5 w-3.5 items-center justify-center rounded-tl bg-[--color-surface]/90 text-[--color-ink-secondary]"
+              >
+                <MapPin className="h-2.5 w-2.5" />
+              </span>
+            )}
+          </Link>
           <div className="min-w-0 flex-1">
         <Link
           href={`/auction/${encodeURIComponent(item.id)}`}
@@ -149,6 +173,15 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
               puja mín.
             </div>
           </>
+        ) : noPriceData ? (
+          <div className="text-right">
+            <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+              {isVariosLotes ? "Varios lotes" : "Sin datos"}
+            </div>
+            <div className="text-[11px] text-[--color-ink-secondary]">
+              Precio no disponible
+            </div>
+          </div>
         ) : (
           <span className="text-[10px] text-[--color-ink-tertiary]">—</span>
         )}

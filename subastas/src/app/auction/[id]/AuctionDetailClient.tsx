@@ -33,6 +33,7 @@ import Image from "next/image";
 import { ArrowLeft, ExternalLink, FileText, MapPin, ImageOff } from "lucide-react";
 import { apiFetch } from "@/lib/api-path";
 import { AuctionItem } from "@/types";
+import { resolveCardImage } from "@/lib/resolve-card-image";
 import { ObservatoryHeader } from "@/components/observatory/ObservatoryHeader";
 import { effectiveStatus } from "@/components/observatory/status";
 import { DetailStatusPanel } from "@/components/observatory/DetailStatusPanel";
@@ -329,7 +330,8 @@ export default function AuctionDetailClient({ id }: { id: string }) {
               </section>
             )}
 
-            {/* Map */}
+            {/* Map — rung 2 of the imagery ladder. Renders an interactive
+                Leaflet map when coordinates exist. */}
             {hasCoords ? (
               <section aria-labelledby="map-heading">
                 <h2 id="map-heading" className="sr-only">Ubicación</h2>
@@ -343,6 +345,34 @@ export default function AuctionDetailClient({ id }: { id: string }) {
                     <MapPin className="h-3.5 w-3.5" aria-hidden="true" /> {raw.address}
                   </p>
                 )}
+              </section>
+            ) : (!photoUrl || photoFailed) ? (
+              // Rung 3 — neither photo nor coords. The detail page must NEVER be
+              // blank, so render the per-category SVG placeholder at hero size.
+              <section aria-labelledby="hero-fallback-heading">
+                <h2 id="hero-fallback-heading" className="sr-only">
+                  Imagen de la categoría
+                </h2>
+                <div className="relative aspect-[16/9] w-full overflow-hidden rounded-lg border border-[--color-hairline] bg-[--color-surface-muted] flex items-center justify-center">
+                  <Image
+                    src={
+                      resolveCardImage({
+                        category: raw.category,
+                        title: raw.title,
+                        size: "large",
+                      }).src
+                    }
+                    alt={`Categoría: ${raw.title}`}
+                    fill
+                    sizes="(max-width: 768px) 100vw, 60vw"
+                    className="object-contain p-10 opacity-80"
+                    priority
+                  />
+                </div>
+                <p className="mt-1.5 text-[11px] text-[--color-ink-tertiary] flex items-center gap-1.5">
+                  <ImageOff className="h-3 w-3" aria-hidden="true" />
+                  Aún no disponemos de foto ni ubicación geocodificada para esta subasta.
+                </p>
               </section>
             ) : null}
 

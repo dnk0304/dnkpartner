@@ -25,19 +25,10 @@ import { FollowButton } from "@/components/notifications/FollowButton";
 import { formatPrice, capitalize, titleCase, displayTitle, formatDaysLeft } from "./format";
 import { effectiveStatus } from "./status";
 import { cn } from "@/lib/utils";
-
-/**
- * Real photo = a resolver-served image (Catastro / Street View / migrated).
- * Anything else (category placeholder URL, missing) → render the soft fallback
- * tile instead of an actual <img>.
- */
-function isRealPhotoUrl(url?: string | null): boolean {
-  if (!url) return false;
-  return url.startsWith("/api/auction-image/") || url.startsWith("/streetview/");
-}
+import { resolveCardImage, isVariosLotesTitle } from "@/lib/resolve-card-image";
 
 export type AuctionListCardProps = {
-  item: AuctionItem;
+  item: AuctionItem & { hasImage?: boolean | null };
   className?: string;
 };
 
@@ -57,14 +48,36 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
     province: item.province,
   });
 
-  const realPhoto = isRealPhotoUrl(item.imageUrl);
+  // Imagery resolves through the 3-rung ladder: real photo → static map pin
+  // → category SVG. Cards are NEVER blank. `imgFailed` only switches us to
+  // the category-SVG fallback so a transient 404 on the real photo or the
+  // OpenStreetMap host still shows usable imagery.
   const [imgFailed, setImgFailed] = React.useState(false);
-  const showImage = realPhoto && !imgFailed;
+  const resolved = resolveCardImage({
+    imageUrl: item.imageUrl,
+    hasImage: item.hasImage,
+    latitude: item.latitude,
+    longitude: item.longitude,
+    category: item.category,
+    title: item.title,
+    size: "card",
+  });
+  // After an onError on rung 1 or 2, fall back to the placeholder SVG (rung 3)
+  // — which is purely local and cannot 404 in production.
+  const imageSrc =
+    imgFailed && resolved.rung !== "placeholder"
+      ? resolveCardImage({ category: item.category, title: item.title, size: "card" }).src
+      : resolved.src;
 
   // Field availability — drives conditional hiding.
   const hasTasacion = item.appraisalValue != null && Number.isFinite(item.appraisalValue);
   const hasMinBid = item.minimumBid != null && Number.isFinite(item.minimumBid as number);
   const hasCurrentBid = item.currentBid != null && Number.isFinite(item.currentBid);
+  // Ghost may split multi-lot auctions into per-lote rows tagged "Varios Lotes"
+  // with no usable price. Render a clean "Precio no disponible" affordance
+  // instead of an empty price block.
+  const noPriceData = !hasTasacion && !hasMinBid && !hasCurrentBid;
+  const isVariosLotes = isVariosLotesTitle(item.title);
   const hasEndDate =
     item.endDate instanceof Date
       ? !Number.isNaN(item.endDate.getTime()) && item.endDate.getTime() > 0
@@ -79,32 +92,40 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
         className,
       )}
     >
-      {/* Real-photo hero — keeps a stable 16:9 box even when there's no photo
-          (soft fallback tile) so there's never a layout shift. */}
+      {/* Imagery hero — 16:9 box that always shows SOMETHING (3-rung ladder).
+          The ladder guarantees no blank tile and no layout shift. */}
       <Link
         href={`/auction/${encodeURIComponent(item.id)}`}
         aria-label={`Ver detalle de ${item.title}`}
-        className="relative block aspect-[16/9] w-full bg-[--color-surface-muted] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40"
+        className="relative block aspect-[16/9] w-full bg-[--color-surface-muted] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40"
       >
-        {showImage ? (
-          <Image
-            src={item.imageUrl}
-            alt={`Foto de ${item.title}`}
-            fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
-            className="object-cover"
-            loading="lazy"
-            onError={() => setImgFailed(true)}
-          />
-        ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-[--color-ink-tertiary]">
-            {imgFailed ? (
-              <ImageOff className="h-6 w-6 mb-1" aria-hidden="true" />
-            ) : (
-              <MapPin className="h-6 w-6 mb-1" aria-hidden="true" />
-            )}
-            <span className="text-[10px] uppercase tracking-wide">Sin foto disponible</span>
-          </div>
+        <Image
+          src={imageSrc}
+          alt={resolved.alt}
+          fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
+          className={cn(
+            resolved.isPlaceholder ? "object-contain p-6 opacity-80" : "object-cover",
+          )}
+          loading="lazy"
+          unoptimized={resolved.isMap}
+          onError={() => setImgFailed(true)}
+        />
+        {/* Subtle rung-2 affordance: small pin chip so users know it's a
+            location preview, not a photo. */}
+        {resolved.isMap && !imgFailed && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full border border-[--color-hairline] bg-[--color-surface]/90 px-1.5 py-0.5 text-[10px] font-medium text-[--color-ink-secondary] backdrop-blur-sm"
+          >
+            <MapPin className="h-3 w-3" />
+            Ubicación
+          </span>
+        )}
+        {imgFailed && resolved.rung !== "placeholder" && (
+          <span className="sr-only">
+            <ImageOff aria-hidden="true" /> Imagen no disponible
+          </span>
         )}
         <span className="pointer-events-none absolute top-2 left-2 flex items-center gap-1.5">
           <StatusBadge status={effective} size="sm" />
@@ -155,6 +176,20 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
               amountEuros={item.currentBidAmount ?? null}
             />
             <OccupancyBadge occupancy={item.occupancy ?? null} />
+          </div>
+        )}
+
+        {/* No-price affordance for Ghost's split "Varios Lotes" rows (and any
+            other row missing every numeric price field). Avoids the
+            otherwise-empty space below the location line. */}
+        {noPriceData && (
+          <div className="pt-2 hairline-t">
+            <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+              {isVariosLotes ? "Varios lotes" : "Precio"}
+            </div>
+            <div className="text-sm font-medium text-[--color-ink-secondary]">
+              Precio no disponible
+            </div>
           </div>
         )}
 
