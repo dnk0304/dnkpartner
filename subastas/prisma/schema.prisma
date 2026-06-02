@@ -441,3 +441,45 @@ enum UserTier {
   GOLD
   DIAMOND
 }
+
+// ---------------------------------------------------------------------------
+// Blog / SEO articles (Feature #9, Phase 9a — Forge backend)
+//
+// Imported from marketing/content-seo/articles/ as DRAFT. Dennis publishes via
+// the admin editor. Public route is /guia/<slug>. Body stays as Markdown in
+// the DB; render at request time on the public page (Pixel 9b).
+//
+// Migration ordering: Ken applies this as slot #1 (see DISPATCH brief).
+// ---------------------------------------------------------------------------
+
+enum ArticleStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model Article {
+  id                 String        @id @default(cuid())
+  slug               String        @unique
+  title              String
+  seoTitle           String?
+  metaDescription    String?
+  primaryKeyword     String?
+  secondaryKeywords  String[]      @default([])
+  canonicalUrl       String?
+  cluster            String?
+  imageAlt           String?
+
+  bodyMarkdown       String
+
+  status             ArticleStatus @default(DRAFT)
+  publishedAt        DateTime?
+
+  authorEmail        String?
+
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@index([status])
+  @@index([publishedAt])
+  @@index([status, publishedAt(sort: Desc)])
+}
