@@ -18,7 +18,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
-import { Search, User } from "lucide-react";
+import { Check, Search, User } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { apiFetch } from "@/lib/api-path";
@@ -87,6 +87,12 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
           >
             <span className="font-semibold">Subastas</span>
             <span className="font-normal">Activas</span>
+            {/* Verified tick — superscript, ™-position. Decorative; wordmark already has aria-label. */}
+            <Check
+              aria-hidden="true"
+              className="inline-block align-super ml-0.5 h-2.5 w-2.5 text-[--color-status-live]"
+              strokeWidth={3}
+            />
           </Link>
           <span className="hidden md:inline text-xs text-[--color-ink-tertiary] tnum truncate">
             {lastUpdate
