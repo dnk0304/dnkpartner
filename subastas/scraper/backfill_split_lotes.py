@@ -110,7 +110,7 @@ def candidate_umbrellas(adapter, limit, done):
         """ + done_clause + """
         ORDER BY "createdAt" DESC
         """ + (f" LIMIT {int(limit)}" if limit else ""),
-        params,
+        params or None,
     )
     cols = [c[0] for c in cur.description]
     return [dict(zip(cols, row)) for row in cur.fetchall()]
