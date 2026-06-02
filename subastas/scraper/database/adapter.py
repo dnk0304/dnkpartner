@@ -299,7 +299,8 @@ class DatabaseAdapter:
                 SELECT column_name FROM information_schema.columns
                 WHERE table_name = 'Auction'
                   AND column_name IN ('suspensionReason', 'resumeAt', 'lastVerifiedAt', 'opensAt',
-                                      'sourceIdSub', 'loteNumber')
+                                      'sourceIdSub', 'loteNumber',
+                                      'pujaStatus', 'currentBidAmount', 'occupancy')
             """)
             forge_cols = {r[0] for r in cursor.fetchall()}
         except Exception:
@@ -390,6 +391,17 @@ class DatabaseAdapter:
             if 'loteNumber' in forge_cols and data.get('lote_number') is not None:
                 update_fields.append('"loteNumber" = %s')
                 params.append(data['lote_number'])
+            # #16 / #17 pujas + occupancy (additive, guarded). Only persisted
+            # when present so a transient parse miss never blanks a good value.
+            if 'pujaStatus' in forge_cols and data.get('puja_status') is not None:
+                update_fields.append('"pujaStatus" = %s')
+                params.append(data['puja_status'])
+            if 'currentBidAmount' in forge_cols and data.get('current_bid_amount') is not None:
+                update_fields.append('"currentBidAmount" = %s')
+                params.append(data['current_bid_amount'])
+            if 'occupancy' in forge_cols and data.get('occupancy') is not None:
+                update_fields.append('"occupancy" = %s')
+                params.append(data['occupancy'])
 
             if not update_fields:
                 # Nothing to update — still stamp updatedAt
@@ -499,6 +511,19 @@ class DatabaseAdapter:
                 col_names.append('"loteNumber"')
                 placeholders.append('%s')
                 vals.append(data['lote_number'])
+            # #16 / #17 pujas + occupancy (additive, guarded).
+            if 'pujaStatus' in forge_cols and data.get('puja_status') is not None:
+                col_names.append('"pujaStatus"')
+                placeholders.append('%s')
+                vals.append(data['puja_status'])
+            if 'currentBidAmount' in forge_cols and data.get('current_bid_amount') is not None:
+                col_names.append('"currentBidAmount"')
+                placeholders.append('%s')
+                vals.append(data['current_bid_amount'])
+            if 'occupancy' in forge_cols and data.get('occupancy') is not None:
+                col_names.append('"occupancy"')
+                placeholders.append('%s')
+                vals.append(data['occupancy'])
 
             sql = f'INSERT INTO "Auction" ({", ".join(col_names)}) VALUES ({", ".join(placeholders)})'
             cursor.execute(sql, tuple(vals))

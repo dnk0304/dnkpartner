@@ -95,6 +95,32 @@ model Auction {
   possessionStatus String?
   visitable        String?
 
+  // #16 / #17 — pujas (bids) + occupancy, parsed from the BOE detail page.
+  // All three additive + nullable; live rows pre-date them and a bounded
+  // backfill fills the active pool. NULL means "not yet scraped / unknown",
+  // NEVER a default — the card layer must not render a misleading badge when
+  // the field is simply unscraped.
+  //
+  // #16 pujaStatus: normalized bid state read from the BOE "Pujas" tab.
+  //   CON_PUJA  = the auction (or split-lote) has at least one bid
+  //   SIN_PUJA  = the Pujas tab explicitly says "Sin puja" (no bids yet)
+  //   null      = couldn't determine (cancelled, umbrella-only, parse miss)
+  pujaStatus String?
+  // #16 currentBidAmount: the highest bid in CENTS (int) when BOE shows the
+  // figure publicly ("Puja máxima de la subasta 92.234,16 €" -> 9223416).
+  // BigInt for safety/consistency with the wave13 loteNumber lesson: a bid in
+  // cents on a high-value property can exceed int4's 2.1B ceiling (~21M EUR).
+  // null when BOE has bids but hides the amount behind login
+  // ("Con puja (inicie sesión para consultar el importe)") -> pujaStatus is
+  // still CON_PUJA with a null amount, per the brief.
+  currentBidAmount BigInt?
+  // #17 occupancy: normalized "Situación posesoria" from the detail page.
+  //   OCUPADO    = "Ocupantes..." / "Ocupada" / "Ocupado"
+  //   NO_OCUPADO = "Sin ocupantes" / "No ocupado" / "Libre"
+  //   NO_CONSTA  = "Se desconoce" / "No consta"
+  //   null       = the BOE page carries no Situación posesoria field at all
+  occupancy String?
+
   // Cadastral / registry / contact
   cadastralRef  String?
   cadastralData String?
