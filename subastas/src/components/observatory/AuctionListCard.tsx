@@ -19,6 +19,7 @@ import { ImageOff, MapPin } from "lucide-react";
 import { AuctionItem, type AuctionStatus } from "@/types";
 import { StatusBadge } from "./StatusBadge";
 import { AuctionTypeBadge } from "./AuctionTypeBadge";
+import { PujaBadge, OccupancyBadge } from "./PujaOccupancyBadges";
 import { LiveCountdown } from "./LiveCountdown";
 import { FollowButton } from "@/components/notifications/FollowButton";
 import { formatPrice, capitalize, titleCase, displayTitle, formatDaysLeft } from "./format";
@@ -142,6 +143,20 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             <p className="mt-1 text-xs text-[--color-ink-tertiary]">{where}</p>
           )}
         </Link>
+
+        {/* #16 / #17 — puja + occupancy chips. Each badge component is
+            null-safe (returns null when its field is null/unknown) so the
+            wrapper renders an empty flex row but no visible content when
+            neither field is populated — no layout shift. */}
+        {(item.pujaStatus || item.occupancy) && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <PujaBadge
+              status={item.pujaStatus ?? null}
+              amountEuros={item.currentBidAmount ?? null}
+            />
+            <OccupancyBadge occupancy={item.occupancy ?? null} />
+          </div>
+        )}
 
         {/* PRIMARY hierarchy: Tasación (left, largest) + Puja mínima (right).
             Both hide cleanly when the field is null — no "—" walls. */}

@@ -18,6 +18,7 @@ import Image from "next/image";
 import { AuctionItem, type AuctionStatus } from "@/types";
 import { StatusDot } from "./StatusBadge";
 import { AuctionTypeBadge } from "./AuctionTypeBadge";
+import { PujaBadge, OccupancyBadge } from "./PujaOccupancyBadges";
 import { LiveCountdown } from "./LiveCountdown";
 import { FollowButton } from "@/components/notifications/FollowButton";
 import { formatPrice, capitalize, titleCase, displayTitle } from "./format";
@@ -107,6 +108,17 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
               <AuctionTypeBadge type={item.auctionType} size="xs" />
             </span>
           )}
+          {/* #16 / #17 — puja + occupancy chips. Hidden on tight viewports
+              so the row's title stays scannable; cards carry both fields
+              at every breakpoint. Null-safe (each badge renders null when
+              its field is null). */}
+          <span className="hidden lg:inline-flex items-center gap-1.5">
+            <PujaBadge
+              status={item.pujaStatus ?? null}
+              amountEuros={item.currentBidAmount ?? null}
+            />
+            <OccupancyBadge occupancy={item.occupancy ?? null} />
+          </span>
         </div>
           </div>
         </div>

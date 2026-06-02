@@ -59,6 +59,10 @@ type FeedAuctionProjection = {
   boeLink: string | null;
   latitude: number | null;
   longitude: number | null;
+  // #16 / #17 — null-safe pujas + occupancy on the recent feed cards.
+  pujaStatus: 'CON_PUJA' | 'SIN_PUJA' | null;
+  currentBidAmount: number | null; // EUROS (BIGINT cents → number)
+  occupancy: 'OCUPADO' | 'NO_OCUPADO' | 'NO_CONSTA' | null;
 };
 
 type FeedItem = {
@@ -184,6 +188,9 @@ function projectAuction(a: {
   boeLink: string | null;
   latitude: number | null;
   longitude: number | null;
+  pujaStatus?: string | null;
+  currentBidAmount?: bigint | number | string | null;
+  occupancy?: string | null;
 }): FeedAuctionProjection {
   return {
     id: a.id,
@@ -208,6 +215,19 @@ function projectAuction(a: {
     boeLink: boeLinkFor(a.boeId, a.boeLink),
     latitude: a.latitude ?? null,
     longitude: a.longitude ?? null,
+    pujaStatus:
+      a.pujaStatus === 'CON_PUJA' || a.pujaStatus === 'SIN_PUJA' ? a.pujaStatus : null,
+    currentBidAmount: (() => {
+      const raw = a.currentBidAmount;
+      if (raw == null) return null;
+      const n = typeof raw === 'bigint' ? Number(raw) : Number(raw);
+      if (!Number.isFinite(n) || n <= 0) return null;
+      return n / 100; // cents -> euros
+    })(),
+    occupancy:
+      a.occupancy === 'OCUPADO' || a.occupancy === 'NO_OCUPADO' || a.occupancy === 'NO_CONSTA'
+        ? a.occupancy
+        : null,
   };
 }
 
@@ -237,6 +257,10 @@ const AUCTION_CARD_SELECT = {
   longitude: true,
   updatedAt: true,
   transitionedAt: true,
+  // #16 / #17 — pujas + occupancy on the recent feed.
+  pujaStatus: true,
+  currentBidAmount: true,
+  occupancy: true,
 } as const;
 
 export async function GET(req: NextRequest) {

@@ -124,6 +124,11 @@ interface AuctionFromDB {
   streetViewUrl: string | null;
   placeUrl: string | null;
   directionsUrl: string | null;
+  // #16 / #17 — pujas + occupancy. BigInt comes back from pg as a string;
+  // we coerce to number (EUROS) in transformAuction. Nulls are preserved.
+  pujaStatus: string | null;
+  currentBidAmount: string | number | bigint | null;
+  occupancy: string | null;
 }
 
 // Map DB status to frontend status
@@ -334,6 +339,44 @@ function getAppropriateImageUrl(item: AuctionFromDB): string {
   return getPropertyCategoryImageUrl('Otros inmuebles');
 }
 
+/**
+ * #16 — convert the BIGINT-cents `currentBidAmount` column (which pg returns
+ * as a string) into a finite EURO number for the card layer. Returns null
+ * when the value is null / blank / NaN / non-positive so the badge can stay
+ * null-safe and never render a misleading "€0".
+ */
+function bidCentsToEuros(raw: string | number | bigint | null | undefined): number | null {
+  if (raw == null) return null;
+  let cents: number;
+  if (typeof raw === 'bigint') {
+    cents = Number(raw);
+  } else if (typeof raw === 'number') {
+    cents = raw;
+  } else {
+    const trimmed = String(raw).trim();
+    if (!trimmed) return null;
+    cents = Number(trimmed);
+  }
+  if (!Number.isFinite(cents) || cents <= 0) return null;
+  return cents / 100;
+}
+
+/**
+ * #16 / #17 — normalize raw column strings to the canonical card-layer values.
+ * Anything outside the known set falls back to null so an unexpected upstream
+ * value never paints a misleading badge.
+ */
+function normalizePujaStatus(raw: string | null | undefined): 'CON_PUJA' | 'SIN_PUJA' | null {
+  if (raw === 'CON_PUJA' || raw === 'SIN_PUJA') return raw;
+  return null;
+}
+function normalizeOccupancy(
+  raw: string | null | undefined,
+): 'OCUPADO' | 'NO_OCUPADO' | 'NO_CONSTA' | null {
+  if (raw === 'OCUPADO' || raw === 'NO_OCUPADO' || raw === 'NO_CONSTA') return raw;
+  return null;
+}
+
 function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isLocked: boolean = false) {
   const publishedAt = new Date(item.publishedAt);
   const endsAt = item.endsAt ? new Date(item.endsAt) : null;
@@ -347,6 +390,11 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
   const hasPdf = Boolean(item.pdfUrl);
   const baseAppraisalValue = item.appraisalValue && item.appraisalValue > 0 ? item.appraisalValue : null;
   const appraisalValue = isPreAuction && !hasPdf ? null : baseAppraisalValue;
+  // #16 / #17 — projected straight through; the card layer renders nothing
+  // when the value is null.
+  const pujaStatus = normalizePujaStatus(item.pujaStatus);
+  const currentBidAmount = bidCentsToEuros(item.currentBidAmount);
+  const occupancy = normalizeOccupancy(item.occupancy);
 
   if (isLocked) {
     // Locked teaser
@@ -384,7 +432,11 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
       warning,
       propertyDescription: item.propertyDescription,
       lotDescription: item.lotDescription,
-      chargesDetail: item.chargesDetail
+      chargesDetail: item.chargesDetail,
+      // #16 / #17 — null-safe; null = no badge on the card.
+      pujaStatus,
+      currentBidAmount,
+      occupancy,
     };
   }
 
@@ -426,7 +478,11 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
     warning,
     propertyDescription: item.propertyDescription,
     lotDescription: item.lotDescription,
-    chargesDetail: item.chargesDetail
+    chargesDetail: item.chargesDetail,
+    // #16 / #17 — null-safe; null = no badge on the card.
+    pujaStatus,
+    currentBidAmount,
+    occupancy,
   };
 }
 
