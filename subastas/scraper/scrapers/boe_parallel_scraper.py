@@ -106,6 +106,9 @@ class BOEParallelScraper(BOEScraper):
             random_delay(1.0, 2.0)
             info = self._extract_detail_from_page(page, boe_id, detail_url)
             info['lote_numbers'] = self._enumerate_lote_numbers(page)
+            # #16 pujas LAST (own-browser path): same page -> ver=5, after the
+            # ver=3 DOM read + lote enumeration.
+            self._attach_pujas(page, boe_id, detail_url, info)
             return info
         except Exception as e:
             self.log_warning(f"Failed to fetch detail info for {boe_id}: {e}")

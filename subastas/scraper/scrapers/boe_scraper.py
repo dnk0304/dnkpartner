@@ -488,6 +488,21 @@ class BOEScraper(BaseScraper):
                 if detail_info.get('claimed_amount') is not None:
                     auction_data['claimed_amount'] = detail_info['claimed_amount']
 
+                # --- #16 pujas / #17 occupancy from the detail page ---
+                # All three are written even when None: a re-scrape that finds an
+                # auction now SIN_PUJA (after bids were withdrawn — rare) or that
+                # newly resolves occupancy must overwrite a stale value. The
+                # adapter only persists non-None values though, so a transient
+                # parse miss won't blank a previously-good field.
+                if detail_info.get('puja_status') is not None:
+                    auction_data['puja_status'] = detail_info['puja_status']
+                if detail_info.get('current_bid_amount') is not None:
+                    auction_data['current_bid_amount'] = detail_info['current_bid_amount']
+                if detail_info.get('occupancy') is not None:
+                    auction_data['occupancy'] = detail_info['occupancy']
+                if detail_info.get('possession_status') is not None:
+                    auction_data['possession_status'] = detail_info['possession_status']
+
                 # --- Authoritative end date from detail page ---
                 # The listing estimate (now()+7d) is a placeholder; the detail
                 # page carries the real "Fecha de conclusión". Without it, rows
@@ -951,6 +966,166 @@ class BOEScraper(BaseScraper):
             return 'CONCLUIDA_PORTAL'
         return None
     
+    def _parse_occupancy(self, text: str) -> Optional[str]:
+        """
+        #17 — normalize the BOE "Situación posesoria" field to one of
+        OCUPADO | NO_OCUPADO | NO_CONSTA, or None when the page carries no such
+        field. `text` is the flattened detail-page body (ver=3).
+
+        Real BOE values observed live (2026-06-02):
+          "Situación posesoria Ocupantes con derecho de permanencia" -> OCUPADO
+          "Situación posesoria Sin ocupantes"                        -> NO_OCUPADO
+        Other documented variants are matched defensively. Order matters:
+        "Sin ocupantes" must beat the bare "ocupa" substring, and the
+        unknown/no-consta phrasings are checked before the positive matches so a
+        "No consta" never gets mislabeled.
+        """
+        if not text:
+            return None
+        # Isolate the value that follows the "Situación posesoria" label. The
+        # value runs up to the next known label ("Visitable", "Cargas", etc.)
+        # on the flattened text; cap the window so we don't read the whole page.
+        m = re.search(
+            r"Situaci[oó]n\s+posesoria\s*[:\t\n]?\s*(.{0,80}?)"
+            r"(?:Visitable|Cargas|Inscripci|Vivienda\s+habitual|Volver|$)",
+            text, re.IGNORECASE | re.DOTALL,
+        )
+        if not m:
+            return None
+        value = m.group(1).strip().lower()
+        if not value:
+            return None
+        # NO_CONSTA / unknown first (so "no consta" never reads as occupied).
+        if any(k in value for k in ['se desconoce', 'desconoc', 'no consta', 'sin determinar', 'no determinad']):
+            return 'NO_CONSTA'
+        # NO_OCUPADO — explicit "no/sin" occupancy phrasings.
+        if any(k in value for k in ['sin ocupant', 'no ocupad', 'no ocupado', 'libre', 'desocupad', 'sin ocupar']):
+            return 'NO_OCUPADO'
+        # OCUPADO — any remaining "ocupa..." phrasing (ocupantes, ocupado, ocupada).
+        if 'ocupa' in value:
+            return 'OCUPADO'
+        return 'NO_CONSTA'
+
+    def _parse_pujas(self, text: str) -> Dict[str, Optional[object]]:
+        """
+        #16 — parse the BOE "Pujas" tab text into a normalized status + optional
+        bid amount in CENTS.
+
+        Returns {'puja_status': 'CON_PUJA'|'SIN_PUJA'|None,
+                 'current_bid_amount': int(cents)|None}.
+
+        Real BOE Pujas-tab formats observed live (2026-06-02):
+          single, has bid (public)  : "Puja máxima de la subasta 92.234,16 €"
+                                        -> CON_PUJA, 9223416
+          single/per-lote, no bid   : "Sin puja"            -> SIN_PUJA, None
+          logged-out, has bid       : "Con puja (inicie sesión para consultar
+                                        el importe)"         -> CON_PUJA, None
+          split umbrella (per-lote table) lines mix "Con puja"/"Sin puja" rows.
+          cancelled / no data       : "La subasta ha sido cancelada..." /
+                                        only the lote-selector notice -> None
+        The scraper runs anonymous, so a real auction with bids most often
+        yields CON_PUJA + null amount — exactly the brief's fallback.
+        """
+        result: Dict[str, Optional[object]] = {'puja_status': None, 'current_bid_amount': None}
+        if not text:
+            return result
+        lowered = text.lower()
+
+        # Cancelled/suspended Pujas tab carries no bid state -> leave null.
+        if 'ha sido cancelada' in lowered or 'subasta cancelada' in lowered:
+            return result
+
+        # 1) Public highest-bid amount: "Puja máxima de la subasta 92.234,16 €"
+        #    (also "Puja máxima ... NN,NN €"). Capture and convert to cents.
+        amt = re.search(
+            r"Puja\s+m[aá]xima(?:\s+de\s+la\s+subasta)?\s*[:\t\n]?\s*([0-9][0-9.\s]*,[0-9]{2})\s*€",
+            text, re.IGNORECASE,
+        )
+        if amt:
+            cents = self._eur_to_cents(amt.group(1))
+            if cents is not None:
+                result['puja_status'] = 'CON_PUJA'
+                result['current_bid_amount'] = cents
+                return result
+
+        # 2) Any "Con puja" marker (incl. the logged-out "inicie sesión" rows of
+        #    the per-lote table) -> has bids, amount hidden.
+        if re.search(r"\bcon\s+puja\b", lowered):
+            result['puja_status'] = 'CON_PUJA'
+            return result
+
+        # 3) Explicit "Sin puja" with no Con-puja marker -> no bids.
+        if re.search(r"\bsin\s+puja\b", lowered):
+            result['puja_status'] = 'SIN_PUJA'
+            return result
+
+        # Otherwise undetermined (umbrella lote-selector notice only, etc.).
+        return result
+
+    @staticmethod
+    def _eur_to_cents(eur_str: str) -> Optional[int]:
+        """Convert a Spanish-formatted EUR amount ("92.234,16" / "1.358.200,00")
+        to an integer number of cents (9223416 / 135820000). Returns None on
+        anything unparseable. Thousands sep '.', decimal sep ','."""
+        if not eur_str:
+            return None
+        s = eur_str.strip().replace(' ', '').replace('.', '').replace(',', '.')
+        try:
+            return int(round(float(s) * 100))
+        except (ValueError, TypeError):
+            return None
+
+    def _attach_pujas(self, page: Any, boe_id: str, detail_url: str,
+                      info: Dict[str, Any]) -> None:
+        """
+        #16 — fetch the Pujas (ver=5) tab on the SAME `page` and merge
+        puja_status + current_bid_amount into `info`. Called by both
+        _navigate_and_extract paths (shared + own-browser) as the LAST step,
+        AFTER lote enumeration (which needs the ver=3 DOM). Best-effort: a pujas
+        miss never blocks the row's financial/occupancy fields.
+
+        The idLote (if this is a split-lote URL) is taken from detail_url so the
+        ver=5 fetch targets the correct lote's Pujas sub-table.
+        """
+        id_lote = None
+        m = re.search(r'idLote=(\d+)', detail_url or '')
+        if m:
+            id_lote = int(m.group(1))
+        pujas = self._fetch_pujas_for_page(page, boe_id, detail_url, id_lote=id_lote)
+        info['puja_status'] = pujas.get('puja_status')
+        info['current_bid_amount'] = pujas.get('current_bid_amount')
+
+    def _fetch_pujas_for_page(self, page: Any, boe_id: str, detail_url: str,
+                              id_lote: Optional[int] = None) -> Dict[str, Optional[object]]:
+        """
+        #16 — fetch + parse the BOE "Pujas" tab for the auction currently parsed.
+
+        The bid data is NOT on the ver=3 detail page (verified live 2026-06-02:
+        ver=3 carries only a link to the Pujas tab). It lives on the ver=5 view:
+        detalleSubasta.php?idSub=<id>[&idLote=N]&ver=5. To honor "no extra page
+        FETCH passes", we reuse the SAME already-open `page` and navigate it to
+        ver=5 (one extra goto on the same browser tab, not a second scraper run
+        nor a second browser). After parsing we leave the page on ver=5; callers
+        that still need the ver=3 DOM (lote enumeration) run BEFORE this.
+
+        Returns the _parse_pujas dict; never raises (pujas are best-effort).
+        """
+        try:
+            idsub = parse_lote_boe_id(boe_id)[0] if '-L' in boe_id else self._extract_boe_id(detail_url) or boe_id
+            puja_url = f"{self.DETAIL_URL}?idSub={idsub}&ver=5"
+            if id_lote is not None:
+                puja_url = f"{self.DETAIL_URL}?idSub={idsub}&idLote={id_lote}&ver=5"
+            page.goto(puja_url, wait_until='domcontentloaded', timeout=30000)
+            random_delay(0.5, 1.2)
+            try:
+                body = page.inner_text('body')
+            except Exception:
+                body = ''
+            return self._parse_pujas(body)
+        except Exception as e:
+            self.log_warning(f"Pujas fetch failed for {boe_id}: {e}")
+            return {'puja_status': None, 'current_bid_amount': None}
+
     def _extract_municipality(self, text: str) -> Optional[str]:
         """Extract municipality from text"""
         # Simple heuristic - can be improved
@@ -1032,6 +1207,9 @@ class BOEScraper(BaseScraper):
             # Enumerate lote links here while the page is live (the split path
             # needs the lote count; harmless for single auctions -> []).
             info['lote_numbers'] = self._enumerate_lote_numbers(page)
+            # #16 pujas LAST: navigates the same page to ver=5, after the ver=3
+            # DOM has been read + lotes enumerated.
+            self._attach_pujas(page, boe_id, detail_url, info)
             return info
         except Exception as e:
             self.log_warning(f"Failed to fetch detail info for {boe_id}: {e}")
@@ -1051,6 +1229,10 @@ class BOEScraper(BaseScraper):
             'cadastral_ref': None,
             'cadastral_data': None,
             'lote_numbers': [],
+            'possession_status': None,
+            'occupancy': None,
+            'puja_status': None,
+            'current_bid_amount': None,
         }
 
     def _enumerate_lote_numbers(self, page: Any) -> List[int]:
@@ -1215,6 +1397,13 @@ class BOEScraper(BaseScraper):
             'published_at': umbrella.get('published_at') or (datetime.now() - timedelta(days=5)),
             'ends_at': info.get('ends_at') or umbrella.get('ends_at'),
             'opens_at': info.get('start_at'),
+            # #16/#17 — each lote carries its OWN puja state + occupancy
+            # (info came from this lote's own ver=3 + ver=5 fetch in
+            # _navigate_and_extract), so split rows get accurate per-lote values.
+            'puja_status': info.get('puja_status'),
+            'current_bid_amount': info.get('current_bid_amount'),
+            'occupancy': info.get('occupancy'),
+            'possession_status': info.get('possession_status'),
             # Provenance (additive columns; written via adapter schema guard).
             'source_id_sub': source_id_sub,
             'lote_number': lote_number,
@@ -1302,6 +1491,14 @@ class BOEScraper(BaseScraper):
                 'start_at': start_at,
                 'ends_at': ends_at,
                 'detail_status': detail_status,
+                # #17 occupancy — parsed from this same ver=3 body (Situación
+                # posesoria), no extra fetch. #16 pujas are added later in
+                # _navigate_and_extract (ver=5 tab) so lote enumeration on the
+                # ver=3 DOM can run first.
+                'possession_status': self._extract_label_value(
+                    body_text, ['Situación posesoria', 'Situacion posesoria']
+                ),
+                'occupancy': self._parse_occupancy(body_text),
             }
         except Exception as e:
             self.log_warning(f"Failed to extract detail info for {boe_id}: {e}")
