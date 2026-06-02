@@ -191,7 +191,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           ]);
           
           if (userWithTier) {
-            session.user.tier = userWithTier.tier as 'FREE' | 'GOLD' | 'DIAMOND';
+            session.user.tier = userWithTier.tier as 'FREE' | 'ACCESO' | 'GOLD' | 'DIAMOND';
           } else {
             // Default tier if user not found
             session.user.tier = 'FREE';
