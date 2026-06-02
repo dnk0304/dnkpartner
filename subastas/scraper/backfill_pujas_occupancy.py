@@ -42,10 +42,12 @@ import time
 try:
     from .scrapers.boe_scraper import BOEScraper, parse_lote_boe_id
     from .database.adapter import get_database_adapter
+    from .database.legacy_rows import LEGACY_EXCLUSION_SQL
 except ImportError:  # running as a top-level module inside the container
     sys.path.insert(0, '/')
     from app.scrapers.boe_scraper import BOEScraper, parse_lote_boe_id  # type: ignore
     from app.database.adapter import get_database_adapter  # type: ignore
+    from app.database.legacy_rows import LEGACY_EXCLUSION_SQL  # type: ignore
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger("backfill_pujas_occupancy")
@@ -57,14 +59,18 @@ def candidate_rows(adapter, limit, skip_done):
     conn = adapter.connect()
     cur = conn.cursor()
     placeholders = ', '.join(['%s'] * len(ACTIVE_STATUSES))
-    where = f'status IN ({placeholders})'
+    # Layer 1 legacy-row exclusion (2026-06-02): the cuid/0x-hex first-gen junk
+    # rows have NULL endsAt and keep getting re-flipped back to CELEBRANDOSE if
+    # they slip into this candidate set + are re-upserted. See
+    # database/legacy_rows.py for the predicate and rationale.
+    where = f'status IN ({placeholders}) AND {LEGACY_EXCLUSION_SQL}'
     params = list(ACTIVE_STATUSES)
     if skip_done:
         # Resume: skip rows that already have either field populated.
         where += ' AND "pujaStatus" IS NULL AND occupancy IS NULL'
     sql = (
         f'SELECT "boeId", "auctionType", province, category, status, '
-        f'municipality, "publishedAt", "endsAt" '
+        f'municipality, "publishedAt", "endsAt", id '
         f'FROM "Auction" WHERE {where} ORDER BY "endsAt" ASC NULLS LAST'
     )
     if limit:

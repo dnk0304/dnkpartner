@@ -47,6 +47,17 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 # Wave 2a: ending_soon threshold (hours before endsAt to emit the event)
 ENDING_SOON_HOURS = int(os.getenv("ENDING_SOON_HOURS", "24"))
 
+# Legacy first-gen row exclusion (2026-06-02). See database/legacy_rows.py.
+# Used by scrape_pulse + promote_pending_auctions so legacy cuid/0x-hex rows
+# are never re-scraped or status-flipped. monitor_status_changes is left
+# untouched — its endsAt-IS-NOT-NULL guard already ignores legacy (NULL endsAt).
+try:
+    sys.path.insert(0, '/')
+    from app.database.legacy_rows import LEGACY_EXCLUSION_SQL  # type: ignore
+except ImportError:
+    sys.path.insert(0, str(SCRIPT_DIR))
+    from database.legacy_rows import LEGACY_EXCLUSION_SQL  # type: ignore
+
 # Wave 2b: dispatcher cron trigger — POST to /api/dispatch/run on schedule.
 # DISPATCH_ENDPOINT overrides the URL (use http://dnksubastas-app:3005/api/dispatch/run
 # inside docker network so we don't bounce through Traefik). basePath removed
@@ -324,7 +335,7 @@ class ScraperScheduler:
             cursor = conn.cursor()
             now = datetime.utcnow()
 
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT id, "boeId", "endsAt", status, title,
                        "boeLink", province, municipality,
                        "appraisalValue", "currentBid", "opensAt"
@@ -333,6 +344,7 @@ class ScraperScheduler:
                   AND "opensAt" IS NOT NULL
                   AND "opensAt" <= %s
                   AND ("endsAt" IS NULL OR "endsAt" > %s)
+                  AND {LEGACY_EXCLUSION_SQL}
             """, (now, now))
             pending = cursor.fetchall()
 
@@ -421,11 +433,12 @@ class ScraperScheduler:
             cursor = conn.cursor()
 
             # Fetch live boeIds
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT id, "boeId", "currentBid", title, "boeLink",
                        province, municipality, "appraisalValue", "endsAt"
                 FROM "Auction"
                 WHERE status IN ('CELEBRANDOSE', 'ACTIVE')
+                  AND {LEGACY_EXCLUSION_SQL}
                 ORDER BY "endsAt" ASC NULLS LAST
             """)
             auctions = cursor.fetchall()

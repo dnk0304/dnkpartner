@@ -40,6 +40,13 @@ logger = logging.getLogger(__name__)
 
 import psycopg2
 
+# Legacy first-gen row exclusion (2026-06-02). See database/legacy_rows.py.
+try:
+    from database.legacy_rows import LEGACY_EXCLUSION_SQL  # type: ignore
+except ImportError:
+    sys.path.insert(0, "/")
+    from app.database.legacy_rows import LEGACY_EXCLUSION_SQL  # type: ignore
+
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 if not DATABASE_URL or DATABASE_URL.startswith("file:"):
     logger.error("DATABASE_URL must be a Postgres URL.")
@@ -111,6 +118,7 @@ def rescrape(conn):
     cur.execute(f"""
         SELECT "boeId" FROM "Auction"
         WHERE status IN {ACTIVE_STATUSES} AND "boeId" IS NOT NULL
+          AND {LEGACY_EXCLUSION_SQL}
         ORDER BY "endsAt" ASC NULLS LAST
     """)
     boe_ids = [r[0] for r in cur.fetchall()]

@@ -46,6 +46,13 @@ if not DATABASE_URL or DATABASE_URL.startswith("file:"):
     logger.error("DATABASE_URL must be a Postgres URL. Set DATABASE_URL env var.")
     sys.exit(1)
 
+# Legacy first-gen row exclusion (2026-06-02). See database/legacy_rows.py.
+try:
+    from database.legacy_rows import LEGACY_EXCLUSION_SQL  # type: ignore
+except ImportError:
+    sys.path.insert(0, "/")
+    from app.database.legacy_rows import LEGACY_EXCLUSION_SQL  # type: ignore
+
 LIVE_STATUSES = ("CELEBRANDOSE", "ACTIVE", "PROXIMA_APERTURA")
 
 
@@ -111,6 +118,7 @@ def phase2_rescrape(cur, conn, limit: int, dry_run: bool):
         WHERE status IN {LIVE_STATUSES}
           AND ("appraisalValue" IS NULL OR "appraisalValue" = 0)
           AND "boeId" IS NOT NULL
+          AND {LEGACY_EXCLUSION_SQL}
         ORDER BY "endsAt" ASC NULLS LAST
         LIMIT %s
     """, (limit,))

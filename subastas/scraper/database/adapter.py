@@ -18,6 +18,7 @@ except ImportError:
 
 from ..config.settings import DATABASE_URL, DATABASE_TYPE, PROJECT_ROOT
 from .models import AuctionModel, AuctionStatus
+from .legacy_rows import is_legacy_row
 
 logger = logging.getLogger(__name__)
 
@@ -312,6 +313,17 @@ class DatabaseAdapter:
         cursor.execute('SELECT id FROM "Auction" WHERE "boeId" = %s', (data['boe_id'],))
         existing = cursor.fetchone()
 
+        # Layer 2 defensive guard (2026-06-02): if the matched row is a legacy
+        # first-gen junk row (boeId ~ '^0x' OR id ~ cuid), DROP `status` from
+        # the UPDATE field set. Belt-and-braces vs. Layer 1 (candidate-query
+        # exclusion): even if a future query forgets the exclusion, no legacy
+        # row ever flips back to active. Non-status enrichment writes (puja,
+        # occupancy, endsAt, ...) are still allowed — only `status` is frozen.
+        # See database/legacy_rows.py.
+        legacy_locked = bool(
+            existing and is_legacy_row(data.get('boe_id'), existing[0])
+        )
+
         if existing:
             update_fields = []
             params = []
@@ -368,6 +380,16 @@ class DatabaseAdapter:
 
             for data_key, col in scalar_map:
                 if data_key in data and data[data_key] is not None:
+                    # Layer 2 guard: legacy rows are status-frozen. Skip the
+                    # status assignment entirely so no scraper or backfill can
+                    # ever re-activate a first-gen junk row (boeId ~ '^0x' /
+                    # id ~ cuid). All other fields write normally.
+                    if legacy_locked and data_key == 'status':
+                        logger.info(
+                            f"Legacy row {data['boe_id']} — status write "
+                            f"suppressed (keep={data[data_key]!r})"
+                        )
+                        continue
                     update_fields.append(f'{col} = %s')
                     params.append(data[data_key])
 
