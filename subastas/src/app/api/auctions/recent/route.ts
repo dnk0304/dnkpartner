@@ -49,6 +49,7 @@ type FeedAuctionProjection = {
   propertyType: string | null;
   currentBid: number | null;
   appraisalValue: number | null;
+  claimedAmount: number | null;
   minimumBid: number | null;
   depositAmount: number | null;
   endsAt: string | null;
@@ -102,14 +103,18 @@ const DB_TO_FRONTEND_TYPE: Record<string, string> = {
   BANCARIA: "bancaria",
 };
 
-/** Active or upcoming states — anything still "live" from a user POV. */
+/**
+ * Active or upcoming states — anything still genuinely "live" from a user POV.
+ * SUSPENDIDA/SUSPENDED removed 2026-06-02 (Forge, issue #2): suspended auctions
+ * are not surface-able in the "Últimas actualizaciones" feed. Clock-ended
+ * filtering happens in the fallback `where` (endsAt null or future), so a
+ * stale CELEBRANDOSE row whose clock has run out doesn't sneak through.
+ */
 const ACTIVE_OR_UPCOMING_DB_STATUSES = [
   "CELEBRANDOSE",
   "ACTIVE",
   "PROXIMA_APERTURA",
   "PRE_AUCTION",
-  "SUSPENDIDA",
-  "SUSPENDED",
 ] as const;
 
 function mapStatus(s: string | null | undefined): string {
@@ -169,6 +174,7 @@ function projectAuction(a: {
   propertyType: string | null;
   currentBid: number | null;
   appraisalValue: number | null;
+  claimedAmount: number | null;
   minimumBid: number | null;
   depositAmount: number | null;
   endsAt: Date | null;
@@ -192,6 +198,7 @@ function projectAuction(a: {
     propertyType: a.propertyType ?? null,
     currentBid: a.currentBid ?? null,
     appraisalValue: a.appraisalValue ?? null,
+    claimedAmount: a.claimedAmount ?? null,
     minimumBid: a.minimumBid ?? null,
     depositAmount: a.depositAmount ?? null,
     endsAt: a.endsAt?.toISOString() ?? null,
@@ -218,6 +225,7 @@ const AUCTION_CARD_SELECT = {
   propertyType: true,
   currentBid: true,
   appraisalValue: true,
+  claimedAmount: true,
   minimumBid: true,
   depositAmount: true,
   endsAt: true,
@@ -248,11 +256,16 @@ export async function GET(req: NextRequest) {
     const wantAuctionFallback = types.has("auction");
     const activeOnlyParam = (url.searchParams.get("activeOnly") ?? "").toLowerCase();
     const activeOnly = activeOnlyParam === "1" || activeOnlyParam === "true";
+    // Mapped (frontend-canonical) statuses that count as genuinely live for
+    // the activeOnly filter. SUSPENDIDA removed 2026-06-02 (Forge, issue #2):
+    // suspended auctions are not "active" from a user POV and must not appear
+    // in the home-page "Últimas actualizaciones" strip. Concluida/cancelada
+    // never belonged here. Clock-ended rows are guarded below.
     const ACTIVE_FRONTEND_STATUSES = new Set([
       "celebrandose",
       "proxima-apertura",
-      "suspendida",
     ]);
+    const nowIso = new Date().toISOString();
 
     const [statusRows, bidRows] = await Promise.all([
       wantStatus
@@ -340,11 +353,16 @@ export async function GET(req: NextRequest) {
     // terminal state. Without this, a flood of "concluida-portal" cleanup
     // status-events will fill the feed and starve out the active rows the UI
     // actually wants to render.
+    // Clock-wins guard: an auction whose endsAt has passed is NOT active,
+    // even if its stored status still says CELEBRANDOSE (sweep lag). Mirrors
+    // the `effectiveStatus` rule in components/observatory/status.ts.
     let workingItems = items;
     if (activeOnly) {
-      workingItems = items.filter((it) =>
-        ACTIVE_FRONTEND_STATUSES.has(it.auction.status),
-      );
+      workingItems = items.filter((it) => {
+        if (!ACTIVE_FRONTEND_STATUSES.has(it.auction.status)) return false;
+        if (it.auction.endsAt && it.auction.endsAt <= nowIso) return false;
+        return true;
+      });
     }
 
     // ─── Starvation fallback ────────────────────────────────────────────────
@@ -363,6 +381,10 @@ export async function GET(req: NextRequest) {
           // so we don't surface rows the rest of the UI can't filter back to.
           province: { not: '' },
           id: { notIn: Array.from(excludeIds) },
+          // Clock-wins guard: drop rows whose endsAt is in the past — sweep
+          // lag would otherwise let stale CELEBRANDOSE rows surface here.
+          // Null endsAt is allowed (no clock set yet, e.g. PROXIMA_APERTURA).
+          OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }],
         },
         orderBy: [{ transitionedAt: "desc" }, { updatedAt: "desc" }],
         take: need * 2,
