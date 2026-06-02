@@ -106,7 +106,9 @@ export function AdminBlogEditor({ slugParam }: { slugParam: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [showPreview, setShowPreview] = useState(false);
+  // Existing articles open in formatted preview by default (readers' view);
+  // new articles open in the raw editor so the author can start typing immediately.
+  const [showPreview, setShowPreview] = useState(!isNew);
 
   // Load existing article
   useEffect(() => {
@@ -266,32 +268,53 @@ export function AdminBlogEditor({ slugParam }: { slugParam: string }) {
             <button
               type="button"
               onClick={() => setShowPreview((v) => !v)}
-              className="rounded-md border border-[--color-hairline] px-3 py-1.5 text-xs font-medium text-[--color-ink-secondary] hover:bg-[--color-surface-muted]"
+              className="cursor-pointer rounded-md border border-[--color-hairline] px-3 py-1.5 text-xs font-medium text-[--color-ink-primary] hover:bg-[--color-surface-muted]"
             >
               {showPreview ? "Editar" : "Previsualizar"}
             </button>
-            {!isNew ? (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={togglePublish}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50 ${
-                  status === "PUBLISHED"
-                    ? "border border-[--color-hairline] text-[--color-ink-secondary] hover:bg-[--color-surface-muted]"
-                    : "bg-[--color-action] text-white hover:bg-[--color-action-hover]"
-                }`}
-              >
-                {status === "PUBLISHED" ? "Despublicar" : "Publicar"}
-              </button>
-            ) : null}
             <button
               type="button"
               disabled={busy}
               onClick={save}
-              className="rounded-md bg-[--color-brand] px-3 py-1.5 text-xs font-medium text-white hover:bg-[--color-brand-hover] disabled:opacity-50"
+              className="cursor-pointer rounded-md border border-[--color-hairline] bg-[--color-surface] px-3 py-1.5 text-xs font-medium text-[--color-ink-primary] hover:bg-[--color-surface-muted] disabled:opacity-50"
             >
               {busy ? "Guardando…" : isNew ? "Crear borrador" : "Guardar"}
             </button>
+            {!isNew && status === "PUBLISHED" && original ? (
+              <Link
+                href={`/guia/${state.slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="cursor-pointer rounded-md border border-[--color-hairline] px-3 py-1.5 text-xs font-medium text-[--color-ink-primary] hover:bg-[--color-surface-muted]"
+              >
+                Ver página en vivo ↗
+              </Link>
+            ) : null}
+            {!isNew ? (
+              status === "PUBLISHED" ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={togglePublish}
+                  aria-label="Retirar artículo (despublicar)"
+                  className="cursor-pointer inline-flex items-center gap-1.5 rounded-md border-2 border-[--color-warn-critical] bg-[--color-surface] px-4 py-2 text-sm font-semibold text-[--color-ink-primary] hover:bg-[--color-warn-critical-soft] disabled:opacity-50"
+                >
+                  <span aria-hidden className="h-2 w-2 rounded-full bg-[--color-warn-critical]" />
+                  Retirar (despublicar)
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={togglePublish}
+                  aria-label="Aprobar y publicar artículo"
+                  className="cursor-pointer inline-flex items-center gap-1.5 rounded-md bg-[--color-action] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[--color-action-hover] disabled:opacity-50"
+                >
+                  <span aria-hidden>✓</span>
+                  Aprobar y publicar
+                </button>
+              )
+            ) : null}
           </div>
         </div>
       </header>
@@ -311,6 +334,43 @@ export function AdminBlogEditor({ slugParam }: { slugParam: string }) {
             className="mb-4 rounded-md border border-[--color-warn-positive] bg-[--color-warn-positive-soft] px-3 py-2 text-sm text-[--color-ink-primary]"
           >
             {notice}
+          </div>
+        ) : null}
+
+        {!isNew ? (
+          <div
+            className={`mb-4 flex items-center gap-2 rounded-md border px-3 py-2 text-sm text-[--color-ink-primary] ${
+              status === "PUBLISHED"
+                ? "border-[--color-status-live] bg-[--color-status-live-soft]"
+                : "border-[--color-hairline] bg-[--color-surface-muted]"
+            }`}
+          >
+            <span
+              aria-hidden
+              className={`h-2 w-2 rounded-full ${
+                status === "PUBLISHED" ? "bg-[--color-status-live]" : "bg-[--color-ink-quiet]"
+              }`}
+            />
+            <span>
+              {status === "PUBLISHED" ? (
+                <>
+                  <strong>Publicado.</strong> Visible al público en{" "}
+                  <Link
+                    href={`/guia/${state.slug}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="cursor-pointer underline text-[--color-ink-primary] hover:no-underline"
+                  >
+                    /guia/{state.slug}
+                  </Link>
+                  .
+                </>
+              ) : (
+                <>
+                  <strong>Borrador.</strong> Este artículo NO es visible al público todavía.
+                </>
+              )}
+            </span>
           </div>
         ) : null}
 

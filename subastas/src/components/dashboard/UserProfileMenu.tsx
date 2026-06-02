@@ -15,6 +15,7 @@ import {
   Sparkles,
   Database,
   LayoutTemplate,
+  Newspaper,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -188,13 +189,22 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ onUpgradeClick
 
           {/* Admin - Only for dennis.kotlenko@gmail.com */}
           {user.email === 'dennis.kotlenko@gmail.com' && (
-            <DropdownMenuItem 
-              onClick={() => window.location.href = '/admin/dashboard'}
-              className="cursor-pointer py-3"
-            >
-              <Shield className="h-4 w-4 mr-3 text-blue-600" />
-              <span className="text-blue-600 font-medium">Admin</span>
-            </DropdownMenuItem>
+            <>
+              <DropdownMenuItem
+                onClick={() => window.location.href = '/admin/dashboard'}
+                className="cursor-pointer py-3"
+              >
+                <Shield className="h-4 w-4 mr-3 text-blue-600" />
+                <span className="text-blue-600 font-medium">Admin</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => window.location.href = '/admin/blog'}
+                className="cursor-pointer py-3"
+              >
+                <Newspaper className="h-4 w-4 mr-3 text-blue-600" />
+                <span className="text-blue-600 font-medium">Blog / Artículos</span>
+              </DropdownMenuItem>
+            </>
           )}
 
           <DropdownMenuSeparator />
