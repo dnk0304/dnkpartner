@@ -160,7 +160,7 @@ def rescrape(conn):
 
     os.environ.setdefault("BOE_FETCH_DETAIL", "1")
     sys.path.insert(0, "/")
-    from app.scrapers.boe_scraper import BOEScraper
+    from app.scrapers.boe_scraper import BOEScraper, extract_address
     scraper = BOEScraper()
 
     enriched = swept = touched = failed = 0
@@ -186,6 +186,12 @@ def rescrape(conn):
                 updates['"claimedAmount"'] = info["claimed_amount"]
             if info.get("identificador"):
                 updates['title'] = info["identificador"]
+            # Property street address from the Bienes blob -> geocoder pins it on
+            # the map (mirrors parse_listing). Without this the active backfill
+            # refreshed prices/dates but never wrote addresses, so the map stalled.
+            addr = info.get('address') or extract_address(info.get('bienes_info'))
+            if addr:
+                updates['address'] = addr
             if info.get("ends_at") is not None:
                 updates['"endsAt"'] = info["ends_at"]
             if info.get("detail_url"):

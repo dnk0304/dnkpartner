@@ -89,11 +89,22 @@ def main():
     for c in candidates:
         boe_id = c["boeId"]
         detail = scraper._fetch_detail_info(boe_id)
+        # Count-gated (2026-06-02, matches the live gate in
+        # _maybe_split_into_lotes): split iff this auction exposes 2+ distinct
+        # lotes. The declaration string is no longer the decider — it's just a
+        # logged signal. _fetch_detail_info already populated detail['lote_numbers']
+        # by reading the idLote tab bar.
+        lote_numbers = detail.get("lote_numbers") or []
         trigger_text = " ".join(filter(None, [
             detail.get("general_info"), detail.get("bienes_info"), detail.get("warning"),
         ]))
-        if not is_split_auction(trigger_text):
+        declared = is_split_auction(trigger_text)
+        if len(lote_numbers) < 2:
             continue
+        logger.info(
+            f"{boe_id}: {len(lote_numbers)} lotes qualify for split "
+            f"(declaration string {'present' if declared else 'ABSENT — count gate'})"
+        )
         umbrella = {
             "auction_type": c.get("auctionType"), "province": c.get("province"),
             "category": c.get("category"), "status": c.get("status"),

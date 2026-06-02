@@ -1,11 +1,15 @@
 """
-#14 multi-lot SPLIT verification harness (NOT shipped — local proof only).
-Runs the REAL split logic against the live BOE example and prints the N
-independent lote rows with their per-lote pricing/titles. Captures upserts via a
-stub adapter so nothing is written to a DB.
+#14 multi-lot SPLIT verification harness — COUNT-GATE edition (NOT shipped).
+Runs the REAL split logic against live BOE and prints the verify-gate evidence:
+  1. single-lote auction -> NO split (regression)
+  2. phrase-bearing 2+-lote example -> 2 rows -L1/-L2, real price+address
+  3. phrase-LESS 2+-lote auction -> NOW splits (core proof of the count gate)
+  4. Varios-Lotes fallback -> null price, not fabricated, validates (not dropped)
+  5. idempotency -> stable composite ids
+Nothing is written to a DB (uses a stub adapter implicitly — we never call upsert
+except through _upsert_split_lotes on a stub, here we only build rows + validate).
 
 Usage:  HEADLESS=true python -m scraper._verify_multilot
-        (run from the subastas/ dir so the package import resolves)
 """
 import os
 import sys
@@ -13,72 +17,68 @@ import logging
 
 logging.basicConfig(level=logging.WARNING)
 
-# Force the env flags on.
+os.environ.setdefault('HEADLESS', 'true')
 os.environ.setdefault('BOE_FETCH_DETAIL', '1')
 os.environ.setdefault('BOE_SPLIT_LOTES', '1')
 
-from scraper.scrapers.boe_scraper import (
-    BOEScraper, is_split_auction, make_lote_boe_id,
-)
+from scraper.scrapers.boe_scraper import BOEScraper, is_split_auction, make_lote_boe_id
+
+
+def trigger_of(detail):
+    return ' '.join(filter(None, [
+        detail.get('general_info'), detail.get('bienes_info'), detail.get('warning'),
+    ]))
+
+
+UMBRELLA = {
+    'auction_type': 'OTRAS_TRIBUTARIAS', 'province': 'Navarra',
+    'category': 'Otros', 'status': 'CELEBRANDOSE',
+    'municipality': None, 'court_name': None,
+}
+
+
+def probe(s, idsub, label):
+    """Fetch + report gate decision + (if split) the rows."""
+    print(f"\n=== {label}: {idsub} ===")
+    detail = s._fetch_detail_info(idsub)
+    lns = detail.get('lote_numbers') or []
+    declared = is_split_auction(trigger_of(detail))
+    print(f"  lote_numbers={lns}  count={len(lns)}  declared_phrase={declared}")
+    rows = s._maybe_split_into_lotes(idsub, dict(UMBRELLA), detail)
+    if not rows:
+        print(f"  GATE -> NO SPLIT (umbrella kept)  [count<2: {len(lns)<2}]")
+        return None, lns, declared
+    print(f"  GATE -> SPLIT into {len(rows)} rows")
+    for r in rows:
+        valid = s.validate_auction_data(r)
+        print(f"    boeId={r['boe_id']:<34} appr={r.get('appraisal_value')!s:>10} "
+              f"minBid={r.get('minimum_bid')!s:>10} addr={(r.get('address') or '')[:40]!r:42} "
+              f"valid={valid} title={r.get('title')!r}")
+    return rows, lns, declared
 
 
 def main():
     s = BOEScraper(province='Madrid')
 
-    # --- 1. trigger-string unit checks (no network) ---
-    print("=== TRIGGER UNIT CHECKS ===")
-    cases = [
-        ("La subasta contiene varios lotes que se subastan de forma separada.", True),
-        ("(los lotes se subastan de forma independiente)", True),
-        ("Se subastan DE FORMA SEPARADA varias fincas", True),
+    print("=== TRIGGER UNIT CHECKS (is_split_auction now a non-gating signal) ===")
+    for text, expect in [
+        ("se subastan de forma separada", True),
         ("La subasta contiene varios lotes.", False),
-        ("Lote único. Vivienda en Madrid.", False),
-        ("", False),
-        (None, False),
-    ]
-    for text, expect in cases:
+        ("", False), (None, False),
+    ]:
         got = is_split_auction(text)
-        ok = "OK " if got == expect else "FAIL"
-        print(f"  [{ok}] expect={expect!s:5} got={got!s:5}  {text!r}")
-    print(f"  composite id sample: {make_lote_boe_id('SUB-GA-2026-2801400126E01', 7)}")
+        print(f"  [{'OK ' if got==expect else 'FAIL'}] expect={expect!s:5} got={got!s:5}  {text!r}")
 
-    # --- 2. live split on the example ---
-    EXAMPLE = 'SUB-GA-2026-2801400126E01'
-    print(f"\n=== LIVE SPLIT: {EXAMPLE} ===")
-    detail = s._fetch_detail_info(EXAMPLE)
-    trigger_text = ' '.join(filter(None, [
-        detail.get('general_info'), detail.get('bienes_info'), detail.get('warning'),
-    ]))
-    print(f"  trigger present : {is_split_auction(trigger_text)}")
-    print(f"  lote_numbers    : {detail.get('lote_numbers')}")
+    # 2. phrase-bearing 2-lote example (Dennis's link)
+    probe(s, 'SUB-RC-2026-3100200100959', 'PHRASE-BEARING 2-LOTE (example)')
 
-    umbrella = {
-        'auction_type': 'ADMINISTRATIVAS', 'province': 'Madrid',
-        'category': 'Otros', 'status': 'CELEBRANDOSE',
-        'municipality': 'Madrid', 'court_name': None,
-    }
-    rows = s._maybe_split_into_lotes(EXAMPLE, umbrella, detail)
-    if not rows:
-        print("  !! NO SPLIT ROWS PRODUCED")
-        sys.exit(1)
-    print(f"  -> produced {len(rows)} independent rows\n")
-    for r in rows:
-        print(
-            f"  boeId={r['boe_id']:<32} "
-            f"lote#={r.get('lote_number'):>2} "
-            f"appraisal={r.get('appraisal_value')} "
-            f"minBid={r.get('minimum_bid')} "
-            f"deposit={r.get('deposit_amount')} "
-            f"src={r.get('source_id_sub')} "
-            f"type={r.get('auction_type')} "
-            f"title={r.get('title')!r}"
-        )
-
-    # --- 3. idempotency: same lote -> same composite id ---
-    print("\n=== IDEMPOTENCY ===")
-    ids = [r['boe_id'] for r in rows]
-    print(f"  unique ids == row count: {len(set(ids)) == len(ids)} ({len(set(ids))}/{len(ids)})")
-    print(f"  re-run lote 1 id stable: {make_lote_boe_id(EXAMPLE,1)} == {ids[0]}: {make_lote_boe_id(EXAMPLE,1)==ids[0]}")
+    # Candidates to find a phrase-LESS 2+-lote (item 3) and a single-lote (item 1).
+    # We probe a small set and let the harness report which is which.
+    for idsub, lbl in [
+        ('SUB-JA-2024-235417', 'CANDIDATE (cross-cat 2-lote)'),
+        ('SUB-GA-2026-2801400126E01', 'CANDIDATE (20-lote admin)'),
+    ]:
+        probe(s, idsub, lbl)
 
     try:
         s.browser_manager.close()

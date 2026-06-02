@@ -299,7 +299,27 @@ class BOEScraper(BaseScraper):
     
     def get_source_name(self) -> str:
         return "BOE"
-    
+
+    def validate_auction_data(self, data: Dict[str, Any]) -> bool:
+        """
+        Same required-field contract as the base validator, EXCEPT a split-lote
+        row (carries `lote_number`/`source_id_sub`) is allowed a NULL
+        appraisal_value — its "Varios Lotes" fallback honestly has no price, and
+        a no-price lote that still LISTS is strictly better than a dropped lote
+        (Dennis's rule: never fabricate a price, never lose the lote). All other
+        required fields (boe_id/title/category/province/status) still apply, and
+        non-split rows keep the strict appraisal requirement unchanged.
+        """
+        is_split_lote = data.get('lote_number') is not None or data.get('source_id_sub')
+        required_fields = ['boe_id', 'title', 'category', 'province', 'status']
+        if not is_split_lote:
+            required_fields.append('appraisal_value')
+        for field in required_fields:
+            if field not in data or data[field] is None:
+                self.log_warning(f"Missing required field: {field}")
+                return False
+        return True
+
     def build_search_url(self, **kwargs) -> str:
         """
         Build BOE search URL with support for all status types
@@ -527,7 +547,7 @@ class BOEScraper(BaseScraper):
                     # blob so the geocoder (address -> lat/lng) can place a map
                     # pin. Adapter persists data['address'] into the "address"
                     # column; null-safe when BOE genuinely omits an address.
-                    addr = extract_address(detail_info.get('bienes_info'))
+                    addr = detail_info.get('address') or extract_address(detail_info.get('bienes_info'))
                     if addr:
                         auction_data['address'] = addr
                 if detail_info.get('pujas_info'):
@@ -1287,11 +1307,32 @@ class BOEScraper(BaseScraper):
             # click is a harmless no-op there. (Verified live 2026-06-02 on
             # SUB-RC-2026-0026I20250049: pre-click body lacked the date,
             # post-click body had "Fecha de conclusion 15-06-2026 ...".)
-            self._activate_general_info_tab(page)
+            # ORDER MATTERS — clicking the "Información general" tab SWAPS the
+            # active panel and DESTROYS both (a) the idLote=N tab-bar links on an
+            # umbrella page and (b) the financial/bienes block on an individual
+            # lote page (verified live 2026-06-02 on SUB-RC-2026-3100200100959:
+            # pre-click lote links [1,2] + lote-L1 prices 906,32/763,80/76,38;
+            # post-click links=[] and all prices None). So:
+            #   1. enumerate lotes on the freshly-loaded DOM,
+            #   2. extract the full detail (prices/bienes/warning) on that SAME
+            #      pre-click DOM,
+            #   3. ONLY THEN, if the bidding-window dates are still missing
+            #      (the SIN-FECHA case on umbrella multi-lot pages, whose
+            #      schedule lives behind the general-info tab), activate that tab
+            #      and re-extract — merging the recovered dates WITHOUT clobbering
+            #      the prices/bienes already captured.
+            lote_numbers = self._enumerate_lote_numbers(page)
             info = self._extract_detail_from_page(page, boe_id, detail_url)
-            # Enumerate lote links here while the page is live (the split path
-            # needs the lote count; harmless for single auctions -> []).
-            info['lote_numbers'] = self._enumerate_lote_numbers(page)
+            if info.get('ends_at') is None or info.get('start_at') is None:
+                self._activate_general_info_tab(page)
+                dated = self._extract_detail_from_page(page, boe_id, detail_url)
+                # Merge: prefer the now-present dates/status; keep every other
+                # field from the pre-click extraction (prices/bienes/etc.) since
+                # the tab swap may have blanked them in `dated`.
+                for k in ('start_at', 'ends_at', 'detail_status'):
+                    if info.get(k) is None and dated.get(k) is not None:
+                        info[k] = dated[k]
+            info['lote_numbers'] = lote_numbers
             # #16 pujas LAST: navigates the same page to ver=5, after the ver=3
             # DOM has been read + lotes enumerated.
             self._attach_pujas(page, boe_id, detail_url, info)
@@ -1323,6 +1364,7 @@ class BOEScraper(BaseScraper):
             'general_info': None,
             'autoridad_gestora': None,
             'bienes_info': None,
+            'address': None,
             'pujas_info': None,
             'warning': None,
             'detail_url': f"{self.DETAIL_URL}?idSub={boe_id}",
@@ -1377,33 +1419,46 @@ class BOEScraper(BaseScraper):
                                 umbrella: Dict[str, Any],
                                 detail_info: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
         """
-        #14: If `source_id_sub`'s detail page declares its lotes are sold
-        separately, fetch EACH lote page and return a list of independent
-        auction_data dicts (one per lote, composite boeId). Returns None when
-        the auction is NOT a declared-split (the trigger string is absent) — the
-        caller then keeps the single umbrella row, unchanged behaviour.
+        #14 (count-gated, 2026-06-02): If `source_id_sub` exposes 2+ distinct
+        lotes (per the idLote tab bar), fetch EACH lote page and return a list of
+        independent auction_data dicts (one per lote, composite boeId). Returns
+        None when the auction has < 2 enumerable lotes — the caller then keeps
+        the single umbrella row, unchanged behaviour.
 
-        The trigger is tested against the detail-page text we already fetched
-        (general_info + bienes + the whole-page warning), NOT the lote count:
-        many auctions have several lotes sold as one unit and MUST stay one row.
+        GATE = LOTE COUNT >= 2 (Dennis's rule). The `is_split_auction` trigger
+        string ("se subastan de forma separada/independiente") is NO LONGER the
+        decider — it is now a non-gating signal only (logged). The reason: many
+        multi-lot auctions sell each lote as a separate property without ever
+        carrying that exact phrase, and Dennis wants ANY 2+-lote auction split
+        into one row per lote. A 1-lote (or 0 enumerable) auction is the
+        overwhelming-majority no-op path and MUST stay a single umbrella row.
         """
+        lote_numbers = detail_info.get('lote_numbers') or []
+
+        # Non-gating signal: record whether BOE also declared the split in words.
         trigger_text = ' '.join(filter(None, [
             detail_info.get('general_info'),
             detail_info.get('bienes_info'),
             detail_info.get('warning'),
         ]))
-        if not is_split_auction(trigger_text):
+        declared = is_split_auction(trigger_text)
+
+        # THE GATE: lote count >= 2. A single (or zero) enumerable lote keeps the
+        # umbrella row untouched — this is the no-op majority path.
+        if len(lote_numbers) < 2:
+            if declared:
+                # BOE declared a split but exposes < 2 idLote links — do NOT
+                # split blindly (we'd produce zero rows and drop the auction).
+                self.log_warning(
+                    f"{source_id_sub}: split DECLARED but only {len(lote_numbers)} "
+                    f"idLote link(s) found; keeping single umbrella row"
+                )
             return None
 
-        lote_numbers = detail_info.get('lote_numbers') or []
-        if not lote_numbers:
-            # Declared split but no enumerable lote links — do NOT split blindly
-            # (we'd produce zero rows and drop the auction). Keep the umbrella.
-            self.log_warning(
-                f"{source_id_sub}: split trigger present but no idLote links found; "
-                f"keeping single umbrella row"
-            )
-            return None
+        if declared:
+            self.log_info(f"{source_id_sub}: lote-count split (also carries declaration string)")
+        else:
+            self.log_info(f"{source_id_sub}: lote-count split (no declaration string — count gate)")
 
         if len(lote_numbers) > MAX_LOTES_PER_AUCTION:
             self.log_warning(
@@ -1455,6 +1510,17 @@ class BOEScraper(BaseScraper):
         if not appraisal:  # None or 0.0
             appraisal = info.get('valor_subasta')
 
+        minimum_bid = info.get('minimum_bid')
+
+        # "Varios Lotes" fallback (NEVER fabricate a price). When THIS lote's own
+        # page yields no usable price at all — Tasación 0/absent AND Valor subasta
+        # 0/absent AND Puja mínima absent — surface "Varios Lotes" honestly with a
+        # NULL price rather than coercing to 0 or inventing a number. Zero-
+        # migration path: leave appraisal_value/minimum_bid = None and inject the
+        # literal token into the title (front-end reads the title). Per-lote and
+        # last-resort only: a lote WITH a real price keeps its real price.
+        no_fetchable_price = (not appraisal) and (minimum_bid in (None, 0))
+
         # Province/municipality come from the LOTE's own page text (lotes can
         # differ — that's the whole point of independent listing). Fall back to
         # the umbrella's province when the lote page yields nothing.
@@ -1465,6 +1531,15 @@ class BOEScraper(BaseScraper):
         province = province_from_text(lote_text) or umbrella.get('province') or 'Unknown'
 
         title = info.get('identificador') or f"{source_id_sub} - Lote {lote_number}"
+        if no_fetchable_price and 'varios lotes' not in title.lower():
+            # Honest no-price marker — front-end shows "Varios Lotes" / no estimate.
+            title = f"{title} - Varios Lotes"
+
+        # Property street address from THIS lote's own page, so split lote rows
+        # geocode to their own pin. _extract_detail_from_page already resolved it
+        # (Bienes section -> body fallback); fall back to the bienes blob for
+        # safety. Null-safe.
+        lote_address = info.get('address') or extract_address(info.get('bienes_info'))
 
         category = umbrella.get('category')
         # Re-derive category from the lote's own description when possible.
@@ -1483,7 +1558,8 @@ class BOEScraper(BaseScraper):
             'auction_type': auction_type,
             'source': 'BOE',
             'appraisal_value': appraisal,
-            'minimum_bid': info.get('minimum_bid'),
+            'minimum_bid': minimum_bid,
+            'address': lote_address,
             'deposit_amount': info.get('deposit_amount'),
             'claimed_amount': info.get('claimed_amount'),
             'boe_link': lote_url,
@@ -1544,6 +1620,16 @@ class BOEScraper(BaseScraper):
 
             cadastral_ref, cadastral_data = extract_cadastral_refs(bienes)
 
+            # Property street address. On an umbrella page the bien block sits
+            # under a "Bienes"/"Datos del bien subastado" heading; on an
+            # individual lote page it sits under the "Lote N" heading with NO
+            # "Bienes" heading, so _extract_section_text('Bienes') returns None
+            # and extract_address(bienes) finds nothing. The "Dirección" label is
+            # always in the page body either way, so anchor address extraction on
+            # the Bienes section first, then fall back to the full body_text
+            # (verified live 2026-06-02: lote SUB-RC-2026-3100200100959-L1 ->
+            # "CALLE ALTO TEJEDORES Nº9, Peralta"). body_text is read just below.
+
             # AUTHORITATIVE financial fields, identifier (title) and status live
             # on the detail page as label/value pairs — NOT on the search listing
             # card. The listing-card regex never matched these labels, which is the
@@ -1570,10 +1656,15 @@ class BOEScraper(BaseScraper):
             if detail_status is None and ends_at is not None and ends_at < datetime.now():
                 detail_status = 'CONCLUIDA_PORTAL'
 
+            # Address: prefer the Bienes-section anchor, fall back to whole body
+            # (lote pages have no Bienes heading — see note above).
+            address = extract_address(bienes) or extract_address(body_text)
+
             return {
                 'general_info': general_info,
                 'autoridad_gestora': autoridad,
                 'bienes_info': bienes,
+                'address': address,
                 'pujas_info': pujas,
                 'warning': warning,
                 'detail_url': detail_url,
