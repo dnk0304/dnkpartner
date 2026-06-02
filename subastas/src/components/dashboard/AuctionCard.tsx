@@ -8,9 +8,7 @@ import { PremiumGuard } from './PremiumGuard';
 import { Clock, MapPin, Gavel, Building2, Pause, CircleDollarSign, Banknote, CheckCircle, XCircle, TrendingUp, Calendar, Landmark, ArrowUpRight } from 'lucide-react';
 import Image from 'next/image';
 import { capitalizeLocation } from '@/lib/utils';
-import { getVehicleCategoryImageUrl } from '@/lib/vehicle-images';
-import { getPropertyCategoryImageUrl } from '@/lib/property-images';
-import { generateMapImageUrl, getOptimalZoom } from '@/lib/map-image';
+import { resolveCardImage, isVariosLotesTitle } from '@/lib/resolve-card-image';
 
 interface AuctionCardProps {
   item: AuctionItem;
@@ -168,34 +166,28 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
 
   const statusConfig = getStatusConfig();
   const auctionTypeConfig = getAuctionTypeConfig(item.auctionType);
-  const isVehicleCategory = ['Turismos', 'Motocicletas', 'Vehículos Industriales', 'Barcos'].includes(item.category);
-  const isPropertyCategory = ['Viviendas', 'Locales', 'Terrenos', 'Garajes', 'Trasteros', 'Fincas rústicas', 'Naves industriales', 'Otros inmuebles'].includes(item.category);
 
-  const hasCoords = Boolean(item.latitude && item.longitude);
-
-  // Real photo = resolver-served (Catastro / Street View / migrated). When present,
-  // it ALWAYS wins over the map/category placeholder — that's the P1 upgrade.
-  const hasRealPhoto = Boolean(
-    item.imageUrl && (item.imageUrl.startsWith('/api/auction-image/') || item.imageUrl.startsWith('/streetview/'))
-  );
-
-  // Determine image source: real photo > map > category placeholder.
-  let imageSrc: string;
-  if (hasRealPhoto) {
-    imageSrc = item.imageUrl;
-  } else if (hasCoords) {
-    imageSrc = generateMapImageUrl(item.latitude || null, item.longitude || null, 800, 600, getOptimalZoom(item.category));
-  } else if (isVehicleCategory) {
-    imageSrc = getVehicleCategoryImageUrl(item.category);
-  } else if (isPropertyCategory) {
-    imageSrc = getPropertyCategoryImageUrl(item.category);
-  } else {
-    imageSrc = item.imageUrl || getPropertyCategoryImageUrl('Otros inmuebles');
-  }
-
-  const imageAlt = hasRealPhoto ? `Foto de ${item.title}` : hasCoords ? 'Mapa de ubicación' : item.title;
-  // Only show the pin overlay when we're rendering a non-map, non-photo placeholder.
-  const showPinOverlay = !hasCoords && !hasRealPhoto;
+  // Centralized 3-rung imagery ladder — identical logic across dashboard
+  // card, observatory card/row, carousel, detail. See lib/resolve-card-image.
+  const resolved = resolveCardImage({
+    imageUrl: item.imageUrl,
+    hasImage: (item as { hasImage?: boolean | null }).hasImage,
+    latitude: item.latitude,
+    longitude: item.longitude,
+    category: item.category,
+    title: item.title,
+    size: 'medium',
+  });
+  const imageSrc = resolved.src;
+  const imageAlt = resolved.alt;
+  // Center-pin overlay reserved for the rung-3 category SVG (the static map
+  // already renders its own pin in the OSM tile).
+  const showPinOverlay = resolved.isPlaceholder;
+  // Ghost's split-multilot rows carry the "Varios Lotes" title and no price.
+  // Show "Precio no disponible" treatment instead of "Sin Pujas" in the price
+  // slot for those rows.
+  const isVariosLotes = isVariosLotesTitle(item.title);
+  const noPriceData = item.currentBid == null && item.appraisalValue == null;
 
   return (
     <Card 
@@ -212,11 +204,18 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
       <div className="relative aspect-video w-full bg-gray-100 overflow-hidden border-b border-gray-100">
         {/* Removed PremiumGuard from image to show map always */}
         <div className="relative w-full h-full">
-          <Image 
-            src={imageSrc} 
+          <Image
+            src={imageSrc}
             alt={imageAlt}
             fill
-            className="object-cover transition-transform duration-700 group-hover:scale-105"
+            sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
+            className={
+              resolved.isPlaceholder
+                ? 'object-contain p-6 opacity-80 transition-transform duration-700 group-hover:scale-105'
+                : 'object-cover transition-transform duration-700 group-hover:scale-105'
+            }
+            unoptimized={resolved.isMap}
+            loading="lazy"
           />
 
           {showPinOverlay && (
@@ -308,22 +307,35 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
               </div>
             </div>
 
-            {/* Price Grid - Clear Hierarchy and Larger */}
-            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100 mt-2">
-              <div className="flex flex-col">
-                <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Puja actual</span>
-                <span className="text-lg font-bold text-gray-900">
-                  {item.currentBid ? formatCurrency(item.currentBid) : 'Sin Pujas'}
+            {/* Price Grid — clear hierarchy. When both fields are absent (Ghost's
+                split "Varios Lotes" rows) collapse to a single "Precio no disponible"
+                line instead of two muted "Sin Pujas" / "Sin tasación" labels. */}
+            {noPriceData ? (
+              <div className="pt-2 border-t border-gray-100 mt-2">
+                <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">
+                  {isVariosLotes ? 'Varios lotes' : 'Precio'}
                 </span>
+                <div className="text-base font-medium text-gray-700">
+                  Precio no disponible
+                </div>
               </div>
-              
-              <div className="flex flex-col text-right">
-                <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Tasación</span>
-                <span className="text-base font-semibold text-gray-600">
-                  {item.appraisalValue ? formatCurrency(item.appraisalValue) : 'Sin tasación'}
-                </span>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100 mt-2">
+                <div className="flex flex-col">
+                  <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Puja actual</span>
+                  <span className="text-lg font-bold text-gray-900">
+                    {item.currentBid ? formatCurrency(item.currentBid) : 'Sin Pujas'}
+                  </span>
+                </div>
+
+                <div className="flex flex-col text-right">
+                  <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Tasación</span>
+                  <span className="text-base font-semibold text-gray-600">
+                    {item.appraisalValue ? formatCurrency(item.appraisalValue) : 'Sin tasación'}
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Footer Metadata */}
             <div className="flex items-center justify-between pt-3 border-t border-gray-100 text-sm mt-2">

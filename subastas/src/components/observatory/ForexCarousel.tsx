@@ -25,9 +25,10 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, ChevronsUpDown, ChevronsDownUp, ArrowRight, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronsUpDown, ChevronsDownUp, ArrowRight, Loader2, MapPin } from "lucide-react";
 import { apiFetch } from "@/lib/api-path";
 import { StatusBadge } from "./StatusBadge";
+import { resolveCardImage, isVariosLotesTitle } from "@/lib/resolve-card-image";
 import {
   formatPrice,
   formatDaysLeft,
@@ -57,6 +58,10 @@ type FeedAuction = {
   lotNumber: string | null;
   imageUrl: string | null;
   boeLink: string | null;
+  // Latitude/longitude feed the 3-rung imagery ladder on the expanded card.
+  // `/api/auctions/recent` already projects them — see route.ts.
+  latitude: number | null;
+  longitude: number | null;
 };
 
 type FeedItem = {
@@ -73,11 +78,6 @@ const ACTIVE_STATUSES = new Set([
   "proxima-apertura",
   "suspendida",
 ]);
-
-function isRealPhotoUrl(url?: string | null): boolean {
-  if (!url) return false;
-  return url.startsWith("/api/auction-image/") || url.startsWith("/streetview/");
-}
 
 /**
  * Pick the first numeric value that is finite AND > 0. The `recent` feed
@@ -398,9 +398,21 @@ function ExpandedCard({ auction }: { auction: FeedAuction }) {
     valorSubasta == null && reclamada == null && minBid == null
       ? pickPrice(auction.depositAmount)
       : null;
-  const photo = isRealPhotoUrl(auction.imageUrl) ? auction.imageUrl : null;
+  // 3-rung imagery ladder. The carousel never goes blank — rung 2 (static
+  // map pin) and rung 3 (per-category SVG) backstop every row.
+  const resolved = resolveCardImage({
+    imageUrl: auction.imageUrl,
+    latitude: auction.latitude,
+    longitude: auction.longitude,
+    category: auction.category,
+    title: title,
+    size: "thumbnail",
+  });
   // Clock wins over stale DB status — same rule as CompactCard.
   const effectiveStatus = ended ? "concluida-portal" : auction.status;
+  const noPriceData =
+    valorSubasta == null && reclamada == null && minBid == null && deposit == null;
+  const isVariosLotes = isVariosLotesTitle(title);
 
   return (
     <Link
@@ -414,19 +426,25 @@ function ExpandedCard({ auction }: { auction: FeedAuction }) {
       )}
     >
       <div className="relative aspect-[16/9] bg-[--color-surface-muted]">
-        {photo ? (
-          <Image
-            src={photo}
-            alt=""
-            fill
-            sizes="260px"
-            className="object-cover"
-            loading="lazy"
-          />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
-            Sin foto
-          </div>
+        <Image
+          src={resolved.src}
+          alt={resolved.alt}
+          fill
+          sizes="260px"
+          className={
+            resolved.isPlaceholder ? "object-contain p-4 opacity-80" : "object-cover"
+          }
+          loading="lazy"
+          unoptimized={resolved.isMap}
+        />
+        {resolved.isMap && (
+          <span
+            aria-hidden="true"
+            className="absolute bottom-1 right-1 inline-flex items-center gap-1 rounded-full border border-[--color-hairline] bg-[--color-surface]/90 px-1.5 py-0.5 text-[9px] font-medium text-[--color-ink-secondary]"
+          >
+            <MapPin className="h-2.5 w-2.5" />
+            Ubicación
+          </span>
         )}
         <span className="absolute top-1.5 left-1.5">
           <StatusBadge status={effectiveStatus} size="sm" />
@@ -454,6 +472,16 @@ function ExpandedCard({ auction }: { auction: FeedAuction }) {
           </div>
         )}
         <div className="mt-1 grid grid-cols-2 gap-x-2 gap-y-1.5 pt-1.5 border-t border-[--color-hairline]">
+          {noPriceData && (
+            <div className="col-span-2 min-w-0">
+              <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
+                {isVariosLotes ? "Varios lotes" : "Precio"}
+              </div>
+              <div className="text-[12px] font-medium text-[--color-ink-secondary]">
+                Precio no disponible
+              </div>
+            </div>
+          )}
           {reclamada != null && (
             <div className="min-w-0">
               <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">

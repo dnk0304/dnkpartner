@@ -1,0 +1,188 @@
+/**
+ * resolve-card-image — the ONE place that decides what image to show for an
+ * auction across every surface (dashboard card, observatory card, row,
+ * carousel, detail page).
+ *
+ * Three-rung fallback ladder. Stops at the first rung that exists:
+ *
+ *   1. Real scraped photo — when `hasImage` is true OR `imageUrl` starts with
+ *      `/api/auction-image/` / `/streetview/`. This is the resolver-served
+ *      Catastro / Street View image; the photo always wins.
+ *   2. Static map-pin thumbnail — when latitude + longitude are present, we
+ *      synthesize a static map URL from OpenStreetMap with a red pushpin at
+ *      the auction's coordinates. This is the stated MINIMUM imagery a card
+ *      may show (Dennis 2026-06-02).
+ *   3. Category placeholder SVG — `/images/property-*.svg` or
+ *      `/images/vehicle-*.svg`. Always exists; the ladder cannot return
+ *      null. A card is NEVER blank.
+ *
+ * The helper returns the resolved src + alt + which rung was hit so callers
+ * can decorate (e.g. show a "Map pin" overlay only on rung 2, or skip the
+ * `next/image` blur for plain SVG placeholders).
+ */
+
+import {
+  generateMapImageUrl,
+  generateResponsiveMapImages,
+  getOptimalZoom,
+} from './map-image';
+import { getPropertyCategoryImageUrl } from './property-images';
+import { getVehicleCategoryImageUrl } from './vehicle-images';
+
+const REAL_PHOTO_PREFIXES = ['/api/auction-image/', '/streetview/'] as const;
+
+const PROPERTY_CATEGORIES = new Set([
+  'Viviendas',
+  'Locales',
+  'Terrenos',
+  'Garajes',
+  'Trasteros',
+  'Fincas rústicas',
+  'Naves industriales',
+  'Otros inmuebles',
+]);
+
+const VEHICLE_CATEGORIES = new Set([
+  'Turismos',
+  'Motocicletas',
+  'Vehículos Industriales',
+  'Barcos',
+]);
+
+export type ImageRung = 'photo' | 'map' | 'placeholder';
+
+export type ResolvedCardImage = {
+  /** URL to render. Never null — the ladder always resolves. */
+  src: string;
+  /** Localized alt text appropriate for the rung. */
+  alt: string;
+  /** Which rung produced this image. Lets the caller decorate (overlay, blur). */
+  rung: ImageRung;
+  /** True only when the photo is the resolver-served real photo (rung 1). */
+  isRealPhoto: boolean;
+  /** True when the resolved src is the OpenStreetMap static pin (rung 2). */
+  isMap: boolean;
+  /** True when the resolved src is the per-category SVG fallback (rung 3). */
+  isPlaceholder: boolean;
+};
+
+export type ResolveCardImageInput = {
+  /** The `imageUrl` projected by /api/auctions or /api/auctions/recent. */
+  imageUrl?: string | null;
+  /**
+   * The `hasImage` flag projected by /api/auctions. True iff the resolver has
+   * a stored real photo for this auction. Optional — when omitted we infer it
+   * from `imageUrl` prefix.
+   */
+  hasImage?: boolean | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  /** Auction category, used by both the map zoom heuristic and the placeholder SVG. */
+  category?: string | null;
+  /**
+   * Title fed to the alt-text fallback. Optional — when missing we use a
+   * Spanish generic. Helps screen readers on rung-1 photos.
+   */
+  title?: string | null;
+  /**
+   * Card slot — controls the rung-2 map size so a 160-wide carousel card and a
+   * 16:9 hero don't both fetch the same 800x600. Default 'card' (400x300).
+   */
+  size?: 'thumbnail' | 'small' | 'card' | 'medium' | 'large';
+};
+
+function isRealPhotoUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  return REAL_PHOTO_PREFIXES.some((prefix) => url.startsWith(prefix));
+}
+
+function placeholderFor(category: string | null | undefined): string {
+  if (!category) return getPropertyCategoryImageUrl('Otros inmuebles');
+  if (VEHICLE_CATEGORIES.has(category)) return getVehicleCategoryImageUrl(category);
+  if (PROPERTY_CATEGORIES.has(category)) return getPropertyCategoryImageUrl(category);
+  // Unknown / niche category (Maquinaria, Joyas, Arte…): generic SVG.
+  return getPropertyCategoryImageUrl('Otros inmuebles');
+}
+
+/**
+ * Resolve the three-rung image for an auction card.
+ *
+ * @example
+ *   const { src, alt, isMap } = resolveCardImage({
+ *     imageUrl: item.imageUrl,
+ *     hasImage: item.hasImage,
+ *     latitude: item.latitude,
+ *     longitude: item.longitude,
+ *     category: item.category,
+ *     title: item.title,
+ *     size: 'card',
+ *   });
+ */
+export function resolveCardImage(input: ResolveCardImageInput): ResolvedCardImage {
+  const {
+    imageUrl,
+    hasImage,
+    latitude,
+    longitude,
+    category,
+    title,
+    size = 'card',
+  } = input;
+
+  // Rung 1 — real scraped photo (Catastro / Street View / migrated).
+  // `hasImage` is the authoritative flag from /api/auctions; we cross-check
+  // the prefix because other endpoints (detail, recent) may not project the
+  // flag but still hand us a real-photo URL.
+  const looksLikeRealPhoto = isRealPhotoUrl(imageUrl ?? null);
+  if ((hasImage === true || looksLikeRealPhoto) && imageUrl) {
+    return {
+      src: imageUrl,
+      alt: title ? `Foto de ${title}` : 'Foto del bien',
+      rung: 'photo',
+      isRealPhoto: true,
+      isMap: false,
+      isPlaceholder: false,
+    };
+  }
+
+  // Rung 2 — static map-pin thumbnail.
+  const hasCoords =
+    typeof latitude === 'number' &&
+    typeof longitude === 'number' &&
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude);
+  if (hasCoords) {
+    const zoom = getOptimalZoom(category ?? 'default');
+    const sized = generateResponsiveMapImages(latitude!, longitude!, zoom);
+    const src = sized[size] ?? generateMapImageUrl(latitude!, longitude!, 400, 300, zoom);
+    return {
+      src,
+      alt: title
+        ? `Mapa con ubicación de ${title}`
+        : 'Mapa con la ubicación del bien',
+      rung: 'map',
+      isRealPhoto: false,
+      isMap: true,
+      isPlaceholder: false,
+    };
+  }
+
+  // Rung 3 — per-category SVG. Always exists.
+  return {
+    src: placeholderFor(category),
+    alt: title ? `Categoría: ${title}` : 'Imagen de la categoría',
+    rung: 'placeholder',
+    isRealPhoto: false,
+    isMap: false,
+    isPlaceholder: true,
+  };
+}
+
+/**
+ * Detect Ghost's split-multilot title token. Such rows carry no usable price
+ * and the price slot should render "Precio no disponible" instead of blank.
+ */
+export function isVariosLotesTitle(title: string | null | undefined): boolean {
+  if (!title) return false;
+  return /varios\s+lotes/i.test(title);
+}
