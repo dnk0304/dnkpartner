@@ -80,28 +80,33 @@ class BOEParallelScraper(BOEScraper):
     def get_source_name(self) -> str:
         return f"BOE_PARALLEL_{self.scraper_id}"
 
-    def _fetch_detail_info(self, boe_id):
+    def _navigate_and_extract(self, boe_id, detail_url):
         """
-        Own-browser detail fetch (overrides the shared-browser path).
+        Own-browser navigate + extract (overrides the shared-browser path).
 
         BUG FIX (2026-06-01, verified on SUB-NN-2026-1626077): the inherited
-        BOEScraper._fetch_detail_info opens the detail page on the SHARED
-        browser_manager. But this class drives its OWN sync-Playwright browser
-        (_get_own_page); opening a second Playwright instance from the same
-        thread raises "using Playwright Sync API inside the asyncio loop", so the
-        detail fetch failed for EVERY row and appraisal/minBid/deposit/title came
-        back NULL even when BOE published them. This affected the judicial daily
-        update too (this class is its scraper). Navigate with our own page and
-        reuse the shared _extract_detail_from_page so financial fields populate.
+        BOEScraper path opens the detail page on the SHARED browser_manager. But
+        this class drives its OWN sync-Playwright browser (_get_own_page);
+        opening a second Playwright instance from the same thread raises "using
+        Playwright Sync API inside the asyncio loop", so the detail fetch failed
+        for EVERY row and appraisal/minBid/deposit/title came back NULL even when
+        BOE published them. This affected the judicial daily update too (this
+        class is its scraper). Navigate with our own page and reuse the shared
+        _extract_detail_from_page so financial fields populate.
+
+        #14: this single override now also serves the multi-lot split path —
+        _build_lote_record calls _navigate_and_extract with each lote URL, so
+        the lote pages are fetched on the SAME own-browser, no extra override.
         """
         page = None
-        detail_url = f"{self.DETAIL_URL}?idSub={boe_id}"
         try:
             page = self._get_own_page()
             random_delay(1.0, 2.0)
             page.goto(detail_url, wait_until='domcontentloaded', timeout=30000)
             random_delay(1.0, 2.0)
-            return self._extract_detail_from_page(page, boe_id, detail_url)
+            info = self._extract_detail_from_page(page, boe_id, detail_url)
+            info['lote_numbers'] = self._enumerate_lote_numbers(page)
+            return info
         except Exception as e:
             self.log_warning(f"Failed to fetch detail info for {boe_id}: {e}")
             return self._empty_detail_info(boe_id)
@@ -291,8 +296,14 @@ class BOEParallelScraper(BOEScraper):
                             random_delay(1, 2)
                         
                         auction_data = self.parse_listing(item)
-                        
-                        if auction_data and self.validate_auction_data(auction_data):
+
+                        if auction_data and auction_data.get('_split_lotes'):
+                            # #14: declared-split auction -> N independent lote
+                            # rows instead of the umbrella row.
+                            saved_count += self._upsert_split_lotes(
+                                auction_data['_split_lotes']
+                            )
+                        elif auction_data and self.validate_auction_data(auction_data):
                             self.db_adapter.upsert_auction(auction_data)
                             saved_count += 1
                     

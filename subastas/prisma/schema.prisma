@@ -53,6 +53,17 @@ model Auction {
   lotNumber       String?
   boeAnnouncement String?
 
+  // Multi-lot split provenance (#14). When BOE declares an auction's lotes are
+  // sold separately ("...se subastan de forma separada/independiente"), the
+  // scraper splits it into one INDEPENDENT Auction row per lote, keyed
+  // boeId = "<sourceIdSub>-L<loteNumber>". These two nullable columns record
+  // where a split row came from; both are NULL for ordinary single auctions.
+  // Additive, nullable, no backfill in the migration. The composite boeId is
+  // self-describing too, but explicit columns keep the backfill + any
+  // "other lotes of this auction" query trivial (hence the index).
+  sourceIdSub     String?
+  loteNumber      Int?
+
   // Dates and times
   publishedAt DateTime
   // opensAt: the auction's opening / "Fecha de inicio" — when a PROXIMA_APERTURA
@@ -135,6 +146,8 @@ model Auction {
   // Promotion query: PROXIMA_APERTURA rows whose opensAt has arrived.
   @@index([status, opensAt])
   @@index([municipality, status])
+  // #14 split provenance: "all lotes of BOE auction X" + backfill lookups.
+  @@index([sourceIdSub])
 }
 
 // ---------------------------------------------------------------------------
