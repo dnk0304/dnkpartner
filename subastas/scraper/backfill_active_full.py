@@ -113,14 +113,27 @@ def _save_ckpt(done):
 
 
 def rescrape(conn):
-    logger.info("--- Re-scrape: full active pool ---")
+    only_null = "--only-null-endsat" in sys.argv
+    if only_null:
+        logger.info("--- Re-scrape: CELEBRANDOSE rows with NULL endsAt only ---")
+    else:
+        logger.info("--- Re-scrape: full active pool ---")
     cur = conn.cursor()
-    cur.execute(f"""
-        SELECT "boeId" FROM "Auction"
-        WHERE status IN {ACTIVE_STATUSES} AND "boeId" IS NOT NULL
-          AND {LEGACY_EXCLUSION_SQL}
-        ORDER BY "endsAt" ASC NULLS LAST
-    """)
+    if only_null:
+        cur.execute(f"""
+            SELECT "boeId" FROM "Auction"
+            WHERE status = 'CELEBRANDOSE' AND "endsAt" IS NULL
+              AND "boeId" IS NOT NULL
+              AND {LEGACY_EXCLUSION_SQL}
+            ORDER BY "boeId" ASC
+        """)
+    else:
+        cur.execute(f"""
+            SELECT "boeId" FROM "Auction"
+            WHERE status IN {ACTIVE_STATUSES} AND "boeId" IS NOT NULL
+              AND {LEGACY_EXCLUSION_SQL}
+            ORDER BY "endsAt" ASC NULLS LAST
+        """)
     boe_ids = [r[0] for r in cur.fetchall()]
     logger.info(f"  {len(boe_ids):,} active rows in scope")
 

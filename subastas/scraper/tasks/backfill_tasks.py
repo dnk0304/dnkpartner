@@ -32,7 +32,7 @@ def geocode_missing_coordinates(batch_size: int = 100, active_only: bool = True)
 
     is_pg = db.db_type == 'postgresql'
     status_clause = (
-        "AND status IN ('ACTIVE','CELEBRANDOSE','PRE_AUCTION','PROXIMA_APERTURA')"
+        "AND status IN ('ACTIVE','CELEBRANDOSE','PRE_AUCTION','PROXIMA_APERTURA','SUSPENDIDA','SUSPENDED')"
         if active_only else ""
     )
 

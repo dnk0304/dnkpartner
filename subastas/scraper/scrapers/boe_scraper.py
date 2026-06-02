@@ -852,7 +852,17 @@ class BOEScraper(BaseScraper):
     
     def _detail_url(self, boe_id: str) -> str:
         """Full detail-view URL (ver=3) for an auction. ver=3 is required for the
-        per-lote tab bar (idLote=N links) to render — see _fetch_detail_info."""
+        per-lote tab bar (idLote=N links) to render — see _fetch_detail_info.
+
+        #14 split rows are keyed by a composite "<idSub>-L<N>" whose live page is
+        idSub=<idSub>&idLote=N&ver=3 — requesting idSub=<idSub>-L<N> 404s and the
+        detail (incl. Fecha de conclusion -> endsAt) silently comes back empty.
+        Rebuild the proper lote URL here so _fetch_detail_info resolves split
+        lotes correctly; bare idSubs are unaffected."""
+        parsed = parse_lote_boe_id(boe_id)
+        if parsed:
+            src, lote_n = parsed
+            return f"{self.DETAIL_URL}?idSub={src}&idLote={lote_n}&ver=3"
         return f"{self.DETAIL_URL}?idSub={boe_id}&ver=3"
 
     def _extract_boe_id(self, url: str) -> str:
@@ -1203,6 +1213,16 @@ class BOEScraper(BaseScraper):
             # server-rendered in the initial HTML, so domcontentloaded is enough.
             page.goto(detail_url, wait_until='domcontentloaded', timeout=30000)
             random_delay(1.0, 2.0)
+            # Multi-lot auctions open with the "Lotes" tab active and load the
+            # "Informacion general" panel (which carries Fecha de inicio /
+            # Fecha de conclusion -> endsAt, and Estado) via AJAX only when that
+            # tab is clicked. Without this, body inner_text never contains the
+            # conclusion date for split auctions -> endsAt stays NULL ("sin
+            # fecha"). Single-lot pages already default to this panel, so the
+            # click is a harmless no-op there. (Verified live 2026-06-02 on
+            # SUB-RC-2026-0026I20250049: pre-click body lacked the date,
+            # post-click body had "Fecha de conclusion 15-06-2026 ...".)
+            self._activate_general_info_tab(page)
             info = self._extract_detail_from_page(page, boe_id, detail_url)
             # Enumerate lote links here while the page is live (the split path
             # needs the lote count; harmless for single auctions -> []).
@@ -1217,6 +1237,21 @@ class BOEScraper(BaseScraper):
         finally:
             if page:
                 self.browser_manager.close_page(page)
+
+    def _activate_general_info_tab(self, page: Any) -> None:
+        """Click the "Informacion general" tab so its AJAX-loaded panel (which
+        holds Fecha de inicio / Fecha de conclusion / Estado) is present in the
+        DOM before extraction. Multi-lot auctions open on the "Lotes" tab and
+        never load this panel otherwise, leaving endsAt NULL. Best-effort: any
+        failure (single-lot page where it is already active, selector absent) is
+        swallowed so extraction proceeds on whatever is rendered."""
+        try:
+            tab = page.locator('text=Información general').first
+            if tab.count() > 0:
+                tab.click(timeout=5000)
+                random_delay(1.2, 2.2)
+        except Exception as e:
+            self.log_warning(f"general-info tab activation skipped: {e}")
 
     def _empty_detail_info(self, boe_id: str) -> Dict[str, Optional[str]]:
         return {

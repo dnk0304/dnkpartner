@@ -450,8 +450,8 @@ class ScraperScheduler:
                 conn.close()
                 return
 
-            sys.path.insert(0, str(SCRIPT_DIR))
-            from database.outbox import emit_new_bid
+            sys.path.insert(0, '/')
+            from app.database.outbox import emit_new_bid
 
             scraper = BOEScraper()
             updated_count = 0
