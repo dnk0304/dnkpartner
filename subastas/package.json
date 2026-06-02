@@ -45,6 +45,7 @@
     "lucide-react": "^0.562.0",
     "next": "16.1.3",
     "next-auth": "^5.0.0-beta.30",
+    "next-intl": "^4.13.0",
     "pg": "^8.17.1",
     "pg-copy-streams": "^7.0.0",
     "react": "19.2.3",

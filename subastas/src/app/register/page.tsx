@@ -9,6 +9,7 @@ import { CheckCircle2, Loader2, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
+import { useTranslations } from 'next-intl';
 import { apiFetch } from "@/lib/api-path";
 
 /**
@@ -46,6 +47,7 @@ function GoogleIcon({ className }: { className?: string }) {
 
 export default function RegisterPage() {
   const router = useRouter();
+  const t = useTranslations('register');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -58,11 +60,11 @@ export default function RegisterPage() {
 
   const validatePassword = () => {
     if (password.length < 8) {
-      setError('La contraseña debe tener al menos 8 caracteres.');
+      setError(t('errorShort'));
       return false;
     }
     if (password !== confirmPassword) {
-      setError('Las contraseñas no coinciden.');
+      setError(t('errorMismatch'));
       return false;
     }
     return true;
@@ -93,7 +95,7 @@ export default function RegisterPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'No se ha podido crear la cuenta. Inténtalo de nuevo.');
+        setError(data.error || t('errorCreate'));
       } else {
         setIsSuccess(true);
         // Automatically redirect to login after 2 seconds
@@ -102,7 +104,7 @@ export default function RegisterPage() {
         }, 2000);
       }
     } catch (err) {
-      setError('Se ha producido un error inesperado. Inténtalo de nuevo.');
+      setError(t('errorUnexpected'));
       console.error('Registration error:', err);
     } finally {
       setIsLoading(false);
@@ -115,7 +117,7 @@ export default function RegisterPage() {
     try {
       await signIn('google', { callbackUrl: '/' });
     } catch (err) {
-      setError('No se pudo registrar con Google. Inténtalo de nuevo.');
+      setError(t('errorGoogle'));
       console.error('google register error:', err);
       setSocialLoading(null);
     }
@@ -134,17 +136,17 @@ export default function RegisterPage() {
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-black text-white shadow-xl">
             <span className="text-xl font-bold">S</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Únete a SubastasActivas</h1>
-          <p className="mt-2 text-sm text-gray-600">Empieza a seguir subastas judiciales en toda España.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">{t('welcomeTitle')}</h1>
+          <p className="mt-2 text-sm text-gray-600">{t('tagline')}</p>
         </div>
 
         <Card className="border-gray-200 shadow-xl">
           {!isSuccess ? (
             <>
               <CardHeader className="space-y-1">
-                <CardTitle className="text-xl text-gray-900">Crear cuenta</CardTitle>
+                <CardTitle className="text-xl text-gray-900">{t('cardTitle')}</CardTitle>
                 <CardDescription className="text-gray-700">
-                  Introduce tus datos para empezar
+                  {t('cardDescription')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -158,12 +160,12 @@ export default function RegisterPage() {
                   {socialLoading === 'google' ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Conectando con Google…
+                      {t('connectingGoogle')}
                     </>
                   ) : (
                     <>
                       <GoogleIcon className="mr-2 h-4 w-4" />
-                      Continuar con Google
+                      {t('continueWithGoogle')}
                     </>
                   )}
                 </Button>
@@ -173,17 +175,17 @@ export default function RegisterPage() {
                     <span className="w-full border-t border-gray-200" />
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-white px-2 text-gray-600">o regístrate con email</span>
+                    <span className="bg-white px-2 text-gray-600">{t('orWithEmail')}</span>
                   </div>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="email" className="text-gray-900">Correo electrónico</Label>
+                    <Label htmlFor="email" className="text-gray-900">{t('emailLabel')}</Label>
                     <Input
                       id="email"
                       type="email"
-                      placeholder="nombre@ejemplo.com"
+                      placeholder={t('emailPlaceholder')}
                       className="bg-gray-50/50 text-gray-900"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -193,12 +195,12 @@ export default function RegisterPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="password" className="text-gray-900">Contraseña</Label>
+                    <Label htmlFor="password" className="text-gray-900">{t('passwordLabel')}</Label>
                     <div className="relative">
                       <Input
                         id="password"
                         type={showPassword ? "text" : "password"}
-                        placeholder="Crea una contraseña segura"
+                        placeholder={t('passwordPlaceholder')}
                         className="bg-gray-50/50 pr-10 text-gray-900"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
@@ -209,24 +211,24 @@ export default function RegisterPage() {
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                        aria-label={showPassword ? t('passwordHideAria') : t('passwordShowAria')}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-900"
                       >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
                     <p className="text-xs text-gray-600">
-                      Debe tener al menos 8 caracteres.
+                      {t('passwordHint')}
                     </p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="confirmPassword" className="text-gray-900">Confirmar contraseña</Label>
+                    <Label htmlFor="confirmPassword" className="text-gray-900">{t('confirmPasswordLabel')}</Label>
                     <div className="relative">
                       <Input
                         id="confirmPassword"
                         type={showConfirmPassword ? "text" : "password"}
-                        placeholder="Confirma tu contraseña"
+                        placeholder={t('confirmPasswordPlaceholder')}
                         className="bg-gray-50/50 pr-10 text-gray-900"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
@@ -236,7 +238,7 @@ export default function RegisterPage() {
                       <button
                         type="button"
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        aria-label={showConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                        aria-label={showConfirmPassword ? t('passwordHideAria') : t('passwordShowAria')}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-900"
                       >
                         {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -258,29 +260,29 @@ export default function RegisterPage() {
                     {isLoading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Creando cuenta…
+                        {t('submitting')}
                       </>
                     ) : (
-                      'Crear cuenta'
+                      t('submit')
                     )}
                   </Button>
                 </form>
 
                 <div className="pt-4 text-center text-xs text-gray-700">
-                  ¿Ya tienes cuenta?{' '}
+                  {t('haveAccount')}{' '}
                   <Link href="/login" className="font-medium text-black hover:underline">
-                    Inicia sesión
+                    {t('signIn')}
                   </Link>
                 </div>
 
                 <p className="text-xs text-center text-gray-600 pt-2">
-                  Al crear una cuenta aceptas nuestros{' '}
+                  {t('termsPrefix')}{' '}
                   <Link href="/terms" className="underline hover:text-gray-900">
-                    Términos del servicio
+                    {t('termsLink')}
                   </Link>{' '}
-                  y la{' '}
+                  {t('termsConnector')}{' '}
                   <Link href="/privacy" className="underline hover:text-gray-900">
-                    Política de privacidad
+                    {t('privacyLink')}
                   </Link>
                   .
                 </p>
@@ -293,12 +295,13 @@ export default function RegisterPage() {
                   <CheckCircle2 className="h-6 w-6 text-green-600" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">¡Cuenta creada!</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">{t('successTitle')}</h3>
                   <p className="mt-2 text-sm text-gray-700">
-                    Tu cuenta se ha creado correctamente con <strong>{email}</strong>
+                    {t('successBody')}
+                    <strong>{email}</strong>
                   </p>
                   <p className="mt-2 text-sm text-gray-600">
-                    Redirigiéndote al inicio de sesión…
+                    {t('successRedirect')}
                   </p>
                 </div>
               </div>
