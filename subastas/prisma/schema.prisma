@@ -223,6 +223,12 @@ model Subscription {
   stripeCustomerId     String?   @unique
   stripeSubscriptionId String?   @unique
   stripePriceId        String?
+  // Feature #10: Whop linkage. Authoritative tier writes come from the Whop
+  // webhook; we key by whopMembershipId on every event. whopPlanId / whopUserId
+  // are recorded for support + future plan-tier remapping.
+  whopMembershipId     String?   @unique
+  whopPlanId           String?
+  whopUserId           String?
   status               String
   tier                 UserTier
   currentPeriodStart   DateTime?
@@ -234,6 +240,7 @@ model Subscription {
   @@index([userId])
   @@index([stripeCustomerId])
   @@index([stripeSubscriptionId])
+  @@index([whopUserId])
 }
 
 model Account {
@@ -456,6 +463,11 @@ enum AuctionStatus {
 
 enum UserTier {
   FREE
+  // Feature #10 (2026-06-02): the single paid tier — Whop plan
+  // plan_c4MzcxWSJP7eT @ €5.99/mo. Dennis decision: collapse to FREE + ACCESO.
+  ACCESO
+  // Legacy tiers — kept in the enum so a future re-expansion is a UI/config
+  // change, not a destructive migration. No active code branches on these.
   GOLD
   DIAMOND
 }
