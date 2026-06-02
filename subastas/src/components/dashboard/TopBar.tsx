@@ -51,7 +51,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             <div className="h-8 w-8 rounded bg-blue-600 flex items-center justify-center text-white font-bold text-lg">
               S
             </div>
-            <span className="font-bold text-xl text-gray-800">SubastaPro</span>
+            <span className="font-bold text-xl text-gray-900">SubastasActivas</span>
           </div>
         </Link>
 

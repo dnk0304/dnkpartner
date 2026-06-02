@@ -91,7 +91,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="h-8 w-8 rounded-lg bg-black flex items-center justify-center">
             <span className="text-white font-bold">S</span>
           </div>
-          <span className="font-bold text-lg tracking-tight">SubastaPro</span>
+          <span className="font-bold text-lg tracking-tight">SubastasActivas</span>
         </div>
 
         {/* Upgrade Callout */}

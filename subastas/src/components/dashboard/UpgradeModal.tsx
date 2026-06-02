@@ -40,7 +40,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onOpenChange }
             Choose your plan
           </Badge>
           <DialogTitle className="text-3xl md:text-4xl font-bold text-gray-900 mb-3 tracking-tight">
-            Unlock the full potential of SubastaPro
+            Aprovecha todo el potencial de SubastasActivas
           </DialogTitle>
           <DialogDescription className="text-lg text-gray-500 max-w-2xl mx-auto">
             Start with a 15-day free trial. Cancel anytime.

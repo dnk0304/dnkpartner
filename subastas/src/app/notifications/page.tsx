@@ -10,7 +10,7 @@ import { ArrowLeft } from "lucide-react";
 import { NotificationInbox } from "@/components/notifications/NotificationInbox";
 
 export const metadata = {
-  title: "Notificaciones · SubastaPro",
+  title: "Notificaciones · SubastasActivas",
   description: "Cambios de estado y avisos de las subastas que sigues.",
 };
 

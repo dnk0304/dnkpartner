@@ -51,6 +51,7 @@ type FeedAuction = {
   appraisalValue: number | null;
   minimumBid: number | null;
   depositAmount: number | null;
+  claimedAmount: number | null;
   endsAt: string | null;
   endDateTime: string | null;
   lotNumber: string | null;
@@ -294,17 +295,16 @@ function CompactCard({ auction }: { auction: FeedAuction }) {
   const ended = isEffectivelyEnded(endsAt);
   const dl = daysLeft(endsAt);
   const urgent = !ended && dl != null && dl <= 1;
-  // Fallback order: real valuation (appraisal → minBid → currentBid) first; if
-  // none are present but a `depositAmount` exists, surface that instead so the
-  // card isn't a bare "Sin tasación". Ken found 53 active rows on 2026-06-01
-  // with no valuation but a real deposit — those cards used to be useless.
-  const valuation = pickPrice(auction.appraisalValue, auction.minimumBid, auction.currentBid);
+
+  // Dennis's spec: compact card surfaces Cantidad reclamada + Valor subasta
+  // (the two numbers a property hunter actually scans for). Each gated
+  // through pickPrice (0/null → omit). "—" placeholder when absent so the
+  // grid stays aligned. If BOTH are missing, fall back to deposit so the
+  // 53 deposit-only rows Ken catalogued still say something useful.
+  const reclamada = pickPrice(auction.claimedAmount);
+  const valor = pickPrice(auction.appraisalValue);
   const deposit = pickPrice(auction.depositAmount);
-  const value = valuation ?? deposit;
-  // The compact card has no inline label, so when the rendered number is the
-  // deposit (not a valuation) we MUST tag it "Depósito" — otherwise the user
-  // would read it as a Tasación and mis-price the lot.
-  const valueIsDeposit = valuation == null && deposit != null;
+  const hasAnyPrimary = reclamada != null || valor != null;
 
   // Clock wins over stale DB status: if endsAt is in the past, never paint Live/Próx.
   const effectiveStatus = ended ? "concluida-portal" : auction.status;
@@ -314,59 +314,59 @@ function CompactCard({ auction }: { auction: FeedAuction }) {
     <Link
       href={`/auction/${encodeURIComponent(auction.id)}`}
       className={cn(
-        "snap-start shrink-0 w-[140px] rounded-lg border bg-[--color-surface] px-2.5 py-2",
-        "flex flex-col gap-1 transition-colors",
+        "snap-start shrink-0 w-[160px] rounded-lg border bg-[--color-surface] px-2.5 py-2",
+        "flex flex-col gap-1.5 transition-colors",
         "hover:border-[--color-brand-soft]/50 hover:bg-[--color-info-soft]/40",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand-soft]/40",
         urgent ? "border-[--color-warn-critical]/60" : "border-[--color-hairline]",
       )}
       title={displayTitle(auction)}
     >
-      <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
-        <span className="inline-flex items-center gap-1">
-          <span
-            aria-hidden="true"
-            className={cn(
-              "h-1.5 w-1.5 rounded-full",
-              effectiveStatus === "celebrandose"
-                ? "bg-[--color-status-live] dnk-pulse"
-                : effectiveStatus === "proxima-apertura"
-                  ? "bg-[--color-status-upcoming]"
-                  : "bg-[--color-ink-tertiary]",
-            )}
-          />
-          {effectiveStatus === "celebrandose"
-            ? "Live"
-            : effectiveStatus === "proxima-apertura"
-              ? "Próx"
-              : "—"}
-        </span>
+      <div className="flex items-center justify-between gap-1">
+        <StatusBadge status={effectiveStatus} size="sm" className="!h-4 !px-1.5 !text-[9px]" />
         <span
           className={cn(
-            "tnum font-semibold",
+            "tnum text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap",
             urgent ? "text-[--color-warn-critical]" : "text-[--color-ink-primary]",
           )}
         >
-          {ended ? "Finalizada" : formatDaysLeft(endsAt)}
+          {ended ? "Final." : formatDaysLeft(endsAt)}
         </span>
       </div>
-      <div className="tnum text-sm font-semibold text-[--color-ink-primary] truncate">
-        {value != null ? (
-          valueIsDeposit ? (
-            <>
-              <span className="text-[9px] uppercase tracking-wide font-medium text-[--color-ink-tertiary] mr-1">
-                Depósito
-              </span>
-              {formatPrice(value)}
-            </>
-          ) : (
-            formatPrice(value)
-          )
-        ) : (
-          "Sin tasación"
-        )}
-      </div>
-      <div className="text-[10px] text-[--color-ink-tertiary] truncate">
+
+      {hasAnyPrimary ? (
+        <div className="flex flex-col gap-0.5">
+          <div className="min-w-0">
+            <div className="text-[9px] uppercase tracking-wide font-medium text-[--color-ink-tertiary] leading-tight">
+              Reclamada
+            </div>
+            <div className="tnum text-[13px] font-semibold text-[--color-ink-primary] truncate leading-tight">
+              {reclamada != null ? formatPrice(reclamada) : "—"}
+            </div>
+          </div>
+          <div className="min-w-0">
+            <div className="text-[9px] uppercase tracking-wide font-medium text-[--color-ink-tertiary] leading-tight">
+              Valor subasta
+            </div>
+            <div className="tnum text-[13px] font-semibold text-[--color-ink-primary] truncate leading-tight">
+              {valor != null ? formatPrice(valor) : "—"}
+            </div>
+          </div>
+        </div>
+      ) : deposit != null ? (
+        <div className="min-w-0">
+          <div className="text-[9px] uppercase tracking-wide font-medium text-[--color-ink-tertiary] leading-tight">
+            Depósito
+          </div>
+          <div className="tnum text-[13px] font-semibold text-[--color-ink-primary] truncate leading-tight">
+            {formatPrice(deposit)}
+          </div>
+        </div>
+      ) : (
+        <div className="text-[11px] text-[--color-ink-tertiary] leading-tight">Sin datos</div>
+      )}
+
+      <div className="text-[10px] text-[--color-ink-tertiary] truncate mt-auto">
         {prov ? capitalize(prov) : "España"}
       </div>
     </Link>
@@ -387,13 +387,17 @@ function ExpandedCard({ auction }: { auction: FeedAuction }) {
     .filter(Boolean)
     .join(" · ");
   // Treat 0 as "no data" (see pickPrice).
-  const tasacion = pickPrice(auction.appraisalValue);
+  const valorSubasta = pickPrice(auction.appraisalValue);
+  const reclamada = pickPrice(auction.claimedAmount);
   const minBid = pickPrice(auction.minimumBid);
-  // Only surface deposit on the expanded card when neither tasación nor puja
-  // mínima exist — otherwise the card would have three competing numbers and
-  // the deposit row would just be noise. With this rule, the expanded card
-  // never goes blank for deposit-only rows (the 53 the carousel used to drop).
-  const deposit = tasacion == null && minBid == null ? pickPrice(auction.depositAmount) : null;
+  // Only surface deposit on the expanded card when none of valor / reclamada /
+  // puja mínima exist — otherwise the deposit row would be noise. With this
+  // rule, the expanded card never goes blank for deposit-only rows (the 53
+  // the carousel used to drop).
+  const deposit =
+    valorSubasta == null && reclamada == null && minBid == null
+      ? pickPrice(auction.depositAmount)
+      : null;
   const photo = isRealPhotoUrl(auction.imageUrl) ? auction.imageUrl : null;
   // Clock wins over stale DB status — same rule as CompactCard.
   const effectiveStatus = ended ? "concluida-portal" : auction.status;
@@ -449,19 +453,29 @@ function ExpandedCard({ auction }: { auction: FeedAuction }) {
             {where}
           </div>
         )}
-        <div className="mt-1 grid grid-cols-2 gap-2 pt-1.5 border-t border-[--color-hairline]">
-          {tasacion != null && (
+        <div className="mt-1 grid grid-cols-2 gap-x-2 gap-y-1.5 pt-1.5 border-t border-[--color-hairline]">
+          {reclamada != null && (
             <div className="min-w-0">
               <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
-                Tasación
+                Cantidad reclamada
               </div>
               <div className="tnum text-[13px] font-semibold text-[--color-ink-primary] truncate">
-                {formatPrice(tasacion)}
+                {formatPrice(reclamada)}
+              </div>
+            </div>
+          )}
+          {valorSubasta != null && (
+            <div className={cn("min-w-0", reclamada != null && "text-right")}>
+              <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
+                Valor subasta
+              </div>
+              <div className="tnum text-[13px] font-semibold text-[--color-ink-primary] truncate">
+                {formatPrice(valorSubasta)}
               </div>
             </div>
           )}
           {minBid != null && (
-            <div className="min-w-0 text-right">
+            <div className="min-w-0">
               <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
                 Puja mín.
               </div>
