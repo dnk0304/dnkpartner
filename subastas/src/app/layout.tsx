@@ -5,6 +5,7 @@ import { getLocale, getMessages } from "next-intl/server";
 import "./globals.css";
 import { SessionProvider } from "@/components/SessionProvider";
 import { AdminSettingsProvider } from "@/context/AdminSettingsContext";
+import { SiteChrome } from "@/components/observatory/SiteChrome";
 
 /**
  * Typography — the single biggest "less AI" lever we have.
@@ -61,7 +62,9 @@ export default async function RootLayout({
       >
         <NextIntlClientProvider locale={locale} messages={messages}>
           <SessionProvider>
-            <AdminSettingsProvider>{children}</AdminSettingsProvider>
+            <AdminSettingsProvider>
+              <SiteChrome>{children}</SiteChrome>
+            </AdminSettingsProvider>
           </SessionProvider>
         </NextIntlClientProvider>
       </body>

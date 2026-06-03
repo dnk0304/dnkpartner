@@ -35,7 +35,6 @@ import { apiFetch } from "@/lib/api-path";
 import { AuctionItem, AuctionDocument } from "@/types";
 import { resolveCardImage, isVehicleCategory } from "@/lib/resolve-card-image";
 import { buildCatastroUrl } from "@/lib/catastro-url";
-import { ObservatoryHeader } from "@/components/observatory/ObservatoryHeader";
 import { effectiveStatus } from "@/components/observatory/status";
 import { DetailStatusPanel } from "@/components/observatory/DetailStatusPanel";
 import { DetailTimeline } from "@/components/observatory/DetailTimeline";
@@ -135,7 +134,6 @@ export default function AuctionDetailClient({ id }: { id: string }) {
   if (loading) {
     return (
       <div className="min-h-screen bg-[--color-page]">
-        <ObservatoryHeader hideSearch />
         <main className="mx-auto max-w-editorial px-4 md:px-6 py-8 space-y-6">
           <div className="h-7 w-1/3 bg-[--color-surface-muted] rounded animate-pulse" />
           <div className="h-12 w-2/3 bg-[--color-surface-muted] rounded animate-pulse" />
@@ -154,7 +152,6 @@ export default function AuctionDetailClient({ id }: { id: string }) {
   if (error === "not_found") {
     return (
       <div className="min-h-screen bg-[--color-page]">
-        <ObservatoryHeader hideSearch />
         <main className="mx-auto max-w-editorial px-4 md:px-6 py-16 text-center">
           <h1 className="font-serif text-2xl text-[--color-ink-primary]">Subasta no encontrada</h1>
           <p className="mt-2 text-sm text-[--color-ink-tertiary]">
@@ -175,7 +172,6 @@ export default function AuctionDetailClient({ id }: { id: string }) {
   if (error || !data) {
     return (
       <div className="min-h-screen bg-[--color-page]">
-        <ObservatoryHeader hideSearch />
         <main className="mx-auto max-w-editorial px-4 md:px-6 py-16 text-center">
           <h1 className="font-serif text-xl text-[--color-ink-primary]">
             No pudimos cargar esta subasta.
@@ -279,8 +275,6 @@ export default function AuctionDetailClient({ id }: { id: string }) {
 
   return (
     <div className="min-h-screen bg-[--color-page] pb-24 md:pb-12">
-      <ObservatoryHeader hideSearch />
-
       <main className="mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8">
         {/* Breadcrumb */}
         <nav className="text-xs text-[--color-ink-tertiary] tnum" aria-label="Migas de pan">

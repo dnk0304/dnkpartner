@@ -25,7 +25,6 @@ import dynamic from "next/dynamic";
 import { LayoutList, LayoutGrid, Map as MapIcon, Loader2, SlidersHorizontal, Table2 } from "lucide-react";
 import { AuctionItem } from "@/types";
 import { apiFetch } from "@/lib/api-path";
-import { ObservatoryHeader } from "@/components/observatory/ObservatoryHeader";
 import { SimpleFilters, ActiveFilterChips } from "@/components/observatory/SimpleFilters";
 import { AdvancedFiltersSheet } from "@/components/observatory/AdvancedFiltersSheet";
 import { AuctionListRow } from "@/components/observatory/AuctionListRow";
@@ -228,7 +227,7 @@ export default function SubastasListClient() {
 
   return (
     <div className="min-h-screen bg-[--color-page]">
-      <ObservatoryHeader />
+      {/* Header + footer come from SiteChrome in the root layout. */}
 
       <main
         className={cn(

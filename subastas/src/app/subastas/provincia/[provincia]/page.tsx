@@ -18,10 +18,16 @@ import {
   TIPO_SLUGS,
   TIPO_LABEL_PLURAL,
 } from '@/lib/seo/slugs';
-import { countActiveAuctions, findActiveAuctions, minStartingPrice } from '@/lib/seo/page-data';
+import {
+  countActiveAuctions,
+  findActiveAuctions,
+  minStartingPrice,
+  municipalitiesInProvince,
+} from '@/lib/seo/page-data';
 import { SeoIntroBlock } from '@/components/seo/SeoIntroBlock';
 import { Breadcrumbs } from '@/components/seo/Breadcrumbs';
 import { SeoAuctionGrid } from '@/components/seo/SeoAuctionGrid';
+import { capitalizeLocation } from '@/lib/utils';
 
 type PageProps = { params: Promise<{ provincia: string }> };
 
@@ -31,12 +37,13 @@ async function loadProvince(slug: string) {
   const dbKey = PROVINCE_SLUG_TO_DB_KEY[slug];
   if (!dbKey) return null;
   const label = provinceLabelForSlug(slug) ?? dbKey;
-  const [count, auctions, minPrice] = await Promise.all([
+  const [count, auctions, minPrice, municipalities] = await Promise.all([
     countActiveAuctions({ province: dbKey }),
     findActiveAuctions({ province: dbKey, take: 24 }),
     minStartingPrice({ province: dbKey }),
+    municipalitiesInProvince(dbKey),
   ]);
-  return { dbKey, label, count, auctions, minPrice };
+  return { dbKey, label, count, auctions, minPrice, municipalities };
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -61,7 +68,7 @@ export default async function ProvinciaPage({ params }: PageProps) {
   const { provincia } = await params;
   const data = await loadProvince(provincia);
   if (!data) notFound();
-  const { label, count, auctions, minPrice } = data;
+  const { dbKey, label, count, auctions, minPrice, municipalities } = data;
 
   const collectionLd = {
     '@context': 'https://schema.org',
@@ -97,6 +104,35 @@ export default async function ProvinciaPage({ params }: PageProps) {
       />
 
       <SeoAuctionGrid auctions={auctions as any} />
+
+      {/*
+        "Por municipio" — server-rendered municipality directory.
+        Each link routes to `/subastas?province=X&municipality=Y` (matches
+        the home ProvinceGrid's `onMunicipalityClick` contract). A dedicated
+        /subastas/municipio/* SEO route doesn't exist yet, so the filtered
+        listing page is the canonical destination — the URL is shareable and
+        the listing already knows how to apply both filters together.
+        Hidden when there are no active municipalities (avoids an empty
+        directory beneath an empty-province card).
+      */}
+      {municipalities.length > 0 && (
+        <section className="mt-10">
+          <h2 className="text-lg font-semibold mb-3">Por municipio en {label}</h2>
+          <ul className="flex flex-wrap gap-2">
+            {municipalities.map((m) => (
+              <li key={m.name}>
+                <Link
+                  href={`/subastas?province=${encodeURIComponent(dbKey)}&municipality=${encodeURIComponent(m.name)}`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[--color-border] text-xs hover:bg-[--color-surface-muted]"
+                >
+                  <span>{capitalizeLocation(m.name)}</span>
+                  <span className="text-[--color-text-muted] tnum">({m.count.toLocaleString('es-ES')})</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="mt-10">
         <h2 className="text-lg font-semibold mb-3">Por tipo de subasta en {label}</h2>

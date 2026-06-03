@@ -22,11 +22,10 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ObservatoryHeader } from "@/components/observatory/ObservatoryHeader";
 import { HomeCarouselSection } from "@/components/observatory/HomeCarouselSection";
 import { ProvinceDropdown } from "@/components/observatory/ProvinceDropdown";
 import { apiFetch } from "@/lib/api-path";
-import { formatNumber, formatUpdatedDayEs } from "@/components/observatory/format";
+import { formatNumber } from "@/components/observatory/format";
 import { AuctionItem } from "@/types";
 
 const HierarchicalMap = dynamic(
@@ -141,7 +140,7 @@ export default function HomeObservatory() {
 
   return (
     <div className="min-h-screen bg-[--color-page]">
-      <ObservatoryHeader />
+      {/* Header + footer are rendered site-wide by SiteChrome in the root layout. */}
 
       <main className="mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8 space-y-6 md:space-y-8">
         {/* DIRECTION A — Live counter strip (Bloomberg-style) */}
@@ -335,27 +334,6 @@ export default function HomeObservatory() {
           </Link>
         </section>
       </main>
-
-      <footer className="hairline-t mt-12 py-8 text-center text-xs text-[--color-ink-tertiary]">
-        <p className="tnum">
-          {stats?.lastUpdateTime
-            ? t("footerTagWithUpdate", { when: formatUpdatedDayEs(stats.lastUpdateTime) })
-            : t("footerTagSyncing")}
-        </p>
-        <nav className="mt-3 flex items-center justify-center gap-4 text-xs">
-          <Link href="/blog" className="hover:text-[--color-ink-primary]">
-            {t("footerGuides")}
-          </Link>
-          <span aria-hidden>·</span>
-          <Link href="/subastas" className="hover:text-[--color-ink-primary]">
-            {t("footerAuctions")}
-          </Link>
-          <span aria-hidden>·</span>
-          <Link href="/precios" className="hover:text-[--color-ink-primary]">
-            {t("footerPricing")}
-          </Link>
-        </nav>
-      </footer>
     </div>
   );
 }

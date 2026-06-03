@@ -24,7 +24,6 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { Check, ArrowRight, ShieldCheck } from "lucide-react";
-import { ObservatoryHeader } from "@/components/observatory/ObservatoryHeader";
 import { WhopCheckoutEmbed } from "@/components/pricing/WhopCheckoutEmbed";
 import { cn } from "@/lib/utils";
 
@@ -47,7 +46,7 @@ export default function PreciosClient() {
 
   return (
     <div className="min-h-screen bg-[--color-page] text-[--color-ink-primary]">
-      <ObservatoryHeader hideSearch />
+      {/* Header + footer come from SiteChrome in the root layout. */}
 
       <main className="mx-auto max-w-editorial px-4 py-10 md:px-6 md:py-14">
         {/* Hero */}
@@ -200,32 +199,6 @@ export default function PreciosClient() {
           </dl>
         </section>
       </main>
-
-      <footer className="hairline-t mt-12 py-8 text-center text-xs text-[--color-ink-tertiary]">
-        <nav className="flex items-center justify-center gap-4">
-          <Link
-            href="/"
-            className="cursor-pointer hover:text-[--color-ink-primary]"
-          >
-            SubastasActivas
-          </Link>
-          <span aria-hidden>·</span>
-          <Link
-            href="/subastas"
-            className="cursor-pointer hover:text-[--color-ink-primary]"
-          >
-            {/* Reuse home namespace string for consistency */}
-            Subastas
-          </Link>
-          <span aria-hidden>·</span>
-          <Link
-            href="/blog"
-            className="cursor-pointer hover:text-[--color-ink-primary]"
-          >
-            Blog
-          </Link>
-        </nav>
-      </footer>
     </div>
   );
 }
