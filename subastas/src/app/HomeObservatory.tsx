@@ -212,54 +212,23 @@ export default function HomeObservatory() {
           </div>
         </section>
 
-        {/* HERO — modern register heading + inline search row */}
-        <section className="space-y-4">
+        {/* HERO — modern register heading + lead.
+            Hero search form was removed (2026-06-03, Dennis): it submitted
+            ?q= to /subastas which reads ?search=, so the term was silently
+            dropped. Search lives in the global navbar (ObservatoryHeader)
+            and on /subastas. Removing the form also removed the when-select
+            (it was bound to the same submit and had no standalone purpose
+            — the marquee's "Ver todas" link below already routes to
+            /subastas?when=activas). Spacing tightened to space-y-3 so the
+            heading + lead read as one balanced block instead of carrying
+            the gap the form left behind. */}
+        <section className="space-y-3">
           <h1 className="font-display text-3xl md:text-4xl lg:text-[44px] leading-[1.1] tracking-tight text-[--color-ink-primary]">
             {t("heroTitle")}
           </h1>
-          <p className="max-w-prose text-[15px] text-[--color-ink-secondary]">
+          <p className="max-w-prose text-[15px] leading-relaxed text-[--color-ink-secondary]">
             {t("heroLead")}
           </p>
-
-          <form
-            role="search"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const data = new FormData(e.currentTarget);
-              const q = String(data.get("q") || "").trim();
-              const when = String(data.get("when") || "activas");
-              const qs = new URLSearchParams();
-              if (q) qs.set("q", q);
-              if (when) qs.set("when", when);
-              router.push(`/subastas?${qs.toString()}`);
-            }}
-            className="flex flex-col sm:flex-row gap-2"
-          >
-            <input
-              name="q"
-              type="search"
-              placeholder={t("searchPlaceholder")}
-              aria-label={t("searchAria")}
-              className="flex-1 rounded-md border border-[--color-hairline] bg-[--color-surface] px-3 py-2.5 text-sm text-[--color-ink-primary] placeholder:text-[--color-ink-tertiary] focus:outline-none focus:border-[--color-action] focus:ring-2 focus:ring-[--color-action]/20"
-            />
-            <select
-              name="when"
-              defaultValue="activas"
-              aria-label={t("whenAria")}
-              className="rounded-md border border-[--color-hairline] bg-[--color-surface] px-3 py-2.5 text-sm text-[--color-ink-primary] focus:outline-none focus:border-[--color-action]"
-            >
-              <option value="activas">{t("whenActive")}</option>
-              <option value="proximas">{t("whenUpcoming")}</option>
-              <option value="todas">{t("whenAll")}</option>
-            </select>
-            <button
-              type="submit"
-              className="inline-flex items-center justify-center gap-1 rounded-md border border-[--color-ink-primary] bg-[--color-surface] px-4 py-2.5 text-sm font-semibold text-[--color-ink-primary] hover:bg-[--color-surface-muted] transition-colors"
-            >
-              {t("searchSubmit")}
-              <span aria-hidden>→</span>
-            </button>
-          </form>
         </section>
 
         {/* Endless marquee + quick-filter chips + click-to-modal (D + E + G).
