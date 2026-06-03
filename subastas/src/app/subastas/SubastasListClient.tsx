@@ -1,45 +1,59 @@
 "use client";
 
 /**
- * SubastasListClient — the list view (List / Cards / Map toggle).
+ * SubastasListClient — the shared 2-column listing surface.
  *
- * Composition:
- *   - ObservatoryHeader (judicial header with NotificationBell)
- *   - SimpleFilters sidebar (4 questions) + AdvancedFiltersSheet
- *   - Result count header
- *   - View toggle (Lista / Tarjetas / Mapa)
- *   - Result body:
- *       * Lista (default): <table> of AuctionListRow
- *       * Tarjetas: grid of AuctionListCard
- *       * Mapa: HierarchicalMap (existing, with marker click → /auction/[id])
- *   - Pagination (Cargar más)
+ * Used by:
+ *   - /subastas                          (no lockedFilter)
+ *   - /subastas/provincia/[provincia]    (lockedFilter.province)
+ *   - /subastas/tipo/[tipo]              (lockedFilter.type)
+ *   - /subastas/[categoria]              (lockedFilter.category)
  *
- * URL is the source of truth — filters round-trip via querystring so every
- * combination is shareable.
+ * Layout:
+ *   ┌──────────────┬─────────────────────────────────────────────┐
+ *   │  Filtros     │   [SEO intro slot — server-rendered above]  │
+ *   │  sidebar     │   Breadcrumb                                │
+ *   │  (persistent)│   H1 — count + location                     │
+ *   │  Crear       │   [Activas / Finalizadas]  [Ver mapa]       │
+ *   │  alerta CTA  │   Active filter chips                       │
+ *   │  Origen      │   Sort tabs                                 │
+ *   │  Tipo bien   │                                             │
+ *   │  ¿Dónde?     │   ┌───────────────────────────────────────┐ │
+ *   │  Valor       │   │ map-thumb │ title + price + badges    │ │
+ *   │  Depósito*   │   │   + pin   │ excerpt + heart            │ │
+ *   │  Pujas*      │   └───────────────────────────────────────┘ │
+ *   │  Fechas      │   …rows…                                    │
+ *   │              │   [Cargar más]                              │
+ *   └──────────────┴─────────────────────────────────────────────┘
+ *   (* disabled — no backend filter param; flagged for Forge follow-up)
+ *
+ * URL is the source of truth — filters round-trip via querystring. SEO routes
+ * pass `lockedFilter` so the sidebar can't be used to escape the locked
+ * dimension; the URL on those routes remains the canonical SEO path (the
+ * locked dimension is path-encoded, not query-encoded).
  */
 
 import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
-import { LayoutList, LayoutGrid, Map as MapIcon, Loader2, SlidersHorizontal, Table2 } from "lucide-react";
+import { Loader2, Map as MapIcon, SlidersHorizontal } from "lucide-react";
 import { AuctionItem } from "@/types";
 import { apiFetch } from "@/lib/api-path";
-import { SimpleFilters, ActiveFilterChips } from "@/components/observatory/SimpleFilters";
+import { ActiveFilterChips } from "@/components/observatory/SimpleFilters";
 import { AdvancedFiltersSheet } from "@/components/observatory/AdvancedFiltersSheet";
-import { AuctionListRow } from "@/components/observatory/AuctionListRow";
+import { AuctionResultRow } from "@/components/observatory/AuctionResultRow";
 import { AuctionListCard } from "@/components/observatory/AuctionListCard";
 import { RegistroTable } from "@/components/observatory/RegistroTable";
-import { PresetRow } from "@/components/observatory/PresetRow";
-import { TypeFilterChips } from "@/components/observatory/TypeFilterChips";
-import { SortDropdown } from "@/components/observatory/SortDropdown";
+import { FiltersSidebar, SortTabs, StatusTabs, LockedFilter } from "@/components/observatory/FiltersSidebar";
+import { AlertsModal } from "@/components/dashboard/AlertsModal";
 import {
   ObservatoryFilters,
-  DEFAULT_FILTERS,
   filtersFromParams,
   paramsFromFilters,
   filtersToApiParams,
   applyClientFilters,
+  SortValue,
 } from "@/components/observatory/filters";
 import { cn } from "@/lib/utils";
 
@@ -49,17 +63,68 @@ const HierarchicalMap = dynamic(
   { ssr: false, loading: () => <div className="h-full w-full bg-[--color-surface-muted] animate-pulse" /> },
 );
 
-type ViewMode = "list" | "cards" | "registro" | "map";
+type ViewMode = "list" | "map" | "cards" | "registro";
 
-export default function SubastasListClient() {
+export type SubastasListClientProps = {
+  /**
+   * SEO routes lock a dimension (province / type / category). The sidebar
+   * disables the matching controls so users can't widen out via filters; the
+   * URL stays the canonical SEO path. Defaults to undefined for /subastas.
+   */
+  lockedFilter?: LockedFilter;
+  /**
+   * Optional H1 title (e.g. "Subastas públicas en Valencia") — when passed
+   * by an SEO route, this REPLACES the default "N resultados" H1 so the page
+   * has exactly one indexable H1. The count is rendered as a subtitle.
+   */
+  seoTitle?: string;
+  /**
+   * Optional content rendered ABOVE the 2-col body (between header and
+   * sidebar/list). SEO routes use this to insert the breadcrumb + SeoIntroBlock
+   * + any internal-link cluster — the layout doesn't care what's in here.
+   */
+  seoIntroSlot?: React.ReactNode;
+  /**
+   * Optional content rendered BELOW the result list — used by SEO routes for
+   * the "Por tipo de subasta en {label}" and similar internal-link clusters.
+   */
+  seoFooterSlot?: React.ReactNode;
+};
+
+export default function SubastasListClient({
+  lockedFilter,
+  seoTitle,
+  seoIntroSlot,
+  seoFooterSlot,
+}: SubastasListClientProps = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const filters = React.useMemo(
+  // Parse URL → filters, then overlay any locked dimension from the parent
+  // route. Locked dims take precedence so the user can never widen out via a
+  // hand-edited querystring.
+  const rawFilters = React.useMemo(
     () => filtersFromParams(searchParams),
     [searchParams],
   );
+  const filters = React.useMemo<ObservatoryFilters>(() => {
+    if (!lockedFilter) return rawFilters;
+    const next = { ...rawFilters };
+    if (lockedFilter.province) {
+      next.province = lockedFilter.province;
+    }
+    if (lockedFilter.type) {
+      if (!next.types.includes(lockedFilter.type)) {
+        next.types = [lockedFilter.type, ...next.types];
+      }
+    }
+    if (lockedFilter.category) {
+      next.categories = [lockedFilter.category as any];
+      next.kind = "todo";
+    }
+    return next;
+  }, [rawFilters, lockedFilter]);
 
   const viewMode = (searchParams.get("view") as ViewMode) || "list";
 
@@ -71,18 +136,38 @@ export default function SubastasListClient() {
   const [hasMore, setHasMore] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [advOpen, setAdvOpen] = React.useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false);
+  const [alertsOpen, setAlertsOpen] = React.useState(false);
   const [provinces, setProvinces] = React.useState<string[]>([]);
   const [municipalities, setMunicipalities] = React.useState<string[]>([]);
 
-  // Patch filters into URL.
+  // Patch filters into URL. Locked dimensions are stripped from the
+  // querystring on SEO routes — they live in the path, not the search.
   const updateFilters = React.useCallback(
     (patch: Partial<ObservatoryFilters>) => {
       const next = { ...filters, ...patch };
+      if (lockedFilter?.province) next.province = lockedFilter.province;
+      if (lockedFilter?.type && !next.types.includes(lockedFilter.type)) {
+        next.types = [lockedFilter.type, ...next.types];
+      }
+      if (lockedFilter?.category) {
+        next.categories = [lockedFilter.category as any];
+      }
       const qs = paramsFromFilters(next);
+      if (lockedFilter?.province) qs.delete("province");
+      if (lockedFilter?.type) {
+        if (next.types.length === 1 && next.types[0] === lockedFilter.type) {
+          qs.delete("types");
+        }
+      }
+      if (lockedFilter?.category && next.categories.length === 1) {
+        qs.delete("categories");
+        qs.delete("category");
+      }
       if (viewMode !== "list") qs.set("view", viewMode);
       router.push(`${pathname}?${qs.toString()}`, { scroll: false });
     },
-    [filters, pathname, router, viewMode],
+    [filters, pathname, router, viewMode, lockedFilter],
   );
 
   const clearFilters = React.useCallback(() => {
@@ -94,17 +179,20 @@ export default function SubastasListClient() {
   const setView = React.useCallback(
     (next: ViewMode) => {
       const qs = paramsFromFilters(filters);
+      if (lockedFilter?.province) qs.delete("province");
+      if (lockedFilter?.type && filters.types.length === 1) qs.delete("types");
+      if (lockedFilter?.category) {
+        qs.delete("categories");
+        qs.delete("category");
+      }
       if (next !== "list") qs.set("view", next);
       else qs.delete("view");
       router.push(`${pathname}?${qs.toString()}`, { scroll: false });
     },
-    [filters, pathname, router],
+    [filters, pathname, router, lockedFilter],
   );
 
-  // Load provinces from the canonical endpoint (Forge a457be3):
-  // server-side whitelist filters out CP/postal-code junk, returns rows
-  // already sorted count_desc. We render EXACTLY what the API returns —
-  // no hardcoded list, no client re-sort.
+  // Load provinces from the canonical endpoint.
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -114,7 +202,6 @@ export default function SubastasListClient() {
         if (res.ok) {
           const body = await res.json();
           if (body?.success && Array.isArray(body.data)) {
-            // Province key is what the existing filter URL expects.
             setProvinces((body.data as Array<{ province: string }>).map((r) => r.province));
           }
         }
@@ -194,7 +281,7 @@ export default function SubastasListClient() {
     return () => {
       cancelled = true;
     };
-  }, [apiQueryKey, filters]); // re-run for full filters when client-only fields change
+  }, [apiQueryKey, filters]);
 
   const loadMore = async () => {
     if (!hasMore || loadingMore) return;
@@ -219,96 +306,113 @@ export default function SubastasListClient() {
     }
   };
 
-  // Client-side post-filter (search keyword, multi-category buckets, price, municipality).
+  // Client-side post-filter (search keyword, multi-category buckets,
+  // priceMin/priceMax, municipality).
   const filtered = React.useMemo(() => applyClientFilters(items, filters), [items, filters]);
 
-  const advanced = filters.advanced;
-  const toggleAdvanced = () => updateFilters({ advanced: !advanced });
+  // H1: SEO title wins; otherwise "N resultados".
+  const renderedCount = totalCount != null ? totalCount : filtered.length;
 
   return (
     <div className="min-h-screen bg-[--color-page]">
-      {/* Header + footer come from SiteChrome in the root layout. */}
+      <main className="mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8">
+        {/* SEO intro slot — server-rendered above the 2-col body so it stays
+            in the indexable HTML (Breadcrumbs + SeoIntroBlock live here). */}
+        {seoIntroSlot && <div className="mb-6">{seoIntroSlot}</div>}
 
-      <main
-        className={cn(
-          "mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8 grid grid-cols-1 gap-6 md:gap-8 items-start",
-          // Sidebar only in Advanced mode on desktop.
-          advanced ? "lg:grid-cols-[260px_1fr]" : "lg:grid-cols-1",
-        )}
-      >
-        {/* Sidebar — only in Advanced mode */}
-        {advanced && (
+        {/* Header: H1 + status tab + Ver mapa. Lives ABOVE the sidebar/list
+            grid so it spans the full editorial width. */}
+        <header className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div className="min-w-0 flex-1">
+            <h1 className="font-serif text-2xl md:text-3xl text-[--color-ink-primary]">
+              {seoTitle ? (
+                seoTitle
+              ) : (
+                <>
+                  <span className="tnum">{renderedCount.toLocaleString("es-ES")}</span>{" "}
+                  <span className="font-sans text-base font-normal text-[--color-ink-secondary]">
+                    resultados
+                  </span>
+                </>
+              )}
+            </h1>
+            {seoTitle && (
+              <p className="mt-1 text-sm text-[--color-ink-tertiary] tnum">
+                {renderedCount.toLocaleString("es-ES")} subastas
+                {filters.when === "finalizadas" ? " finalizadas" : " activas"}
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 md:gap-3">
+            <StatusTabs
+              value={filters.when}
+              onChange={(v) => updateFilters({ when: v, statuses: [] })}
+            />
+            <button
+              type="button"
+              onClick={() => setView(viewMode === "map" ? "list" : "map")}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40",
+                viewMode === "map"
+                  ? "border-[--color-action] bg-[--color-action-soft] text-[--color-ink-primary] ring-1 ring-[--color-action]"
+                  : "border-[--color-hairline] bg-[--color-surface] text-[--color-ink-primary] hover:border-[--color-brand]/40 hover:bg-[--color-brand]/5",
+              )}
+            >
+              <MapIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              {viewMode === "map" ? "Ver lista" : "Ver mapa"}
+            </button>
+          </div>
+        </header>
+
+        {/* 2-COL BODY — persistent sidebar (desktop) + result list (right). */}
+        <div className="grid grid-cols-1 gap-6 md:gap-8 items-start lg:grid-cols-[280px_1fr]">
+          {/* SIDEBAR — desktop persistent. Mobile hides behind a Filtros
+              button below the H1; a basic overlay drawer mounts on click.
+              Sticky so it stays visible as the list scrolls. */}
           <div className="hidden lg:block sticky top-24">
-            <SimpleFilters
+            <FiltersSidebar
               filters={filters}
               provinces={provinces}
               municipalities={municipalities}
               onChange={updateFilters}
               onClear={clearFilters}
-              onMoreClick={() => setAdvOpen(true)}
+              onOpenAlerts={() => setAlertsOpen(true)}
+              lockedFilter={lockedFilter}
               resultCount={totalCount}
             />
           </div>
-        )}
 
-        <div className="min-w-0">
-          {/* Preset shortcuts — always visible (Simple mode = full attention, Advanced = de-emphasized) */}
-          <div className="mb-5">
-            <PresetRow
-              filters={filters}
-              provinces={provinces}
-              onApplyPreset={(patch) => updateFilters(patch)}
-              muted={advanced}
-            />
-          </div>
-
-          {/* Tipo de subasta — primary BOE-family filter chips, surfaced as a
-              first-class dimension now that all 5 families are live in the data. */}
-          <div className="mb-5">
-            <TypeFilterChips filters={filters} onChange={updateFilters} />
-          </div>
-
-          {/* Mobile: filter trigger only in Advanced mode (otherwise presets cover the simple case) */}
-          {advanced && (
+          <div className="min-w-0">
+            {/* Mobile filter trigger + Crear alerta. */}
             <div className="lg:hidden mb-4 flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => setAdvOpen(true)}
-                className="rounded-md border border-[--color-brand]/30 px-3 py-1.5 text-sm font-medium text-[--color-brand]"
+                onClick={() => setMobileFiltersOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-md border border-[--color-brand]/30 bg-[--color-surface] px-3 py-1.5 text-sm font-medium text-[--color-brand]"
               >
+                <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
                 Filtros
-                {filters.kind !== "todo" ||
-                filters.province ||
-                filters.when !== "activas" ||
-                filters.categories.length ||
-                filters.statuses.length ||
-                filters.types.length
-                  ? " (activos)"
-                  : ""}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAlertsOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-md bg-[--color-brand] text-white px-3 py-1.5 text-sm font-medium"
+              >
+                Crear alerta
               </button>
               <button
                 type="button"
                 onClick={clearFilters}
-                className="text-xs text-[--color-ink-tertiary]"
+                className="text-xs text-[--color-ink-tertiary] ml-auto"
               >
                 Limpiar
               </button>
             </div>
-          )}
 
-          {/* Result header */}
-          <header className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div className="min-w-0 flex-1">
-              <h1 className="font-serif text-2xl md:text-3xl text-[--color-ink-primary]">
-                {totalCount != null ? (
-                  <span className="tnum">{totalCount.toLocaleString("es-ES")}</span>
-                ) : (
-                  <span className="tnum">{filtered.length.toLocaleString("es-ES")}</span>
-                )}{" "}
-                <span className="font-sans text-base font-normal text-[--color-ink-secondary]">
-                  resultados
-                </span>
-              </h1>
+            {/* Active filter chips */}
+            <div className="mb-3">
               <ActiveFilterChips
                 filters={filters}
                 onChange={updateFilters}
@@ -316,97 +420,125 @@ export default function SubastasListClient() {
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <SortDropdown
+            {/* Sort tabs */}
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <SortTabs
                 value={filters.sort}
-                onChange={(v) => updateFilters({ sort: v })}
-              />
-              <button
-                type="button"
-                onClick={toggleAdvanced}
-                aria-pressed={advanced}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40",
-                  advanced
-                    ? "border-[--color-action] bg-[--color-action-soft] text-[--color-ink-primary] ring-1 ring-[--color-action]"
-                    : "border-[--color-hairline] bg-[--color-surface] text-[--color-ink-primary] hover:border-[--color-action]/40 hover:bg-[--color-action-soft]/40",
-                )}
-                title={advanced ? "Volver a filtros simples" : "Mostrar filtros avanzados"}
-              >
-                <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
-                {advanced ? "Filtros avanzados" : "Filtros avanzados"}
-                <span aria-hidden="true" className="text-[10px]">{advanced ? "▴" : "▾"}</span>
-              </button>
-              <ViewToggle current={viewMode} onChange={setView} />
-            </div>
-          </header>
-
-          {/* Body */}
-          {viewMode === "map" ? (
-            <div className="h-[70vh] rounded-lg overflow-hidden border border-[--color-hairline] bg-white">
-              <HierarchicalMap
-                items={filtered}
-                onMarkerClick={(a: AuctionItem) => router.push(`/auction/${encodeURIComponent(a.id)}`)}
-                onProvinceClick={(province: string) => updateFilters({ province })}
-                onBackToProvinces={() => updateFilters({ province: "", municipality: "" })}
-                onBackToMunicipalities={() => updateFilters({ municipality: "" })}
+                onChange={(v: SortValue) => updateFilters({ sort: v })}
               />
             </div>
-          ) : loading ? (
-            <LoadingBody />
-          ) : error ? (
-            <ErrorBody />
-          ) : filtered.length === 0 ? (
-            <EmptyBody onClear={clearFilters} />
-          ) : viewMode === "cards" ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filtered.map((it) => (
-                <AuctionListCard key={it.id} item={it} />
-              ))}
-            </div>
-          ) : viewMode === "registro" ? (
-            <RegistroTable items={filtered} />
-          ) : (
-            <div className="rounded-lg border border-[--color-hairline] bg-[--color-surface] overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-[--color-surface-muted] text-[10px] uppercase tracking-wider text-[--color-ink-tertiary]">
-                  <tr>
-                    <th className="w-6 py-2.5 pl-4 text-left"></th>
-                    <th className="py-2.5 pr-3 text-left">Subasta</th>
-                    <th className="hidden md:table-cell py-2.5 pr-3 text-left">Tipo</th>
-                    <th className="py-2.5 pr-3 text-right">Puja</th>
-                    <th className="hidden lg:table-cell py-2.5 pr-3 text-right">Tasación</th>
-                    <th className="hidden md:table-cell py-2.5 pr-3 text-right">Termina</th>
-                    <th className="py-2.5 pr-4 text-left"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[--color-hairline]">
-                  {filtered.map((it) => (
-                    <AuctionListRow key={it.id} item={it} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
 
-          {/* Pagination */}
-          {viewMode !== "map" && hasMore && !loading && (
-            <div className="mt-6 flex justify-center">
-              <button
-                type="button"
-                onClick={loadMore}
-                disabled={loadingMore}
-                className="inline-flex items-center gap-2 rounded-md border border-[--color-brand]/30 px-5 py-2 text-sm font-medium text-[--color-brand] hover:bg-[--color-brand]/5 disabled:opacity-60"
-              >
-                {loadingMore && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-                {loadingMore ? "Cargando…" : "Cargar más"}
-              </button>
-            </div>
-          )}
+            {/* Body */}
+            {viewMode === "map" ? (
+              <div className="h-[70vh] rounded-lg overflow-hidden border border-[--color-hairline] bg-white">
+                <HierarchicalMap
+                  items={filtered}
+                  onMarkerClick={(a: AuctionItem) => router.push(`/auction/${encodeURIComponent(a.id)}`)}
+                  onProvinceClick={(province: string) => updateFilters({ province })}
+                  onBackToProvinces={() => updateFilters({ province: "", municipality: "" })}
+                  onBackToMunicipalities={() => updateFilters({ municipality: "" })}
+                />
+              </div>
+            ) : loading ? (
+              <LoadingBody />
+            ) : error ? (
+              <ErrorBody />
+            ) : filtered.length === 0 ? (
+              <EmptyBody onClear={clearFilters} />
+            ) : viewMode === "cards" ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {filtered.map((it) => (
+                  <AuctionListCard key={it.id} item={it} />
+                ))}
+              </div>
+            ) : viewMode === "registro" ? (
+              <RegistroTable items={filtered} />
+            ) : (
+              // DEFAULT — horizontal card-rows (the new layout).
+              <ul className="space-y-3">
+                {filtered.map((it) => (
+                  <li key={it.id}>
+                    <AuctionResultRow item={it} />
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {/* Pagination */}
+            {viewMode !== "map" && hasMore && !loading && (
+              <div className="mt-6 flex justify-center">
+                <button
+                  type="button"
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="inline-flex items-center gap-2 rounded-md border border-[--color-brand]/30 px-5 py-2 text-sm font-medium text-[--color-brand] hover:bg-[--color-brand]/5 disabled:opacity-60"
+                >
+                  {loadingMore && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                  {loadingMore ? "Cargando…" : "Cargar más"}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* SEO footer slot — for the "Por tipo de subasta en {label}" cluster
+            and similar internal-link sections that the SEO routes need to
+            keep for crawl depth. */}
+        {seoFooterSlot && <div className="mt-12">{seoFooterSlot}</div>}
       </main>
 
+      {/* Mobile filter drawer. */}
+      {mobileFiltersOpen && (
+        <div
+          className="fixed inset-0 z-50 lg:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Filtros"
+        >
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setMobileFiltersOpen(false)}
+          />
+          <div className="absolute inset-y-0 left-0 w-full max-w-sm bg-[--color-page] overflow-y-auto p-4 shadow-xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="font-serif text-lg text-[--color-ink-primary]">Filtros</h2>
+              <button
+                type="button"
+                onClick={() => setMobileFiltersOpen(false)}
+                className="text-sm text-[--color-ink-tertiary] hover:text-[--color-brand]"
+                aria-label="Cerrar filtros"
+              >
+                Cerrar
+              </button>
+            </div>
+            <FiltersSidebar
+              filters={filters}
+              provinces={provinces}
+              municipalities={municipalities}
+              onChange={updateFilters}
+              onClear={clearFilters}
+              onOpenAlerts={() => {
+                setMobileFiltersOpen(false);
+                setAlertsOpen(true);
+              }}
+              lockedFilter={lockedFilter}
+              resultCount={totalCount}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* AlertsModal — opens from Crear alerta CTA, seeded with the current
+          filter set so the alert remembers what the user was looking at. */}
+      <AlertsModal
+        open={alertsOpen}
+        onOpenChange={setAlertsOpen}
+        initialProvince={filters.province || undefined}
+        initialMunicipality={filters.municipality || undefined}
+        initialCategory={filters.categories[0] || undefined}
+      />
+
+      {/* AdvancedFiltersSheet kept for legacy ?advanced=1 paths. */}
       <AdvancedFiltersSheet
         open={advOpen}
         onOpenChange={setAdvOpen}
@@ -419,64 +551,24 @@ export default function SubastasListClient() {
   );
 }
 
-function ViewToggle({
-  current,
-  onChange,
-}: {
-  current: ViewMode;
-  onChange: (v: ViewMode) => void;
-}) {
-  const opts: Array<{ id: ViewMode; label: string; icon: React.ReactNode }> = [
-    { id: "list", label: "Lista", icon: <LayoutList className="h-4 w-4" /> },
-    { id: "cards", label: "Tarjetas", icon: <LayoutGrid className="h-4 w-4" /> },
-    { id: "registro", label: "Registro", icon: <Table2 className="h-4 w-4" /> },
-    { id: "map", label: "Mapa", icon: <MapIcon className="h-4 w-4" /> },
-  ];
-  return (
-    <div
-      role="tablist"
-      aria-label="Vista de resultados"
-      className="inline-flex rounded-md border border-[--color-hairline] overflow-hidden"
-    >
-      {opts.map((o) => (
-        <button
-          key={o.id}
-          role="tab"
-          aria-selected={current === o.id}
-          onClick={() => onChange(o.id)}
-          className={cn(
-            "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors",
-            "focus-visible:outline-none focus-visible:bg-[--color-brand]/5",
-            current === o.id
-              ? "bg-[--color-action-soft] text-[--color-ink-primary] ring-1 ring-[--color-action]/40"
-              : "bg-[--color-surface] text-[--color-ink-primary] hover:bg-[--color-surface-muted]",
-          )}
-        >
-          {o.icon}
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function LoadingBody() {
   return (
-    <div className="rounded-lg border border-[--color-hairline] bg-[--color-surface]">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <div
+    <ul className="space-y-3">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <li
           key={i}
-          className="flex items-center gap-3 px-4 py-4 hairline-b last:border-b-0"
+          className="flex gap-4 rounded-lg border border-[--color-hairline] bg-[--color-surface] p-4"
         >
-          <div className="h-2 w-2 rounded-full bg-[--color-surface-muted]" />
+          <div className="h-28 w-28 rounded-md bg-[--color-surface-muted] animate-pulse" />
           <div className="flex-1 space-y-2">
-            <div className="h-3 w-3/4 bg-[--color-surface-muted] rounded animate-pulse" />
-            <div className="h-2.5 w-1/2 bg-[--color-surface-muted] rounded animate-pulse" />
+            <div className="h-4 w-3/4 bg-[--color-surface-muted] rounded animate-pulse" />
+            <div className="h-3 w-1/2 bg-[--color-surface-muted] rounded animate-pulse" />
+            <div className="h-6 w-32 bg-[--color-surface-muted] rounded animate-pulse" />
+            <div className="h-3 w-full bg-[--color-surface-muted] rounded animate-pulse" />
           </div>
-          <div className="h-3 w-20 bg-[--color-surface-muted] rounded animate-pulse" />
-        </div>
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }
 

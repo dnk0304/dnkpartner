@@ -11,10 +11,16 @@
  *  - Outside allowlist (stray "Oficinas" etc.)              → noindex,follow (200)
  *  - Reserved word                                          → 404 (notFound)
  *  - Unknown non-DB slug                                    → 404
+ *
+ * Layout (2026-06-03): renders the shared SubastasListClient with
+ * `lockedFilter.category` so users see the 2-col sidebar + card-row list,
+ * pre-filtered for this category. SEO H1, breadcrumb, intro block, JSON-LD,
+ * metadata preserved server-side.
  */
 
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
+import { Suspense } from 'react';
 import {
   CATEGORY_SLUG_TO_DB_LABEL,
   CATEGORY_LABEL_PLURAL,
@@ -24,10 +30,10 @@ import {
   CATEGORY_INDEX_THRESHOLD,
   type CategorySlug,
 } from '@/lib/seo/slugs';
-import { countActiveAuctions, findActiveAuctions, minStartingPrice } from '@/lib/seo/page-data';
+import { countActiveAuctions, minStartingPrice } from '@/lib/seo/page-data';
 import { SeoIntroBlock } from '@/components/seo/SeoIntroBlock';
 import { Breadcrumbs } from '@/components/seo/Breadcrumbs';
-import { SeoAuctionGrid } from '@/components/seo/SeoAuctionGrid';
+import SubastasListClient from '../SubastasListClient';
 
 type PageProps = { params: Promise<{ categoria: string }> };
 const SITE = 'https://subastasactivas.com';
@@ -70,19 +76,17 @@ export default async function CategoriaPage({ params }: PageProps) {
   const r = resolve(categoria);
   if (r.kind === 'reserved' || r.kind === 'invalid') notFound();
   if (r.kind === 'redirect') redirect(`/subastas/${r.to}`);
-  // After the two guards above, r is narrowed to { kind: 'canonical', ... }.
   if (r.kind !== 'canonical') notFound();
   const { slug, dbLabel } = r;
   const plural = CATEGORY_LABEL_PLURAL[slug];
 
-  const [count, auctions, minPrice] = await Promise.all([
+  const [count, minPrice] = await Promise.all([
     countActiveAuctions({ category: dbLabel }),
-    findActiveAuctions({ category: dbLabel, take: 24 }),
     minStartingPrice({ category: dbLabel }),
   ]);
 
-  return (
-    <main className="mx-auto max-w-editorial px-4 md:px-6 py-8">
+  const introSlot = (
+    <>
       <Breadcrumbs
         items={[
           { label: 'Inicio', href: '/' },
@@ -90,13 +94,6 @@ export default async function CategoriaPage({ params }: PageProps) {
           { label: `Subastas de ${plural}`, href: `/subastas/${categoria}` },
         ]}
       />
-      <header className="mb-4">
-        <h1 className="text-2xl md:text-3xl font-bold">Subastas de {plural}</h1>
-        <div className="text-sm text-[--color-text-muted] mt-1">
-          {count.toLocaleString('es-ES')} subastas activas
-        </div>
-      </header>
-
       <SeoIntroBlock
         count={count}
         noun={`subastas de ${plural}`}
@@ -105,8 +102,16 @@ export default async function CategoriaPage({ params }: PageProps) {
         guideHref={`/guia/subastas-de-${categoria}`}
         guideLabel={`Guía: subastas de ${plural}`}
       />
+    </>
+  );
 
-      <SeoAuctionGrid auctions={auctions as any} />
-    </main>
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[--color-page]" />}>
+      <SubastasListClient
+        lockedFilter={{ category: dbLabel }}
+        seoTitle={`Subastas de ${plural}`}
+        seoIntroSlot={introSlot}
+      />
+    </Suspense>
   );
 }
