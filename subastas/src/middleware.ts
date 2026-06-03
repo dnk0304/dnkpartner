@@ -133,49 +133,88 @@ export function middleware(request: NextRequest) {
   }
 
   // ---- Rule 5: /subastas?province=... → /subastas/provincia/{slug} -------
+  //
+  // SEO canonicalisation: a bare `/subastas?province=Madrid` redirects to the
+  // canonical pretty path `/subastas/provincia/madrid`. Same for ?type= and
+  // ?category=. The canonical SEO paths each encode exactly ONE dimension
+  // (province | tipo | category), so this redirect is only safe when the URL
+  // carries that single dimension. If the user combined the dimension with
+  // additional filter state (municipality, categories, price, search, etc.)
+  // we must NOT redirect — the canonical path cannot express the extra
+  // dimensions, so the redirect would silently drop filter state and bounce
+  // the user back to a coarser listing. Previously `url.search = ''` was
+  // unconditionally stripping the query, which is exactly why clicks on
+  // municipality directory links (/subastas?province=X&municipality=Y) lost
+  // the `municipality` param and "bounced back to the province". Guard: if
+  // any non-canonicalised filter param is present, skip Rule 5 entirely and
+  // let the request fall through to the `/subastas` listing, which reads
+  // filters from URLSearchParams.
   if (pathname === '/subastas' || pathname === '/subastas/') {
     const provinceQuery = searchParams.get('province');
     const typeQuery = searchParams.get('type') ?? searchParams.get('auctionType');
     const categoryQuery = searchParams.get('category');
-    if (provinceQuery) {
-      const norm = normaliseSlugToken(provinceQuery).replace(/\s+/g, '-');
-      let canonical = norm in PROVINCE_SLUG_TO_DB_KEY ? norm : null;
-      if (!canonical) {
-        for (const [slug, key] of Object.entries(PROVINCE_SLUG_TO_DB_KEY)) {
-          if (normaliseSlugToken(key) === normaliseSlugToken(provinceQuery)) {
-            canonical = slug;
-            break;
+
+    // Params that the canonical SEO paths cannot express. If ANY of these is
+    // present, the user wants the filtered listing — do not redirect.
+    const FILTER_PARAMS = [
+      'municipality',
+      'search',
+      'kind',
+      'when',
+      'priceMin',
+      'priceMax',
+      'categories',
+      'statuses',
+      'types',
+      'sort',
+      'advanced',
+      'pctTasacionMax',
+      'endsBefore',
+      'hasImage',
+    ] as const;
+    const hasFilterParams = FILTER_PARAMS.some((k) => searchParams.has(k));
+
+    if (!hasFilterParams) {
+      if (provinceQuery) {
+        const norm = normaliseSlugToken(provinceQuery).replace(/\s+/g, '-');
+        let canonical = norm in PROVINCE_SLUG_TO_DB_KEY ? norm : null;
+        if (!canonical) {
+          for (const [slug, key] of Object.entries(PROVINCE_SLUG_TO_DB_KEY)) {
+            if (normaliseSlugToken(key) === normaliseSlugToken(provinceQuery)) {
+              canonical = slug;
+              break;
+            }
           }
         }
-      }
-      if (!canonical) {
-        const alias = PROVINCE_ALIAS_TO_CANONICAL[norm];
-        if (alias) canonical = alias;
-      }
-      if (canonical) {
-        const url = request.nextUrl.clone();
-        url.pathname = relocale(`/subastas/provincia/${canonical}`, urlHadLocale);
-        url.search = '';
-        return NextResponse.redirect(url, 301);
-      }
-    } else if (typeQuery) {
-      const norm = normaliseSlugToken(typeQuery);
-      const canonical = (norm in TIPO_SLUG_TO_DB_KEYS) ? norm : TIPO_ALIAS_TO_CANONICAL[norm];
-      if (canonical) {
-        const url = request.nextUrl.clone();
-        url.pathname = relocale(`/subastas/tipo/${canonical}`, urlHadLocale);
-        url.search = '';
-        return NextResponse.redirect(url, 301);
-      }
-    } else if (categoryQuery) {
-      const norm = normaliseSlugToken(categoryQuery);
-      let canonical: string | null = norm in CATEGORY_SLUG_TO_DB_LABEL ? norm : null;
-      if (!canonical) canonical = CATEGORY_ALIAS_TO_CANONICAL[norm] ?? null;
-      if (canonical) {
-        const url = request.nextUrl.clone();
-        url.pathname = relocale(`/subastas/${canonical}`, urlHadLocale);
-        url.search = '';
-        return NextResponse.redirect(url, 301);
+        if (!canonical) {
+          const alias = PROVINCE_ALIAS_TO_CANONICAL[norm];
+          if (alias) canonical = alias;
+        }
+        if (canonical) {
+          const url = request.nextUrl.clone();
+          url.pathname = relocale(`/subastas/provincia/${canonical}`, urlHadLocale);
+          url.search = '';
+          return NextResponse.redirect(url, 301);
+        }
+      } else if (typeQuery) {
+        const norm = normaliseSlugToken(typeQuery);
+        const canonical = (norm in TIPO_SLUG_TO_DB_KEYS) ? norm : TIPO_ALIAS_TO_CANONICAL[norm];
+        if (canonical) {
+          const url = request.nextUrl.clone();
+          url.pathname = relocale(`/subastas/tipo/${canonical}`, urlHadLocale);
+          url.search = '';
+          return NextResponse.redirect(url, 301);
+        }
+      } else if (categoryQuery) {
+        const norm = normaliseSlugToken(categoryQuery);
+        let canonical: string | null = norm in CATEGORY_SLUG_TO_DB_LABEL ? norm : null;
+        if (!canonical) canonical = CATEGORY_ALIAS_TO_CANONICAL[norm] ?? null;
+        if (canonical) {
+          const url = request.nextUrl.clone();
+          url.pathname = relocale(`/subastas/${canonical}`, urlHadLocale);
+          url.search = '';
+          return NextResponse.redirect(url, 301);
+        }
       }
     }
   }
