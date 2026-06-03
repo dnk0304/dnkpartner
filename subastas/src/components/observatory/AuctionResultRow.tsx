@@ -88,25 +88,37 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
       ? fallbackImageFor(resolved, item.category)
       : resolved.src;
 
-  // Price hierarchy: current bid (if any) → minimum bid → tasación. We surface
-  // ONE prominent price + a secondary one underneath when both exist. The row
-  // never shows "—" walls — when no numeric price exists at all we render
-  // a soft "Precio no disponible" caption.
-  const hasCurrentBid = item.currentBid != null && Number.isFinite(item.currentBid);
-  const hasMinBid = item.minimumBid != null && Number.isFinite(item.minimumBid as number);
-  const hasTasacion = item.appraisalValue != null && Number.isFinite(item.appraisalValue);
-  const primaryPrice = hasCurrentBid
-    ? { label: "Puja actual", amount: item.currentBid as number, tone: "ink" as const }
-    : hasMinBid
-    ? { label: "Puja mínima", amount: item.minimumBid as number, tone: "brand" as const }
-    : hasTasacion
-    ? { label: "Tasación", amount: item.appraisalValue as number, tone: "ink" as const }
+  // Price hierarchy (Dennis-locked 2026-06-03):
+  //   PRIMARY  = Tasación (`appraisalValue`) — the prominent headline number.
+  //   SECONDARY = Cantidad reclamada (`claimedAmount`) — only when present.
+  //   Puja mínima is NEVER the card headline anymore (lives on detail/modal).
+  //
+  // Tasación is populated on ~100% of active rows (scraper falls back to
+  // valor-subasta when judicial Tasación=0). We label it simply "Tasación"
+  // in every case — there is no payload flag distinguishing the two and the
+  // label decision is locked.
+  //
+  // Cantidad reclamada coverage is uneven (~30% overall, near-zero on AEAT)
+  // so the line MUST be omitted when null/≤0 — never reserve empty space.
+  //
+  // currentBid stays available as an optional small caption only when a real
+  // bid exists (rare on active rows); it never displaces Tasación as primary.
+  const hasTasacion = item.appraisalValue != null && Number.isFinite(item.appraisalValue) && (item.appraisalValue as number) > 0;
+  const hasClaimed = item.claimedAmount != null && Number.isFinite(item.claimedAmount as number) && (item.claimedAmount as number) > 0;
+  const hasCurrentBid = item.currentBid != null && Number.isFinite(item.currentBid) && (item.currentBid as number) > 0;
+  const primaryPrice = hasTasacion
+    ? { label: "Tasación", amount: item.appraisalValue as number }
+    : hasCurrentBid
+    ? { label: "Puja actual", amount: item.currentBid as number }
     : null;
-  const secondaryPrice =
-    primaryPrice?.label === "Puja actual" && hasMinBid
-      ? { label: "Puja mín.", amount: item.minimumBid as number }
-      : primaryPrice?.label === "Puja mínima" && hasTasacion
-      ? { label: "Tasación", amount: item.appraisalValue as number }
+  const claimedLine = hasClaimed
+    ? { label: "Cantidad reclamada", amount: item.claimedAmount as number }
+    : null;
+  // Tiny "puja actual" caption only if the primary is Tasación AND there's a
+  // real current bid worth showing — never the headline.
+  const currentBidLine =
+    primaryPrice?.label === "Tasación" && hasCurrentBid
+      ? { label: "Puja actual", amount: item.currentBid as number }
       : null;
 
   const hasEndDate =
@@ -214,30 +226,33 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
           </Link>
         </div>
 
-        {/* Price row — primary price (large) on the left, secondary caption on
-            the right. Hides cleanly when no numeric price exists. */}
+        {/* Price row — Tasación as the prominent headline; Cantidad reclamada
+            as a small secondary line ONLY when present; optional "Puja actual"
+            mini-caption when a real currentBid exists. Hides cleanly to a soft
+            "Precio no disponible" when no numeric price exists. */}
         {primaryPrice ? (
           <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <div className="flex items-baseline gap-1.5">
-              <span
-                className={cn(
-                  "tnum font-serif text-xl md:text-2xl font-semibold",
-                  primaryPrice.tone === "brand"
-                    ? "text-[--color-brand-soft]"
-                    : "text-[--color-ink-primary]",
-                )}
-              >
+              <span className="tnum font-serif text-xl md:text-2xl font-semibold text-[--color-ink-primary]">
                 {formatPrice(primaryPrice.amount)}
               </span>
               <span className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
                 {primaryPrice.label}
               </span>
             </div>
-            {secondaryPrice && (
+            {claimedLine && (
               <span className="tnum text-xs text-[--color-ink-tertiary]">
-                {secondaryPrice.label}{" "}
+                {claimedLine.label}{" "}
                 <span className="text-[--color-ink-secondary]">
-                  {formatPrice(secondaryPrice.amount)}
+                  {formatPrice(claimedLine.amount)}
+                </span>
+              </span>
+            )}
+            {currentBidLine && (
+              <span className="tnum text-xs text-[--color-ink-tertiary]">
+                {currentBidLine.label}{" "}
+                <span className="text-[--color-ink-secondary]">
+                  {formatPrice(currentBidLine.amount)}
                 </span>
               </span>
             )}
