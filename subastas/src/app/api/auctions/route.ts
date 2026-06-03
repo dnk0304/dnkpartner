@@ -9,6 +9,16 @@ import { getPropertyCategoryImageUrl } from '@/lib/property-images';
 import { auctionCache } from '@/lib/cache';
 import { boeLinkFor } from '@/lib/boe-link';
 import { buildCategoryRankCaseSql } from '@/lib/category-rank';
+import {
+  ACTIVE_DB_STATUSES,
+  PRE_AUCTION_DB_STATUSES,
+  FINISHED_DB_STATUSES,
+  ACTIVE_CLOCK_GUARD_SQL,
+  DB_TO_FRONTEND_STATUS,
+  isActiveStatus as sharedIsActiveStatus,
+  isPreAuctionStatus as sharedIsPreAuctionStatus,
+  isFinishedStatus as sharedIsFinishedStatus,
+} from '@/lib/auction-status';
 
 const normalizeText = (value: string) => {
   return value
@@ -141,24 +151,11 @@ interface AuctionFromDB {
   hasDocuments: boolean | null;
 }
 
-// Map DB status to frontend status
+// Map DB status to frontend status. Delegates to the shared
+// DB_TO_FRONTEND_STATUS table (single source of truth — see
+// `@/lib/auction-status`).
 function mapStatus(dbStatus: DBStatus): string {
-  const statusMap: Record<DBStatus, string> = {
-    // New BOE-accurate statuses
-    'PROXIMA_APERTURA': 'proxima-apertura',
-    'CELEBRANDOSE': 'celebrandose',
-    'SUSPENDIDA': 'suspendida',
-    'CANCELADA': 'cancelada',
-    'CONCLUIDA_PORTAL': 'concluida-portal',
-    'FINALIZADA_AUTORIDAD': 'finalizada-autoridad',
-    // Legacy statuses (map to new ones)
-    'PRE_AUCTION': 'proxima-apertura',
-    'ACTIVE': 'celebrandose',
-    'FINISHED': 'concluida-portal',
-    'SUSPENDED': 'suspendida',
-    'CANCELLED': 'cancelada'
-  };
-  return statusMap[dbStatus] || 'celebrandose';
+  return DB_TO_FRONTEND_STATUS[dbStatus] || 'celebrandose';
 }
 
 // Map DB auction type to frontend auction type — legacy singular labels
@@ -179,19 +176,17 @@ function mapAuctionType(dbType: DBAuctionType | null): string | undefined {
   return typeMap[dbType];
 }
 
-// Check if status represents a finished state
+// Status-class predicates — thin wrappers over the shared lib so the
+// existing call sites (applyTierMasking branches) keep their DBStatus typing
+// while the underlying set is the single canonical one.
 function isFinishedStatus(dbStatus: DBStatus): boolean {
-  return ['FINISHED', 'CONCLUIDA_PORTAL', 'FINALIZADA_AUTORIDAD', 'CANCELLED', 'CANCELADA'].includes(dbStatus);
+  return sharedIsFinishedStatus(dbStatus);
 }
-
-// Check if status represents an active state
 function isActiveStatus(dbStatus: DBStatus): boolean {
-  return ['ACTIVE', 'CELEBRANDOSE', 'SUSPENDED', 'SUSPENDIDA'].includes(dbStatus);
+  return sharedIsActiveStatus(dbStatus);
 }
-
-// Check if status represents a pre-auction state
 function isPreAuctionStatus(dbStatus: DBStatus): boolean {
-  return ['PRE_AUCTION', 'PROXIMA_APERTURA'].includes(dbStatus);
+  return sharedIsPreAuctionStatus(dbStatus);
 }
 
 // Property categories that should use Street View or map images
@@ -916,16 +911,24 @@ export async function GET(request: NextRequest) {
         params.push(...uniqueStatuses);
       }
     } else if (status) {
-      // Legacy single status support
+      // Legacy single status support. Status sets come from
+      // `@/lib/auction-status` (single source of truth — list, counts, map,
+      // carousel all consume the same arrays). The canonical clock guard is
+      // appended to `status=active` so a stale CELEBRANDOSE row whose
+      // endsAt has passed is NOT counted as active (matches the carousel
+      // and reality — the scheduler sweep just hasn't caught it yet).
       if (status === 'active') {
-        sql += ' AND status IN (?, ?, ?, ?)';
-        params.push('ACTIVE', 'SUSPENDED', 'CELEBRANDOSE', 'SUSPENDIDA');
+        const set = ACTIVE_DB_STATUSES;
+        sql += ` AND status IN (${set.map(() => '?').join(', ')}) AND ${ACTIVE_CLOCK_GUARD_SQL}`;
+        params.push(...set);
       } else if (status === 'finished') {
-        sql += ' AND status IN (?, ?, ?, ?, ?)';
-        params.push('FINISHED', 'CANCELLED', 'CONCLUIDA_PORTAL', 'FINALIZADA_AUTORIDAD', 'CANCELADA');
+        const set = FINISHED_DB_STATUSES;
+        sql += ` AND status IN (${set.map(() => '?').join(', ')})`;
+        params.push(...set);
       } else if (status === 'pre-auction') {
-        sql += ' AND status IN (?, ?)';
-        params.push('PRE_AUCTION', 'PROXIMA_APERTURA');
+        const set = PRE_AUCTION_DB_STATUSES;
+        sql += ` AND status IN (${set.map(() => '?').join(', ')})`;
+        params.push(...set);
       }
     }
     
@@ -1119,9 +1122,18 @@ export async function GET(request: NextRequest) {
       const basePredicateParams = params.slice(0, preStatusParamsLen);
       const baseWhere = stripPredicate(basePredicateSql);
 
-      const countWithStatus = async (statusSet: string[]): Promise<number> => {
+      // Per-badge count helper. `withClockGuard=true` appends the canonical
+      // ACTIVE_CLOCK_GUARD_SQL so the active badge sees the SAME rows as the
+      // `?status=active` list (both drop CELEBRANDOSE rows whose endsAt has
+      // passed). Pre-auction badge does NOT need the clock guard (those
+      // auctions haven't started — they have no "has it ended" question).
+      const countWithStatus = async (
+        statusSet: readonly string[],
+        withClockGuard: boolean,
+      ): Promise<number> => {
         const placeholders = statusSet.map(() => '?').join(', ');
-        const countSql = `SELECT COUNT(*) as count FROM Auction ${baseWhere} AND status IN (${placeholders})`;
+        const clock = withClockGuard ? ` AND ${ACTIVE_CLOCK_GUARD_SQL}` : '';
+        const countSql = `SELECT COUNT(*) as count FROM Auction ${baseWhere} AND status IN (${placeholders})${clock}`;
         const row = await queryOne<{ count: string | number }>(
           countSql,
           [...basePredicateParams, ...statusSet],
@@ -1130,8 +1142,8 @@ export async function GET(request: NextRequest) {
       };
 
       const [active, preAuction] = await Promise.all([
-        countWithStatus(['ACTIVE', 'SUSPENDED', 'CELEBRANDOSE', 'SUSPENDIDA']),
-        countWithStatus(['PRE_AUCTION', 'PROXIMA_APERTURA']),
+        countWithStatus(ACTIVE_DB_STATUSES, true),
+        countWithStatus(PRE_AUCTION_DB_STATUSES, false),
       ]);
 
       teaserCounts = { active, preAuction };

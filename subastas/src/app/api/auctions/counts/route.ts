@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { auctionCache } from '@/lib/cache';
+import {
+  ACTIVE_DB_STATUSES,
+  PRE_AUCTION_DB_STATUSES,
+  FINISHED_DB_STATUSES,
+  ACTIVE_CLOCK_GUARD_SQL,
+  isActiveStatus,
+  isPreAuctionStatus,
+  isFinishedStatus,
+} from '@/lib/auction-status';
 
 const normalizeText = (value: string) => {
   return value
@@ -94,16 +103,22 @@ export async function GET(request: NextRequest) {
       params.push(category);
     }
     if (status) {
-      // Filter by status if provided (support both old and new status values)
+      // Status sets + canonical clock guard come from the shared lib so the
+      // counts endpoint and the list endpoint can never drift again. Clock
+      // guard applies only to the `active` bucket (pre-auction and finished
+      // have no "has it ended" question relevant to set membership).
       if (status === 'active') {
-        sql += ' AND status IN (?, ?, ?, ?)';
-        params.push('ACTIVE', 'SUSPENDED', 'CELEBRANDOSE', 'SUSPENDIDA');
+        const set = ACTIVE_DB_STATUSES;
+        sql += ` AND status IN (${set.map(() => '?').join(', ')}) AND ${ACTIVE_CLOCK_GUARD_SQL}`;
+        params.push(...set);
       } else if (status === 'finished') {
-        sql += ' AND status IN (?, ?, ?, ?, ?)';
-        params.push('FINISHED', 'CANCELLED', 'CONCLUIDA_PORTAL', 'FINALIZADA_AUTORIDAD', 'CANCELADA');
+        const set = FINISHED_DB_STATUSES;
+        sql += ` AND status IN (${set.map(() => '?').join(', ')})`;
+        params.push(...set);
       } else if (status === 'pre-auction') {
-        sql += ' AND status IN (?, ?)';
-        params.push('PRE_AUCTION', 'PROXIMA_APERTURA');
+        const set = PRE_AUCTION_DB_STATUSES;
+        sql += ` AND status IN (${set.map(() => '?').join(', ')})`;
+        params.push(...set);
       }
     }
     
@@ -136,13 +151,20 @@ export async function GET(request: NextRequest) {
       // Add to total
       counts.total[key] = (counts.total[key] || 0) + count;
       
-      // Add to specific status (support both old and new status values)
-      const status = row.status;
-      if (status === 'ACTIVE' || status === 'SUSPENDED' || status === 'CELEBRANDOSE' || status === 'SUSPENDIDA') {
+      // Bucket each row by status-class via the shared predicates. NOTE:
+      // because the JS aggregation runs on the GROUPED rows AFTER the SQL,
+      // it does NOT see the clock-guard drop. When the caller asks
+      // `?status=active` the SQL already applied the clock guard, so this
+      // branch only sees rows that survive it — consistent. When no status
+      // filter is supplied (the broad "all groups" call) this aggregation
+      // reports the raw status-class bucket totals, same as before; callers
+      // that need clock-guarded actives should request `?status=active`.
+      const status = row.status as string;
+      if (isActiveStatus(status)) {
         counts.active[key] = (counts.active[key] || 0) + count;
-      } else if (status === 'PRE_AUCTION' || status === 'PROXIMA_APERTURA') {
+      } else if (isPreAuctionStatus(status)) {
         counts.preAuction[key] = (counts.preAuction[key] || 0) + count;
-      } else if (status === 'FINISHED' || status === 'CANCELLED' || status === 'CONCLUIDA_PORTAL' || status === 'FINALIZADA_AUTORIDAD' || status === 'CANCELADA') {
+      } else if (isFinishedStatus(status)) {
         counts.finished[key] = (counts.finished[key] || 0) + count;
       }
     });

@@ -85,6 +85,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { boeLinkFor } from "@/lib/boe-link";
 import { categoryRankOf } from "@/lib/category-rank";
+import {
+  ACTIVE_OR_UPCOMING_DB_STATUSES,
+  LIVE_NOW_DB_STATUSES,
+  PRE_AUCTION_DB_STATUSES,
+  DB_TO_FRONTEND_STATUS,
+  activeClockGuardPrisma,
+} from "@/lib/auction-status";
 
 export const dynamic = "force-dynamic";
 
@@ -137,20 +144,9 @@ type FeedItem = {
     | { type: "auction"; reason: "recent_listing" };
 };
 
-// Same status mapping the list route uses — keep frontend in sync.
-const DB_TO_FRONTEND_STATUS: Record<string, string> = {
-  PROXIMA_APERTURA: "proxima-apertura",
-  CELEBRANDOSE: "celebrandose",
-  SUSPENDIDA: "suspendida",
-  CANCELADA: "cancelada",
-  CONCLUIDA_PORTAL: "concluida-portal",
-  FINALIZADA_AUTORIDAD: "finalizada-autoridad",
-  PRE_AUCTION: "proxima-apertura",
-  ACTIVE: "celebrandose",
-  FINISHED: "concluida-portal",
-  SUSPENDED: "suspendida",
-  CANCELLED: "cancelada",
-};
+// Status mapping (DB → frontend canonical) now comes from the shared
+// `@/lib/auction-status` so the carousel cards, list cards, and map markers
+// all label the same DB value the same way. Imported above.
 
 // DB stores both new plural (per-category scrapers) and legacy singular for
 // "otras tributarias" / "administrativas". Fold both into the canonical
@@ -167,21 +163,20 @@ const DB_TO_FRONTEND_TYPE: Record<string, string> = {
 };
 
 /**
- * Active or upcoming states — anything still genuinely "live" from a user POV.
- * SUSPENDIDA/SUSPENDED removed 2026-06-02 (Forge, issue #2): suspended auctions
- * are not surface-able in the "Últimas actualizaciones" feed. Clock-ended
- * filtering happens in the fallback `where` (endsAt null or future), so a
- * stale CELEBRANDOSE row whose clock has run out doesn't sneak through.
+ * Active-or-upcoming for the carousel default bucket now comes from the
+ * shared lib (imported above as ACTIVE_OR_UPCOMING_DB_STATUSES). Forge
+ * 2026-06-03 (unified active wave): the 2026-06-02 local removal of
+ * SUSPENDIDA from this set has been REVERTED — the shared lib re-includes
+ * it via ACTIVE_DB_STATUSES. The Madrid-crowding symptom the removal was
+ * trying to address is already handled by the round-robin/quality-score
+ * variety mechanism below, which is the correct layer for that fix. The
+ * clock guard (endsAt-based, null-safe) is still applied in the fallback
+ * `where` so a stale CELEBRANDOSE row past its endsAt does NOT surface.
  */
-const ACTIVE_OR_UPCOMING_DB_STATUSES = [
-  "CELEBRANDOSE",
-  "ACTIVE",
-  "PROXIMA_APERTURA",
-  "PRE_AUCTION",
-] as const;
 
 function mapStatus(s: string | null | undefined): string {
   if (!s) return "celebrandose";
+  // Shared fold from `@/lib/auction-status` (imported at top).
   return DB_TO_FRONTEND_STATUS[s] ?? "celebrandose";
 }
 
@@ -439,8 +434,13 @@ export async function GET(req: NextRequest) {
           return "default";
       }
     })();
-    const ACTIVE_DB_STATUSES = ["CELEBRANDOSE", "ACTIVE"] as const;
-    const UPCOMING_DB_STATUSES = ["PROXIMA_APERTURA", "PRE_AUCTION"] as const;
+    // Local aliases for the carousel's two "specialized" buckets. Both come
+    // from the shared lib — LIVE_NOW = strict subset of ACTIVE (used by
+    // when=active, "celebrándose right now"), PRE_AUCTION = upcoming (used by
+    // when=proximas). Keeping the local names so the rest of this file reads
+    // unchanged.
+    const ACTIVE_DB_STATUSES = LIVE_NOW_DB_STATUSES;
+    const UPCOMING_DB_STATUSES = PRE_AUCTION_DB_STATUSES;
     const ACTIVE_FRONTEND_STATUSES_ACTIVE_ONLY = new Set(["celebrandose"]);
     const ACTIVE_FRONTEND_STATUSES_UPCOMING_ONLY = new Set(["proxima-apertura"]);
     // Mapped (frontend-canonical) statuses that count as genuinely live for
@@ -634,10 +634,11 @@ export async function GET(req: NextRequest) {
       };
       if (fallbackStatuses !== null) {
         fallbackWhere.status = { in: fallbackStatuses as string[] };
-        // Clock-wins guard: drop rows whose endsAt is in the past — sweep
-        // lag would otherwise let stale CELEBRANDOSE rows surface here.
-        // Null endsAt is allowed (no clock set yet, e.g. PROXIMA_APERTURA).
-        fallbackWhere.OR = [{ endsAt: null }, { endsAt: { gt: new Date() } }];
+        // Clock-wins guard: shared helper produces the same null-safe
+        // predicate every other surface uses. A stale CELEBRANDOSE row past
+        // endsAt does not surface; PROXIMA_APERTURA rows with null endsAt
+        // do (no clock set yet).
+        Object.assign(fallbackWhere, activeClockGuardPrisma());
       }
       if (categoryFilter) {
         fallbackWhere.category = categoryFilter;

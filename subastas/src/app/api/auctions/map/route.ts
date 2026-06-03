@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import {
+  ACTIVE_DB_STATUSES,
+  PRE_AUCTION_DB_STATUSES,
+  FINISHED_DB_STATUSES,
+  MAP_DEFAULT_DB_STATUSES,
+  ACTIVE_CLOCK_GUARD_SQL,
+  DB_TO_FRONTEND_STATUS,
+} from '@/lib/auction-status';
 
 /**
  * API endpoint to fetch auction location data for map display
@@ -23,21 +31,11 @@ interface MapAuctionFromDB {
   appraisalValue: number | null;
 }
 
+// Delegates to the shared DB_TO_FRONTEND_STATUS fold so the map markers,
+// the list cards, and the carousel cards all show the same canonical
+// frontend status string for any given DB row.
 function mapStatus(dbStatus: DBStatus): string {
-  const statusMap: Record<DBStatus, string> = {
-    'PROXIMA_APERTURA': 'proxima-apertura',
-    'CELEBRANDOSE': 'celebrandose',
-    'SUSPENDIDA': 'suspendida',
-    'CANCELADA': 'cancelada',
-    'CONCLUIDA_PORTAL': 'concluida-portal',
-    'FINALIZADA_AUTORIDAD': 'finalizada-autoridad',
-    'PRE_AUCTION': 'proxima-apertura',
-    'ACTIVE': 'celebrandose',
-    'FINISHED': 'concluida-portal',
-    'SUSPENDED': 'suspendida',
-    'CANCELLED': 'cancelada'
-  };
-  return statusMap[dbStatus] || 'celebrandose';
+  return DB_TO_FRONTEND_STATUS[dbStatus] || 'celebrandose';
 }
 
 export async function GET(request: NextRequest) {
@@ -51,7 +49,6 @@ export async function GET(request: NextRequest) {
     // Build WHERE conditions
     const conditions: string[] = [];
     const params: any[] = [];
-    const DEFAULT_DB_STATUSES: DBStatus[] = ['ACTIVE', 'CELEBRANDOSE', 'SUSPENDED', 'SUSPENDIDA', 'PRE_AUCTION', 'PROXIMA_APERTURA'];
 
     if (province) {
       conditions.push('province = ?');
@@ -63,48 +60,70 @@ export async function GET(request: NextRequest) {
       params.push(category);
     }
 
-    // Status filter - convert frontend status to DB status
-    // If no status is provided, default to active + pre-auction to keep payload small.
-    if (status) {
-      const statusToDb: Record<string, DBStatus[]> = {
-        'active': ['ACTIVE', 'CELEBRANDOSE', 'SUSPENDED', 'SUSPENDIDA'],
-        'celebrandose': ['ACTIVE', 'CELEBRANDOSE', 'SUSPENDED', 'SUSPENDIDA'],
-        'pre-auction': ['PRE_AUCTION', 'PROXIMA_APERTURA'],
-        'proxima-apertura': ['PRE_AUCTION', 'PROXIMA_APERTURA'],
-        'finished': ['FINISHED', 'CONCLUIDA_PORTAL', 'FINALIZADA_AUTORIDAD', 'CANCELLED', 'CANCELADA'],
-      };
+    // Status filter — frontend status alias → canonical DB set, all sourced
+    // from `@/lib/auction-status` so the map agrees with the list/counts/
+    // carousel about what "active" means. The clock-guard flag tracks
+    // whether the resolved set is the canonical ACTIVE set (or a default
+    // that includes it) so we know to add `ACTIVE_CLOCK_GUARD_SQL` below.
+    // `latitude IS NOT NULL` is the map's legitimate extra gate (markers
+    // need coords); it's appended unconditionally further down.
+    let needsActiveClockGuard = false;
 
-      const dbStatuses = statusToDb[status] || [];
+    const resolveStatusAlias = (alias: string): readonly string[] => {
+      switch (alias) {
+        case 'active':
+        case 'celebrandose':
+          // Canonical active set (SUSPENDIDA included — see lib header).
+          needsActiveClockGuard = true;
+          return ACTIVE_DB_STATUSES;
+        case 'suspendida':
+          // Subset of active — also needs clock guard.
+          needsActiveClockGuard = true;
+          return ['SUSPENDED', 'SUSPENDIDA'];
+        case 'pre-auction':
+        case 'proxima-apertura':
+          return PRE_AUCTION_DB_STATUSES;
+        case 'finished':
+        case 'concluida-portal':
+        case 'finalizada-autoridad':
+        case 'cancelada':
+          return FINISHED_DB_STATUSES;
+        default:
+          return [];
+      }
+    };
+
+    if (status) {
+      const dbStatuses = resolveStatusAlias(status);
       if (dbStatuses.length > 0) {
         conditions.push(`status IN (${dbStatuses.map(() => '?').join(',')})`);
         params.push(...dbStatuses);
       }
     } else if (statuses.length > 0) {
-      // Multiple statuses filter
-      const allDbStatuses: DBStatus[] = [];
-      statuses.forEach(s => {
-        const statusToDb: Record<string, DBStatus[]> = {
-          'active': ['ACTIVE', 'CELEBRANDOSE'],
-          'celebrandose': ['ACTIVE', 'CELEBRANDOSE'],
-          'suspendida': ['SUSPENDED', 'SUSPENDIDA'],
-          'pre-auction': ['PRE_AUCTION', 'PROXIMA_APERTURA'],
-          'proxima-apertura': ['PRE_AUCTION', 'PROXIMA_APERTURA'],
-          'cancelada': ['CANCELLED', 'CANCELADA'],
-          'finished': ['FINISHED', 'CONCLUIDA_PORTAL', 'FINALIZADA_AUTORIDAD'],
-          'concluida-portal': ['CONCLUIDA_PORTAL'],
-          'finalizada-autoridad': ['FINALIZADA_AUTORIDAD'],
-        };
-        const mapped = statusToDb[s] || [];
-        allDbStatuses.push(...mapped);
-      });
-
-      if (allDbStatuses.length > 0) {
-        conditions.push(`status IN (${allDbStatuses.map(() => '?').join(',')})`);
-        params.push(...allDbStatuses);
+      const all: string[] = [];
+      for (const s of statuses) all.push(...resolveStatusAlias(s));
+      const dedup = Array.from(new Set(all));
+      if (dedup.length > 0) {
+        conditions.push(`status IN (${dedup.map(() => '?').join(',')})`);
+        params.push(...dedup);
       }
     } else {
-      conditions.push(`status IN (${DEFAULT_DB_STATUSES.map(() => '?').join(',')})`);
-      params.push(...DEFAULT_DB_STATUSES);
+      // Default: active + pre-auction (canonical). Clock guard applies
+      // because the default set CONTAINS the active subset.
+      needsActiveClockGuard = true;
+      conditions.push(
+        `status IN (${MAP_DEFAULT_DB_STATUSES.map(() => '?').join(',')})`,
+      );
+      params.push(...MAP_DEFAULT_DB_STATUSES);
+    }
+
+    // Apply the canonical clock guard whenever the resolved set includes the
+    // ACTIVE subset. The guard is null-safe (PRE_AUCTION rows with no endsAt
+    // pass through) so it composes correctly with the default active+upcoming
+    // set, with `?status=active`, with `?status=suspendida`, and with any
+    // multi-status request that includes one of those buckets.
+    if (needsActiveClockGuard) {
+      conditions.push(ACTIVE_CLOCK_GUARD_SQL);
     }
 
     // Map markers require real coordinates.
