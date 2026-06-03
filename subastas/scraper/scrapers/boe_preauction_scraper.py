@@ -16,9 +16,21 @@ idle. This scraper is the missing producer that fills the bucket.
 
 HOW IT WORKS
 ------------
-A dedicated discovery pass that queries the PA STATE directly (not a date
-window) via a GET search URL: SUBASTA.ORIGEN=J (judicial-first scope) +
-SUBASTA.ESTADO=PA + mostrar=500. It reuses ALL of BOEParallelScraper's machinery:
+A dedicated discovery pass that queries the "Próxima apertura" STATE directly
+(not a date window) by SUBMITTING the advanced-search FORM: Origen radio =
+J (judicial-first scope) + Estado radio = PU ("Prox. apertura") + mostrar=500.
+
+IMPORTANT — BOE estado code is PU, not PA, and a bare GET is rejected:
+  * "Próxima apertura" on the form is estado value PU (control id="idEstadoPU").
+    There is NO `PA` code. The *internal* DB/API status we force stays
+    PROXIMA_APERTURA (BOE_STATUS_MAP['PA']); only the BOE-side SEARCH code is PU.
+  * A synthetic GET `subastas_ava.php?campo[]=...&dato[]=...` returns
+    302 -> error/error.php even with PU; the advanced search needs the real
+    form submit (hidden fields / session). So _goto_pa_search drives the same
+    human-like form machinery the working daily / per-category path uses,
+    swapping the date fills for the Origen + Estado=PU radio selections.
+
+It reuses ALL of BOEParallelScraper's machinery:
 
   * the dedicated own-browser sync-Playwright lifecycle (_get_own_page /
     _close_own_browser) — the same asyncio-crash-avoidance contract the
@@ -58,7 +70,7 @@ from .boe_parallel_scraper import BOEParallelScraper
 from .boe_scraper import BOE_STATUS_MAP
 from ..core.stealth import random_delay
 from ..config.settings import SCRAPER_ROOT, BOE_REQUEST_DELAY_SECONDS
-from ..config.provinces import PROVINCES
+from ..config.provinces import PROVINCES, get_province_code
 
 logger = logging.getLogger(__name__)
 
@@ -142,27 +154,158 @@ class BOEPreAuctionScraper(BOEParallelScraper):
         return True
 
     # ------------------------------------------------------------------ #
-    # Search: navigate the PA STATE directly (GET), not the date form.    #
+    # Search: SUBMIT the advanced-search FORM for the PA state.           #
+    #                                                                     #
+    # A bare GET `subastas_ava.php?campo[]=...&dato[]=...` is rejected by  #
+    # BOE (302 -> error/error.php) even with the correct estado code; the  #
+    # advanced search requires the real form submit (it carries the form's #
+    # hidden fields / session). Verified live by Ken 2026-06-03. So we     #
+    # drive the SAME human-like form machinery the working daily path uses  #
+    # (BOEParallelScraper._submit_search_form_human / the per-category      #
+    # CategoryBOEScraper override), swapping the date-field fills for the   #
+    # Origen + Estado radio selections.                                    #
+    #                                                                     #
+    # FORM CONTROLS (Ken read them live off subastas_ava.php 2026-06-03):  #
+    #   * Origen radios, name="dato[0]" (hidden campo[0]=SUBASTA.ORIGEN):   #
+    #       idOrigenJ (J=Judicial), idOrigenN (N), idOrigenA (A=AEAT), ...  #
+    #   * Estado radios, name="dato[2]" (hidden campo[2]=SUBASTA.ESTADO):   #
+    #       idEstadoPU (PU="Prox. apertura"), idEstadoEJ (EJ=Celebrándose), #
+    #       ...  >>> "Próxima apertura" is BOE estado code PU; there is NO  #
+    #       PA code on the form. We force the *internal* status            #
+    #       PROXIMA_APERTURA separately (parse_listing status_override).    #
+    #   * Province select (too-many-results fallback only): name="dato[3]"  #
+    #     paired with hidden campo[3]=SUBASTA.CODPROV, option value = the   #
+    #     2-digit BOE province code (get_province_code).                   #
     # ------------------------------------------------------------------ #
+    # BOE estado query code for "Próxima apertura". NOT 'PA' (no such code  #
+    # on the form). The internal DB/API status stays PROXIMA_APERTURA.     #
+    BOE_ESTADO_CODE = 'PU'
+
     def _goto_pa_search(self, page: Any, province: str = None) -> str:
         """
-        Navigate to the PA-state search results via a GET URL built by
-        build_search_url: SUBASTA.ORIGEN=<ORIGEN_CODE> + SUBASTA.ESTADO=PA +
-        mostrar=500 (+ optional province for the too-many-results fallback).
+        Submit the BOE advanced-search FORM for the PA state and land on the
+        results page. Mirrors CategoryBOEScraper._submit_search_form_human's
+        proven submit/wait machinery, but selects Origen + Estado(=PU) radios
+        instead of filling the date window (a PA search is STATE-based, with no
+        celebration date range).
 
-        Returns the URL navigated to (for logging).
+        For the per-province too-many-results fallback, additionally selects the
+        province in the form's province <select>.
+
+        Returns a short label string (for logging).
         """
-        search_url = self.build_search_url(
-            origen=self.ORIGEN_CODE,
-            boe_status_code='PA',
-            province=province,
-            mostrar=500,
+        label = (
+            f"ORIGEN={self.ORIGEN_CODE}, ESTADO={self.BOE_ESTADO_CODE}"
+            + (f", PROV={province}" if province else "")
         )
-        self.log_info(f"  PA search: {search_url}")
-        random_delay(1, 3)
-        page.goto(search_url, wait_until='domcontentloaded', timeout=30000)
-        random_delay(2, 4)
-        return search_url
+        self.log_info(f"  PA form search: {label}")
+
+        try:
+            page.goto(
+                "https://subastas.boe.es/subastas_ava.php",
+                wait_until='domcontentloaded',
+                timeout=30000,
+            )
+            random_delay(2, 3)
+
+            # Wait for the form to be interactive (same anchor the working path
+            # uses). #desdeFP exists on the form; we don't fill it for PA.
+            page.wait_for_selector('#desdeFP', timeout=10000)
+            random_delay(1, 2)
+
+            # Select Origen (dato[0]) AND Estado=PU (dato[2]) via JS: the visible
+            # <label> intercepts pointer clicks on the radio inputs on this
+            # portal, so a plain .check()/.click() fights the label and times out
+            # (same reason the category override uses JS).
+            origen_hit = page.evaluate(
+                """(origen) => {
+                    const radios = document.getElementsByName('dato[0]');
+                    let hit = false;
+                    for (const r of radios) {
+                        r.checked = (r.value === origen);
+                        if (r.checked) { hit = true; r.dispatchEvent(new Event('change', {bubbles:true})); }
+                    }
+                    return hit;
+                }""",
+                self.ORIGEN_CODE,
+            )
+            if not origen_hit:
+                self.log_warning(
+                    f"  Could not set Origen radio to {self.ORIGEN_CODE} "
+                    f"(dato[0]) — form layout may have changed"
+                )
+            random_delay(0.5, 1)
+
+            estado_hit = page.evaluate(
+                """(estado) => {
+                    const radios = document.getElementsByName('dato[2]');
+                    let hit = false;
+                    for (const r of radios) {
+                        r.checked = (r.value === estado);
+                        if (r.checked) { hit = true; r.dispatchEvent(new Event('change', {bubbles:true})); }
+                    }
+                    return hit;
+                }""",
+                self.BOE_ESTADO_CODE,
+            )
+            if not estado_hit:
+                self.log_warning(
+                    f"  Could not set Estado radio to {self.BOE_ESTADO_CODE} "
+                    f"(dato[2]) — 'Prox. apertura' control id idEstadoPU may "
+                    f"have changed"
+                )
+            random_delay(0.5, 1)
+
+            # Per-province fallback: set the province <select> (dato[3],
+            # campo[3]=SUBASTA.CODPROV) to the 2-digit BOE province code.
+            if province:
+                province_code = get_province_code(province)
+                page.evaluate(
+                    """(code) => {
+                        const sels = document.getElementsByName('dato[3]');
+                        for (const s of sels) {
+                            if (s.tagName === 'SELECT') {
+                                s.value = code;
+                                s.dispatchEvent(new Event('change', {bubbles:true}));
+                            }
+                        }
+                    }""",
+                    province_code,
+                )
+                random_delay(0.5, 1)
+
+            # 500 results per page (if the form exposes the control).
+            try:
+                page.select_option('#mostrar', '500')
+            except Exception:
+                pass
+            random_delay(0.5, 1)
+
+            page.evaluate("window.scrollTo(0, 600)")
+            random_delay(0.5, 1)
+
+            # Human-like submit (same button + hover/click + forced-click
+            # fallback as the working category override).
+            self.log_info("  Submitting PA search...")
+            submit_button = page.locator(
+                'input[type="submit"][value="Buscar"]'
+            ).first
+            try:
+                submit_button.hover()
+                random_delay(0.5, 1)
+                submit_button.click()
+            except Exception:
+                submit_button.click(force=True)
+
+            random_delay(3, 5)
+            page.wait_for_load_state('domcontentloaded', timeout=30000)
+            random_delay(2, 3)
+            self.log_info("  PA search submitted")
+        except Exception as e:
+            self.log_error(f"Failed to submit PA search form: {e}")
+            raise
+
+        return label
 
     def _scrape_pa_results(self, page: Any) -> tuple:
         """
@@ -174,9 +317,16 @@ class BOEPreAuctionScraper(BOEParallelScraper):
         back to per-province pagination — mirrors the parallel scraper's handling
         of BOE's "too many results" error page.
         """
+        # Same results-container wait the WORKING EJ path uses
+        # (BOEParallelScraper._scrape_batch L297). The PA results page renders
+        # the identical .resultado-busqueda card family (confirmed: the per-
+        # category scrapers parse the same containers off the same form), so no
+        # PA-specific selector is needed — the earlier .resultado-busqueda /
+        # .sin-resultados waits simply never ran because the rejected GET
+        # redirected to error.php before any results page loaded.
         try:
             page.wait_for_selector(
-                '.resultado-busqueda, .sin-resultados, .error, .caja.gris.error',
+                '.resultado-busqueda, .sin-resultados, .error',
                 timeout=15000,
             )
         except Exception:
