@@ -32,7 +32,8 @@ class BOEParallelScraper(BOEScraper):
         self.progress_file = SCRAPER_ROOT / f'parallel_backfill_{scraper_id}_progress.json'
         # Force separate browser instance per scraper
         self._own_browser = None
-    
+        self._playwright = None
+
     def _get_own_browser(self):
         """Get dedicated browser instance for this scraper"""
         if self._own_browser is None:
@@ -68,14 +69,41 @@ class BOEParallelScraper(BOEScraper):
         return page
     
     def _close_own_browser(self):
-        """Close dedicated browser"""
-        if self._own_browser:
-            try:
+        """Close dedicated browser AND stop Playwright.
+
+        P0 FIX (2026-06-03, Ghost): the previous form wrapped BOTH the browser
+        close and `self._playwright.stop()` in one bare `except: pass`. If the
+        browser close raised, `_playwright.stop()` was skipped — and a started-
+        but-never-stopped sync Playwright leaves a RUNNING event loop bound to
+        the thread, which makes the NEXT `sync_playwright().start()` on that
+        thread raise "Sync API inside the asyncio loop". On the single-threaded
+        scheduler that one leak poisoned every later scrape for the process
+        lifetime (the actual P0). We now stop Playwright in its OWN try so it
+        runs even when the browser close fails, always null the handles so a
+        retry re-launches cleanly, and log failures loudly instead of swallowing.
+
+        Belt + suspenders: the scheduler also runs each scrape on a fresh,
+        loop-free thread (scheduler._run_sync_scrape), so even a total teardown
+        failure here can no longer poison subsequent jobs.
+        """
+        if self._own_browser is None and getattr(self, '_playwright', None) is None:
+            return
+        try:
+            if self._own_browser is not None:
                 self._own_browser.close()
+        except Exception as e:
+            self.log_warning(f"[Scraper {self.scraper_id}] browser.close() failed: {e}")
+        try:
+            if getattr(self, '_playwright', None) is not None:
                 self._playwright.stop()
-                self.log_info(f"[Scraper {self.scraper_id}] Closed browser")
-            except:
-                pass
+        except Exception as e:
+            self.log_warning(f"[Scraper {self.scraper_id}] playwright.stop() failed: {e}")
+        finally:
+            # Always clear handles so a residual loop can't linger on this
+            # instance and a re-run re-launches a clean browser + playwright.
+            self._own_browser = None
+            self._playwright = None
+            self.log_info(f"[Scraper {self.scraper_id}] Closed browser")
     
     def get_source_name(self) -> str:
         return f"BOE_PARALLEL_{self.scraper_id}"

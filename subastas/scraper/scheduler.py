@@ -25,6 +25,7 @@ Scheduler choice: schedule.py over Celery
 import sys
 import os
 import time
+import threading
 import schedule
 import urllib.request
 from datetime import datetime, timedelta
@@ -73,6 +74,10 @@ DISPATCH_INTERVAL_MIN = int(os.getenv("DISPATCH_INTERVAL_MIN", "1"))
 class ScraperScheduler:
     def __init__(self):
         self.log_file = LOG_DIR / f"scheduler_{datetime.now().strftime('%Y%m%d')}.log"
+        # Serialize all sync-Playwright scrape jobs so two never launch a
+        # browser at the same instant on the small box (the staggered schedule
+        # already spaces them, but jobs that overrun must still not overlap).
+        self._scrape_lock = threading.Lock()
 
     def log(self, message):
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -85,6 +90,61 @@ class ScraperScheduler:
         """Return a psycopg2 connection using DATABASE_URL."""
         import psycopg2
         return psycopg2.connect(DATABASE_URL)
+
+    # -----------------------------------------------------------------------
+    # _run_sync_scrape — P0 asyncio-loop crash fix (2026-06-03, Ghost)
+    # -----------------------------------------------------------------------
+    # ROOT CAUSE (reproduced locally): the scheduler is ONE long-lived thread
+    # running every job in sequence via `schedule.run_pending()`. The sync
+    # Playwright scrapers (`sync_playwright().start()`) install a greenlet-
+    # driven event loop on the thread for the lifetime of each run. If a run's
+    # teardown is ever skipped or swallowed (the old `_close_own_browser` had a
+    # bare `except: pass`, and any mid-batch crash left `_playwright` started),
+    # a RUNNING event loop is left bound to the thread. Every SUBSEQUENT
+    # `sync_playwright().start()` on that same thread then hits Playwright's
+    # guard and raises "Sync API inside the asyncio loop" — which is exactly the
+    # crash seen for ALL category scrapers + the judicial daily, every batch,
+    # with "...update complete" never reaching a fetched>0. One poisoned run
+    # poisons the whole process for its lifetime.
+    #
+    # FIX (job-order independent, bulletproof): run EVERY sync-Playwright scrape
+    # entrypoint on a FRESH dedicated thread. A brand-new thread has NO event
+    # loop bound, so `sync_playwright().start()` always starts clean regardless
+    # of what any prior job (geocode_drain, a crashed scrape, anything) left on
+    # the scheduler's main thread. Verified locally: with the main thread
+    # deliberately poisoned (a running loop left by an un-stopped sync
+    # Playwright), the main-thread start FAILS but the fresh-thread start
+    # SUCCEEDS. The `_scrape_lock` keeps two scrapes from overlapping browsers.
+    def _run_sync_scrape(self, label, fn, *args, **kwargs):
+        """
+        Run a sync-Playwright scrape callable on a fresh, loop-free thread.
+
+        Returns whatever `fn` returns. Re-raises nothing — the caller's own
+        try/except logs the outcome — but if the worker thread raises we log it
+        LOUDLY here (not silently swallowed) and return None so the caller sees
+        fetched=0 with a visible traceback rather than a masked success.
+        """
+        box = {}
+
+        def _worker():
+            try:
+                box['result'] = fn(*args, **kwargs)
+            except BaseException as e:  # noqa: BLE001 — capture to re-surface
+                box['error'] = e
+                import traceback
+                box['traceback'] = traceback.format_exc()
+
+        with self._scrape_lock:
+            t = threading.Thread(target=_worker, name=f"scrape-{label}", daemon=False)
+            t.start()
+            t.join()
+
+        if 'error' in box:
+            self.log(f"  [{label}] scrape thread crashed: "
+                     f"{type(box['error']).__name__}: {box['error']}")
+            self.log(box.get('traceback', ''))
+            return None
+        return box.get('result')
 
     # -----------------------------------------------------------------------
     # monitor_status_changes — G6 (direct psycopg2) + Wave 2a (outbox)
@@ -514,29 +574,31 @@ class ScraperScheduler:
         """
         self.log("Running BOE daily update scraper (last 5 days)...")
 
-        try:
+        def _do_scrape():
+            # Imported + constructed INSIDE the fresh thread so the whole
+            # sync-Playwright lifecycle lives on a loop-free thread.
             sys.path.insert(0, '/')
             from app.scrapers.boe_parallel_scraper import BOEParallelScraper
-            import psycopg2
-
-            conn = self._get_pg_conn() if DATABASE_URL else None
 
             today = datetime.now()
             start = today - timedelta(days=5)
 
             scraper = BOEParallelScraper(scraper_id=1)
-            progress = scraper.scrape_date_range(
-                start_year=start.year, start_month=start.month, start_day=start.day,
-                end_year=today.year, end_month=today.month, end_day=today.day,
-                resume=False,  # Always fresh 5-day window
-            )
+            try:
+                return scraper.scrape_date_range(
+                    start_year=start.year, start_month=start.month, start_day=start.day,
+                    end_year=today.year, end_month=today.month, end_day=today.day,
+                    resume=False,  # Always fresh 5-day window
+                )
+            finally:
+                scraper._close_own_browser()
 
+        try:
+            # P0 fix: run on a fresh, loop-free thread (see _run_sync_scrape).
+            progress = self._run_sync_scrape("JUDICIAL", _do_scrape) or {}
             total = progress.get('total_auctions', 0)
             errors = len(progress.get('errors', []))
             self.log(f"  Daily update complete: fetched={total}, errors={errors}")
-
-            if conn:
-                conn.close()
 
         except Exception as e:
             self.log(f"  Daily update exception: {e}")
@@ -555,13 +617,21 @@ class ScraperScheduler:
     def _run_category_update(self, module_name: str, label: str):
         """Run one per-category daily update via its module's run_daily_update()."""
         self.log(f"Running {label} category update...")
-        try:
+
+        def _do_scrape():
+            # Import + run INSIDE the fresh thread so the per-category scraper's
+            # sync-Playwright lifecycle (run_daily_update -> scrape_date_range ->
+            # _get_own_browser) lives entirely on a loop-free thread.
             sys.path.insert(0, '/')
             import importlib
             mod = importlib.import_module(f"app.scrapers.{module_name}")
-            progress = mod.run_daily_update()
-            total = (progress or {}).get('total_auctions', 0)
-            errors = len((progress or {}).get('errors', []))
+            return mod.run_daily_update()
+
+        try:
+            # P0 fix: run on a fresh, loop-free thread (see _run_sync_scrape).
+            progress = self._run_sync_scrape(label, _do_scrape) or {}
+            total = progress.get('total_auctions', 0)
+            errors = len(progress.get('errors', []))
             self.log(f"  {label} update complete: fetched={total}, errors={errors}")
         except Exception as e:
             self.log(f"  {label} update exception: {e}")
