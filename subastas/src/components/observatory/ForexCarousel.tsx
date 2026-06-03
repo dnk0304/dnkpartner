@@ -45,7 +45,7 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, ArrowRight, Loader2, MapPin } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowRight, Loader2, MapPin, FileText } from "lucide-react";
 import { apiFetch } from "@/lib/api-path";
 import { StatusBadge } from "./StatusBadge";
 import { resolveCardImage, isVariosLotesTitle } from "@/lib/resolve-card-image";
@@ -83,6 +83,9 @@ export type FeedAuction = {
   claimedAmount: number | null;
   endsAt: string | null;
   endDateTime: string | null;
+  /** Official start date ("Fecha de inicio"). Server-projected ISO string;
+   *  null until the doc-archive scraper backfill populates it. */
+  opensAt?: string | null;
   lotNumber: string | null;
   imageUrl: string | null;
   boeLink: string | null;
@@ -94,6 +97,9 @@ export type FeedAuction = {
   pujaStatus?: 'CON_PUJA' | 'SIN_PUJA' | null;
   currentBidAmount?: number | null;
   occupancy?: 'OCUPADO' | 'NO_OCUPADO' | 'NO_CONSTA' | null;
+  /** True when the auction has at least one AuctionDocument row. Drives a
+   *  compact "documentos" indicator on the carousel card. */
+  hasDocuments?: boolean | null;
 };
 
 type FeedItem = {
@@ -773,29 +779,55 @@ function ExpandedCard({
             {where}
           </div>
         )}
-        {/* "Termina en …" countdown + end date — Dennis 2026-06-03 ask.
-            Renders together as one line so the time-context reads naturally:
-            "Termina en 4d 6h · 12 jun 2026". The start date slot lives below
-            and is currently empty — see FLAG in the dispatch return. */}
-        {!ended && (terminaEn || endDateLabel !== "—") && (
-          <div className="mt-0.5 flex items-baseline gap-1.5 text-[10.5px] text-[--color-ink-secondary]">
-            {terminaEn && (
-              <span className="tnum">
+        {/* Start date (opensAt) + "Termina en …" countdown + end date.
+            opensAt was added to the recent feed by the doc-archive wave
+            (2026-06-03). Reads e.g. "Inicio 1 jun · Termina en 5d 8h · 8 jun".
+            All three are null-safe — any missing slot collapses cleanly. */}
+        {(() => {
+          const opens = auction.opensAt ? new Date(auction.opensAt) : null;
+          const opensValid = !!opens && !Number.isNaN(opens.getTime());
+          const opensLabel = opensValid
+            ? opens!.toLocaleDateString("es-ES", { day: "numeric", month: "short" })
+            : null;
+          if (ended || (!opensLabel && !terminaEn && endDateLabel === "—")) return null;
+          // Bullet separator: only between pieces that are actually present.
+          const parts: React.ReactNode[] = [];
+          if (opensLabel) {
+            parts.push(
+              <span key="opens" className="tnum">
+                <span className="text-[--color-ink-tertiary]">Inicio </span>
+                <span className="text-[--color-ink-primary]">{opensLabel}</span>
+              </span>,
+            );
+          }
+          if (terminaEn) {
+            parts.push(
+              <span key="ends" className="tnum">
                 <span className="text-[--color-ink-tertiary]">Termina en </span>
                 <span className="font-semibold text-[--color-ink-primary]">{terminaEn}</span>
-              </span>
-            )}
-            {terminaEn && endDateLabel !== "—" && (
-              <span className="text-[--color-ink-quiet]" aria-hidden="true">·</span>
-            )}
-            {endDateLabel !== "—" && (
-              <span className="tnum text-[--color-ink-tertiary]">{endDateLabel}</span>
-            )}
-          </div>
-        )}
-        {/* Start-date slot — intentionally empty until `opensAt` is projected
-            onto the recent-feed payload. See dispatch return: FLAG-START-
-            DATE-MISSING-FROM-PROJECTION. */}
+              </span>,
+            );
+          }
+          if (endDateLabel !== "—") {
+            parts.push(
+              <span key="enddate" className="tnum text-[--color-ink-tertiary]">
+                {endDateLabel}
+              </span>,
+            );
+          }
+          return (
+            <div className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[10.5px] text-[--color-ink-secondary]">
+              {parts.map((p, i) => (
+                <React.Fragment key={i}>
+                  {i > 0 && (
+                    <span className="text-[--color-ink-quiet]" aria-hidden="true">·</span>
+                  )}
+                  {p}
+                </React.Fragment>
+              ))}
+            </div>
+          );
+        })()}
         <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 pt-1.5 border-t border-[--color-hairline]">
           {noPriceData && (
             <div className="col-span-2 min-w-0">
@@ -847,20 +879,35 @@ function ExpandedCard({
               </div>
             </div>
           )}
-          {/* BOE ref — small + muted; copy-selectable. Kept visible per
-              Dennis's note (useful for cross-referencing BOE). Lives at the
-              bottom so the type + price block stays clean. */}
-          {refLabel && (
-            <div className="col-span-2 min-w-0 pt-1">
-              <div className="text-[9px] uppercase tracking-wide text-[--color-ink-quiet]">
-                Ref. BOE
-              </div>
-              <div
-                className="text-[10px] font-mono text-[--color-ink-tertiary] truncate select-text"
-                title={refLabel}
-              >
-                {refLabel}
-              </div>
+          {/* BOE ref + documents indicator — small + muted; bottom row stays
+              clean. The "Docs" pill sits inline with Ref. BOE so the card
+              keeps a single bottom strip; full download links live on the
+              detail modal/page, never here (Dennis's "keep cards clean" rule). */}
+          {(refLabel || auction.hasDocuments) && (
+            <div className="col-span-2 min-w-0 pt-1 flex items-end justify-between gap-2">
+              {refLabel ? (
+                <div className="min-w-0 flex-1">
+                  <div className="text-[9px] uppercase tracking-wide text-[--color-ink-quiet]">
+                    Ref. BOE
+                  </div>
+                  <div
+                    className="text-[10px] font-mono text-[--color-ink-tertiary] truncate select-text"
+                    title={refLabel}
+                  >
+                    {refLabel}
+                  </div>
+                </div>
+              ) : <span />}
+              {auction.hasDocuments && (
+                <span
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[--color-hairline] bg-[--color-surface-muted] px-1.5 py-0.5 text-[9px] font-medium text-[--color-ink-secondary]"
+                  title="Esta subasta tiene documentos oficiales"
+                  aria-label="Documentos disponibles"
+                >
+                  <FileText className="h-2.5 w-2.5" aria-hidden="true" />
+                  Docs
+                </span>
+              )}
             </div>
           )}
         </div>

@@ -1,14 +1,15 @@
 'use client';
 
 import React from 'react';
-import { AuctionItem } from '@/types';
+import { AuctionItem, AuctionDocument } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Clock, MapPin, Gavel, ExternalLink, FileText, Building2, TrendingUp, Calendar, Crown, Sparkles, Navigation, Eye, Bell, Check, Landmark } from 'lucide-react';
+import { Clock, MapPin, Gavel, ExternalLink, FileText, Building2, TrendingUp, Calendar, Crown, Sparkles, Navigation, Eye, Bell, Check, Landmark, Download, Hash, Home as HomeIcon, BookOpen } from 'lucide-react';
 import { capitalizeLocation } from '@/lib/utils';
 import { buildCatastroUrl } from '@/lib/catastro-url';
+import { apiFetch } from '@/lib/api-path';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { GatedField } from './GatedField';
@@ -38,17 +39,86 @@ interface AuctionDetailModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
+/**
+ * Detail-payload extras lazy-fetched on modal open (document-archive wave,
+ * 2026-06-03). The list payload that feeds card→modal doesn't include the
+ * BOE-document set or the full bien-fields block; we fetch them from the
+ * canonical detail endpoint the moment the user opens the modal so the
+ * download links + property-info rows light up without a page navigation.
+ *
+ * Every field is null-safe: while loading, or if the fetch fails, the modal
+ * keeps rendering with the original card payload (graceful empty).
+ */
+type DetailExtras = {
+  documents: AuctionDocument[];
+  postalCode: string | null;
+  idufir: string | null;
+  registryInscription: string | null;
+  legalTitle: string | null;
+  bienLocalidad: string | null;
+  bienProvincia: string | null;
+  viviendaHabitual: boolean | null;
+};
+
 export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
   auction,
   open,
   onOpenChange,
 }) => {
   const [isWatched, setIsWatched] = React.useState(false);
+  const [extras, setExtras] = React.useState<DetailExtras | null>(null);
 
   // Reset watch state when auction changes
   React.useEffect(() => {
     setIsWatched(false);
   }, [auction?.id]);
+
+  // Lazy-hydrate documents + bien fields from the canonical detail endpoint
+  // when the modal opens. We seed extras from the auction prop (covers the
+  // dashboard list path where /api/auctions already projects bien fields)
+  // and overlay the server response when it lands. Null-safe throughout.
+  React.useEffect(() => {
+    if (!open || !auction?.id) {
+      setExtras(null);
+      return;
+    }
+    // Seed synchronously from whatever bien data the prop carries.
+    setExtras({
+      documents: [],
+      postalCode: auction.postalCode ?? null,
+      idufir: auction.idufir ?? null,
+      registryInscription: auction.registryInscription ?? null,
+      legalTitle: auction.legalTitle ?? null,
+      bienLocalidad: auction.bienLocalidad ?? null,
+      bienProvincia: auction.bienProvincia ?? null,
+      viviendaHabitual: auction.viviendaHabitual ?? null,
+    });
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/auctions/${encodeURIComponent(auction.id)}`);
+        if (!res.ok || cancelled) return;
+        const body = await res.json();
+        const a = body?.data?.auction;
+        if (!a || cancelled) return;
+        setExtras({
+          documents: Array.isArray(a.documents) ? (a.documents as AuctionDocument[]) : [],
+          postalCode: a.postalCode ?? null,
+          idufir: a.idufir ?? null,
+          registryInscription: a.registryInscription ?? null,
+          legalTitle: a.legalTitle ?? null,
+          bienLocalidad: a.bienLocalidad ?? null,
+          bienProvincia: a.bienProvincia ?? null,
+          viviendaHabitual: a.viviendaHabitual ?? null,
+        });
+      } catch {
+        // Network error: keep the seeded values, no console noise.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, auction?.id, auction?.postalCode, auction?.idufir, auction?.registryInscription, auction?.legalTitle, auction?.bienLocalidad, auction?.bienProvincia, auction?.viviendaHabitual]);
 
   if (!auction) return null;
 
@@ -481,6 +551,172 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
             </div>
           </div>
 
+          {/* Bien-detail rows (document-archive wave, 2026-06-03). Each row
+              is null-omitted so the whole block stays clean pre-backfill —
+              renders nothing at all when no field is populated. */}
+          {(() => {
+            const fullAddress = auction.address ?? null;
+            const postal = extras?.postalCode ?? auction.postalCode ?? null;
+            const localidad = extras?.bienLocalidad ?? auction.bienLocalidad ?? null;
+            const provincia = extras?.bienProvincia ?? auction.bienProvincia ?? null;
+            const idufir = extras?.idufir ?? auction.idufir ?? null;
+            const registry = extras?.registryInscription ?? auction.registryInscription ?? null;
+            const legal = extras?.legalTitle ?? auction.legalTitle ?? null;
+            const habitual = extras?.viviendaHabitual ?? auction.viviendaHabitual ?? null;
+            const anyField =
+              fullAddress || postal || localidad || provincia ||
+              idufir || registry || legal || habitual != null;
+            if (!anyField) return null;
+            return (
+              <section aria-labelledby="bien-fields-heading" className="rounded-xl border border-gray-200 bg-white p-6 lg:p-8">
+                <h3
+                  id="bien-fields-heading"
+                  className="text-xl font-semibold flex items-center gap-2 mb-4"
+                >
+                  <HomeIcon className="h-6 w-6" />
+                  Datos del bien
+                </h3>
+                <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+                  {fullAddress && (
+                    <BienRow label="Dirección" icon={<MapPin className="h-4 w-4" />}>
+                      {fullAddress}
+                    </BienRow>
+                  )}
+                  {postal && (
+                    <BienRow label="Código postal" icon={<Hash className="h-4 w-4" />} mono>
+                      {postal}
+                    </BienRow>
+                  )}
+                  {localidad && (
+                    <BienRow label="Localidad" icon={<MapPin className="h-4 w-4" />}>
+                      {capitalizeLocation(localidad)}
+                    </BienRow>
+                  )}
+                  {provincia && (
+                    <BienRow label="Provincia" icon={<MapPin className="h-4 w-4" />}>
+                      {capitalizeLocation(provincia)}
+                    </BienRow>
+                  )}
+                  {idufir && (
+                    <BienRow label="IDUFIR" icon={<Hash className="h-4 w-4" />} mono>
+                      {idufir}
+                    </BienRow>
+                  )}
+                  {registry && (
+                    <BienRow label="Inscripción registral" icon={<BookOpen className="h-4 w-4" />}>
+                      {registry}
+                    </BienRow>
+                  )}
+                  {legal && (
+                    <BienRow label="Título legal" icon={<FileText className="h-4 w-4" />}>
+                      {legal}
+                    </BienRow>
+                  )}
+                  {habitual != null && (
+                    <BienRow label="Vivienda habitual" icon={<HomeIcon className="h-4 w-4" />}>
+                      {habitual ? 'Sí' : 'No'}
+                    </BienRow>
+                  )}
+                </dl>
+              </section>
+            );
+          })()}
+
+          {/* Documents block (document-archive wave, 2026-06-03). Each
+              entry surfaces TWO actions when both URLs exist:
+                • our cached copy (downloadUrl → /api/auction-doc/<id>) —
+                  primary, sets `download` so the browser saves the PDF.
+                • the official BOE source (officialUrl) — secondary, opens
+                  in a new tab.
+              When downloadUrl is null we still expose the official link so
+              the user always has at least one action. Pre-backfill the
+              entire section is omitted (extras?.documents is empty). */}
+          {extras && extras.documents.length > 0 && (
+            <section aria-labelledby="docs-heading" className="rounded-xl border border-gray-200 bg-white p-6 lg:p-8">
+              <h3
+                id="docs-heading"
+                className="text-xl font-semibold flex items-center gap-2 mb-1"
+              >
+                <FileText className="h-6 w-6" />
+                Documentos
+              </h3>
+              <p className="text-sm text-gray-500 mb-4">
+                {extras.documents.length === 1
+                  ? '1 documento oficial vinculado a esta subasta.'
+                  : `${extras.documents.length} documentos oficiales vinculados a esta subasta.`}
+              </p>
+              <ul className="space-y-3">
+                {extras.documents.map((doc) => {
+                  const label = doc.title?.trim() || prettifyDocType(doc.docType);
+                  // Per Forge contract: downloadUrl is null when nothing
+                  // cached locally — fall back to officialUrl so the user
+                  // always sees at least one working action.
+                  const primaryHref = doc.downloadUrl ?? doc.officialUrl;
+                  return (
+                    <li
+                      key={doc.id}
+                      className="rounded-lg border border-gray-200 p-4 hover:border-blue-200 transition-colors"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-gray-500 mb-1">
+                            <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+                            {prettifyDocType(doc.docType)}
+                          </div>
+                          <div className="font-medium text-gray-900 break-words">
+                            {label}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                          {primaryHref && (
+                            <a
+                              href={primaryHref}
+                              {...(doc.downloadUrl
+                                ? { download: '' }
+                                : { target: '_blank', rel: 'noopener noreferrer' })}
+                              className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 cursor-pointer"
+                              aria-label={
+                                doc.downloadUrl
+                                  ? `Descargar ${label}`
+                                  : `Abrir ${label} (fuente oficial)`
+                              }
+                            >
+                              {doc.downloadUrl ? (
+                                <>
+                                  <Download className="h-4 w-4" aria-hidden="true" />
+                                  Descargar
+                                </>
+                              ) : (
+                                <>
+                                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                                  Abrir BOE
+                                </>
+                              )}
+                            </a>
+                          )}
+                          {/* Official BOE source — secondary action when
+                              we have both a local copy AND the source URL. */}
+                          {doc.downloadUrl && doc.officialUrl && (
+                            <a
+                              href={doc.officialUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 cursor-pointer"
+                              aria-label={`Ver ${label} en el BOE`}
+                            >
+                              <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                              Fuente BOE
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
+
           {/* Pre-auction notice */}
           {auction.status === 'pre-auction' && !auction.isLocked && (
             <div className="p-6 bg-amber-50 border-2 border-amber-200 rounded-xl flex items-start gap-4">
@@ -544,3 +780,71 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
   );
 };
 
+/**
+ * BienRow — one labelled value in the "Datos del bien" panel. Renders
+ * nothing when `children` is falsy; otherwise produces a clean dt/dd row
+ * with an aligned icon and label. `mono` styles the value (IDUFIR, postal
+ * code) in a monospace font for legibility.
+ */
+function BienRow({
+  label,
+  icon,
+  mono = false,
+  children,
+}: {
+  label: string;
+  icon?: React.ReactNode;
+  mono?: boolean;
+  children: React.ReactNode;
+}) {
+  if (children == null || children === '' || children === false) return null;
+  return (
+    <div className="flex items-start gap-3">
+      {icon && (
+        <span className="mt-0.5 text-gray-400" aria-hidden="true">
+          {icon}
+        </span>
+      )}
+      <div className="min-w-0">
+        <dt className="text-xs uppercase tracking-wide text-gray-500">{label}</dt>
+        <dd
+          className={
+            mono
+              ? 'mt-0.5 font-mono text-sm text-gray-900 break-all'
+              : 'mt-0.5 text-sm text-gray-900 break-words'
+          }
+        >
+          {children}
+        </dd>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Pretty label for an `AuctionDocument.docType` slug. Maps the doc-archive
+ * scraper's known types into Spanish UX labels; falls back to a capitalised
+ * version of the raw value so unknown future types still render readably
+ * (graceful degrade — never an empty label).
+ */
+function prettifyDocType(docType: string | null | undefined): string {
+  if (!docType) return 'Documento';
+  const k = docType.toLowerCase().replace(/[-_\s]+/g, '_');
+  const MAP: Record<string, string> = {
+    nota_simple: 'Nota simple',
+    edicto: 'Edicto',
+    edicto_juzgado: 'Edicto del juzgado',
+    anuncio_boe: 'Anuncio del BOE',
+    tasacion: 'Tasación',
+    tasación: 'Tasación',
+    informe: 'Informe',
+    pliego: 'Pliego de condiciones',
+    pliego_condiciones: 'Pliego de condiciones',
+    cargas: 'Cargas',
+  };
+  if (MAP[k]) return MAP[k];
+  // Default: capitalise first letter of the original input.
+  const trimmed = String(docType).trim();
+  if (!trimmed) return 'Documento';
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase().replace(/_/g, ' ');
+}

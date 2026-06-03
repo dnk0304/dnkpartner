@@ -30,9 +30,9 @@ import * as React from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { ArrowLeft, ExternalLink, FileText, Landmark, MapPin, ImageOff } from "lucide-react";
+import { ArrowLeft, ExternalLink, FileText, Landmark, MapPin, ImageOff, Download, Calendar } from "lucide-react";
 import { apiFetch } from "@/lib/api-path";
-import { AuctionItem } from "@/types";
+import { AuctionItem, AuctionDocument } from "@/types";
 import { resolveCardImage } from "@/lib/resolve-card-image";
 import { buildCatastroUrl } from "@/lib/catastro-url";
 import { ObservatoryHeader } from "@/components/observatory/ObservatoryHeader";
@@ -203,6 +203,13 @@ export default function AuctionDetailClient({ id }: { id: string }) {
   // Coerce raw Prisma row into the AuctionItem shape DetailStatusPanel & co
   // expect. Dates from JSON are strings — we leave them as strings; the
   // LiveCountdown handles ISO strings just fine.
+  //
+  // 2026-06-03 (doc-archive wave): `startedAt` was previously mapped from
+  // `raw.endDateTime` — a close-time field — which gave the status panel
+  // a wrong "started" timestamp. Now driven by the real `raw.opensAt`
+  // (official "Fecha de inicio" from the BOE bien-heading). Falls back to
+  // null when the doc-archive backfill hasn't reached this row yet, which
+  // the panel renders as "—" instead of a misleading date.
   const auctionItem: AuctionItem & {
     startedAt?: string | null;
     endsAt?: string | null;
@@ -243,8 +250,21 @@ export default function AuctionDetailClient({ id }: { id: string }) {
     // Surface the cadastral ref so any modal embed reused on this page can
     // resolve the "Ver en Catastro" link via buildCatastroUrl().
     cadastralRef: raw.cadastralRef ?? null,
-    startedAt: raw.endDateTime ?? null,
+    // FIX 2026-06-03: real opensAt (was endDateTime — a close-time field).
+    startedAt: raw.opensAt ?? null,
     endsAt: raw.endsAt ?? null,
+    // Document-archive wave: surface so the (lazy) modal reuse works, and so
+    // the page header can flag "Inicio …" alongside the existing "Termina …".
+    opensAt: raw.opensAt ?? null,
+    propertyType: raw.propertyType ?? null,
+    hasDocuments: Array.isArray(raw.documents) && raw.documents.length > 0,
+    postalCode: raw.postalCode ?? null,
+    idufir: raw.idufir ?? null,
+    registryInscription: raw.registryInscription ?? null,
+    legalTitle: raw.legalTitle ?? null,
+    bienLocalidad: raw.bienLocalidad ?? null,
+    bienProvincia: raw.bienProvincia ?? null,
+    viviendaHabitual: raw.viviendaHabitual ?? null,
   };
 
   const hasCoords = typeof raw.latitude === "number" && typeof raw.longitude === "number";
@@ -294,7 +314,14 @@ export default function AuctionDetailClient({ id }: { id: string }) {
           )}
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[--color-ink-tertiary] tnum">
             <span className="font-mono">{raw.boeId}</span>
-            {raw.auctionType && (
+            {/* propertyType (doc-archive backfill) — BOE bien-heading type.
+                Preferred over auctionType when both are present. */}
+            {raw.propertyType ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>{capitalize(raw.propertyType)}</span>
+              </>
+            ) : raw.auctionType && (
               <>
                 <span aria-hidden="true">·</span>
                 <span>{capitalize(raw.auctionType.toLowerCase())}</span>
@@ -304,6 +331,18 @@ export default function AuctionDetailClient({ id }: { id: string }) {
               <>
                 <span aria-hidden="true">·</span>
                 <span>{raw.courtName}</span>
+              </>
+            )}
+            {/* "Inicio …" — official start date (opensAt). Null-safe; the
+                row hides cleanly when the doc-archive backfill hasn't
+                reached this auction yet. */}
+            {raw.opensAt && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className="inline-flex items-center gap-1">
+                  <Calendar className="h-3 w-3" aria-hidden="true" />
+                  Inicio {formatDateLong(raw.opensAt)}
+                </span>
               </>
             )}
           </div>
@@ -425,6 +464,55 @@ export default function AuctionDetailClient({ id }: { id: string }) {
               </section>
             )}
 
+            {/* Datos del bien — document-archive wave (2026-06-03).
+                Each row is rendered only when its field is non-null, so
+                pre-backfill the whole section is omitted (graceful empty,
+                no console error, no broken card). All these fields are
+                SEO-public — they sit in SSR markup so search engines see
+                "esta vivienda en Calle X, 28013 Madrid". */}
+            {(() => {
+              const localidad = raw.bienLocalidad ?? null;
+              const provinciaBien = raw.bienProvincia ?? null;
+              const anyBien =
+                raw.address || raw.postalCode || localidad || provinciaBien ||
+                raw.idufir || raw.registryInscription || raw.legalTitle ||
+                raw.viviendaHabitual != null;
+              if (!anyBien) return null;
+              return (
+                <section aria-labelledby="bien-heading">
+                  <h2 id="bien-heading" className="font-serif text-xl text-[--color-ink-primary]">
+                    Datos del bien
+                  </h2>
+                  <dl className="mt-3 grid grid-cols-1 sm:grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
+                    {raw.address && (
+                      <KV
+                        label="Dirección"
+                        value={
+                          <GatedField level="register" label="Dirección exacta">
+                            <span>{raw.address}</span>
+                          </GatedField>
+                        }
+                      />
+                    )}
+                    {raw.postalCode && <KV label="Código postal" value={raw.postalCode} mono />}
+                    {localidad && <KV label="Localidad" value={capitalize(localidad)} />}
+                    {provinciaBien && <KV label="Provincia" value={capitalize(provinciaBien)} />}
+                    {raw.idufir && <KV label="IDUFIR" value={raw.idufir} mono />}
+                    {raw.registryInscription && (
+                      <KV label="Inscripción registral" value={raw.registryInscription} />
+                    )}
+                    {raw.legalTitle && <KV label="Título legal" value={raw.legalTitle} />}
+                    {raw.viviendaHabitual != null && (
+                      <KV
+                        label="Vivienda habitual"
+                        value={raw.viviendaHabitual ? "Sí" : "No"}
+                      />
+                    )}
+                  </dl>
+                </section>
+              );
+            })()}
+
             {/* Legal data */}
             <section aria-labelledby="legal-heading">
               <h2 id="legal-heading" className="font-serif text-xl text-[--color-ink-primary]">
@@ -489,13 +577,85 @@ export default function AuctionDetailClient({ id }: { id: string }) {
               </dl>
             </section>
 
-            {/* Documents */}
-            {(raw.pdfUrl || raw.edictUrl || raw.boeLink) && (
+            {/* Documents — combined surface for legacy single-doc fields
+                (pdfUrl/edictUrl/boeLink) AND the document-archive wave's
+                full `documents[]` array (each with downloadUrl + officialUrl).
+                The whole section is null-omitted when nothing is present.
+                Pre-backfill rows still see the BOE anuncio + Edicto + portal
+                ficha; backfilled rows additionally see "Nota simple", etc. */}
+            {(raw.pdfUrl || raw.edictUrl || raw.boeLink ||
+              (Array.isArray(raw.documents) && raw.documents.length > 0)) && (
               <section aria-labelledby="docs-heading">
                 <h2 id="docs-heading" className="font-serif text-xl text-[--color-ink-primary]">
                   Documentos oficiales
                 </h2>
+                {Array.isArray(raw.documents) && raw.documents.length > 0 && (
+                  <p className="mt-0.5 text-xs text-[--color-ink-tertiary]">
+                    {(raw.documents as AuctionDocument[]).map((d) => d.title?.trim() || prettifyDocType(d.docType)).join(" · ")}
+                  </p>
+                )}
                 <ul className="mt-3 space-y-2 text-sm">
+                  {/* Doc-archive wave: full list rendered first with both
+                      "Descargar" (our cached copy) AND "Fuente BOE" (the
+                      official URL). downloadUrl null → fall back to officialUrl
+                      as the single primary action. */}
+                  {Array.isArray(raw.documents) && (raw.documents as AuctionDocument[]).map((doc) => {
+                    const label = doc.title?.trim() || prettifyDocType(doc.docType);
+                    const primaryHref = doc.downloadUrl ?? doc.officialUrl;
+                    if (!primaryHref) return null;
+                    return (
+                      <li key={doc.id} className="rounded-md border border-[--color-hairline] bg-[--color-surface] p-3">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+                              {prettifyDocType(doc.docType)}
+                            </div>
+                            <div className="font-medium text-[--color-ink-primary] break-words">
+                              {label}
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 shrink-0">
+                            <a
+                              href={primaryHref}
+                              {...(doc.downloadUrl
+                                ? { download: "" }
+                                : { target: "_blank", rel: "noopener noreferrer" })}
+                              className="inline-flex items-center gap-1.5 rounded-md bg-[--color-brand] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40 cursor-pointer"
+                              aria-label={
+                                doc.downloadUrl
+                                  ? `Descargar ${label}`
+                                  : `Abrir ${label} (fuente BOE)`
+                              }
+                            >
+                              {doc.downloadUrl ? (
+                                <>
+                                  <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                                  Descargar
+                                </>
+                              ) : (
+                                <>
+                                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                                  Abrir BOE
+                                </>
+                              )}
+                            </a>
+                            {doc.downloadUrl && doc.officialUrl && (
+                              <a
+                                href={doc.officialUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 rounded-md border border-[--color-hairline] bg-[--color-surface] px-3 py-1.5 text-xs font-medium text-[--color-ink-secondary] hover:bg-[--color-surface-muted] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-ink-tertiary]/30 cursor-pointer"
+                                aria-label={`Ver ${label} en el BOE`}
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                                Fuente BOE
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
                   {/* SEO-public: BOE anuncio PDF + portal ficha. NEVER gated. */}
                   {raw.pdfUrl && <DocLink href={raw.pdfUrl} label="Anuncio del BOE (PDF)" />}
                   {/* Item H: edicto del juzgado is registration-gated.
@@ -511,7 +671,7 @@ export default function AuctionDetailClient({ id }: { id: string }) {
                           href={raw.edictUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 text-[--color-brand] hover:underline focus-visible:outline-none focus-visible:underline"
+                          className="inline-flex items-center gap-2 text-[--color-brand] hover:underline focus-visible:outline-none focus-visible:underline cursor-pointer"
                         >
                           <FileText className="h-4 w-4" aria-hidden="true" />
                           Edicto del juzgado (PDF)
@@ -602,7 +762,7 @@ function DocLink({ href, label }: { href: string; label: string }) {
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-2 text-[--color-brand] hover:underline focus-visible:outline-none focus-visible:underline"
+        className="inline-flex items-center gap-2 text-[--color-brand] hover:underline focus-visible:outline-none focus-visible:underline cursor-pointer"
       >
         <FileText className="h-4 w-4" aria-hidden="true" />
         {label}
@@ -610,4 +770,30 @@ function DocLink({ href, label }: { href: string; label: string }) {
       </a>
     </li>
   );
+}
+
+/**
+ * Pretty label for an `AuctionDocument.docType` slug. Maps the doc-archive
+ * scraper's known slugs to Spanish UX labels; unknown values capitalised so
+ * future scraper additions still render readably.
+ */
+function prettifyDocType(docType: string | null | undefined): string {
+  if (!docType) return "Documento";
+  const k = docType.toLowerCase().replace(/[-_\s]+/g, "_");
+  const MAP: Record<string, string> = {
+    nota_simple: "Nota simple",
+    edicto: "Edicto",
+    edicto_juzgado: "Edicto del juzgado",
+    anuncio_boe: "Anuncio del BOE",
+    tasacion: "Tasación",
+    tasación: "Tasación",
+    informe: "Informe",
+    pliego: "Pliego de condiciones",
+    pliego_condiciones: "Pliego de condiciones",
+    cargas: "Cargas",
+  };
+  if (MAP[k]) return MAP[k];
+  const trimmed = String(docType).trim();
+  if (!trimmed) return "Documento";
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase().replace(/_/g, " ");
 }

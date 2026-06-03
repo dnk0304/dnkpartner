@@ -75,6 +75,10 @@ export interface AuctionItem {
   pdfUrl?: string | null;
   status: AuctionStatus;
   auctionType?: AuctionType; // Tipo de Subasta
+  // 2026-06-03 (Pixel cards): opensAt + propertyType are declared together
+  // with the document-archive bien fields lower in this interface (see
+  // "Document-archive wave" block) so the full doc-UI contract lives in one
+  // place. Kept as a single source of truth — no duplicates here.
   endDate: Date; // For urgency calculation
   source: string; // Changed to string to support all AuctionSource values
   imageUrl: string;
@@ -115,6 +119,50 @@ export interface AuctionItem {
    * Null on the 97.5% of rows without one.
    */
   cadastralRef?: string | null;
+  // ── Document-archive wave (2026-06-03) ──────────────────────────────────
+  /**
+   * Official START date ("Fecha de inicio") parsed by the document-archive
+   * scraper. ISO 8601 string from the API; renderable through
+   * formatDateMed/formatDateShort. Null = not yet scheduled / not scraped —
+   * cards hide the start-date slot when null (graceful empty).
+   */
+  opensAt?: string | null;
+  /**
+   * Accurate BOE bien-heading type (e.g. "Vivienda", "Garaje", "Trastero",
+   * "Inmueble (Trastero)"). When present it drives the card type headline
+   * via `prettifyAuctionType()`. Falls back to `category` when null — most
+   * pre-backfill rows are still null today.
+   */
+  propertyType?: string | null;
+  /**
+   * True when the row has at least one row in AuctionDocument. Drives a
+   * compact "documentos" indicator on cards — the full list is fetched by
+   * the detail endpoint only (`/api/auctions/[id]`).
+   */
+  hasDocuments?: boolean | null;
+  // ── Bien-detail fields (document-archive scraper) — null-safe ───────────
+  postalCode?: string | null;
+  idufir?: string | null;
+  registryInscription?: string | null;
+  legalTitle?: string | null;
+  bienLocalidad?: string | null;
+  bienProvincia?: string | null;
+  viviendaHabitual?: boolean | null;
+}
+
+/**
+ * AuctionDocument — projected on the detail payload only (NOT on cards).
+ * See `/api/auctions/[id]` route. `downloadUrl` is `/api/auction-doc/<id>`
+ * when a local copy exists, else null → consumer must fall back to
+ * `officialUrl` (the BOE source link).
+ */
+export interface AuctionDocument {
+  id: string;
+  docType: string;
+  title: string | null;
+  kind: string;
+  officialUrl: string | null;
+  downloadUrl: string | null;
 }
 
 export type UserTier = 'free' | 'gold' | 'diamond';
