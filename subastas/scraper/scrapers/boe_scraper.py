@@ -813,8 +813,12 @@ class BOEScraper(BaseScraper):
                 # --- AUTHORITATIVE financial fields from detail page ---
                 # Only overwrite when the detail page actually yielded a value;
                 # never coerce a missing value to 0 (NULL is the honest signal).
-                if detail_info.get('appraisal_value') is not None:
-                    auction_data['appraisal_value'] = detail_info['appraisal_value']
+                # appraisal: prefer Tasación, fall back to "Valor subasta" when
+                # Tasación is 0/absent (judicial/AEAT norm). Shared helper keeps
+                # this fallback identical to the lote-split + backfill paths.
+                resolved_appraisal = self._resolve_appraisal(detail_info)
+                if resolved_appraisal is not None:
+                    auction_data['appraisal_value'] = resolved_appraisal
                 if detail_info.get('minimum_bid') is not None:
                     auction_data['minimum_bid'] = detail_info['minimum_bid']
                 if detail_info.get('deposit_amount') is not None:
@@ -1206,6 +1210,24 @@ class BOEScraper(BaseScraper):
         match = re.search(r'idSub=([A-Z0-9-]+)', url)
         return match.group(1) if match else ''
     
+    @staticmethod
+    def _resolve_appraisal(detail_info: Dict[str, Any]) -> Optional[float]:
+        """Resolve the appraisal/price figure from a detail-page dict.
+
+        BOE renders judicial (and many AEAT) auctions with "Tasación 0,00 €"
+        while carrying the REAL headline figure under "Valor subasta" (e.g.
+        SUB-JA-2026-260368 -> Valor subasta 147.820,42 €). Prefer Tasación;
+        fall back to Valor subasta when Tasación is absent or literally 0.
+        Never fabricate: when BOTH are absent/0 this returns None (the honest
+        NULL signal). This is the single source of truth shared by every write
+        path (single-auction, lote split, active backfill) so the fallback can
+        never drift between them.
+        """
+        appraisal = detail_info.get('appraisal_value')
+        if not appraisal:  # None or 0.0
+            appraisal = detail_info.get('valor_subasta')
+        return appraisal or None
+
     def _extract_currency(self, text: str, labels: List[str]) -> Optional[float]:
         """Extract currency value from text"""
         for label in labels:
@@ -2018,9 +2040,7 @@ class BOEScraper(BaseScraper):
         # real figure under "Valor Subasta" (verified on SUB-JA-2024-235417),
         # so treat a 0/missing tasación as absent and use Valor subasta — never
         # let a row land with a meaningless appraisal=0.
-        appraisal = info.get('appraisal_value')
-        if not appraisal:  # None or 0.0
-            appraisal = info.get('valor_subasta')
+        appraisal = self._resolve_appraisal(info)
 
         minimum_bid = info.get('minimum_bid')
 

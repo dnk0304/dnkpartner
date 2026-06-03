@@ -114,8 +114,15 @@ def _save_ckpt(done):
 
 def rescrape(conn):
     only_null = "--only-null-endsat" in sys.argv
+    # Bounded judicial/AEAT price backfill: active JUDICIAL or AEAT rows whose
+    # appraisalValue is NULL or 0. These are exactly the rows that lost their
+    # price to the missing single-auction "Valor subasta" fallback — refetching
+    # them re-applies the (now universal) fallback and writes the real figure.
+    only_null_appraisal = "--only-null-appraisal" in sys.argv
     if only_null:
         logger.info("--- Re-scrape: CELEBRANDOSE rows with NULL endsAt only ---")
+    elif only_null_appraisal:
+        logger.info("--- Re-scrape: active JUDICIAL/AEAT rows with NULL/0 appraisalValue only ---")
     else:
         logger.info("--- Re-scrape: full active pool ---")
     cur = conn.cursor()
@@ -124,6 +131,15 @@ def rescrape(conn):
             SELECT "boeId" FROM "Auction"
             WHERE status = 'CELEBRANDOSE' AND "endsAt" IS NULL
               AND "boeId" IS NOT NULL
+              AND {LEGACY_EXCLUSION_SQL}
+            ORDER BY "boeId" ASC
+        """)
+    elif only_null_appraisal:
+        cur.execute(f"""
+            SELECT "boeId" FROM "Auction"
+            WHERE status IN {ACTIVE_STATUSES} AND "boeId" IS NOT NULL
+              AND "auctionType" IN ('JUDICIAL','AEAT')
+              AND ("appraisalValue" IS NULL OR "appraisalValue" = 0)
               AND {LEGACY_EXCLUSION_SQL}
             ORDER BY "boeId" ASC
         """)
