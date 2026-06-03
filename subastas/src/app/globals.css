@@ -275,6 +275,26 @@
     .dnk-pulse { animation: none; opacity: 1; }
   }
 
+  /* Home-marquee endless sideways drift. The track is rendered TWICE
+   * back-to-back; translating by exactly -50% returns the second copy to
+   * the first copy's start position, so the seam is invisible. Linear
+   * easing keeps the speed constant — a stock-ticker feel, not a swing.
+   *
+   * Speed is set per-instance via `animation-duration` (computed in JS
+   * from measured track width × MARQUEE_PX_PER_SEC). Pause-on-hover is
+   * handled in JS via `animationPlayState`. Reduced-motion bypass is
+   * handled in component logic (the marquee surface isn't even rendered
+   * when the user prefers reduced motion — we fall back to a manually
+   * scrollable strip). The defensive `@media` rule below is a final
+   * belt-and-braces guard if any future caller forgets the bypass. */
+  @keyframes dnk-marquee {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    [style*="dnk-marquee"] { animation: none !important; }
+  }
+
   /* Register / comparison-page layout helpers */
   .max-w-editorial { max-width: 1280px; }
   .max-w-readable { max-width: 72ch; }
