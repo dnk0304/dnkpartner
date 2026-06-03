@@ -46,6 +46,36 @@
  *   table lives in `@/lib/category-rank` (shared with the future
  *   /api/auctions default sort — see sa/promote-properties-sort).
  *
+ * Regional variety + soft content-criteria (Forge 2026-06-03, this commit):
+ *   The starvation-fallback used to ORDER BY [transitionedAt DESC, updatedAt
+ *   DESC]. In the current data, ALL 444 active rows have transitionedAt=NULL
+ *   (bulk scraper writes, no tracked transitions), so the recency tiebreak
+ *   let Madrid/Alicante/Barcelona dominate — proven 14/30 Madrid on a 30-card
+ *   carousel, with small provinces (e.g. Las Palmas, 1 active row) starved
+ *   out entirely. The fix:
+ *     1. Fetch a generous candidate pool from the fallback `where`.
+ *     2. Compute a `qualityScore` per candidate (SOFT — never a gate):
+ *          +2 real image; +1 real title; +1 any real price (appraisal /
+ *          claimed / minimum > 0); +1 location detail (municipality /
+ *          address / lat-lng); +1 propertyType; +1 auctionType.
+ *        Image-less / sparse rows still appear — they just sink. Critical
+ *        because only ~40/444 active rows have a non-empty imageUrl today;
+ *        a HARD image gate would empty most province filters.
+ *     3. When NO province is pinned, bucket candidates by province and do
+ *        a distinct-province ROUND-ROBIN: best-scored card from each
+ *        province in rotation until `limit` filled. The first N cards of
+ *        the carousel span N distinct provinces.
+ *     4. When a province IS pinned, skip round-robin (single bucket) and
+ *        just order by quality DESC then recency DESC.
+ *     5. Round-robin runs WITHIN the category-rank tier — Viviendas-first
+ *        still leads. Concretely we group candidates by categoryRank, then
+ *        round-robin provinces within each rank tier, concatenating tiers
+ *        in rank order. Result: Viviendas-with-variety, then the next
+ *        category tier, etc.
+ *   Province match is now case-insensitive (Prisma QueryMode.insensitive in
+ *   the fallback where; lowercase compare on the event side) so the
+ *   "Las Palmas" vs "las palmas" DB drift doesn't strand the chip.
+ *
  * Performance: each side fetches `limit` rows (so the merged set is at most 3*limit),
  *              relies on the (auctionId, changedAt|seenAt DESC) indexes from
  *              prisma/schema.prisma. No N+1 — single batch fetch for auctions.
@@ -263,6 +293,57 @@ function projectAuction(a: {
   };
 }
 
+/**
+ * Soft content-quality score (Forge 2026-06-03, regional-variety wave).
+ *
+ * Rewards rows that look like fully-filled, presentable listings:
+ *   +2 real image (non-null, non-empty, not a known placeholder)
+ *   +1 real title (non-null, non-empty, not "Unknown")
+ *   +1 any real price (appraisal / claimed / minimum > 0)
+ *   +1 location detail (municipality / address / lat-lng present)
+ *   +1 propertyType present  (sparse pre-doc-archive; treated as bonus)
+ *   +1 auctionType present
+ *
+ * SOFT: a score of 0 is allowed — never a gate. Sparse rows still appear
+ * in the feed (and in single-province filters) so small provinces don't
+ * empty out. Quality is a SORT signal, not an inclusion gate.
+ */
+function qualityScoreOf(a: {
+  title: string | null;
+  imageUrl: string | null;
+  appraisalValue: number | null;
+  claimedAmount: number | null;
+  minimumBid: number | null;
+  municipality: string | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  propertyType: string | null;
+  auctionType: string | null;
+}): number {
+  let s = 0;
+  const img = (a.imageUrl ?? "").trim();
+  // "Known placeholder" guard: leave a TODO list of canonical placeholders if
+  // any surface in the wild. Today the dominant placeholder pattern is the
+  // empty string (404/444 active rows), so empty-string detection suffices.
+  if (img.length > 0) s += 2;
+  const title = (a.title ?? "").trim();
+  if (title.length > 0 && title.toLowerCase() !== "unknown") s += 1;
+  const hasPrice =
+    (a.appraisalValue ?? 0) > 0 ||
+    (a.claimedAmount ?? 0) > 0 ||
+    (a.minimumBid ?? 0) > 0;
+  if (hasPrice) s += 1;
+  const hasLoc =
+    (a.municipality ?? "").trim().length > 0 ||
+    (a.address ?? "").trim().length > 0 ||
+    (a.latitude != null && a.longitude != null);
+  if (hasLoc) s += 1;
+  if ((a.propertyType ?? "").trim().length > 0) s += 1;
+  if ((a.auctionType ?? "").trim().length > 0) s += 1;
+  return s;
+}
+
 /** Card-projection field set kept in one place — used by every select below. */
 const AUCTION_CARD_SELECT = {
   id: true,
@@ -475,6 +556,21 @@ export async function GET(req: NextRequest) {
           ? ACTIVE_FRONTEND_STATUSES_UPCOMING_ONLY
           : ACTIVE_FRONTEND_STATUSES; // activeOnly legacy → active+upcoming
 
+    // Case-insensitive province comparator (defensive — DB has "Las Palmas"
+    // alongside lowercase "las palmas"; chip sends the canonical capitalised
+    // form but a robust match avoids silent zero-result drift if the DB ever
+    // grows other casing variants). Mirrors the Prisma `mode:'insensitive'`
+    // applied to the fallback `where` below. No accent folding (Prisma's
+    // insensitive mode does case but not accents); add accent fold later if
+    // the chip list ever grows entries with accent drift.
+    const provinceFilterLc = provinceFilter ? provinceFilter.toLowerCase() : null;
+
+    // Round-robin order index for fallback items, keyed by item.id. The
+    // final outer sort consults this map so the carefully-interleaved
+    // province sequence isn't collapsed by a recency tiebreak. Event
+    // items aren't in this map and fall through to recency.
+    const fallbackOrder = new Map<string, number>();
+
     let workingItems = items;
     if (enforceEventStatus || categoryFilter || provinceFilter) {
       workingItems = items.filter((it) => {
@@ -483,7 +579,12 @@ export async function GET(req: NextRequest) {
           if (it.auction.endsAt && it.auction.endsAt <= nowIso) return false;
         }
         if (categoryFilter && it.auction.category !== categoryFilter) return false;
-        if (provinceFilter && it.auction.province !== provinceFilter) return false;
+        if (
+          provinceFilterLc &&
+          (it.auction.province ?? "").toLowerCase() !== provinceFilterLc
+        ) {
+          return false;
+        }
         return true;
       });
     }
@@ -514,10 +615,14 @@ export async function GET(req: NextRequest) {
 
       // Build the where dynamically so when=todas drops both the status
       // constraint AND the clock guard (finished auctions are allowed).
+      // Province match is case-insensitive (Prisma QueryMode.insensitive)
+      // so the chip's canonical "Las Palmas" finds both "Las Palmas" and
+      // "las palmas" DB rows. Without case insensitivity, single-row
+      // provinces are one DB casing flip away from a zero-result chip.
       const fallbackWhere: Record<string, unknown> = {
-        // Province is non-nullable in the schema; guard against blank strings
-        // so we don't surface rows the rest of the UI can't filter back to.
-        province: provinceFilter ? provinceFilter : { not: '' },
+        province: provinceFilter
+          ? { equals: provinceFilter, mode: "insensitive" }
+          : { not: "" },
         id: { notIn: Array.from(excludeIds) },
       };
       if (fallbackStatuses !== null) {
@@ -531,31 +636,133 @@ export async function GET(req: NextRequest) {
         fallbackWhere.category = categoryFilter;
       }
 
+      // Pool size: pull a generous candidate superset so round-robin has
+      // room to span many provinces. Capped at 300 to keep query cost bounded
+      // — at limit=30 the cap kicks in at need*6=180, well under 300; the cap
+      // only matters if a caller asks for a very large limit.
+      const POOL_CAP = 300;
+      const poolSize = Math.min(POOL_CAP, Math.max(need * 6, need * 2));
+
       const fallbackRows = await prisma.auction.findMany({
         where: fallbackWhere as never,
+        // Pull by recency; quality re-ranking happens in JS over the pool.
+        // We can't ORDER BY a computed quality score in SQL without a stored
+        // column, and given pool sizes (<=300) the JS sort is trivial.
         orderBy: [{ transitionedAt: "desc" }, { updatedAt: "desc" }],
-        take: need * 2,
+        take: poolSize,
         select: AUCTION_CARD_SELECT,
       });
 
-      let added = 0;
-      for (const a of fallbackRows) {
-        if (added >= need) break;
-        if (excludeIds.has(a.id)) continue;
-        // Use transitionedAt if present (true "something changed" timestamp),
-        // else updatedAt (Prisma row touch).
-        const at = (a.transitionedAt ?? a.updatedAt)?.toISOString();
+      // ─── Score + bucket pool, then round-robin across provinces ────────
+      //
+      // Goal: when NO province is pinned, the first N cards of the carousel
+      // should span N distinct provinces (best card from each) so a single
+      // dominant region (Madrid) doesn't crowd everything else out. The
+      // pool is sorted DESCending by qualityScore (soft criteria — image,
+      // title, price, location, propertyType, auctionType), then by
+      // recency. Bucketing by province preserves Viviendas-first because
+      // round-robin is applied WITHIN each categoryRank tier and tiers are
+      // concatenated in rank order.
+      //
+      // When a province IS pinned, the pool is already a single bucket;
+      // round-robin degenerates to a simple quality-then-recency sort —
+      // which is exactly what the brief asks for ("score DESC then
+      // recency"), so we go through the same code path.
+      type FallbackCand = {
+        row: (typeof fallbackRows)[number];
+        score: number;
+        at: string;
+        rank: number; // categoryRank — outer ordering key
+      };
+
+      const candidates: FallbackCand[] = [];
+      for (const r of fallbackRows) {
+        if (excludeIds.has(r.id)) continue;
+        const at = (r.transitionedAt ?? r.updatedAt)?.toISOString();
         if (!at) continue;
-        workingItems.push({
+        candidates.push({
+          row: r,
+          score: qualityScoreOf(r),
+          at,
+          rank: categoryRankOf(r.category),
+        });
+      }
+
+      // Within-bucket sort: quality DESC, then recency DESC.
+      const sortWithinBucket = (a: FallbackCand, b: FallbackCand) => {
+        if (a.score !== b.score) return b.score - a.score;
+        return b.at.localeCompare(a.at);
+      };
+
+      // When category is pinned every row shares the same rank, so the
+      // outer "tier" loop runs once and the only diversity axis is province.
+      // When no category is pinned, group by categoryRank and round-robin
+      // provinces WITHIN each rank tier so Viviendas-first holds AND each
+      // tier shows regional variety.
+      const tiers = new Map<number, FallbackCand[]>();
+      for (const c of candidates) {
+        const arr = tiers.get(c.rank);
+        if (arr) arr.push(c);
+        else tiers.set(c.rank, [c]);
+      }
+      const tierKeys = Array.from(tiers.keys()).sort((a, b) => a - b);
+
+      const picked: FallbackCand[] = [];
+      outer: for (const rank of tierKeys) {
+        const tier = tiers.get(rank)!;
+        // Bucket this tier by province (case-folded so "Las Palmas" and
+        // "las palmas" land in the same bucket — matches the DB case-insensitive
+        // where filter and prevents a single province from getting two slots).
+        const byProvince = new Map<string, FallbackCand[]>();
+        for (const c of tier) {
+          const key = (c.row.province ?? "").toLowerCase();
+          const arr = byProvince.get(key);
+          if (arr) arr.push(c);
+          else byProvince.set(key, [c]);
+        }
+        // Sort each province's queue best-first.
+        for (const arr of byProvince.values()) arr.sort(sortWithinBucket);
+        // Province rotation order: best card per province defines the
+        // province's strength; pick the order that surfaces the strongest
+        // province first within the tier, then rotate.
+        const provinceOrder = Array.from(byProvince.entries()).sort(
+          ([, a], [, b]) => sortWithinBucket(a[0]!, b[0]!),
+        );
+        // Round-robin: one card per province per pass, until either the
+        // tier is exhausted or we've filled `need`.
+        let progress = true;
+        while (progress && picked.length < need) {
+          progress = false;
+          for (const [, queue] of provinceOrder) {
+            if (picked.length >= need) break outer;
+            const next = queue.shift();
+            if (!next) continue;
+            picked.push(next);
+            progress = true;
+          }
+        }
+        if (picked.length >= need) break;
+      }
+
+      // Push picked fallback items AND record the round-robin order so the
+      // final outer sort can preserve province variety (otherwise the
+      // outer "at DESC" tiebreak collapses round-robin back into recency
+      // dominance — exactly the Madrid 14/30 pathology we're fixing).
+      for (let i = 0; i < picked.length; i++) {
+        const c = picked[i]!;
+        const a = c.row;
+        const item: FeedItem = {
           id: `auction-${a.id}`,
           kind: "auction",
-          at,
+          at: c.at,
           auctionId: a.id,
           auction: projectAuction(a),
           payload: { type: "auction", reason: "recent_listing" },
-        });
+        };
+        workingItems.push(item);
+        // Stable ascending order index — smaller = earlier in round-robin.
+        fallbackOrder.set(item.id, i);
         excludeIds.add(a.id);
-        added++;
       }
     }
 
@@ -570,14 +777,37 @@ export async function GET(req: NextRequest) {
     // /api/auctions default sort (see @/lib/category-rank) so the home
     // carousel and the listing page never disagree about which category is
     // "hero".
+    //
+    // Round-robin variety preservation (Forge 2026-06-03): fallback items
+    // were already ordered into a province round-robin sequence above. The
+    // outer sort honours that order via `fallbackOrder` (ASC) — without
+    // this, the recency tiebreak would collapse the carefully-spread
+    // province sequence back into a recency dominance (Madrid 14/30).
+    //
+    // Within a category-rank tier we put TRUE EVENTS (status/bid) first
+    // sorted by recency (they're real "something changed" signals — they
+    // earn the lead), then FALLBACK items in round-robin order (the
+    // variety mechanism). In current data the event tables are near-empty
+    // so the visible behavior is dominated by the round-robin fallback,
+    // but this preserves "events lead" semantics for when history fills in.
+    const isFallback = (it: FeedItem) => fallbackOrder.has(it.id);
+    const orderOf = (item: FeedItem): number =>
+      fallbackOrder.get(item.id) ?? -1; // -1 sentinel = event item
+    const tieByEventsThenVariety = (a: FeedItem, b: FeedItem): number => {
+      const fa = isFallback(a);
+      const fb = isFallback(b);
+      if (fa !== fb) return fa ? 1 : -1; // events (non-fallback) lead
+      if (!fa) return b.at.localeCompare(a.at); // both events → recency
+      return orderOf(a) - orderOf(b); // both fallback → round-robin order
+    };
     if (categoryFilter) {
-      workingItems.sort((a, b) => b.at.localeCompare(a.at));
+      workingItems.sort(tieByEventsThenVariety);
     } else {
       workingItems.sort((a, b) => {
         const ra = categoryRankOf(a.auction.category);
         const rb = categoryRankOf(b.auction.category);
         if (ra !== rb) return ra - rb;
-        return b.at.localeCompare(a.at);
+        return tieByEventsThenVariety(a, b);
       });
     }
     const trimmed = workingItems.slice(0, limit);
