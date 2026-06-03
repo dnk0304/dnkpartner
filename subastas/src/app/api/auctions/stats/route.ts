@@ -11,10 +11,13 @@ interface AuctionStatsRow {
   totalAuctions: number;
   oldestAuctionYear: number | null;
   lastUpdateTime: string | null;
-  activeCount: number;
+  preAuctionCount: number;
+}
+
+interface ActiveSplitRow {
+  activeTotal: number;
   activeProperties: number;
   activeVehicles: number;
-  preAuctionCount: number;
 }
 
 interface TrueActiveRow {
@@ -29,6 +32,10 @@ interface TrueActiveRow {
 const ACTIVE_STATUSES = [...ACTIVE_DB_STATUSES];
 const PRE_AUCTION_STATUSES = [...PRE_AUCTION_DB_STATUSES];
 
+// Real-estate / immovable. All BOE property family labels (some not currently
+// active but kept so a row that flips active later is classified correctly).
+// 'Oficinas' is a BOE property label with 0 active rows today (finished-only) —
+// kept for forward-safety so it lands in the property bucket if it ever flips.
 const PROPERTY_CATEGORIES = [
   'Viviendas',
   'Locales',
@@ -38,8 +45,22 @@ const PROPERTY_CATEGORIES = [
   'Fincas rústicas',
   'Naves industriales',
   'Otros inmuebles',
+  'Oficinas',
 ];
-const VEHICLE_CATEGORIES = ['Turismos', 'Motocicletas', 'Vehículos Industriales', 'Barcos'];
+
+// Vehicles / movables. The previous set was MISSING 'Camiones' (6 active rows)
+// and included two dead labels ('Vehículos Industriales', 'Barcos' = 0 active).
+// Dead labels are harmless — kept in the set so they classify correctly if they
+// ever go active. 'Embarcaciones' added for the same forward-safety reason.
+// Live (2026-06-03): Turismos=31, Camiones=6, Motocicletas=3 → 40 active.
+const VEHICLE_CATEGORIES = [
+  'Turismos',
+  'Motocicletas',
+  'Camiones',
+  'Barcos',
+  'Embarcaciones',
+  'Vehículos Industriales',
+];
 
 // The shared province-validity predicate. Identical clause to
 // /api/auctions/counts/route.ts (lines 71-73) and the list route. Kept inline
@@ -51,38 +72,47 @@ const PROVINCE_VALID_SQL = `province IS NOT NULL
 
 export async function GET() {
   try {
-    // Province-filtered stats (legacy, used for property/vehicle category breakdowns).
+    // Catalog-wide stats. totalAuctions / oldestAuctionYear / lastUpdateTime
+    // describe the whole indexed catalog (no status filter). preAuctionCount
+    // uses the canonical PRE_AUCTION set. activeCount and the property/vehicle
+    // splits live in a SEPARATE clock-guarded query below so they always
+    // reconcile to trueActiveCount.
     const sql = `
       SELECT
         COUNT(*) AS totalAuctions,
         MIN(CAST(strftime('%Y', publishedAt) AS INTEGER)) AS oldestAuctionYear,
         MAX(COALESCE(updatedAt, createdAt, publishedAt)) AS lastUpdateTime,
-        SUM(CASE WHEN status IN (${ACTIVE_STATUSES.map(() => '?').join(',')}) THEN 1 ELSE 0 END) AS activeCount,
-        SUM(CASE
-          WHEN status IN (${ACTIVE_STATUSES.map(() => '?').join(',')})
-            AND category IN (${PROPERTY_CATEGORIES.map(() => '?').join(',')})
-          THEN 1 ELSE 0
-        END) AS activeProperties,
-        SUM(CASE
-          WHEN status IN (${ACTIVE_STATUSES.map(() => '?').join(',')})
-            AND category IN (${VEHICLE_CATEGORIES.map(() => '?').join(',')})
-          THEN 1 ELSE 0
-        END) AS activeVehicles,
         SUM(CASE WHEN status IN (${PRE_AUCTION_STATUSES.map(() => '?').join(',')}) THEN 1 ELSE 0 END) AS preAuctionCount
       FROM Auction
       WHERE ${PROVINCE_VALID_SQL}
     `;
 
-    const params = [
-      ...ACTIVE_STATUSES,
-      ...ACTIVE_STATUSES,
-      ...PROPERTY_CATEGORIES,
-      ...ACTIVE_STATUSES,
-      ...VEHICLE_CATEGORIES,
-      ...PRE_AUCTION_STATUSES,
-    ];
+    const params = [...PRE_AUCTION_STATUSES];
 
     const raw = await queryOne<AuctionStatsRow>(sql, params);
+
+    // Canonical active split — uses the SAME predicate as trueActiveCount
+    // below (ACTIVE_DB_STATUSES + ACTIVE_CLOCK_GUARD_SQL + province valid).
+    // Guarantees activeProperties + activeVehicles + activeOtros === activeTotal
+    // === trueActiveCount (541 on 2026-06-03), every time.
+    const activeSplitSql = `
+      SELECT
+        COUNT(*) AS activeTotal,
+        SUM(CASE WHEN category IN (${PROPERTY_CATEGORIES.map(() => '?').join(',')}) THEN 1 ELSE 0 END) AS activeProperties,
+        SUM(CASE WHEN category IN (${VEHICLE_CATEGORIES.map(() => '?').join(',')}) THEN 1 ELSE 0 END) AS activeVehicles
+      FROM Auction
+      WHERE status IN (${ACTIVE_STATUSES.map(() => '?').join(',')})
+        AND ${ACTIVE_CLOCK_GUARD_SQL}
+        AND ${PROVINCE_VALID_SQL}
+    `;
+
+    const activeSplitParams = [
+      ...PROPERTY_CATEGORIES,
+      ...VEHICLE_CATEGORIES,
+      ...ACTIVE_STATUSES,
+    ];
+
+    const activeSplitRaw = await queryOne<ActiveSplitRow>(activeSplitSql, activeSplitParams);
 
     // Headline "true*" counts — these feed the homepage hero strip
     // (HomeObservatory). Wave35 (2026-06-03): wired to the unified canonical
@@ -133,13 +163,25 @@ export async function GET() {
       trueUpcomingCount: Number(trueUpcomingRow?.count ?? 0),
     };
 
+    // Reconcile the active split. activeOtros is the leftover so that
+    // activeProperties + activeVehicles + activeOtros === activeCount, always.
+    // Today (2026-06-03): 501 + 40 + 0 = 541. If a category like
+    // 'Arte y antigüedades' / 'Joyas' / 'Maquinaria' / 'Derechos de crédito'
+    // goes active later, activeOtros catches it instead of silently dropping
+    // those rows out of the split.
+    const activeTotal = Number(activeSplitRaw?.activeTotal || 0);
+    const activeProperties = Number(activeSplitRaw?.activeProperties || 0);
+    const activeVehicles = Number(activeSplitRaw?.activeVehicles || 0);
+    const activeOtros = Math.max(0, activeTotal - activeProperties - activeVehicles);
+
     const stats = {
       totalAuctions: Number(raw?.totalAuctions || 0),
       oldestAuctionYear: raw?.oldestAuctionYear || null,
       lastUpdateTime: raw?.lastUpdateTime || null,
-      activeCount: Number(raw?.activeCount || 0),
-      activeProperties: Number(raw?.activeProperties || 0),
-      activeVehicles: Number(raw?.activeVehicles || 0),
+      activeCount: activeTotal,
+      activeProperties,
+      activeVehicles,
+      activeOtros,
       preAuctionCount: Number(raw?.preAuctionCount || 0),
       // True active counts — unified with the rest of the site (wave35).
       trueActiveCount: trueRaw.trueActiveCount,

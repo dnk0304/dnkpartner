@@ -45,6 +45,13 @@ type Stats = {
   trueUpcomingCount: number;
   totalAuctions: number;
   lastUpdateTime: string | null;
+  // Active split — surfaced in hero strip as "propiedades / vehículos / otros".
+  // Reconciles: activeProperties + activeVehicles + activeOtros === trueActiveCount.
+  // All three are optional on the type so the UI degrades gracefully if the API
+  // hasn't been redeployed with Forge's classification fix.
+  activeProperties?: number;
+  activeVehicles?: number;
+  activeOtros?: number;
 };
 
 export default function HomeObservatory() {
@@ -173,6 +180,44 @@ export default function HomeObservatory() {
               </strong>
               <span>{t("activeTotal")}</span>
             </span>
+            {/* Breakdown: propiedades vs vehículos (+ otros, only when >0).
+                Subordinate to "activas en total" above — separated by a thin
+                divider on >=sm screens, dot-less to read as detail not headline.
+                Fields come from /api/auctions/stats; each is independently
+                null-safe so the strip degrades gracefully if the API hasn't
+                shipped Forge's classification fix yet. */}
+            {typeof stats?.activeProperties === "number" && (
+              <>
+                <span
+                  aria-hidden="true"
+                  className="hidden sm:inline text-[--color-hairline]"
+                >
+                  |
+                </span>
+                <span className="inline-flex items-center gap-2 text-[--color-ink-secondary]">
+                  <strong className="font-semibold text-[--color-ink-primary]">
+                    {formatNumber(stats.activeProperties)}
+                  </strong>
+                  <span>{t("propertiesLabel")}</span>
+                </span>
+              </>
+            )}
+            {typeof stats?.activeVehicles === "number" && (
+              <span className="inline-flex items-center gap-2 text-[--color-ink-secondary]">
+                <strong className="font-semibold text-[--color-ink-primary]">
+                  {formatNumber(stats.activeVehicles)}
+                </strong>
+                <span>{t("vehiclesLabel")}</span>
+              </span>
+            )}
+            {typeof stats?.activeOtros === "number" && stats.activeOtros > 0 && (
+              <span className="inline-flex items-center gap-2 text-[--color-ink-secondary]">
+                <strong className="font-semibold text-[--color-ink-primary]">
+                  {formatNumber(stats.activeOtros)}
+                </strong>
+                <span>{t("otherLabel")}</span>
+              </span>
+            )}
             <span className="ml-auto text-[--color-ink-tertiary]">
               {t("updated", { when: stats?.lastUpdateTime ? formatRelativeEs(stats.lastUpdateTime) : t("syncing") })}
             </span>
