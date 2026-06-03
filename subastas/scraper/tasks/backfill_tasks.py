@@ -105,16 +105,137 @@ def geocode_missing_coordinates(batch_size: int = 100, active_only: bool = True)
             f"{failed_count} failed, precision={precision_counts}"
         )
 
+        # ----------------------------------------------------------------
+        # Town-level fallback — street-less rows still get a coarse pin.
+        # ----------------------------------------------------------------
+        # The genuine tail has no street ANYWHERE (extract_address returned
+        # None at all three layers) but carries a town: municipality/province
+        # or the bien-block bienLocalidad/bienProvincia. We geocode the
+        # municipality centroid so the row surfaces as an APPROXIMATE pin on
+        # /api/auctions/map (which keys on coords, not address). We write
+        # COORDS ONLY — never a fabricated street into `address` (hard rule).
+        town_stats = _geocode_town_fallback(db, geocoder, batch_size, status_clause, is_pg)
+
         return {
             'processed': len(auctions),
             'geocoded': geocoded_count,
             'failed': failed_count,
             'precision': precision_counts,
+            'town_fallback': town_stats,
         }
 
     except Exception as e:
         logger.error(f"Geocoding backfill task failed: {e}")
         return None
+
+
+def _geocode_town_fallback(db, geocoder, batch_size, status_clause, is_pg):
+    """
+    Town-centroid pins for address-less active rows.
+
+    Candidate = active row with NULL coords AND NULL/empty `address`, but a
+    usable town: COALESCE(municipality, bienLocalidad) + COALESCE(province,
+    bienProvincia). We build "<town>, <province>, España" and feed it to the
+    geocoder as the raw_address (the geocoder keeps APPROXIMATE results per
+    Dennis). Writes latitude/longitude only — never an `address`.
+
+    bienLocalidad/bienProvincia are Forge-added columns; they may not exist on
+    an un-migrated schema, so we probe information_schema (PG) and degrade to
+    municipality/province alone if absent. Never crashes the primary geocode.
+    """
+    try:
+        has_bien_cols = False
+        if is_pg:
+            try:
+                probe = db.query_auctions(
+                    """
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_name = 'Auction'
+                      AND column_name IN ('bienLocalidad','bienProvincia')
+                    """,
+                    (),
+                )
+                has_bien_cols = len({r.get('column_name') for r in probe}) == 2
+            except Exception:
+                has_bien_cols = False
+
+        if is_pg:
+            town_expr = (
+                'COALESCE(NULLIF(municipality, \'\'), "bienLocalidad")'
+                if has_bien_cols else "NULLIF(municipality, '')"
+            )
+            prov_expr = (
+                'COALESCE(NULLIF(province, \'\'), "bienProvincia")'
+                if has_bien_cols else "NULLIF(province, '')"
+            )
+            query = f"""
+                SELECT "boeId",
+                       {town_expr} AS town,
+                       {prov_expr} AS prov
+                FROM "Auction"
+                WHERE latitude IS NULL
+                  AND longitude IS NULL
+                  AND (address IS NULL OR address = '')
+                  AND {town_expr} IS NOT NULL
+                  {status_clause}
+                LIMIT %s
+            """
+        else:
+            # SQLite (dev) — no bien columns guaranteed; municipality/province only.
+            query = f"""
+                SELECT boeId,
+                       NULLIF(municipality, '') AS town,
+                       NULLIF(province, '') AS prov
+                FROM Auction
+                WHERE latitude IS NULL
+                  AND longitude IS NULL
+                  AND (address IS NULL OR address = '')
+                  AND NULLIF(municipality, '') IS NOT NULL
+                  {status_clause}
+                LIMIT ?
+            """
+
+        rows = db.query_auctions(query, (batch_size,))
+        if not rows:
+            logger.info("No address-less rows need town-level fallback geocoding")
+            return {'processed': 0, 'geocoded': 0, 'failed': 0}
+
+        logger.info(f"Town-fallback: {len(rows)} address-less rows with a town")
+        ok = bad = 0
+        for row in rows:
+            boe_id = row.get('boeId') or row.get('boeid')
+            town = row.get('town')
+            prov = row.get('prov') or ''
+            if not town:
+                continue
+            try:
+                # raw_address = the town itself; province gives Google context.
+                # No municipality arg (town already IS the municipality), so the
+                # geocode string is "<town>, <province>, España".
+                result = geocoder.geocode_address_detailed(town, prov, None)
+                if result:
+                    db.update_auction(boe_id, {
+                        'latitude': result.latitude,
+                        'longitude': result.longitude,
+                    })
+                    ok += 1
+                    logger.info(
+                        f"Town-pin {boe_id} [{result.location_type}]: "
+                        f"({result.latitude}, {result.longitude}) <- {town}, {prov}"
+                    )
+                else:
+                    bad += 1
+                    logger.warning(f"Town-fallback could not geocode {boe_id} ({town}, {prov})")
+            except Exception as e:
+                bad += 1
+                logger.error(f"Town-fallback error for {boe_id}: {e}")
+
+        logger.info(f"Town-fallback completed: {ok} geocoded, {bad} failed")
+        return {'processed': len(rows), 'geocoded': ok, 'failed': bad}
+
+    except Exception as e:
+        logger.error(f"Town-fallback task failed: {e}")
+        return {'processed': 0, 'geocoded': 0, 'failed': 0, 'error': str(e)}
 
 
 def enrich_from_catastro(batch_size: int = 50):

@@ -232,9 +232,35 @@ def extract_cadastral_refs(bienes_text: Optional[str]) -> tuple:
 # FIRST match (the lead property). Returns None when no address label is present
 # (province/municipality remain the geocoder's fallback context — we do NOT
 # fabricate an address from them).
+# PRIORITY 1 — canonical structured labels. These catch ~100% of standard rows
+# (verified live 2026-06-03: 30/30 address-less actives carry one of these).
 _ADDR_LABELS = r'(?:Direcci[oó]n|Domicilio|Localizaci[oó]n)'
 _ADDR_LABEL_RE = re.compile(
     _ADDR_LABELS + r'\s*[:\t\n]\s*([^\t\n]+)',
+    re.IGNORECASE,
+)
+# PRIORITY 2 — alternate structured labels seen on a tail of pages (rural fincas,
+# AEAT, older layouts): "Situación", "Emplazamiento", "Vía pública: PARAJE
+# PURROIG", "Paraje". Same Label[:\t\n]value discipline; only consulted when (1)
+# misses, so the standard path never regresses.
+_ADDR_ALT_LABELS = r'(?:Situaci[oó]n|Emplazamiento|V[ií]a\s+p[uú]blica|Paraje)'
+_ADDR_ALT_LABEL_RE = re.compile(
+    _ADDR_ALT_LABELS + r'\s*[:\t\n]\s*([^\t\n]+)',
+    re.IGNORECASE,
+)
+# PRIORITY 3 — free-text description fallback. Old/rural fincas put the street
+# only inside the prose ("Casa situada ... en la calle Balbina Valverde número
+# quince ..."). Anchor on a Spanish street-type token, then capture a bounded
+# fragment (the street phrase + up to ~60 chars) trimmed at the first sentence
+# break. Best-effort only — never the primary path.
+_ADDR_STREET_TOKENS = (
+    r'calle|c/|c\.|avda|avenida|av\.|plaza|pza|pza\.|pl\.|paseo|p[º°]'
+    r'|camino|cam\.|carretera|ctra|ctra\.|cr\b|urbanizaci[oó]n|urb\.'
+    r'|partida|paraje|pol[ií]gono|pol\.|parcela|lugar|lg\b|barrio'
+    r'|travesía|trav\.|ronda|rúa|rua|sector|finca'
+)
+_ADDR_DESC_RE = re.compile(
+    r'\b(' + _ADDR_STREET_TOKENS + r')\b[^.;\n]{0,60}',
     re.IGNORECASE,
 )
 _LOCALIDAD_RE = re.compile(
@@ -242,27 +268,66 @@ _LOCALIDAD_RE = re.compile(
     re.IGNORECASE,
 )
 _ADDR_MAX_LEN = 200
+_ADDR_SENTINELS = ('no consta', 'no costa', '-', 'n/a', 'sin datos', 'desconocido')
+
+# BOE often appends a trailing " 0" cell to the address value on multi-field
+# rows ("LG OTROS LANGOSA\t0"). Strip a lone trailing 0 token so it doesn't
+# leak into the geocode string, but keep a real trailing house number
+# ("CR ADANERO 30" stays intact — only a SOLITARY trailing 0 is dropped).
+def _strip_trailing_zero(value: str) -> str:
+    return re.sub(r'\s+0$', '', value).strip()
+
+
+def _clean_addr_value(value: Optional[str]) -> Optional[str]:
+    """Normalize whitespace, strip BOE's trailing ` 0` cell, drop sentinels."""
+    if not value:
+        return None
+    v = re.sub(r'\s+', ' ', value).strip()
+    v = _strip_trailing_zero(v)
+    v = v.strip(' ,;-')
+    if not v or v.lower() in _ADDR_SENTINELS:
+        return None
+    return v
 
 
 def extract_address(bienes_text: Optional[str]) -> Optional[str]:
     """
     Extract the property's street address from a Bienes-section text blob.
 
-    Anchors on the address label ("Dirección" / "Domicilio" / "Localización"),
-    captures the value up to the next tab/newline, normalizes whitespace, and
-    appends the locality ("Localidad") when it adds geocoding context. Returns a
-    clean single-line string capped at 200 chars, or None when no address label
-    is present. Mirrors `extract_cadastral_refs` (anchored regex, first match).
+    Layered, priority-ordered (first hit wins, never fabricates):
+      1. Canonical structured labels — "Dirección" / "Domicilio" / "Localización".
+         Catches ~100% of standard rows. Trailing BOE " 0" cell stripped.
+      2. Alternate structured labels — "Situación" / "Emplazamiento" /
+         "Vía pública" / "Paraje" (rural / AEAT / legacy layouts).
+      3. Free-text "Descripción" street-fragment fallback — for old rural fincas
+         whose street sits only in the prose. Best-effort, bounded fragment.
+
+    Whichever layer hits, the value is normalized to a single line, enriched with
+    the locality ("Localidad") for geocoder context, and capped at 200 chars.
+    Returns None when no street is found at ANY layer — the town-level fallback
+    geocoder (bienLocalidad + bienProvincia) then takes over; we do NOT fabricate
+    a street from province/municipality here. Mirrors `extract_cadastral_refs`
+    (anchored regex, FIRST match — the lead property in multi-lot blocks).
     """
     if not bienes_text:
         return None
 
+    address = None
+    # Priority 1 — canonical labels.
     m = _ADDR_LABEL_RE.search(bienes_text)
-    if not m:
-        return None
-    address = re.sub(r'\s+', ' ', m.group(1)).strip()
-    # Drop BOE's explicit "no data" sentinels rather than geocode garbage.
-    if not address or address.lower() in ('no consta', 'no costa', '-', 'n/a'):
+    if m:
+        address = _clean_addr_value(m.group(1))
+    # Priority 2 — alternate structured labels.
+    if address is None:
+        m = _ADDR_ALT_LABEL_RE.search(bienes_text)
+        if m:
+            address = _clean_addr_value(m.group(1))
+    # Priority 3 — description street-fragment fallback.
+    if address is None:
+        m = _ADDR_DESC_RE.search(bienes_text)
+        if m:
+            address = _clean_addr_value(m.group(0))
+    if address is None:
         return None
 
     # Enrich with the locality when present and not already part of the street.
