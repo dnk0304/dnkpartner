@@ -7,11 +7,17 @@
  *
  * SEO template (07 §3.1): live count in title, H1, meta 150-155, ≥90-word intro
  * with min price + date variables, BreadcrumbList + ItemList + CollectionPage JSON-LD.
+ *
+ * Layout (2026-06-03): renders SubastasListClient with `lockedFilter.province`
+ * so users see the shared 2-col sidebar + card-row list, pre-filtered for this
+ * province. The SEO H1, breadcrumb, intro block, JSON-LD, internal-link cluster
+ * are all preserved server-rendered in the indexable HTML.
  */
 
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { Suspense } from 'react';
 import {
   PROVINCE_SLUG_TO_DB_KEY,
   provinceLabelForSlug,
@@ -20,14 +26,13 @@ import {
 } from '@/lib/seo/slugs';
 import {
   countActiveAuctions,
-  findActiveAuctions,
   minStartingPrice,
   municipalitiesInProvince,
 } from '@/lib/seo/page-data';
 import { SeoIntroBlock } from '@/components/seo/SeoIntroBlock';
 import { Breadcrumbs } from '@/components/seo/Breadcrumbs';
-import { SeoAuctionGrid } from '@/components/seo/SeoAuctionGrid';
 import { capitalizeLocation } from '@/lib/utils';
+import SubastasListClient from '../../SubastasListClient';
 
 type PageProps = { params: Promise<{ provincia: string }> };
 
@@ -37,13 +42,15 @@ async function loadProvince(slug: string) {
   const dbKey = PROVINCE_SLUG_TO_DB_KEY[slug];
   if (!dbKey) return null;
   const label = provinceLabelForSlug(slug) ?? dbKey;
-  const [count, auctions, minPrice, municipalities] = await Promise.all([
+  // The SubastasListClient fetches the canonical /api/auctions data (BigInt-
+  // safe, paginated) just like /subastas does — we only need count + min
+  // price + municipalities here for the SEO header/footer slots.
+  const [count, minPrice, municipalities] = await Promise.all([
     countActiveAuctions({ province: dbKey }),
-    findActiveAuctions({ province: dbKey, take: 24 }),
     minStartingPrice({ province: dbKey }),
     municipalitiesInProvince(dbKey),
   ]);
-  return { dbKey, label, count, auctions, minPrice, municipalities };
+  return { dbKey, label, count, minPrice, municipalities };
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -54,7 +61,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const title = `${count.toLocaleString('es-ES')} subastas en ${label} · estado en vivo | dnksubastas`;
   const description = `${count.toLocaleString('es-ES')} subastas públicas activas en ${label}: judiciales, de Hacienda, notariales y más, con su estado en vivo y enlace oficial al BOE. Actualizado a diario.`.slice(0, 158);
   const canonical = `${SITE}/subastas/provincia/${provincia}`;
-  // Empty province: noindex,follow — still 200 (07 §6.2)
   const robots = count > 0 ? 'index,follow' : 'noindex,follow';
   return {
     title,
@@ -68,7 +74,7 @@ export default async function ProvinciaPage({ params }: PageProps) {
   const { provincia } = await params;
   const data = await loadProvince(provincia);
   if (!data) notFound();
-  const { dbKey, label, count, auctions, minPrice, municipalities } = data;
+  const { dbKey, label, count, minPrice, municipalities } = data;
 
   const collectionLd = {
     '@context': 'https://schema.org',
@@ -78,8 +84,12 @@ export default async function ProvinciaPage({ params }: PageProps) {
     url: `${SITE}/subastas/provincia/${provincia}`,
   };
 
-  return (
-    <main className="mx-auto max-w-editorial px-4 md:px-6 py-8">
+  // SEO intro slot (Breadcrumb + SeoIntroBlock) renders ABOVE the 2-col body
+  // so it stays in the indexable HTML. The H1 ("Subastas públicas en {label}")
+  // is passed via `seoTitle` so the page has exactly one indexable H1 — the
+  // layout suppresses its own "N resultados" H1 when seoTitle is set.
+  const introSlot = (
+    <>
       <Breadcrumbs
         items={[
           { label: 'Inicio', href: '/' },
@@ -87,13 +97,6 @@ export default async function ProvinciaPage({ params }: PageProps) {
           { label, href: `/subastas/provincia/${provincia}` },
         ]}
       />
-      <header className="mb-4">
-        <h1 className="text-2xl md:text-3xl font-bold">Subastas públicas en {label}</h1>
-        <div className="text-sm text-[--color-text-muted] mt-1">
-          {count.toLocaleString('es-ES')} subastas activas
-        </div>
-      </header>
-
       <SeoIntroBlock
         count={count}
         noun="subastas públicas"
@@ -102,21 +105,15 @@ export default async function ProvinciaPage({ params }: PageProps) {
         guideHref="/guia/como-funcionan-las-subastas-boe"
         guideLabel="Cómo funcionan las subastas BOE"
       />
+    </>
+  );
 
-      <SeoAuctionGrid auctions={auctions as any} />
-
-      {/*
-        "Por municipio" — server-rendered municipality directory.
-        Each link routes to `/subastas?province=X&municipality=Y` (matches
-        the home ProvinceGrid's `onMunicipalityClick` contract). A dedicated
-        /subastas/municipio/* SEO route doesn't exist yet, so the filtered
-        listing page is the canonical destination — the URL is shareable and
-        the listing already knows how to apply both filters together.
-        Hidden when there are no active municipalities (avoids an empty
-        directory beneath an empty-province card).
-      */}
+  // SEO footer slot — municipality + tipo internal-link clusters (kept for
+  // crawl depth) and CollectionPage JSON-LD. Rendered below the result list.
+  const footerSlot = (
+    <>
       {municipalities.length > 0 && (
-        <section className="mt-10">
+        <section className="mt-2">
           <h2 className="text-lg font-semibold mb-3">Por municipio en {label}</h2>
           <ul className="flex flex-wrap gap-2">
             {municipalities.map((m) => (
@@ -151,6 +148,17 @@ export default async function ProvinciaPage({ params }: PageProps) {
       </section>
 
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionLd) }} />
-    </main>
+    </>
+  );
+
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[--color-page]" />}>
+      <SubastasListClient
+        lockedFilter={{ province: dbKey }}
+        seoTitle={`Subastas públicas en ${label}`}
+        seoIntroSlot={introSlot}
+        seoFooterSlot={footerSlot}
+      />
+    </Suspense>
   );
 }
