@@ -570,25 +570,45 @@ class BOEScraper(BaseScraper):
         category = kwargs.get('category')
         status = kwargs.get('status', 'active')
         boe_status_code = kwargs.get('boe_status_code')
-        
+        # ORIGEN ("Tipo de subasta" family): J Judicial · N Notarial · A AEAT ·
+        # R Otras administraciones tributarias · G Subastas administrativas
+        # generales. Used by the pre-auction discovery pass to scope the PA-state
+        # search to a single family (judicial-first). None -> no family filter.
+        origen = kwargs.get('origen')
+        mostrar = kwargs.get('mostrar')
+
         # Base search URL
         url = f"{self.SEARCH_URL}?"
         field_index = 0
-        
+        first_param = True
+
+        def _join():
+            # campo[0] must not be prefixed with '&'; everything after is.
+            nonlocal first_param
+            sep = '' if first_param else '&'
+            first_param = False
+            return sep
+
+        # ORIGEN (Tipo de subasta family) filter — scopes to one family.
+        if origen:
+            url += f"{_join()}campo[{field_index}]=SUBASTA.ORIGEN&dato[{field_index}]={origen}"
+            field_index += 1
+
         # Province filter
         if province:
             province_code = get_province_code(province)
-            url += f"campo[{field_index}]=SUBASTA.CODPROV&dato[{field_index}]={province_code}"
+            url += f"{_join()}campo[{field_index}]=SUBASTA.CODPROV&dato[{field_index}]={province_code}"
             field_index += 1
-        
+
         # Category filter
         if category:
-            url += f"&campo[{field_index}]=BIEN.TIPO&dato[{field_index}]={category}"
+            url += f"{_join()}campo[{field_index}]=BIEN.TIPO&dato[{field_index}]={category}"
             field_index += 1
-        
+
         # Status filter - use direct code if provided, otherwise map from status string
         if boe_status_code:
-            url += f"&campo[{field_index}]=SUBASTA.ESTADO&dato[{field_index}]={boe_status_code}"
+            url += f"{_join()}campo[{field_index}]=SUBASTA.ESTADO&dato[{field_index}]={boe_status_code}"
+            field_index += 1
         else:
             status_code_map = {
                 'pre-auction': 'PA',    # Próxima apertura
@@ -598,8 +618,14 @@ class BOEScraper(BaseScraper):
                 'cancelled': 'AN',      # Anulada
             }
             if status in status_code_map:
-                url += f"&campo[{field_index}]=SUBASTA.ESTADO&dato[{field_index}]={status_code_map[status]}"
-        
+                url += f"{_join()}campo[{field_index}]=SUBASTA.ESTADO&dato[{field_index}]={status_code_map[status]}"
+                field_index += 1
+
+        # Results-per-page (BOE caps at 500). Appended as a plain query param,
+        # not a campo/dato pair.
+        if mostrar:
+            url += f"{_join()}mostrar={mostrar}"
+
         return url
     
     def detect_auction_type(self, autoridad_gestora: str, court_name: str = None,

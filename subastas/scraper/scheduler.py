@@ -650,6 +650,48 @@ class ScraperScheduler:
     def run_administrativas_update(self):
         self._run_category_update("administrativas_scraper", "ADMINISTRATIVAS")
 
+    # -----------------------------------------------------------------------
+    # run_preauction_discovery — BOE "Próxima apertura" (PA) discovery pass
+    # -----------------------------------------------------------------------
+    # The daily/category path queries only a celebration-DATE window and never
+    # sets SUBASTA.ESTADO, so PROXIMA_APERTURA auctions (future apertura, no
+    # closing date in the window) are structurally invisible -> the site's
+    # "Próximas" filter returns 0. This dedicated pass queries SUBASTA.ESTADO=PA
+    # directly (judicial-first, ORIGEN=J), forces status=PROXIMA_APERTURA, and
+    # only ingests rows with a real FUTURE opensAt (pulled from the detail
+    # "Fecha de inicio") so promote_pending_auctions can later flip them to
+    # CELEBRANDOSE. Idempotent upsert by boe_id means a PA row that later appears
+    # in the normal celebration scrape updates in place (no duplicate).
+    #
+    # Runs every 6h through _run_sync_scrape (loop-free thread) — same
+    # asyncio-crash-avoidance contract as every other Playwright job.
+    # -----------------------------------------------------------------------
+    def run_preauction_discovery(self):
+        """Run one BOE PA (Próxima apertura) discovery pass."""
+        self.log("Running BOE pre-auction discovery (SUBASTA.ESTADO=PA)...")
+
+        def _do_scrape():
+            # Import + run INSIDE the fresh thread so the scraper's sync-
+            # Playwright lifecycle (discover -> _get_own_browser) lives entirely
+            # on a loop-free thread.
+            sys.path.insert(0, '/')
+            from app.scrapers.boe_preauction_scraper import run_discovery
+            return run_discovery()
+
+        try:
+            progress = self._run_sync_scrape("PREAUCTION_PA", _do_scrape) or {}
+            saved = progress.get('total_auctions', 0)
+            found = progress.get('total_found', 0)
+            errors = len(progress.get('errors', []))
+            self.log(
+                f"  Pre-auction discovery complete: found={found}, "
+                f"saved(PROXIMA_APERTURA)={saved}, errors={errors}"
+            )
+        except Exception as e:
+            self.log(f"  Pre-auction discovery exception: {e}")
+            import traceback
+            self.log(traceback.format_exc())
+
     def trigger_alert_check(self):
         """Trigger /api/alerts/check after daily refresh jobs."""
         self.log("Triggering alert check endpoint...")
@@ -757,6 +799,12 @@ class ScraperScheduler:
         for t in ("07:15", "13:15", "19:15", "00:15"):
             schedule.every().day.at(t).do(self.run_administrativas_update)
 
+        # Pre-auction discovery (BOE SUBASTA.ESTADO=PA, "Próxima apertura") —
+        # every 6h (4x/day). Fills the PROXIMA_APERTURA bucket the daily path
+        # can't see; promote_pending_auctions flips each row live when its
+        # opensAt arrives. Runs through _run_sync_scrape (loop-free thread).
+        schedule.every(6).hours.do(self.run_preauction_discovery)
+
         # Wave 2b: dispatcher drain — every DISPATCH_INTERVAL_MIN minutes
         schedule.every(DISPATCH_INTERVAL_MIN).minutes.do(self.dispatch_outbox)
 
@@ -775,6 +823,7 @@ class ScraperScheduler:
         self.log(f"  AEAT update:          06:45, 12:45, 18:45, 23:45 (4x/day)")
         self.log(f"  OtrasTrib update:     07:00, 13:00, 19:00, 00:00 (4x/day)")
         self.log(f"  Administrativas:      07:15, 13:15, 19:15, 00:15 (4x/day)")
+        self.log(f"  Pre-auction (PA):     Every 6h (PROXIMA_APERTURA discovery, ORIGEN=J)")
         self.log(f"  Dispatch outbox:      Every {DISPATCH_INTERVAL_MIN} min")
         self.log(f"  Geocode drain:        Every {geocode_interval} min (active rows only)")
         self.log(f"  ending_soon window:   {ENDING_SOON_HOURS}h before endsAt")
@@ -811,6 +860,8 @@ def main():
     parser.add_argument('--once', action='store_true', help='Run monitor once and exit')
     parser.add_argument('--pulse-once', action='store_true', help='Run pulse once and exit')
     parser.add_argument('--promote-once', action='store_true', help='Run promotion once and exit')
+    parser.add_argument('--preauction-once', action='store_true',
+                        help='Run one BOE PA (Próxima apertura) discovery pass and exit')
 
     args = parser.parse_args()
     scheduler = ScraperScheduler()
@@ -824,6 +875,9 @@ def main():
     elif args.promote_once:
         scheduler.log("Running promotion once...")
         scheduler.promote_pending_auctions()
+    elif args.preauction_once:
+        scheduler.log("Running pre-auction (PA) discovery once...")
+        scheduler.run_preauction_discovery()
     else:
         scheduler.run()
 
