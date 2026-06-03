@@ -15,14 +15,14 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { MapPin } from "lucide-react";
+import { MapPin, FileText, Calendar } from "lucide-react";
 import { AuctionItem, type AuctionStatus } from "@/types";
 import { StatusDot } from "./StatusBadge";
 import { AuctionTypeBadge } from "./AuctionTypeBadge";
 import { PujaBadge, OccupancyBadge } from "./PujaOccupancyBadges";
 import { LiveCountdown } from "./LiveCountdown";
 import { FollowButton } from "@/components/notifications/FollowButton";
-import { formatPrice, capitalize, titleCase, displayTitle } from "./format";
+import { formatPrice, capitalize, titleCase, displayTitle, formatDateMed, prettifyAuctionType } from "./format";
 import { getStatusMeta, effectiveStatus } from "./status";
 import { cn } from "@/lib/utils";
 import { resolveCardImage, isVariosLotesTitle } from "@/lib/resolve-card-image";
@@ -67,6 +67,15 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
   const hasMinBid = item.minimumBid != null && Number.isFinite(item.minimumBid as number);
   const noPriceData = !hasTasacion && !hasMinBid && !hasCurrentBid;
   const isVariosLotes = isVariosLotesTitle(item.title);
+  // Type label — propertyType (from doc-archive backfill) preferred over the
+  // less specific row-level `category`. Pre-backfill rows still show the
+  // category, so the row never goes blank.
+  const typeLabel = prettifyAuctionType(item.propertyType ?? item.category);
+  const opensDate = item.opensAt ? new Date(item.opensAt) : null;
+  const opensLabel =
+    opensDate && !Number.isNaN(opensDate.getTime())
+      ? formatDateMed(opensDate)
+      : null;
 
   return (
     <tr
@@ -157,17 +166,41 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
       </td>
 
       <td className="hidden md:table-cell align-top py-3 pr-3 text-xs text-[--color-ink-secondary] whitespace-nowrap">
-        {/* Item C — Viviendas reads as the hero category via a subtle
-            brand-tinted pill. All other categories keep the plain text. */}
-        {item.category === "Viviendas" ? (
+        {/* propertyType (when projected) is the BOE bien-heading type and
+            supersedes the row-level category. Viviendas keeps the brand
+            pill; everything else stays plain. Pre-backfill rows fall back
+            to category so this cell is never empty. */}
+        {typeLabel.toLowerCase() === "vivienda" || item.category === "Viviendas" ? (
           <span
             className="inline-flex items-center rounded-full border border-[--color-brand]/30 bg-[--color-brand]/[0.06] px-2 py-0.5 text-[11px] font-semibold text-[--color-brand]"
-            aria-label="Categoría destacada: Viviendas"
+            aria-label={`Tipo: ${typeLabel}`}
+            title={typeLabel}
           >
-            {item.category}
+            {typeLabel}
           </span>
         ) : (
-          item.category
+          <span title={typeLabel}>{typeLabel}</span>
+        )}
+        {/* Stacked meta: opensAt + documents — only when projected so the
+            cell stays one-line on pre-backfill rows. */}
+        {(opensLabel || item.hasDocuments) && (
+          <div className="mt-0.5 flex items-center gap-2 text-[10px] text-[--color-ink-tertiary] font-normal tnum">
+            {opensLabel && (
+              <span className="inline-flex items-center gap-1">
+                <Calendar className="h-2.5 w-2.5" aria-hidden="true" />
+                Inicio {opensLabel}
+              </span>
+            )}
+            {item.hasDocuments && (
+              <span
+                className="inline-flex items-center gap-1"
+                title="Esta subasta tiene documentos oficiales adjuntos"
+              >
+                <FileText className="h-2.5 w-2.5" aria-hidden="true" />
+                Docs
+              </span>
+            )}
+          </div>
         )}
       </td>
 

@@ -15,14 +15,14 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ImageOff, MapPin } from "lucide-react";
+import { ImageOff, MapPin, FileText, Calendar } from "lucide-react";
 import { AuctionItem, type AuctionStatus } from "@/types";
 import { StatusBadge } from "./StatusBadge";
 import { AuctionTypeBadge } from "./AuctionTypeBadge";
 import { PujaBadge, OccupancyBadge } from "./PujaOccupancyBadges";
 import { LiveCountdown } from "./LiveCountdown";
 import { FollowButton } from "@/components/notifications/FollowButton";
-import { formatPrice, capitalize, titleCase, displayTitle, formatDaysLeft } from "./format";
+import { formatPrice, capitalize, titleCase, displayTitle, formatDaysLeft, formatDateMed, prettifyAuctionType } from "./format";
 import { effectiveStatus } from "./status";
 import { cn } from "@/lib/utils";
 import { resolveCardImage, isVariosLotesTitle } from "@/lib/resolve-card-image";
@@ -78,6 +78,18 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
   // instead of an empty price block.
   const noPriceData = !hasTasacion && !hasMinBid && !hasCurrentBid;
   const isVariosLotes = isVariosLotesTitle(item.title);
+  // Type headline — propertyType (from the doc-archive backfill) is the
+  // BOE-accurate bien type; fall back to category for the ~99% of rows still
+  // pre-backfill. `prettifyAuctionType` singularises and strips "Inmueble(…)"
+  // so the strip reads as a single type label (e.g. "Vivienda", "Trastero").
+  const typeLabel = prettifyAuctionType(item.propertyType ?? item.category);
+  // Start date row — only rendered when opensAt is projected and parses to a
+  // finite date. Pre-backfill the row hides cleanly (no empty box).
+  const opensDate = item.opensAt ? new Date(item.opensAt) : null;
+  const opensLabel =
+    opensDate && !Number.isNaN(opensDate.getTime())
+      ? formatDateMed(opensDate)
+      : null;
   const hasEndDate =
     item.endDate instanceof Date
       ? !Number.isNaN(item.endDate.getTime()) && item.endDate.getTime() > 0
@@ -255,23 +267,27 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
           </div>
         )}
 
-        {/* Bottom meta strip: category + live countdown.
-            Viviendas is rendered as a subtle brand-tinted pill so the hero
-            category is recognisable at a glance (Item C). All other
-            categories keep the plain caption style — emphasis only, no
-            visual hierarchy overhaul. */}
+        {/* Bottom meta strip: type label + live countdown.
+            propertyType (when present) supersedes category — it's the BOE
+            bien-heading type (Vivienda, Trastero, Garaje…). Viviendas keeps
+            the brand-tinted pill so the hero category stays recognisable;
+            other types use the plain caption style. */}
         <div className="hairline-t pt-2 flex items-center justify-between gap-2">
-          {item.category && (
-            item.category === "Viviendas" ? (
+          {typeLabel && (
+            typeLabel.toLowerCase() === "vivienda" || item.category === "Viviendas" ? (
               <span
                 className="inline-flex items-center rounded-full border border-[--color-brand]/30 bg-[--color-brand]/[0.06] px-2 py-0.5 text-[10px] uppercase tracking-wide font-semibold text-[--color-brand] truncate"
-                aria-label="Categoría destacada: Viviendas"
+                aria-label={`Tipo: ${typeLabel}`}
+                title={typeLabel}
               >
-                {item.category}
+                {typeLabel}
               </span>
             ) : (
-              <span className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary] truncate">
-                {item.category}
+              <span
+                className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary] truncate"
+                title={typeLabel}
+              >
+                {typeLabel}
               </span>
             )
           )}
@@ -279,6 +295,31 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             <LiveCountdown target={item.endDate} size="sm" prefix="Termina en" effectiveStatus={effective} />
           )}
         </div>
+
+        {/* Start-date row + documents indicator. Both null-safe — rendered
+            only when projected by the document-archive scraper backfill.
+            Pre-backfill the whole row is omitted (no empty box). */}
+        {(opensLabel || item.hasDocuments) && (
+          <div className="flex items-center justify-between gap-2 text-[11px] text-[--color-ink-tertiary]">
+            {opensLabel ? (
+              <span className="inline-flex items-center gap-1 tnum">
+                <Calendar className="h-3 w-3" aria-hidden="true" />
+                <span className="text-[--color-ink-quiet]">Inicio </span>
+                <span className="text-[--color-ink-secondary]">{opensLabel}</span>
+              </span>
+            ) : <span />}
+            {item.hasDocuments && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full border border-[--color-hairline] bg-[--color-surface-muted] px-1.5 py-0.5 font-medium text-[--color-ink-secondary]"
+                title="Esta subasta tiene documentos oficiales adjuntos"
+                aria-label="Documentos disponibles"
+              >
+                <FileText className="h-3 w-3" aria-hidden="true" />
+                Documentos
+              </span>
+            )}
+          </div>
+        )}
 
         {/* BOE direct link — primary differentiator: lets bidders act
             without entering our detail page. */}

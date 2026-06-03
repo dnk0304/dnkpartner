@@ -5,7 +5,7 @@ import { AuctionItem, UserTier, AuctionType } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PremiumGuard } from './PremiumGuard';
-import { Clock, MapPin, Gavel, Building2, Pause, CircleDollarSign, Banknote, CheckCircle, XCircle, TrendingUp, Calendar, Landmark, ArrowUpRight } from 'lucide-react';
+import { Clock, MapPin, Gavel, Building2, Pause, CircleDollarSign, Banknote, CheckCircle, XCircle, TrendingUp, Calendar, Landmark, ArrowUpRight, FileText } from 'lucide-react';
 import Image from 'next/image';
 import { capitalizeLocation } from '@/lib/utils';
 import { resolveCardImage, isVariosLotesTitle } from '@/lib/resolve-card-image';
@@ -363,15 +363,46 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
               </div>
             )}
 
-            {/* Footer Metadata */}
+            {/* Footer Metadata — start date (opensAt) + end date.
+                "Inicio …" only renders when opensAt is projected and parses
+                to a finite date; otherwise the row hides cleanly (graceful
+                empty pre-backfill). Documents indicator is a compact chip
+                with file icon — links live on the detail page, not here. */}
             <div className="flex items-center justify-between pt-3 border-t border-gray-100 text-sm mt-2">
-              <div className="flex items-center gap-1.5 text-gray-500">
-                <Clock className="w-4 h-4" />
-                <span>{item.endDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-gray-500">
+                {(() => {
+                  const opens = item.opensAt ? new Date(item.opensAt) : null;
+                  if (!opens || Number.isNaN(opens.getTime())) return null;
+                  return (
+                    <span className="inline-flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4" aria-hidden="true" />
+                      <span className="tnum">
+                        <span className="text-gray-400">Inicio </span>
+                        {opens.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                      </span>
+                    </span>
+                  );
+                })()}
+                <span className="inline-flex items-center gap-1.5">
+                  <Clock className="w-4 h-4" aria-hidden="true" />
+                  <span className="tnum">
+                    {item.endDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                </span>
               </div>
-              
+
               <div className="flex items-center gap-2">
-                <span className="text-blue-600 font-medium hover:underline flex items-center gap-1">
+                {item.hasDocuments && (
+                  <span
+                    className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-600"
+                    title="Esta subasta tiene documentos oficiales adjuntos"
+                    aria-label="Documentos disponibles"
+                  >
+                    <FileText className="w-3 h-3" aria-hidden="true" />
+                    Documentos
+                  </span>
+                )}
+                <span className="text-blue-600 font-medium hover:underline flex items-center gap-1 cursor-pointer">
                   Ver detalles <ArrowUpRight className="w-4 h-4" />
                 </span>
               </div>
