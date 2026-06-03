@@ -102,15 +102,16 @@ export const AUCTION_TYPE_LABEL: Record<string, { label: string; shortLabel: str
 })();
 
 /** Sort options — match Forge's whitelisted values on /api/auctions. */
-export type SortValue = "endsAt_asc" | "published_desc" | "price_asc" | "price_desc";
+export type SortValue = "category_rank" | "endsAt_asc" | "published_desc" | "price_asc" | "price_desc";
 export const SORT_OPTIONS: Array<{ id: SortValue; label: string }> = [
+  { id: "category_rank", label: "Destacados" },
   { id: "endsAt_asc", label: "Termina antes" },
   { id: "published_desc", label: "Más recientes" },
   { id: "price_asc", label: "Precio: menor a mayor" },
   { id: "price_desc", label: "Precio: mayor a menor" },
 ];
 /** Server default — must match Forge's API default so SSR/CSR agree. */
-export const DEFAULT_SORT: SortValue = "endsAt_asc";
+export const DEFAULT_SORT: SortValue = "category_rank";
 
 /** All precise categories. */
 export const ALL_CATEGORIES: AuctionCategory[] = [
@@ -182,7 +183,7 @@ export const DEFAULT_FILTERS: ObservatoryFilters = {
   hasImage: false,
 };
 
-const VALID_SORTS: SortValue[] = ["endsAt_asc", "published_desc", "price_asc", "price_desc"];
+const VALID_SORTS: SortValue[] = ["category_rank", "endsAt_asc", "published_desc", "price_asc", "price_desc"];
 
 /** Read an ObservatoryFilters from URLSearchParams. */
 export function filtersFromParams(p: URLSearchParams): ObservatoryFilters {
