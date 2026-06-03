@@ -22,6 +22,19 @@ from .legacy_rows import is_legacy_row
 
 logger = logging.getLogger(__name__)
 
+# G1 — discrete "Datos del bien subastado" columns (Forge migration
+# 20260603_add_auction_documents). (scraper data_key, DB column). Written via
+# the information_schema guard so a pre-migration DB is a safe no-op.
+_BIEN_FIELD_COLS = [
+    ('postal_code',          'postalCode'),
+    ('idufir',               'idufir'),
+    ('registry_inscription', 'registryInscription'),
+    ('legal_title',          'legalTitle'),
+    ('bien_localidad',       'bienLocalidad'),
+    ('bien_provincia',       'bienProvincia'),
+    ('vivienda_habitual',    'viviendaHabitual'),
+]
+
 
 class DatabaseAdapter:
     """
@@ -165,7 +178,106 @@ class DatabaseAdapter:
             conn.rollback()
             logger.error(f"Upsert failed for {data.get('boe_id')}: {e}")
             raise
-    
+
+    def upsert_document(self, auction_boe_id: str, doc: Dict[str, Any]) -> Optional[str]:
+        """
+        G2/G3 — upsert one AuctionDocument row (the document-archive contract
+        Forge defined in migration 20260603_add_auction_documents).
+
+        Resolves the auction by boeId -> Auction.id, then UPSERTs on the
+        @@unique([auctionId, idDoc]) constraint so a re-scrape overwrites the
+        same row (the snapshot uses the sentinel idDoc='SNAPSHOT'; downloads use
+        the real BOE idDoc). `doc` keys (camelCase, matching the Prisma model):
+        docType, title, officialUrl, idDoc, storedPath, kind, mimeType,
+        sizeBytes.
+
+        PG-only (the live store). Guarded by an information_schema existence
+        check on the AuctionDocument table so a pre-migration DB is a safe
+        no-op (returns None, logs once) rather than crashing the scrape — the
+        Auction field writes still land via their own guard. Never raises:
+        a document persistence miss must not abort the auction upsert.
+        """
+        if self.db_type != 'postgresql':
+            logger.debug("upsert_document skipped (non-PG adapter)")
+            return None
+
+        conn = self.connect()
+        try:
+            cursor = conn.cursor()
+            # table-exists guard (pre-migration safety)
+            cursor.execute("""
+                SELECT 1 FROM information_schema.tables
+                WHERE table_name = 'AuctionDocument'
+            """)
+            if cursor.fetchone() is None:
+                logger.warning(
+                    "AuctionDocument table absent — migration "
+                    "20260603_add_auction_documents not applied yet; "
+                    "skipping document persistence for %s", auction_boe_id
+                )
+                conn.rollback()
+                return None
+
+            cursor.execute('SELECT id FROM "Auction" WHERE "boeId" = %s', (auction_boe_id,))
+            row = cursor.fetchone()
+            if not row:
+                logger.warning("upsert_document: no Auction for boeId=%s", auction_boe_id)
+                conn.rollback()
+                return None
+            auction_id = row[0]
+
+            id_doc = doc.get('idDoc')
+            if not id_doc:
+                # The unique index treats NULL idDoc as distinct -> would
+                # duplicate on every scrape. Refuse a NULL idDoc.
+                logger.warning("upsert_document: missing idDoc for %s — skipped", auction_boe_id)
+                conn.rollback()
+                return None
+
+            now = datetime.now()
+            cursor.execute(
+                """
+                INSERT INTO "AuctionDocument"
+                    ("id", "auctionId", "docType", "title", "officialUrl",
+                     "idDoc", "storedPath", "kind", "mimeType", "sizeBytes",
+                     "createdAt", "updatedAt")
+                VALUES
+                    (gen_random_uuid(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT ("auctionId", "idDoc") DO UPDATE SET
+                    "docType"     = EXCLUDED."docType",
+                    "title"       = EXCLUDED."title",
+                    "officialUrl" = EXCLUDED."officialUrl",
+                    "storedPath"  = EXCLUDED."storedPath",
+                    "kind"        = EXCLUDED."kind",
+                    "mimeType"    = EXCLUDED."mimeType",
+                    "sizeBytes"   = EXCLUDED."sizeBytes",
+                    "updatedAt"   = EXCLUDED."updatedAt"
+                RETURNING "id"
+                """,
+                (
+                    auction_id,
+                    doc.get('docType', 'OTRO'),
+                    doc.get('title', ''),
+                    doc.get('officialUrl'),
+                    id_doc,
+                    doc.get('storedPath'),
+                    doc.get('kind', 'download'),
+                    doc.get('mimeType'),
+                    doc.get('sizeBytes'),
+                    now, now,
+                ),
+            )
+            doc_id = cursor.fetchone()[0]
+            conn.commit()
+            logger.info("Upserted AuctionDocument %s (%s) for %s",
+                        doc_id, doc.get('docType'), auction_boe_id)
+            return doc_id
+        except Exception as e:
+            conn.rollback()
+            logger.error("upsert_document failed for %s idDoc=%s: %s",
+                         auction_boe_id, doc.get('idDoc'), e)
+            return None
+
     def _upsert_auction_sqlite(self, conn: sqlite3.Connection, data: dict) -> str:
         """SQLite-specific upsert"""
         cursor = conn.cursor()
@@ -301,7 +413,10 @@ class DatabaseAdapter:
                 WHERE table_name = 'Auction'
                   AND column_name IN ('suspensionReason', 'resumeAt', 'lastVerifiedAt', 'opensAt',
                                       'sourceIdSub', 'loteNumber',
-                                      'pujaStatus', 'currentBidAmount', 'occupancy')
+                                      'pujaStatus', 'currentBidAmount', 'occupancy',
+                                      'postalCode', 'idufir', 'registryInscription',
+                                      'legalTitle', 'bienLocalidad', 'bienProvincia',
+                                      'viviendaHabitual')
             """)
             forge_cols = {r[0] for r in cursor.fetchall()}
         except Exception:
@@ -424,6 +539,13 @@ class DatabaseAdapter:
             if 'occupancy' in forge_cols and data.get('occupancy') is not None:
                 update_fields.append('"occupancy" = %s')
                 params.append(data['occupancy'])
+            # G1 discrete "Datos del bien" columns (Forge 20260603). Guarded by
+            # info_schema so this is safe before the migration is applied; only
+            # written when the scraper actually parsed a value (never blanks).
+            for _data_key, _col in _BIEN_FIELD_COLS:
+                if _col in forge_cols and data.get(_data_key) is not None:
+                    update_fields.append(f'"{_col}" = %s')
+                    params.append(data[_data_key])
 
             if not update_fields:
                 # Nothing to update — still stamp updatedAt
@@ -546,6 +668,12 @@ class DatabaseAdapter:
                 col_names.append('"occupancy"')
                 placeholders.append('%s')
                 vals.append(data['occupancy'])
+            # G1 discrete "Datos del bien" columns (Forge 20260603, guarded).
+            for _data_key, _col in _BIEN_FIELD_COLS:
+                if _col in forge_cols and data.get(_data_key) is not None:
+                    col_names.append(f'"{_col}"')
+                    placeholders.append('%s')
+                    vals.append(data[_data_key])
 
             sql = f'INSERT INTO "Auction" ({", ".join(col_names)}) VALUES ({", ".join(placeholders)})'
             cursor.execute(sql, tuple(vals))

@@ -22,6 +22,7 @@ from ..config.categories import get_category_type
 from ..config.municipality_province import municipality_to_province, province_from_text
 from ..config.settings import SCRAPE_MAX_PAGES, SCRAPE_MAX_ITEMS_PER_PAGE, BOE_REQUEST_DELAY_SECONDS
 from ..database.adapter import get_database_adapter
+from ..lib import doc_storage
 
 logger = logging.getLogger(__name__)
 
@@ -276,6 +277,176 @@ def extract_address(bienes_text: Optional[str]) -> Optional[str]:
     if not address:
         return None
     return address[:_ADDR_MAX_LEN]
+
+
+# ---------------------------------------------------------------------------
+# Discrete "Datos del bien subastado" parsing (G1 — field completeness).
+#
+# The BOE ver=3 "Datos del bien subastado" block renders one TAB-separated
+# `Label\tValue` pair per line (verified live 2026-06-03 on the Palma trastero
+# SUB-RC-2026-07003001786). Today the whole block is stored as ONE blob
+# (lotDescription) and only address + cadastral are regex-pulled; the discrete
+# columns Forge added (postalCode, idufir, registryInscription, legalTitle,
+# bienLocalidad, bienProvincia, viviendaHabitual) are lost. We parse each
+# labelled field into its own value, anchored on the BOE label (accent-
+# insensitive), accepting the inline `Label\tvalue` / `Label: value` and the
+# next-line `Label\nvalue` forms — same discipline as extract_cadastral_refs.
+# NEVER fabricate: a label that is absent (or whose value is a BOE "no-data"
+# sentinel) yields None.
+# ---------------------------------------------------------------------------
+
+# value runs up to the next tab or newline (the table cell boundary).
+def _bien_label_value(text: Optional[str], label_pattern: str) -> Optional[str]:
+    """Return the value following `label_pattern` (a regex alternation, accent-
+    aware) in the bien block, or None. Mirrors _extract_label_value but is a
+    module-level helper so the parser can be unit-tested without a scraper."""
+    if not text:
+        return None
+    m = re.search(label_pattern + r"\s*[:\t\n]\s*([^\t\n]+)", text, re.IGNORECASE)
+    if not m:
+        return None
+    v = re.sub(r"\s+", " ", m.group(1)).strip(" :;-")
+    if not v or v.lower() in ("no consta", "no costa", "-", "n/a", "sin datos"):
+        return None
+    return v
+
+
+# BOE bien heading: "Bien 786 - Inmueble (Trastero)". The parenthesised type is
+# the AUTHORITATIVE property type (the listing title can be generic / wrong).
+_BIEN_TYPE_RE = re.compile(r"Bien\s+\d+\s*-\s*Inmueble\s*\(([^)]+)\)", re.IGNORECASE)
+
+# Map a BOE bien type (singular, as it appears in the heading) to our category
+# taxonomy. Accent-insensitive lookup on the lowercased type. Anything not
+# matched leaves the title-based category untouched (we never downgrade a good
+# guess to "Otros" just because the heading word is unfamiliar).
+_BIEN_TYPE_TO_CATEGORY = {
+    "vivienda": "Viviendas",
+    "piso": "Viviendas",
+    "apartamento": "Viviendas",
+    "casa": "Viviendas",
+    "chalet": "Viviendas",
+    "trastero": "Trasteros",
+    "garaje": "Garajes",
+    "plaza de garaje": "Garajes",
+    "aparcamiento": "Garajes",
+    "local": "Locales",
+    "local comercial": "Locales",
+    "oficina": "Locales",
+    "nave": "Naves industriales",
+    "nave industrial": "Naves industriales",
+    "suelo": "Terrenos",
+    "terreno": "Terrenos",
+    "solar": "Terrenos",
+    "parcela": "Terrenos",
+    "finca rustica": "Fincas rústicas",
+    "finca": "Fincas rústicas",
+}
+
+
+def _norm_accents(s: str) -> str:
+    return (s.lower()
+            .replace("á", "a").replace("é", "e").replace("í", "i")
+            .replace("ó", "o").replace("ú", "u").replace("ü", "u"))
+
+
+def parse_bien_type(bien_text: Optional[str]) -> Optional[str]:
+    """Return the raw BOE bien type from the heading (e.g. 'Trastero'), or None."""
+    if not bien_text:
+        return None
+    m = _BIEN_TYPE_RE.search(bien_text)
+    if not m:
+        return None
+    return re.sub(r"\s+", " ", m.group(1)).strip()
+
+
+def category_from_bien_type(bien_type: Optional[str]) -> Optional[str]:
+    """Map a BOE bien type to our category, or None if unrecognised."""
+    if not bien_type:
+        return None
+    return _BIEN_TYPE_TO_CATEGORY.get(_norm_accents(bien_type.strip()))
+
+
+def _parse_yes_no(text: Optional[str]) -> Optional[bool]:
+    """BOE 'Sí'/'No' -> bool, None when absent/ambiguous (never fabricate)."""
+    if text is None:
+        return None
+    t = _norm_accents(text.strip())
+    if t in ("si", "s"):
+        return True
+    if t in ("no", "n"):
+        return False
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Document type inference (G2). docType enum (Forge's contract):
+#   NOTA_SIMPLE | EDICTO | ANEXO | PLIEGO | SNAPSHOT | OTRO
+# Inferred from the BOE link TEXT (accent-insensitive). Unknown -> OTRO; we
+# never guess beyond the explicit keywords.
+# ---------------------------------------------------------------------------
+def infer_doc_type(title: Optional[str]) -> str:
+    t = _norm_accents(title or "")
+    if "nota simple" in t or "nota registral" in t:
+        return "NOTA_SIMPLE"
+    if "edicto" in t or "anuncio" in t:
+        return "EDICTO"
+    if "pliego" in t or "condiciones" in t:
+        return "PLIEGO"
+    if "anexo" in t:
+        return "ANEXO"
+    return "OTRO"
+
+
+def parse_bien_fields(bien_text: Optional[str]) -> Dict[str, Any]:
+    """
+    Parse the discrete "Datos del bien subastado" fields from the bien block.
+    Returns a dict with ONLY the keys that were found (absent labels omitted)
+    so the adapter's "write only when present" guard never blanks a good value.
+
+    Keys (scraper-side snake_case): postal_code, idufir, registry_inscription,
+    legal_title, bien_localidad, bien_provincia, vivienda_habitual (bool),
+    bien_type (raw heading type, e.g. 'Trastero').
+    """
+    out: Dict[str, Any] = {}
+    if not bien_text:
+        return out
+
+    postal = _bien_label_value(bien_text, r"C[oó]digo\s+Postal")
+    if postal:
+        # keep digits only (BOE CP is 5 digits) but tolerate trailing text.
+        mcp = re.search(r"\d{5}", postal)
+        out["postal_code"] = mcp.group(0) if mcp else postal
+
+    idufir = _bien_label_value(bien_text, r"IDUFIR")
+    if idufir:
+        out["idufir"] = idufir
+
+    reg = _bien_label_value(bien_text, r"Inscripci[oó]n\s+registral")
+    if reg:
+        out["registry_inscription"] = reg
+
+    legal = _bien_label_value(bien_text, r"T[ií]tulo\s+jur[ií]dico")
+    if legal:
+        out["legal_title"] = legal
+
+    loc = _bien_label_value(bien_text, r"Localidad")
+    if loc:
+        out["bien_localidad"] = loc
+
+    prov = _bien_label_value(bien_text, r"Provincia")
+    if prov:
+        out["bien_provincia"] = prov
+
+    vh_raw = _bien_label_value(bien_text, r"Vivienda\s+habitual")
+    vh = _parse_yes_no(vh_raw)
+    if vh is not None:
+        out["vivienda_habitual"] = vh
+
+    bt = parse_bien_type(bien_text)
+    if bt:
+        out["bien_type"] = bt
+
+    return out
 
 
 class BOEScraper(BaseScraper):
@@ -560,6 +731,19 @@ class BOEScraper(BaseScraper):
                     auction_data['cadastral_ref'] = detail_info['cadastral_ref']
                 if detail_info.get('cadastral_data'):
                     auction_data['cadastral_data'] = detail_info['cadastral_data']
+
+                # --- G1 discrete bien fields + authoritative category ---
+                self._merge_bien_fields(auction_data, detail_info)
+
+                # --- G2 convenience URLs (canonical store is AuctionDocument) ---
+                # The nota-simple PDF + edicto BOE links are surfaced on the
+                # Auction row's existing pdfUrl/edictUrl for callers that don't
+                # join the documents[] relation. Set opportunistically; absent
+                # when BOE published no such doc (never fabricated).
+                if detail_info.get('nota_simple_url'):
+                    auction_data['pdf_url'] = detail_info['nota_simple_url']
+                if detail_info.get('edict_url'):
+                    auction_data['edict_url'] = detail_info['edict_url']
 
                 # --- AUTHORITATIVE financial fields from detail page ---
                 # Only overwrite when the detail page actually yielded a value;
@@ -1221,6 +1405,209 @@ class BOEScraper(BaseScraper):
             self.log_warning(f"Pujas fetch failed for {boe_id}: {e}")
             return {'puja_status': None, 'current_bid_amount': None}
 
+    # -----------------------------------------------------------------------
+    # G2/G3 — document enumeration + download + per-auction snapshot PDF.
+    # -----------------------------------------------------------------------
+    def _enumerate_documents(self, page: Any) -> List[Dict[str, str]]:
+        """
+        Read every `a[href*="verDocumento.php"]` link on the CURRENT DOM and
+        return [{title, official_url(absolute), id_doc}]. Dedup by id_doc within
+        this page. Caller merges across ver=3/ver=1. Absolute URL = BASE_URL +
+        the relative href so the in-session GET resolves regardless of the page
+        the link was read from.
+        """
+        try:
+            links = page.eval_on_selector_all(
+                "a[href*='verDocumento.php']",
+                "els => els.map(e => ({text:(e.textContent||'').trim().replace(/\\s+/g,' '), href:e.getAttribute('href')}))",
+            )
+        except Exception:
+            return []
+        out: List[Dict[str, str]] = []
+        seen = set()
+        for ln in links or []:
+            href = (ln or {}).get('href') or ''
+            m = re.search(r'idDoc=([^&]+)', href)
+            if not m:
+                continue
+            id_doc = m.group(1)
+            if id_doc in seen:
+                continue
+            seen.add(id_doc)
+            url = href if href.startswith('http') else f"{self.BASE_URL}/{href.lstrip('/')}"
+            out.append({
+                'title': (ln.get('text') or '').strip() or id_doc,
+                'official_url': url,
+                'id_doc': id_doc,
+            })
+        return out
+
+    def _capture_documents_and_snapshot(self, page: Any, boe_id: str,
+                                        detail_url: str,
+                                        info: Dict[str, Any]) -> None:
+        """
+        G2/G3 — on the CURRENT (ver=3) DOM: enumerate the attached documents,
+        ALSO fetch ver=1 for the docs that live only there (edicto/condiciones),
+        download each PDF in-session to the per-auction doc dir, render the
+        per-auction snapshot.pdf, and upsert one AuctionDocument row per file.
+
+        Ordering: the caller runs this on the pre-click ver=3 DOM, BEFORE the
+        general-info tab swap and BEFORE the ver=5 pujas navigation (both of
+        which destroy the ver=3 panel). The ver=1 doc fetch is an HTTP GET via
+        page.context.request (NOT a navigation) so it does not disturb the DOM,
+        then we read ver=1's DOM only AFTER the snapshot is taken (it navigates
+        the page). All best-effort: a doc/snapshot miss never blocks the row's
+        data fields. Writes nothing to the DB when documents are absent (other
+        than the snapshot, which is always attempted for an archival record).
+
+        For split-lote rows (boe_id '<idSub>-L<N>'): documents + snapshot are
+        attached to THIS row's boe_id. The umbrella idSub carries the same docs;
+        we key storage by the per-row boe_id so the serve route resolves each
+        row's own AuctionDocument. We do NOT re-download the same idDoc across
+        lotes here — _navigate_and_extract is called per lote, each writes its
+        own copy keyed by its own safeKey, which keeps the serve route simple at
+        the cost of a few duplicate PDFs on disk (acceptable; flagged to Ken).
+        """
+        if os.getenv('BOE_CAPTURE_DOCS', '1') == '0':
+            return
+        captured: List[Dict[str, Any]] = []
+        try:
+            # 1. ver=3 documents (the page we are on). The snapshot must be taken
+            #    on this DOM too, so do it before any ver=1 navigation.
+            docs = self._enumerate_documents(page)
+
+            # 2. snapshot.pdf of the ver=3 detail (archival record).
+            self._write_snapshot(page, boe_id, detail_url, captured)
+
+            # 3. ver=1 documents (edicto / condiciones generales live only here).
+            #    Navigating the page to ver=1 is fine now — the snapshot + ver=3
+            #    doc enumeration are already done. Merge + dedup by id_doc.
+            id_seen = {d['id_doc'] for d in docs}
+            try:
+                idsub = parse_lote_boe_id(boe_id)[0] if '-L' in boe_id else (self._extract_boe_id(detail_url) or boe_id)
+                v1_url = f"{self.DETAIL_URL}?idSub={idsub}&ver=1"
+                page.goto(v1_url, wait_until='domcontentloaded', timeout=30000)
+                random_delay(0.5, 1.2)
+                for d in self._enumerate_documents(page):
+                    if d['id_doc'] not in id_seen:
+                        id_seen.add(d['id_doc'])
+                        docs.append(d)
+            except Exception as e:
+                self.log_warning(f"ver=1 doc enumeration failed for {boe_id}: {e}")
+
+            # 4. download each doc + upsert a row.
+            for d in docs:
+                row = self._download_and_register_doc(page, boe_id, d)
+                if row:
+                    captured.append(row)
+        except Exception as e:
+            self.log_warning(f"Document capture failed for {boe_id}: {e}")
+        finally:
+            # surface what we captured (the scrape-flow merge persists pdf_url /
+            # edict_url convenience fields opportunistically; the canonical
+            # store is the AuctionDocument rows already upserted).
+            info['documents'] = captured
+            for r in captured:
+                if r.get('docType') == 'NOTA_SIMPLE' and r.get('officialUrl'):
+                    info.setdefault('nota_simple_url', r['officialUrl'])
+                if r.get('docType') == 'EDICTO' and r.get('officialUrl'):
+                    info.setdefault('edict_url', r['officialUrl'])
+
+    def _write_snapshot(self, page: Any, boe_id: str, detail_url: str,
+                        captured: List[Dict[str, Any]]) -> None:
+        """Render the current (ver=3) page to snapshot.pdf and upsert its row.
+        Single file per auction, overwritten on re-scrape (bounded storage)."""
+        try:
+            doc_storage.ensure_doc_dir(boe_id)
+            disk = doc_storage.snapshot_disk_path_for(boe_id)
+            pdf_bytes = page.pdf(print_background=True, format='A4')
+            if not pdf_bytes:
+                return
+            with open(disk, 'wb') as fh:
+                fh.write(pdf_bytes)
+            rel = doc_storage.rel_path_for(boe_id, doc_storage.SNAPSHOT_FILENAME)
+            row = {
+                'docType': 'SNAPSHOT',
+                'title': 'Captura BOE (ver=3)',
+                'officialUrl': detail_url,
+                'idDoc': doc_storage.SNAPSHOT_ID_DOC_SENTINEL,
+                'storedPath': rel,
+                'kind': 'snapshot',
+                'mimeType': 'application/pdf',
+                'sizeBytes': len(pdf_bytes),
+            }
+            self.db_adapter.upsert_document(boe_id, row)
+            captured.append(row)
+            self.log_info(f"snapshot.pdf written for {boe_id} ({len(pdf_bytes)} bytes)")
+        except Exception as e:
+            self.log_warning(f"snapshot write failed for {boe_id}: {e}")
+
+    def _download_and_register_doc(self, page: Any, boe_id: str,
+                                   d: Dict[str, str]) -> Optional[Dict[str, Any]]:
+        """
+        Download one doc to <safeKey>/<safeKey(idDoc)>.pdf (idempotent: skip the
+        download when the file already exists and is non-empty), then upsert its
+        AuctionDocument row. If the response is NOT application/pdf (rare), fall
+        back to rendering the doc page to PDF via page.pdf and mark kind=snapshot.
+        Returns the row dict on success, None on failure (best-effort).
+        """
+        id_doc = d['id_doc']
+        title = d['title']
+        url = d['official_url']
+        doc_type = infer_doc_type(title)
+        filename = doc_storage.safe_filename(doc_storage.safe_key(id_doc))
+        disk = doc_storage.doc_disk_path_for(boe_id, filename)
+        rel = doc_storage.rel_path_for(boe_id, filename)
+        kind = 'download'
+        mime = 'application/pdf'
+        try:
+            doc_storage.ensure_doc_dir(boe_id)
+            # Idempotent: reuse an existing non-empty file (backfill-safe).
+            size = None
+            if os.path.exists(disk) and os.path.getsize(disk) > 0:
+                size = os.path.getsize(disk)
+            else:
+                resp = page.context.request.get(url, timeout=45000)
+                ctype = (resp.headers or {}).get('content-type', '')
+                body = resp.body()
+                if 'application/pdf' in ctype.lower() and body[:5] == b'%PDF-':
+                    with open(disk, 'wb') as fh:
+                        fh.write(body)
+                    size = len(body)
+                else:
+                    # Fallback: not a direct PDF -> render the doc page to PDF.
+                    self.log_warning(
+                        f"doc {id_doc} for {boe_id} not direct PDF "
+                        f"(ctype={ctype!r}) — rendering snapshot fallback"
+                    )
+                    page.goto(url, wait_until='domcontentloaded', timeout=30000)
+                    random_delay(0.5, 1.0)
+                    pdf_bytes = page.pdf(print_background=True, format='A4')
+                    if not pdf_bytes:
+                        return None
+                    with open(disk, 'wb') as fh:
+                        fh.write(pdf_bytes)
+                    size = len(pdf_bytes)
+                    kind = 'snapshot'
+            row = {
+                'docType': doc_type,
+                'title': title,
+                'officialUrl': url,
+                'idDoc': id_doc,
+                'storedPath': rel,
+                'kind': kind,
+                'mimeType': mime,
+                'sizeBytes': size,
+            }
+            self.db_adapter.upsert_document(boe_id, row)
+            self.log_info(f"doc {id_doc} ({doc_type}) mirrored for {boe_id} ({size} bytes)")
+            # politeness between doc GETs (govt portal)
+            random_delay(0.6, 1.4)
+            return row
+        except Exception as e:
+            self.log_warning(f"doc download/register failed for {boe_id} idDoc={id_doc}: {e}")
+            return None
+
     def _extract_municipality(self, text: str) -> Optional[str]:
         """Extract municipality from text"""
         # Simple heuristic - can be improved
@@ -1323,6 +1710,11 @@ class BOEScraper(BaseScraper):
             #      the prices/bienes already captured.
             lote_numbers = self._enumerate_lote_numbers(page)
             info = self._extract_detail_from_page(page, boe_id, detail_url)
+            # G2/G3 — documents + snapshot capture on the PRE-CLICK ver=3 DOM,
+            # BEFORE the general-info tab activation (which swaps the panel and
+            # would lose both the ver=3 verDocumento links and a clean snapshot)
+            # and BEFORE the ver=5 pujas navigation (which destroys ver=3).
+            self._capture_documents_and_snapshot(page, boe_id, detail_url, info)
             if info.get('ends_at') is None or info.get('start_at') is None:
                 self._activate_general_info_tab(page)
                 dated = self._extract_detail_from_page(page, boe_id, detail_url)
@@ -1334,7 +1726,7 @@ class BOEScraper(BaseScraper):
                         info[k] = dated[k]
             info['lote_numbers'] = lote_numbers
             # #16 pujas LAST: navigates the same page to ver=5, after the ver=3
-            # DOM has been read + lotes enumerated.
+            # DOM has been read + lotes enumerated + docs/snapshot captured.
             self._attach_pujas(page, boe_id, detail_url, info)
             return info
         except Exception as e:
@@ -1375,7 +1767,62 @@ class BOEScraper(BaseScraper):
             'occupancy': None,
             'puja_status': None,
             'current_bid_amount': None,
+            # G1 discrete bien fields
+            'postal_code': None,
+            'idufir': None,
+            'registry_inscription': None,
+            'legal_title': None,
+            'bien_localidad': None,
+            'bien_provincia': None,
+            'vivienda_habitual': None,
+            'bien_type': None,
+            'property_type': None,
+            # G2/G3 documents (filled by _capture_documents_and_snapshot)
+            'documents': [],
         }
+
+    def _merge_bien_fields(self, auction_data: Dict[str, Any],
+                           detail_info: Dict[str, Any]) -> None:
+        """
+        G1 — copy the discrete "Datos del bien subastado" values from a detail
+        extraction into the auction record, and CORRECT the category from the
+        authoritative BOE bien heading when the title-based guess disagrees.
+
+        Each field is written only when the detail page yielded a value so a
+        re-scrape that transiently misses a label never blanks a good column
+        (the adapter applies the same "only-when-present" discipline). Shared by
+        the main scrape flow and _build_lote_record so the two paths stay
+        identical. NEVER fabricates — None values are skipped.
+        """
+        passthrough = [
+            ('postal_code', 'postal_code'),
+            ('idufir', 'idufir'),
+            ('registry_inscription', 'registry_inscription'),
+            ('legal_title', 'legal_title'),
+            ('bien_localidad', 'bien_localidad'),
+            ('bien_provincia', 'bien_provincia'),
+            ('vivienda_habitual', 'vivienda_habitual'),
+            ('property_type', 'property_type'),
+        ]
+        for src, dst in passthrough:
+            v = detail_info.get(src)
+            if v is not None:
+                auction_data[dst] = v
+
+        # Category override: the bien heading ("Inmueble (Trastero)") is the
+        # authoritative property type. When it maps to a known category and the
+        # title-based guess differs (e.g. a trastero whose listing title is
+        # generic, which categorize_auction sends to "Otros inmuebles"), prefer
+        # the heading. Unknown heading types leave the title guess untouched —
+        # we never downgrade a good category to "Otros" on an unfamiliar word.
+        cat = category_from_bien_type(detail_info.get('bien_type'))
+        if cat and auction_data.get('category') != cat:
+            self.log_info(
+                f"Category corrected from bien heading: "
+                f"{auction_data.get('category')!r} -> {cat!r} "
+                f"(bien_type={detail_info.get('bien_type')!r})"
+            )
+            auction_data['category'] = cat
 
     def _enumerate_lote_numbers(self, page: Any) -> List[int]:
         """
@@ -1587,6 +2034,12 @@ class BOEScraper(BaseScraper):
             # can still reach the source procedure.
             'auction_id': source_id_sub,
         }
+        # G1 — discrete bien fields + authoritative category override for this
+        # lote (runs after the lote_text-based category derivation above, so the
+        # BOE bien heading has the final say). Documents + snapshot for this lote
+        # were already captured inside _navigate_and_extract (keyed by the
+        # composite boe_id), so nothing doc-related is needed here.
+        self._merge_bien_fields(rec, info)
         return rec
 
     def _extract_detail_from_page(self, page: Any, boe_id: str,
@@ -1609,7 +2062,17 @@ class BOEScraper(BaseScraper):
                 general_info = f"{general_info}\n{complement}" if general_info else complement
 
             autoridad = self._extract_section_text(page, 'Autoridad Gestora')
-            bienes = self._extract_section_text(page, 'Bienes')
+            # The bien block sits under the <h3>"Datos del bien subastado"
+            # heading (NOT "Bienes" — _extract_section_text('Bienes') returns
+            # None on real SUB- pages, verified live 2026-06-03 on the Palma
+            # trastero). Anchor on the real heading first; keep 'Bienes' as a
+            # fallback for any legacy layout. This is the root cause of the
+            # trastero field gap: with bienes=None, every discrete field +
+            # address + cadastral ref was lost.
+            bienes = (
+                self._extract_section_text(page, 'Datos del bien subastado') or
+                self._extract_section_text(page, 'Bienes')
+            )
             pujas = self._extract_section_text(page, 'Pujas')
             
             warning = (
@@ -1660,6 +2123,16 @@ class BOEScraper(BaseScraper):
             # (lote pages have no Bienes heading — see note above).
             address = extract_address(bienes) or extract_address(body_text)
 
+            # G1 — discrete "Datos del bien subastado" fields. Parse from the
+            # bien block (preferred) and fall back to the whole body for lote
+            # pages whose bien block has no "Datos del bien subastado" heading.
+            # parse_bien_fields omits absent labels so the adapter never blanks
+            # a good value. bien_type from the heading is the AUTHORITATIVE
+            # property type — used below to correct the title-based category.
+            bien_fields = parse_bien_fields(bienes) or {}
+            if not bien_fields:
+                bien_fields = parse_bien_fields(body_text) or {}
+
             return {
                 'general_info': general_info,
                 'autoridad_gestora': autoridad,
@@ -1690,6 +2163,21 @@ class BOEScraper(BaseScraper):
                     body_text, ['Situación posesoria', 'Situacion posesoria']
                 ),
                 'occupancy': self._parse_occupancy(body_text),
+                # G1 — discrete bien fields (Forge's new Auction columns). Only
+                # keys actually found are present (parse_bien_fields omits
+                # absent labels); the adapter writes each via its info_schema
+                # guard so it is safe pre-migration. property_type carries the
+                # raw BOE heading type; bien_type drives the category override
+                # in the caller (parse_listing's title guess is the fallback).
+                'postal_code': bien_fields.get('postal_code'),
+                'idufir': bien_fields.get('idufir'),
+                'registry_inscription': bien_fields.get('registry_inscription'),
+                'legal_title': bien_fields.get('legal_title'),
+                'bien_localidad': bien_fields.get('bien_localidad'),
+                'bien_provincia': bien_fields.get('bien_provincia'),
+                'vivienda_habitual': bien_fields.get('vivienda_habitual'),
+                'bien_type': bien_fields.get('bien_type'),
+                'property_type': bien_fields.get('bien_type'),
             }
         except Exception as e:
             self.log_warning(f"Failed to extract detail info for {boe_id}: {e}")

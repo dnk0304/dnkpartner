@@ -106,8 +106,11 @@ class BOEParallelScraper(BOEScraper):
             random_delay(1.0, 2.0)
             info = self._extract_detail_from_page(page, boe_id, detail_url)
             info['lote_numbers'] = self._enumerate_lote_numbers(page)
+            # G2/G3 docs + snapshot on the ver=3 DOM, BEFORE the ver=5 pujas
+            # navigation destroys it (own-browser path mirrors the shared path).
+            self._capture_documents_and_snapshot(page, boe_id, detail_url, info)
             # #16 pujas LAST (own-browser path): same page -> ver=5, after the
-            # ver=3 DOM read + lote enumeration.
+            # ver=3 DOM read + lote enumeration + docs/snapshot capture.
             self._attach_pujas(page, boe_id, detail_url, info)
             return info
         except Exception as e:
