@@ -37,7 +37,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
-import { Loader2, Map as MapIcon, SlidersHorizontal } from "lucide-react";
+import { Loader2, Map as MapIcon, SlidersHorizontal, X } from "lucide-react";
 import { AuctionItem } from "@/types";
 import { apiFetch } from "@/lib/api-path";
 import { ActiveFilterChips } from "@/components/observatory/SimpleFilters";
@@ -60,7 +60,7 @@ import { cn } from "@/lib/utils";
 // HierarchicalMap touches window — dynamic + ssr:false.
 const HierarchicalMap = dynamic(
   () => import("@/components/dashboard/HierarchicalMap").then((m) => m.HierarchicalMap),
-  { ssr: false, loading: () => <div className="h-full w-full bg-[--color-surface-muted] animate-pulse" /> },
+  { ssr: false, loading: () => <div className="h-full w-full bg-[var(--color-surface-muted)] animate-pulse" /> },
 );
 
 type ViewMode = "list" | "map" | "cards" | "registro";
@@ -140,6 +140,23 @@ export default function SubastasListClient({
   const [alertsOpen, setAlertsOpen] = React.useState(false);
   const [provinces, setProvinces] = React.useState<string[]>([]);
   const [municipalities, setMunicipalities] = React.useState<string[]>([]);
+
+  // Body-scroll lock + Escape-to-close while the mobile filter drawer is open.
+  // Prevents the underlying list from scrolling under your fingers and gives
+  // the drawer a real "modal" feel.
+  React.useEffect(() => {
+    if (!mobileFiltersOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileFiltersOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [mobileFiltersOpen]);
 
   // Patch filters into URL. Locked dimensions are stripped from the
   // querystring on SEO routes — they live in the path, not the search.
@@ -319,7 +336,7 @@ export default function SubastasListClient({
   const renderedCount = totalCount != null ? totalCount : filtered.length;
 
   return (
-    <div className="min-h-screen bg-[--color-page]">
+    <div className="min-h-screen bg-[var(--color-page)]">
       <main className="mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8">
         {/* SEO intro slot — server-rendered above the 2-col body so it stays
             in the indexable HTML (Breadcrumbs + SeoIntroBlock live here). */}
@@ -329,20 +346,20 @@ export default function SubastasListClient({
             grid so it spans the full editorial width. */}
         <header className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div className="min-w-0 flex-1">
-            <h1 className="font-serif text-2xl md:text-3xl text-[--color-ink-primary]">
+            <h1 className="font-serif text-2xl md:text-3xl text-[var(--color-ink-primary)]">
               {seoTitle ? (
                 seoTitle
               ) : (
                 <>
                   <span className="tnum">{renderedCount.toLocaleString("es-ES")}</span>{" "}
-                  <span className="font-sans text-base font-normal text-[--color-ink-secondary]">
+                  <span className="font-sans text-base font-normal text-[var(--color-ink-secondary)]">
                     resultados
                   </span>
                 </>
               )}
             </h1>
             {seoTitle && (
-              <p className="mt-1 text-sm text-[--color-ink-tertiary] tnum">
+              <p className="mt-1 text-sm text-[var(--color-ink-tertiary)] tnum">
                 {renderedCount.toLocaleString("es-ES")} subastas
                 {filters.when === "finalizadas" ? " finalizadas" : " activas"}
               </p>
@@ -359,10 +376,10 @@ export default function SubastasListClient({
               onClick={() => setView(viewMode === "map" ? "list" : "map")}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40",
                 viewMode === "map"
-                  ? "border-[--color-action] bg-[--color-action-soft] text-[--color-ink-primary] ring-1 ring-[--color-action]"
-                  : "border-[--color-hairline] bg-[--color-surface] text-[--color-ink-primary] hover:border-[--color-brand]/40 hover:bg-[--color-brand]/5",
+                  ? "border-[var(--color-action)] bg-[var(--color-action-soft)] text-[var(--color-ink-primary)] ring-1 ring-[var(--color-action)]"
+                  : "border-[var(--color-hairline)] bg-[var(--color-surface)] text-[var(--color-ink-primary)] hover:border-[var(--color-brand)]/40 hover:bg-[var(--color-brand)]/5",
               )}
             >
               <MapIcon className="h-3.5 w-3.5" aria-hidden="true" />
@@ -395,7 +412,7 @@ export default function SubastasListClient({
               <button
                 type="button"
                 onClick={() => setMobileFiltersOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-md border border-[--color-brand]/30 bg-[--color-surface] px-3 py-1.5 text-sm font-medium text-[--color-brand]"
+                className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-brand)]/30 bg-[var(--color-surface)] px-3 py-1.5 text-sm font-medium text-[var(--color-brand)]"
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
                 Filtros
@@ -403,14 +420,14 @@ export default function SubastasListClient({
               <button
                 type="button"
                 onClick={() => setAlertsOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-md bg-[--color-brand] text-white px-3 py-1.5 text-sm font-medium"
+                className="inline-flex items-center gap-1.5 rounded-md bg-[var(--color-brand)] text-white px-3 py-1.5 text-sm font-medium"
               >
                 Crear alerta
               </button>
               <button
                 type="button"
                 onClick={clearFilters}
-                className="text-xs text-[--color-ink-tertiary] ml-auto"
+                className="text-xs text-[var(--color-ink-tertiary)] ml-auto"
               >
                 Limpiar
               </button>
@@ -435,7 +452,7 @@ export default function SubastasListClient({
 
             {/* Body */}
             {viewMode === "map" ? (
-              <div className="h-[70vh] rounded-lg overflow-hidden border border-[--color-hairline] bg-white">
+              <div className="h-[70vh] rounded-lg overflow-hidden border border-[var(--color-hairline)] bg-white">
                 <HierarchicalMap
                   items={filtered}
                   onMarkerClick={(a: AuctionItem) => router.push(`/auction/${encodeURIComponent(a.id)}`)}
@@ -476,7 +493,7 @@ export default function SubastasListClient({
                   type="button"
                   onClick={loadMore}
                   disabled={loadingMore}
-                  className="inline-flex items-center gap-2 rounded-md border border-[--color-brand]/30 px-5 py-2 text-sm font-medium text-[--color-brand] hover:bg-[--color-brand]/5 disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-md border border-[var(--color-brand)]/30 px-5 py-2 text-sm font-medium text-[var(--color-brand)] hover:bg-[var(--color-brand)]/5 disabled:opacity-60"
                 >
                   {loadingMore && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
                   {loadingMore ? "Cargando…" : "Cargar más"}
@@ -492,43 +509,82 @@ export default function SubastasListClient({
         {seoFooterSlot && <div className="mt-12">{seoFooterSlot}</div>}
       </main>
 
-      {/* Mobile filter drawer. */}
+      {/* Mobile filter drawer.
+          NOTE: backgrounds use the bg-[var(--token)] form, NOT the bg-[var(--token)]
+          shorthand. In Tailwind v4 the shorthand resolves to the invalid
+          declaration `background-color: --color-page;` which paints nothing —
+          that was the root cause of the transparent-drawer bug Dennis flagged.
+          Always use bg-[var(--...)] for CSS-variable arbitrary colors here. */}
       {mobileFiltersOpen && (
         <div
-          className="fixed inset-0 z-50 lg:hidden"
+          className="fixed inset-0 z-[60] lg:hidden"
           role="dialog"
           aria-modal="true"
           aria-label="Filtros"
         >
+          {/* Scrim — fully opaque enough to separate the drawer from the
+              list behind it, but still let the user see they're in a
+              modal layer. */}
           <div
-            className="absolute inset-0 bg-black/40"
+            className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
             onClick={() => setMobileFiltersOpen(false)}
+            aria-hidden="true"
           />
-          <div className="absolute inset-y-0 left-0 w-full max-w-sm bg-[--color-page] overflow-y-auto p-4 shadow-xl">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-serif text-lg text-[--color-ink-primary]">Filtros</h2>
-              <button
-                type="button"
-                onClick={() => setMobileFiltersOpen(false)}
-                className="text-sm text-[--color-ink-tertiary] hover:text-[--color-brand]"
-                aria-label="Cerrar filtros"
-              >
-                Cerrar
-              </button>
+          {/* Drawer panel — solid pure-white surface, fills the viewport
+              vertically, scrolls internally if filters overflow. Sticky
+              header so Cerrar stays reachable while scrolling. */}
+          <div
+            className="absolute inset-y-0 left-0 flex h-full w-full max-w-sm flex-col bg-[var(--color-surface)] shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[var(--color-hairline)] bg-[var(--color-surface)] px-4 py-3">
+              <h2 className="font-serif text-lg text-[var(--color-ink-primary)]">Filtros</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="text-xs text-[var(--color-ink-tertiary)] hover:text-[var(--color-brand)] focus-visible:outline-none focus-visible:underline transition-colors"
+                >
+                  Limpiar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileFiltersOpen(false)}
+                  className="inline-flex items-center justify-center rounded-md p-2 -m-2 text-[var(--color-ink-secondary)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-brand)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40"
+                  aria-label="Cerrar filtros"
+                >
+                  <X className="h-5 w-5" aria-hidden="true" />
+                </button>
+              </div>
             </div>
-            <FiltersSidebar
-              filters={filters}
-              provinces={provinces}
-              municipalities={municipalities}
-              onChange={updateFilters}
-              onClear={clearFilters}
-              onOpenAlerts={() => {
-                setMobileFiltersOpen(false);
-                setAlertsOpen(true);
-              }}
-              lockedFilter={lockedFilter}
-              resultCount={totalCount}
-            />
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4 bg-[var(--color-surface)]">
+              <FiltersSidebar
+                filters={filters}
+                provinces={provinces}
+                municipalities={municipalities}
+                onChange={updateFilters}
+                onClear={clearFilters}
+                onOpenAlerts={() => {
+                  setMobileFiltersOpen(false);
+                  setAlertsOpen(true);
+                }}
+                lockedFilter={lockedFilter}
+                resultCount={totalCount}
+                className="border-0 shadow-none p-0"
+                hideInternalHeading
+              />
+              {/* Sticky "Ver resultados" CTA so the user can confirm the
+                  filter set and dismiss the drawer in one tap on mobile. */}
+              <div className="mt-6 sticky bottom-0 -mx-4 px-4 py-3 border-t border-[var(--color-hairline)] bg-[var(--color-surface)]">
+                <button
+                  type="button"
+                  onClick={() => setMobileFiltersOpen(false)}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-md bg-[var(--color-action)] text-white font-medium px-4 py-2.5 hover:bg-[var(--color-action-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/40"
+                >
+                  Ver {totalCount != null ? totalCount.toLocaleString("es-ES") : ""} resultados
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -562,14 +618,14 @@ function LoadingBody() {
       {Array.from({ length: 6 }).map((_, i) => (
         <li
           key={i}
-          className="flex gap-4 rounded-lg border border-[--color-hairline] bg-[--color-surface] p-4"
+          className="flex gap-4 rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] p-4"
         >
-          <div className="h-28 w-28 rounded-md bg-[--color-surface-muted] animate-pulse" />
+          <div className="h-28 w-28 rounded-md bg-[var(--color-surface-muted)] animate-pulse" />
           <div className="flex-1 space-y-2">
-            <div className="h-4 w-3/4 bg-[--color-surface-muted] rounded animate-pulse" />
-            <div className="h-3 w-1/2 bg-[--color-surface-muted] rounded animate-pulse" />
-            <div className="h-6 w-32 bg-[--color-surface-muted] rounded animate-pulse" />
-            <div className="h-3 w-full bg-[--color-surface-muted] rounded animate-pulse" />
+            <div className="h-4 w-3/4 bg-[var(--color-surface-muted)] rounded animate-pulse" />
+            <div className="h-3 w-1/2 bg-[var(--color-surface-muted)] rounded animate-pulse" />
+            <div className="h-6 w-32 bg-[var(--color-surface-muted)] rounded animate-pulse" />
+            <div className="h-3 w-full bg-[var(--color-surface-muted)] rounded animate-pulse" />
           </div>
         </li>
       ))}
@@ -579,11 +635,11 @@ function LoadingBody() {
 
 function ErrorBody() {
   return (
-    <div className="rounded-lg border border-[--color-hairline] bg-[--color-surface] p-8 text-center">
-      <p className="font-serif text-lg text-[--color-ink-primary]">
+    <div className="rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] p-8 text-center">
+      <p className="font-serif text-lg text-[var(--color-ink-primary)]">
         No pudimos cargar las subastas.
       </p>
-      <p className="mt-1 text-sm text-[--color-ink-tertiary]">
+      <p className="mt-1 text-sm text-[var(--color-ink-tertiary)]">
         Reintenta en unos segundos.
       </p>
     </div>
@@ -592,24 +648,24 @@ function ErrorBody() {
 
 function EmptyBody({ onClear }: { onClear: () => void }) {
   return (
-    <div className="rounded-lg border border-[--color-hairline] bg-[--color-surface] p-8 text-center">
-      <p className="font-serif text-lg text-[--color-ink-primary]">
+    <div className="rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] p-8 text-center">
+      <p className="font-serif text-lg text-[var(--color-ink-primary)]">
         No hay subastas que coincidan con tu búsqueda.
       </p>
-      <p className="mt-1 text-sm text-[--color-ink-tertiary]">
+      <p className="mt-1 text-sm text-[var(--color-ink-tertiary)]">
         Prueba a ampliar el rango de precio o cambiar la provincia.
       </p>
       <div className="mt-4 flex items-center justify-center gap-3">
         <button
           type="button"
           onClick={onClear}
-          className="text-sm font-medium text-[--color-brand] hover:underline"
+          className="text-sm font-medium text-[var(--color-brand)] hover:underline"
         >
           Limpiar filtros
         </button>
         <Link
           href="/"
-          className="text-sm text-[--color-ink-tertiary] hover:text-[--color-brand]"
+          className="text-sm text-[var(--color-ink-tertiary)] hover:text-[var(--color-brand)]"
         >
           Volver al inicio
         </Link>

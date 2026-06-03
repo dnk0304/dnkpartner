@@ -71,6 +71,9 @@ export type FiltersSidebarProps = {
   lockedFilter?: LockedFilter;
   resultCount?: number | null;
   className?: string;
+  /** Hide the internal "Filtros / Limpiar" heading bar — the mobile drawer
+   *  renders its own sticky header so the inner one would duplicate. */
+  hideInternalHeading?: boolean;
 };
 
 export function FiltersSidebar({
@@ -83,6 +86,7 @@ export function FiltersSidebar({
   lockedFilter,
   resultCount,
   className,
+  hideInternalHeading,
 }: FiltersSidebarProps) {
   // Local price strings — avoid spamming the parent during typing.
   const [pMin, setPMin] = React.useState(
@@ -123,7 +127,11 @@ export function FiltersSidebar({
     <aside
       aria-label="Filtros"
       className={cn(
-        "rounded-lg border border-[--color-hairline] bg-[--color-surface]",
+        // Tailwind v4 requires the bg-[var(--token)] form for CSS vars; the
+        // `bg-[var(--token)]` shorthand silently emits `background-color: --token`
+        // and paints nothing. Same fix everywhere a token-coloured background
+        // is needed (see drawer panel in SubastasListClient).
+        "rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)]",
         // Internal spacing: tight enough to read as a stack of groups.
         "p-4 md:p-5 space-y-5 text-sm",
         className,
@@ -137,9 +145,9 @@ export function FiltersSidebar({
         onClick={onOpenAlerts}
         className={cn(
           "w-full inline-flex items-center justify-center gap-2 rounded-md",
-          "bg-[--color-brand] text-white font-medium px-4 py-2.5",
-          "hover:bg-[--color-brand]/90 active:bg-[--color-brand]",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[--color-surface]",
+          "bg-[var(--color-brand)] text-white font-medium px-4 py-2.5",
+          "hover:bg-[var(--color-brand)]/90 active:bg-[var(--color-brand)]",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-surface)]",
           "transition-colors",
         )}
       >
@@ -147,16 +155,18 @@ export function FiltersSidebar({
         Crear alerta
       </button>
 
-      <div className="flex items-baseline justify-between hairline-t pt-4">
-        <h2 className="font-serif text-base text-[--color-ink-primary]">Filtros</h2>
-        <button
-          type="button"
-          onClick={onClear}
-          className="text-xs text-[--color-ink-tertiary] hover:text-[--color-brand] focus-visible:outline-none focus-visible:underline transition-colors"
-        >
-          Limpiar
-        </button>
-      </div>
+      {!hideInternalHeading && (
+        <div className="flex items-baseline justify-between hairline-t pt-4">
+          <h2 className="font-serif text-base text-[var(--color-ink-primary)]">Filtros</h2>
+          <button
+            type="button"
+            onClick={onClear}
+            className="text-xs text-[var(--color-ink-tertiary)] hover:text-[var(--color-brand)] focus-visible:outline-none focus-visible:underline transition-colors"
+          >
+            Limpiar
+          </button>
+        </div>
+      )}
 
       {/* 2. ORIGEN — BOE family (vertical list, not horizontal chips). */}
       <FilterBlock label="Origen">
@@ -171,13 +181,13 @@ export function FiltersSidebar({
                 <label
                   key={t}
                   className={cn(
-                    "flex items-center gap-2 cursor-pointer text-[--color-ink-primary]",
+                    "flex items-center gap-2 cursor-pointer text-[var(--color-ink-primary)]",
                     disabled && "opacity-40 cursor-not-allowed",
                   )}
                 >
                   <input
                     type="checkbox"
-                    className="h-3.5 w-3.5 accent-[--color-brand]"
+                    className="h-3.5 w-3.5 accent-[var(--color-brand)]"
                     checked={active}
                     disabled={disabled}
                     onChange={() => toggleType(t)}
@@ -194,9 +204,9 @@ export function FiltersSidebar({
             when an SEO category page locks the dimension. */}
       <FilterBlock label="Tipo de bien">
         {categoryLocked ? (
-          <div className="rounded-md border border-[--color-action]/40 bg-[--color-action-soft] px-2.5 py-1.5 text-xs text-[--color-ink-primary]">
+          <div className="rounded-md border border-[var(--color-action)]/40 bg-[var(--color-action-soft)] px-2.5 py-1.5 text-xs text-[var(--color-ink-primary)]">
             {lockedFilter?.category}
-            <span className="ml-1 text-[--color-ink-tertiary]">(bloqueado)</span>
+            <span className="ml-1 text-[var(--color-ink-tertiary)]">(bloqueado)</span>
           </div>
         ) : (
           <div className="space-y-1">
@@ -205,12 +215,12 @@ export function FiltersSidebar({
               return (
                 <label
                   key={opt.id}
-                  className="flex items-center gap-2 cursor-pointer text-[--color-ink-primary]"
+                  className="flex items-center gap-2 cursor-pointer text-[var(--color-ink-primary)]"
                 >
                   <input
                     type="radio"
                     name="kind"
-                    className="h-3.5 w-3.5 accent-[--color-brand]"
+                    className="h-3.5 w-3.5 accent-[var(--color-brand)]"
                     checked={active}
                     onChange={() => onChange({ kind: opt.id, categories: [] })}
                   />
@@ -227,15 +237,15 @@ export function FiltersSidebar({
       <FilterBlock label="¿Dónde?">
         {provinceLocked ? (
           <div className="space-y-2">
-            <div className="rounded-md border border-[--color-action]/40 bg-[--color-action-soft] px-2.5 py-1.5 text-xs text-[--color-ink-primary]">
+            <div className="rounded-md border border-[var(--color-action)]/40 bg-[var(--color-action-soft)] px-2.5 py-1.5 text-xs text-[var(--color-ink-primary)]">
               {lockedFilter?.province}
-              <span className="ml-1 text-[--color-ink-tertiary]">(bloqueado)</span>
+              <span className="ml-1 text-[var(--color-ink-tertiary)]">(bloqueado)</span>
             </div>
             {/* Municipality stays editable — narrows within the locked province. */}
             <select
               value={filters.municipality}
               onChange={(e) => onChange({ municipality: e.target.value })}
-              className="tnum w-full rounded-md border border-[--color-hairline] bg-white px-3 py-2 text-sm text-[--color-ink-primary] focus:outline-none focus:border-[--color-brand] focus:ring-2 focus:ring-[--color-brand]/15"
+              className="tnum w-full rounded-md border border-[var(--color-hairline)] bg-white px-3 py-2 text-sm text-[var(--color-ink-primary)] focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15"
               aria-label="Municipio"
               disabled={municipalities.length === 0}
             >
@@ -252,7 +262,7 @@ export function FiltersSidebar({
             <select
               value={filters.province}
               onChange={(e) => onChange({ province: e.target.value, municipality: "" })}
-              className="tnum w-full rounded-md border border-[--color-hairline] bg-white px-3 py-2 text-sm text-[--color-ink-primary] focus:outline-none focus:border-[--color-brand] focus:ring-2 focus:ring-[--color-brand]/15"
+              className="tnum w-full rounded-md border border-[var(--color-hairline)] bg-white px-3 py-2 text-sm text-[var(--color-ink-primary)] focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15"
               aria-label="Provincia"
             >
               <option value="">Todas las provincias</option>
@@ -266,7 +276,7 @@ export function FiltersSidebar({
               <select
                 value={filters.municipality}
                 onChange={(e) => onChange({ municipality: e.target.value })}
-                className="tnum w-full rounded-md border border-[--color-hairline] bg-white px-3 py-2 text-sm text-[--color-ink-primary] focus:outline-none focus:border-[--color-brand] focus:ring-2 focus:ring-[--color-brand]/15"
+                className="tnum w-full rounded-md border border-[var(--color-hairline)] bg-white px-3 py-2 text-sm text-[var(--color-ink-primary)] focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15"
                 aria-label="Municipio"
                 disabled={municipalities.length === 0}
               >
@@ -320,8 +330,8 @@ export function FiltersSidebar({
       <FilterBlock label="Pujas" disabledHint="Próximamente">
         <div className="space-y-1 opacity-50 pointer-events-none">
           {["Cualquiera", "Con puja", "Sin puja"].map((lbl) => (
-            <label key={lbl} className="flex items-center gap-2 text-[--color-ink-primary] cursor-not-allowed">
-              <input type="radio" name="pujas" disabled className="h-3.5 w-3.5 accent-[--color-brand]" />
+            <label key={lbl} className="flex items-center gap-2 text-[var(--color-ink-primary)] cursor-not-allowed">
+              <input type="radio" name="pujas" disabled className="h-3.5 w-3.5 accent-[var(--color-brand)]" />
               <span>{lbl}</span>
             </label>
           ))}
@@ -359,8 +369,8 @@ export function FiltersSidebar({
 
       {/* Live count footer — what the current draft maps to. */}
       {resultCount != null && (
-        <div className="pt-3 hairline-t text-xs text-[--color-ink-tertiary] tnum">
-          <span className="font-semibold text-[--color-ink-primary]">
+        <div className="pt-3 hairline-t text-xs text-[var(--color-ink-tertiary)] tnum">
+          <span className="font-semibold text-[var(--color-ink-primary)]">
             {resultCount.toLocaleString("es-ES")}
           </span>{" "}
           subastas coinciden
@@ -384,11 +394,11 @@ function FilterBlock({
   return (
     <div>
       <div className="mb-1.5 flex items-baseline justify-between gap-2">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-[--color-ink-tertiary]">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-ink-tertiary)]">
           {label}
         </div>
         {disabledHint && (
-          <span className="text-[10px] italic text-[--color-ink-tertiary]">
+          <span className="text-[10px] italic text-[var(--color-ink-tertiary)]">
             {disabledHint}
           </span>
         )}
@@ -417,7 +427,7 @@ function NumberInput({
 }) {
   return (
     <div className="space-y-0.5">
-      <label className="block text-[10px] text-[--color-ink-tertiary]">{label}</label>
+      <label className="block text-[10px] text-[var(--color-ink-tertiary)]">{label}</label>
       <input
         type="number"
         inputMode="numeric"
@@ -428,7 +438,7 @@ function NumberInput({
         placeholder={placeholder}
         disabled={disabled}
         aria-label={ariaLabel}
-        className="tnum w-full rounded-md border border-[--color-hairline] bg-white px-2 py-1.5 text-xs focus:outline-none focus:border-[--color-brand] focus:ring-2 focus:ring-[--color-brand]/15 disabled:bg-[--color-surface-muted]"
+        className="tnum w-full rounded-md border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-xs focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15 disabled:bg-[var(--color-surface-muted)]"
       />
     </div>
   );
@@ -451,7 +461,7 @@ function DateInput({
 }) {
   return (
     <div className="space-y-0.5">
-      <label className="block text-[10px] text-[--color-ink-tertiary]">
+      <label className="block text-[10px] text-[var(--color-ink-tertiary)]">
         {label}
         {disabledHint && (
           <span className="ml-1 italic">({disabledHint})</span>
@@ -463,7 +473,7 @@ function DateInput({
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         aria-label={ariaLabel}
-        className="tnum w-full rounded-md border border-[--color-hairline] bg-white px-2 py-1.5 text-xs focus:outline-none focus:border-[--color-brand] focus:ring-2 focus:ring-[--color-brand]/15 disabled:bg-[--color-surface-muted] disabled:text-[--color-ink-tertiary]"
+        className="tnum w-full rounded-md border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-xs focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15 disabled:bg-[var(--color-surface-muted)] disabled:text-[var(--color-ink-tertiary)]"
       />
     </div>
   );
@@ -499,7 +509,7 @@ export function SortTabs({
       role="tablist"
       aria-label="Ordenar resultados"
       className={cn(
-        "inline-flex flex-wrap gap-1 rounded-md border border-[--color-hairline] bg-[--color-surface] p-0.5",
+        "inline-flex flex-wrap gap-1 rounded-md border border-[var(--color-hairline)] bg-[var(--color-surface)] p-0.5",
         className,
       )}
     >
@@ -513,10 +523,10 @@ export function SortTabs({
             onClick={() => onChange(o.id)}
             className={cn(
               "rounded px-2.5 py-1 text-xs font-medium transition-colors",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40",
               active
-                ? "bg-[--color-action-soft] text-[--color-ink-primary] ring-1 ring-[--color-action]/40"
-                : "text-[--color-ink-secondary] hover:bg-[--color-surface-muted]",
+                ? "bg-[var(--color-action-soft)] text-[var(--color-ink-primary)] ring-1 ring-[var(--color-action)]/40"
+                : "text-[var(--color-ink-secondary)] hover:bg-[var(--color-surface-muted)]",
             )}
           >
             {o.label}
@@ -548,7 +558,7 @@ export function StatusTabs({
       role="tablist"
       aria-label="Estado"
       className={cn(
-        "inline-flex rounded-md border border-[--color-hairline] overflow-hidden",
+        "inline-flex rounded-md border border-[var(--color-hairline)] overflow-hidden",
         className,
       )}
     >
@@ -562,10 +572,10 @@ export function StatusTabs({
             onClick={() => onChange(t.id)}
             className={cn(
               "px-3 py-1.5 text-xs font-medium transition-colors",
-              "focus-visible:outline-none focus-visible:bg-[--color-brand]/5",
+              "focus-visible:outline-none focus-visible:bg-[var(--color-brand)]/5",
               active
-                ? "bg-[--color-action-soft] text-[--color-ink-primary] ring-1 ring-[--color-action]/40"
-                : "bg-[--color-surface] text-[--color-ink-secondary] hover:bg-[--color-surface-muted]",
+                ? "bg-[var(--color-action-soft)] text-[var(--color-ink-primary)] ring-1 ring-[var(--color-action)]/40"
+                : "bg-[var(--color-surface)] text-[var(--color-ink-secondary)] hover:bg-[var(--color-surface-muted)]",
             )}
           >
             {t.label}
