@@ -64,10 +64,14 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
     imgFailed && resolved.rung !== "placeholder"
       ? fallbackImageFor(resolved, item.category)
       : resolved.src;
-  const hasCurrentBid = item.currentBid != null && Number.isFinite(item.currentBid);
-  const hasTasacion = item.appraisalValue != null && Number.isFinite(item.appraisalValue);
-  const hasMinBid = item.minimumBid != null && Number.isFinite(item.minimumBid as number);
-  const noPriceData = !hasTasacion && !hasMinBid && !hasCurrentBid;
+  // Price hierarchy (Dennis-locked 2026-06-03): Tasación PRIMARY (formerly
+  // the dim right-hand cell, now the prominent number); Cantidad reclamada
+  // replaces "puja mín." in the secondary cell when present; Puja mínima is
+  // no longer rendered on this row.
+  const hasCurrentBid = item.currentBid != null && Number.isFinite(item.currentBid) && (item.currentBid as number) > 0;
+  const hasTasacion = item.appraisalValue != null && Number.isFinite(item.appraisalValue) && (item.appraisalValue as number) > 0;
+  const hasClaimed = item.claimedAmount != null && Number.isFinite(item.claimedAmount as number) && (item.claimedAmount as number) > 0;
+  const noPriceData = !hasTasacion && !hasClaimed && !hasCurrentBid;
   const isVariosLotes = isVariosLotesTitle(item.title);
   // Type label — propertyType (from doc-archive backfill) preferred over the
   // less specific row-level `category`. Pre-backfill rows still show the
@@ -206,25 +210,26 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
         )}
       </td>
 
-      {/* Puja column = current bid if present, else min bid (active rows usually
-          have no current bid). Hides cleanly when both are null. */}
+      {/* Primary price cell = Tasación (the prominent number). When Tasación is
+          absent but a real currentBid exists, surface that instead so the row
+          still has a number; otherwise the no-price affordance renders. */}
       <td className="align-top py-3 pr-3 text-right whitespace-nowrap">
-        {hasCurrentBid ? (
+        {hasTasacion ? (
+          <>
+            <div className="tnum text-sm font-semibold text-[--color-ink-primary]">
+              {formatPrice(item.appraisalValue)}
+            </div>
+            <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+              tasación
+            </div>
+          </>
+        ) : hasCurrentBid ? (
           <>
             <div className="tnum text-sm font-semibold text-[--color-ink-primary]">
               {formatPrice(item.currentBid)}
             </div>
             <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
               puja actual
-            </div>
-          </>
-        ) : hasMinBid ? (
-          <>
-            <div className="tnum text-sm font-semibold text-[--color-brand-soft]">
-              {formatPrice(item.minimumBid)}
-            </div>
-            <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
-              puja mín.
             </div>
           </>
         ) : noPriceData ? (
@@ -241,14 +246,17 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
         )}
       </td>
 
+      {/* Secondary price cell = Cantidad reclamada when present, otherwise
+          left empty (dash). Replaces the former dim Tasación column — the
+          old "puja mín." cell is gone (Puja mínima no longer headlines). */}
       <td className="hidden lg:table-cell align-top py-3 pr-3 text-right whitespace-nowrap">
-        {hasTasacion ? (
+        {hasClaimed ? (
           <>
             <div className="tnum text-sm text-[--color-ink-secondary]">
-              {formatPrice(item.appraisalValue)}
+              {formatPrice(item.claimedAmount)}
             </div>
             <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
-              tasación
+              cant. reclamada
             </div>
           </>
         ) : (

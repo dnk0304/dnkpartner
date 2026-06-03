@@ -73,20 +73,24 @@ export const ProvinceHierarchy: React.FC<ProvinceHierarchyProps> = ({
     setLoadingMunicipalities(prev => new Set(prev).add(province));
 
     try {
+      // Use the canonical `status=active` predicate so this drill-down reads
+      // the same active set as the rest of the app (542 globally). The route
+      // returns `counts.active` as a flat {municipalityLabel: count} dict;
+      // the legacy `data.data` shape this component used to expect never
+      // existed. See DISPATCH-BRIEF-FORGE-count-hierarchy-sync §6.
       const response = await fetch(
-        `/api/auctions/counts?groupBy=municipality&province=${encodeURIComponent(province)}`
+        `/api/auctions/counts?groupBy=municipality&status=active&province=${encodeURIComponent(province)}`
       );
-      
+
       if (!response.ok) throw new Error('Failed to fetch municipalities');
-      
+
       const data = await response.json();
-      
-      if (data.success && data.data) {
-        const municipalities: MunicipalityData[] = Object.entries(data.data)
-          .map(([name, counts]: [string, any]) => ({
-            name,
-            count: (counts.active || 0) + (counts.preAuction || 0)
-          }))
+
+      if (data.success && data.counts && data.counts.active) {
+        const municipalities: MunicipalityData[] = Object.entries(
+          data.counts.active as Record<string, number>,
+        )
+          .map(([name, count]) => ({ name, count }))
           .filter(m => m.name && m.name.toLowerCase() !== 'null' && m.name.toLowerCase() !== 'undefined')
           .sort((a, b) => a.name.localeCompare(b.name, 'es'));
 

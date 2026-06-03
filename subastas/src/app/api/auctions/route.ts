@@ -19,14 +19,7 @@ import {
   isPreAuctionStatus as sharedIsPreAuctionStatus,
   isFinishedStatus as sharedIsFinishedStatus,
 } from '@/lib/auction-status';
-
-const normalizeText = (value: string) => {
-  return value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim();
-};
+import { normalizeText } from '@/lib/normalize';
 
 // Cached "SELECT DISTINCT province" \u2014 full scan against 229k rows on every
 // filtered request is wildly expensive. Provinces change rarely (Spain has 52);
@@ -101,6 +94,12 @@ interface AuctionFromDB {
   appraisalValue: number | null;
   currentBid: number | null;
   minimumBid: number | null;
+  // Cantidad reclamada — the amount being claimed in the auction. Already
+  // selected by `SELECT Auction.*`; surfaced on the full-access card payload
+  // so card UIs can render "Cantidad reclamada" as a secondary line when
+  // present. Coverage is uneven by auctionType (AEAT ~0.6%, NOTARIAL 100%,
+  // OTRAS_TRIBUTARIAS ~84%) — the card must gate on truthy+>0.
+  claimedAmount: number | null;
   courtName: string | null;
   procedureNumber: string | null;
   boeLink: string | null;
@@ -427,6 +426,9 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
       currentBid: null,
       appraisalValue,
       minimumBid: null,
+      // Locked-tier teasers withhold all price values; claimedAmount follows
+      // the same posture as minimumBid above.
+      claimedAmount: null,
       courtName: null,
       procedureNumber: null,
       boeLink: null,
@@ -484,6 +486,11 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
     currentBid: item.currentBid,
     appraisalValue,
     minimumBid: item.minimumBid,
+    // Cantidad reclamada — the amount being claimed. Already in the row via
+    // `SELECT Auction.*`. Card UIs render a "Cantidad reclamada" secondary
+    // line when present (>0); null on AEAT (~99% of that bucket) is expected
+    // and the card omits the line entirely.
+    claimedAmount: item.claimedAmount ?? null,
     courtName: item.courtName,
     procedureNumber: item.procedureNumber,
     boeLink: boeLinkFor(item.boeId, item.boeLink),

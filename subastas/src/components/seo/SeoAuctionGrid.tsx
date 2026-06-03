@@ -23,11 +23,19 @@ type Row = AuctionForSlug & {
 
 const EUR = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
 
-function priceLabel(r: Row): string {
-  const p = (r.currentBid && r.currentBid > 0 ? r.currentBid : null)
-    ?? (r.minimumBid && r.minimumBid > 0 ? r.minimumBid : null)
-    ?? (r.appraisalValue && r.appraisalValue > 0 ? r.appraisalValue : null);
-  return p ? EUR.format(p) : 'Sin precio publicado';
+// Card price hierarchy (Dennis-locked 2026-06-03): Tasación PRIMARY on every
+// card surface. SEO cards previously led with currentBid → minimumBid; both
+// are demoted. minimumBid is no longer surfaced as the headline (lives on
+// detail page only). currentBid stays as the last-resort fallback when no
+// Tasación is projected for the row.
+function priceLabel(r: Row): { value: string; label: string } {
+  if (r.appraisalValue && r.appraisalValue > 0) {
+    return { value: EUR.format(r.appraisalValue), label: 'Tasación' };
+  }
+  if (r.currentBid && r.currentBid > 0) {
+    return { value: EUR.format(r.currentBid), label: 'Puja actual' };
+  }
+  return { value: 'Sin precio publicado', label: '' };
 }
 
 export function SeoAuctionGrid({ auctions, emptyMessage }: { auctions: Row[]; emptyMessage?: string }) {
@@ -56,6 +64,7 @@ export function SeoAuctionGrid({ auctions, emptyMessage }: { auctions: Row[]; em
         {auctions.map((a) => {
           const slug = buildAuctionSlug(a);
           const where = [a.municipality, a.province].filter(Boolean).join(', ');
+          const price = priceLabel(a);
           return (
             <li key={a.id} className="rounded-md border border-[--color-border] p-4 hover:shadow-md transition-shadow">
               <Link href={`/subastas/subasta/${slug}`} className="block">
@@ -64,7 +73,12 @@ export function SeoAuctionGrid({ auctions, emptyMessage }: { auctions: Row[]; em
                   {a.title || `${a.category} en ${a.province ?? 'España'}`}
                 </h3>
                 {where ? <div className="text-xs text-[--color-text-muted] mt-1">{where}</div> : null}
-                <div className="text-sm font-medium mt-2">{priceLabel(a)}</div>
+                <div className="mt-2 flex items-baseline gap-1.5">
+                  <span className="text-sm font-semibold">{price.value}</span>
+                  {price.label ? (
+                    <span className="text-[10px] uppercase tracking-wide text-[--color-text-muted]">{price.label}</span>
+                  ) : null}
+                </div>
               </Link>
             </li>
           );

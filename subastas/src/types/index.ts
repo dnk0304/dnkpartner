@@ -68,6 +68,12 @@ export interface AuctionItem {
   currentBid: number | null;
   appraisalValue: number | null;
   minimumBid?: number | null;
+  // Cantidad reclamada — the amount being claimed. Populated on ~30% of
+  // active rows overall (uneven by auctionType — NOTARIAL 100%, AEAT ~0.6%).
+  // Card UIs gate on `claimedAmount && claimedAmount > 0` and render
+  // "Cantidad reclamada" as a secondary line; omit the line entirely when
+  // absent (no orphan "—" cell).
+  claimedAmount?: number | null;
   courtName?: string | null;
   procedureNumber?: string | null;
   boeLink?: string | null;

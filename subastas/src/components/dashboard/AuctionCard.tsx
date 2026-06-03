@@ -199,8 +199,14 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
   // Ghost's split-multilot rows carry the "Varios Lotes" title and no price.
   // Show "Precio no disponible" treatment instead of "Sin Pujas" in the price
   // slot for those rows.
+  // Card price hierarchy (Dennis-locked 2026-06-03): Tasación PRIMARY,
+  // Cantidad reclamada SECONDARY (gated on presence), currentBid demoted to
+  // a small caption. Puja mínima never headlines the card.
   const isVariosLotes = isVariosLotesTitle(item.title);
-  const noPriceData = item.currentBid == null && item.appraisalValue == null;
+  const hasTasacion = item.appraisalValue != null && Number.isFinite(item.appraisalValue) && (item.appraisalValue as number) > 0;
+  const hasClaimed = item.claimedAmount != null && Number.isFinite(item.claimedAmount as number) && (item.claimedAmount as number) > 0;
+  const hasCurrentBid = item.currentBid != null && Number.isFinite(item.currentBid) && (item.currentBid as number) > 0;
+  const noPriceData = !hasTasacion && !hasClaimed && !hasCurrentBid;
 
   return (
     <Card 
@@ -335,9 +341,12 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
               </div>
             </div>
 
-            {/* Price Grid — clear hierarchy. When both fields are absent (Ghost's
-                split "Varios Lotes" rows) collapse to a single "Precio no disponible"
-                line instead of two muted "Sin Pujas" / "Sin tasación" labels. */}
+            {/* Price block — Tasación PRIMARY (big bold number left), Cantidad
+                reclamada SECONDARY (right cell, only when present). When
+                reclamada is absent the Tasación spans the full block — no
+                orphan empty cell. currentBid demotes to a small caption row
+                underneath when a real bid exists. No-price → "Precio no
+                disponible" affordance. */}
             {noPriceData ? (
               <div className="pt-2 border-t border-gray-100 mt-2">
                 <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">
@@ -348,20 +357,43 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100 mt-2">
-                <div className="flex flex-col">
-                  <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Puja actual</span>
-                  <span className="text-lg font-bold text-gray-900">
-                    {item.currentBid ? formatCurrency(item.currentBid) : 'Sin Pujas'}
-                  </span>
-                </div>
-
-                <div className="flex flex-col text-right">
-                  <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Tasación</span>
-                  <span className="text-base font-semibold text-gray-600">
-                    {item.appraisalValue ? formatCurrency(item.appraisalValue) : 'Sin tasación'}
-                  </span>
-                </div>
+              <div className="pt-2 border-t border-gray-100 mt-2 space-y-2">
+                {hasTasacion && (
+                  <div
+                    className={hasClaimed ? 'grid grid-cols-2 gap-3' : ''}
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Tasación</span>
+                      <span className="text-lg font-bold text-gray-900">
+                        {formatCurrency(item.appraisalValue as number)}
+                      </span>
+                    </div>
+                    {hasClaimed && (
+                      <div className="flex flex-col text-right">
+                        <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Cantidad reclamada</span>
+                        <span className="text-base font-semibold text-gray-700">
+                          {formatCurrency(item.claimedAmount as number)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {!hasTasacion && hasClaimed && (
+                  <div className="flex flex-col">
+                    <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Cantidad reclamada</span>
+                    <span className="text-lg font-bold text-gray-900">
+                      {formatCurrency(item.claimedAmount as number)}
+                    </span>
+                  </div>
+                )}
+                {hasCurrentBid && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500 font-medium uppercase tracking-wide">Puja actual</span>
+                    <span className="tnum font-semibold text-gray-700">
+                      {formatCurrency(item.currentBid as number)}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 

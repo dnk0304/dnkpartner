@@ -669,11 +669,17 @@ function ExpandedCard({
   const where = [muni && titleCase(muni), prov && capitalize(prov)]
     .filter(Boolean)
     .join(" · ");
-  const valorSubasta = pickPrice(auction.appraisalValue);
+  // Price hierarchy (Dennis-locked 2026-06-03): Tasación PRIMARY (the
+  // prominent number — label is "Tasación", NOT "Valor subasta"; the
+  // scraper's valor-subasta fallback still shows under the same "Tasación"
+  // label, locked by Ken — no flag exists to distinguish on the payload).
+  // Cantidad reclamada SECONDARY (when present). Puja mínima REMOVED from
+  // the carousel card. Depósito only as a last-resort fallback when nothing
+  // else exists.
+  const tasacion = pickPrice(auction.appraisalValue);
   const reclamada = pickPrice(auction.claimedAmount);
-  const minBid = pickPrice(auction.minimumBid);
   const deposit =
-    valorSubasta == null && reclamada == null && minBid == null
+    tasacion == null && reclamada == null
       ? pickPrice(auction.depositAmount)
       : null;
   const [imgFailed, setImgFailed] = React.useState(false);
@@ -699,7 +705,7 @@ function ExpandedCard({
   const showMapPin = resolved.isMap && !imgFailed;
   const effectiveStatus = ended ? "concluida-portal" : auction.status;
   const noPriceData =
-    valorSubasta == null && reclamada == null && minBid == null && deposit == null;
+    tasacion == null && reclamada == null && deposit == null;
   const isVariosLotes = isVariosLotesTitle(auction.title);
 
   const cardClass = cn(
@@ -841,33 +847,23 @@ function ExpandedCard({
               </div>
             </div>
           )}
+          {tasacion != null && (
+            <div className={cn("min-w-0", reclamada == null && "col-span-2")}>
+              <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
+                Tasación
+              </div>
+              <div className="tnum text-[15px] font-semibold text-[--color-ink-primary] truncate">
+                {formatPrice(tasacion)}
+              </div>
+            </div>
+          )}
           {reclamada != null && (
-            <div className="min-w-0">
+            <div className={cn("min-w-0", tasacion != null && "text-right")}>
               <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
                 Cantidad reclamada
               </div>
-              <div className="tnum text-[13px] font-semibold text-[--color-ink-primary] truncate">
+              <div className="tnum text-[13px] font-semibold text-[--color-ink-secondary] truncate">
                 {formatPrice(reclamada)}
-              </div>
-            </div>
-          )}
-          {valorSubasta != null && (
-            <div className={cn("min-w-0", reclamada != null && "text-right")}>
-              <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
-                Valor subasta
-              </div>
-              <div className="tnum text-[13px] font-semibold text-[--color-ink-primary] truncate">
-                {formatPrice(valorSubasta)}
-              </div>
-            </div>
-          )}
-          {minBid != null && (
-            <div className="min-w-0">
-              <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
-                Puja mín.
-              </div>
-              <div className="tnum text-[13px] font-semibold text-[--color-ink-primary] truncate">
-                {formatPrice(minBid)}
               </div>
             </div>
           )}

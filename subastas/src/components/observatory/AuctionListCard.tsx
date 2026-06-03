@@ -71,13 +71,17 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
       : resolved.src;
 
   // Field availability — drives conditional hiding.
-  const hasTasacion = item.appraisalValue != null && Number.isFinite(item.appraisalValue);
-  const hasMinBid = item.minimumBid != null && Number.isFinite(item.minimumBid as number);
-  const hasCurrentBid = item.currentBid != null && Number.isFinite(item.currentBid);
+  // Card price hierarchy (Dennis-locked 2026-06-03): Tasación PRIMARY,
+  // Cantidad reclamada SECONDARY (gated on presence), Puja mínima removed
+  // from the card headline (lives on detail/modal). currentBid stays as a
+  // small "Puja actual" caption when a real bid exists.
+  const hasTasacion = item.appraisalValue != null && Number.isFinite(item.appraisalValue) && (item.appraisalValue as number) > 0;
+  const hasClaimed = item.claimedAmount != null && Number.isFinite(item.claimedAmount as number) && (item.claimedAmount as number) > 0;
+  const hasCurrentBid = item.currentBid != null && Number.isFinite(item.currentBid) && (item.currentBid as number) > 0;
   // Ghost may split multi-lot auctions into per-lote rows tagged "Varios Lotes"
   // with no usable price. Render a clean "Precio no disponible" affordance
   // instead of an empty price block.
-  const noPriceData = !hasTasacion && !hasMinBid && !hasCurrentBid;
+  const noPriceData = !hasTasacion && !hasClaimed && !hasCurrentBid;
   const isVariosLotes = isVariosLotesTitle(item.title);
   // Type headline — propertyType (from the doc-archive backfill) is the
   // BOE-accurate bien type; fall back to category for the ~99% of rows still
@@ -227,32 +231,48 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
           </div>
         )}
 
-        {/* PRIMARY hierarchy: Tasación (left, largest) + Puja mínima (right).
-            Both hide cleanly when the field is null — no "—" walls. */}
-        {(hasTasacion || hasMinBid) && (
-          <div className="grid grid-cols-2 gap-3 pt-2 hairline-t">
-            {hasTasacion ? (
-              <div>
-                <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
-                  Tasación
-                </div>
-                <div className="tnum text-base font-semibold text-[--color-ink-primary]">
-                  {formatPrice(item.appraisalValue)}
-                </div>
-              </div>
-            ) : (
-              <div />
+        {/* PRIMARY: Tasación (left, largest). Cantidad reclamada in the right
+            cell ONLY when present — when absent, Tasación stretches to span
+            the full row width so the card never shows an orphaned empty cell
+            (the ~70% AEAT/ADMINISTRATIVAS case). */}
+        {hasTasacion && (
+          <div
+            className={cn(
+              "pt-2 hairline-t",
+              hasClaimed ? "grid grid-cols-2 gap-3" : "",
             )}
-            {hasMinBid && (
+          >
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+                Tasación
+              </div>
+              <div className="tnum text-base font-semibold text-[--color-ink-primary]">
+                {formatPrice(item.appraisalValue)}
+              </div>
+            </div>
+            {hasClaimed && (
               <div className="text-right">
                 <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
-                  Puja mínima
+                  Cantidad reclamada
                 </div>
-                <div className="tnum text-base font-semibold text-[--color-brand-soft]">
-                  {formatPrice(item.minimumBid)}
+                <div className="tnum text-base font-semibold text-[--color-ink-primary]">
+                  {formatPrice(item.claimedAmount)}
                 </div>
               </div>
             )}
+          </div>
+        )}
+        {/* Edge case: no Tasación but Cantidad reclamada exists (rare —
+            judicial rows where even the valor-subasta fallback is null).
+            Render reclamada alone rather than skipping the price block. */}
+        {!hasTasacion && hasClaimed && (
+          <div className="pt-2 hairline-t">
+            <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+              Cantidad reclamada
+            </div>
+            <div className="tnum text-base font-semibold text-[--color-ink-primary]">
+              {formatPrice(item.claimedAmount)}
+            </div>
           </div>
         )}
 

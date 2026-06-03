@@ -223,13 +223,18 @@ export default function SubastasListClient({
     let cancelled = false;
     (async () => {
       try {
+        // Pass `status=active` so the muni dropdown reflects the same canonical
+        // active set as the province header / list total (542 globally). Reads
+        // `counts.active`, not `counts.total` (the latter included all
+        // statuses + dropped null-muni rows). See
+        // DISPATCH-BRIEF-FORGE-count-hierarchy-sync §4d.
         const res = await apiFetch(
-          `/api/auctions/counts?groupBy=municipality&province=${encodeURIComponent(filters.province)}`,
+          `/api/auctions/counts?groupBy=municipality&status=active&province=${encodeURIComponent(filters.province)}`,
         );
         if (cancelled) return;
         if (res.ok) {
           const body = await res.json();
-          const munis = Object.keys(body?.counts?.total || {}).sort((a, b) => a.localeCompare(b));
+          const munis = Object.keys(body?.counts?.active || {}).sort((a, b) => a.localeCompare(b));
           setMunicipalities(munis);
         }
       } catch {

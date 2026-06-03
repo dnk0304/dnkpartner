@@ -1,54 +1,22 @@
-# FORGE_PLAN.md — Auction document-archive backend (2026-06-03)
+# FORGE_PLAN — counts fold + 441→542 fix + claimedAmount payload (2026-06-03)
 
 ## Goal
-Land the schema + serve route + storage-path contract that Ghost (scraper) and Pixel (frontend) write/read against. Branch off `origin/dnksubastas` tip `a6c48ec`. Commit + push. NO deploy.
+Make every active-count surface reconcile to canonical **542** (province=Σmunicipalities, list-total==badge under all sorts) AND surface `claimedAmount` on the main `/api/auctions` payload + `AuctionItem` type so Pixel's card display can show "Cantidad reclamada" as a secondary line.
 
-## Architecture
-```
-BOE -> Ghost (Python scraper) -> /data/auction-docs/<safeKey(boeId)>/<file>.pdf
-                                  ^ shared path helper imported from
-                                  subastas/src/lib/auction-docs/storage.ts
-                                  -> AuctionDocument row (Prisma upsert via adapter)
-Pixel -> /api/auctions/[id]    -> documents[] (id, type, title, officialUrl, downloadUrl)
-Pixel -> /api/auctions...      -> hasDocuments boolean
-Pixel -> /api/auction-doc/<id> -> streams stored PDF from disk
-```
+Branch: `forge/counts-fold-441-claimed` off `origin/dnksubastas` tip `d585e34`.
 
-## Task breakdown
+## Tasks
+1. **TASK-001** — Lift `normalizeText` → `subastas/src/lib/normalize.ts`; import in `counts/route.ts` + `auctions/route.ts`.
+2. **TASK-002** — Counts route: JS-fold province AND municipality + bucket null/blank munis as `"Otros / Sin municipio"` + canonical display label pick.
+3. **TASK-003** — `filters.ts` §8B: default Activas → `status=active` (canonical 542 branch).
+4. **TASK-004** — `/api/auctions` payload + `AuctionItem` type + `favorites/page.tsx`: add `claimedAmount`.
+5. **TASK-005** — Consumer touch-ups: `SubastasListClient.tsx` muni-dropdown fetch (+`&status=active`, read `counts.active`); `ProvinceHierarchy.tsx` minimal correctness.
+6. **TASK-006** — `prisma generate` + `tsc --noEmit` + `next build` clean. Commit+push.
 
-### TASK-001: storage lib (the Ghost contract)
-- File: `subastas/src/lib/auction-docs/storage.ts` (NEW)
-- Exports: `AUCTION_DOCS_DIR`, `safeKey(boeId)`, `docDirFor(boeId)`, `docDiskPathFor(boeId, filename)`, `snapshotDiskPathFor(boeId)`, `relPathFor(boeId, filename)`, `publicPathForDocId(id)`, `readDoc(relPath)`, `isValidKey(raw)`, `isValidRelPath(raw)`.
-- Mirror auction-images/storage.ts safeKey exactly.
+## Risk Flags
+- `ProvinceHierarchy.tsx` is dead in wave42 (no importers found); minimal correctness fix is cheap.
+- `SubastasListClient.tsx` two-line plumbing change (`&status=active` + `counts.total`→`counts.active`) is data-plumbing, not styling.
+- "Otros / Sin municipio" bucket emitted as a real dict key (human label) for simplicity; consumer sorts/orders.
 
-### TASK-002: Prisma schema + back-relation + new Auction cols
-- File: `subastas/prisma/schema.prisma`
-- AuctionDocument model per Ken's brief; back-relation; new nullable scalars on Auction.
-
-### TASK-003: migration SQL (additive, NOT APPLIED)
-- File: `subastas/prisma/migrations/20260603_add_auction_documents/migration.sql`
-
-### TASK-004: GET /api/auction-doc/[id] serve route
-- File: `subastas/src/app/api/auction-doc/[id]/route.ts`
-- Resolve by AuctionDocument.id → storedPath → disk read → 200 PDF / 404.
-
-### TASK-005: detail projection
-- File: `subastas/src/app/api/auctions/[id]/route.ts`
-- Include documents + new scalars. Keep BigInt mitigations.
-
-### TASK-006: list/recent projection
-- Files: `subastas/src/app/api/auctions/recent/route.ts` (add _count + projector), `subastas/src/app/api/auctions/route.ts` (raw SQL — EXISTS subquery for hasDocuments).
-
-### TASK-007: gates + commit + push
-- `npx prisma generate` → `npx tsc --noEmit` → `npx next build` → commit + push.
-
-## Risk flags
-- `/api/auctions/route.ts` is raw SQL. `hasDocuments` becomes an EXISTS subquery. Will compile fine; runtime needs migration applied (Ken does that on box).
-- AuctionDocument has no BigInt cols.
-- The detail route does `findUnique({ where })` (bare). I will replace with `include: { documents }` and keep scalar coercions; cannot use `select` without listing every column. include is safe.
-
-## Decisions
-- Add distinct `bienLocalidad` / `bienProvincia` per Ken's brief recommendation.
-- docType enum: NOTA_SIMPLE | EDICTO | ANEXO | PLIEGO | SNAPSHOT | OTRO (Ken's brief overrides Niki's lowercase).
-- Unique: `@@unique([auctionId, idDoc])` with sentinel `idDoc='SNAPSHOT'` for snapshot rows.
-- Migration name: `20260603_add_auction_documents`.
+## Open Decisions
+None — brief is prescriptive.
