@@ -19,7 +19,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPublishedArticleBySlug } from "@/lib/articles";
 import { ArticleContent } from "@/components/blog/ArticleContent";
-import { BlogFooter } from "@/components/blog/BlogFooter";
 
 const SITE = "https://subastasactivas.com";
 
@@ -102,31 +101,7 @@ export default async function ArticlePage(
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      {/* Top bar (lightweight — full nav lives on home/list pages) */}
-      <header className="border-b border-[--color-hairline] bg-[--color-surface]">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
-          <Link
-            href="/"
-            className="font-display text-base font-semibold tracking-tight text-[--color-ink-primary] hover:opacity-80"
-          >
-            SubastasActivas
-          </Link>
-          <nav className="flex items-center gap-5 text-sm">
-            <Link
-              href="/subastas"
-              className="text-[--color-ink-secondary] hover:text-[--color-ink-primary]"
-            >
-              Subastas
-            </Link>
-            <Link
-              href="/blog"
-              className="text-[--color-ink-secondary] hover:text-[--color-ink-primary]"
-            >
-              Guías
-            </Link>
-          </nav>
-        </div>
-      </header>
+      {/* Header + footer come from SiteChrome in the root layout. */}
 
       <main className="mx-auto max-w-3xl px-6 py-10">
         {/* Breadcrumb */}
@@ -199,8 +174,6 @@ export default async function ArticlePage(
           </Link>
         </div>
       </main>
-
-      <BlogFooter />
     </div>
   );
 }

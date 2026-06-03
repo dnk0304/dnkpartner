@@ -11,7 +11,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { listPublishedArticles } from "@/lib/articles";
-import { BlogFooter } from "@/components/blog/BlogFooter";
 
 const SITE = "https://subastasactivas.com";
 
@@ -41,31 +40,7 @@ export default async function BlogIndexPage() {
 
   return (
     <div className="min-h-screen bg-[--color-page]">
-      <header className="border-b border-[--color-hairline] bg-[--color-surface]">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <Link
-            href="/"
-            className="font-display text-base font-semibold tracking-tight text-[--color-ink-primary] hover:opacity-80"
-          >
-            SubastasActivas
-          </Link>
-          <nav className="flex items-center gap-5 text-sm">
-            <Link
-              href="/subastas"
-              className="text-[--color-ink-secondary] hover:text-[--color-ink-primary]"
-            >
-              Subastas
-            </Link>
-            <Link
-              href="/blog"
-              aria-current="page"
-              className="font-medium text-[--color-ink-primary]"
-            >
-              Guías
-            </Link>
-          </nav>
-        </div>
-      </header>
+      {/* Header + footer come from SiteChrome in the root layout. */}
 
       <main className="mx-auto max-w-5xl px-6 py-10">
         <div className="mb-10 max-w-2xl">
@@ -127,8 +102,6 @@ export default async function BlogIndexPage() {
           </ul>
         )}
       </main>
-
-      <BlogFooter />
     </div>
   );
 }

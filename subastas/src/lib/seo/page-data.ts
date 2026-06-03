@@ -99,6 +99,34 @@ async function _minStartingPrice({ province, auctionTypeKeys, category }: CountI
 
 export const minStartingPrice = unstable_cache(_minStartingPrice, ['seo-min-price'], { revalidate: 300 });
 
+/**
+ * Active-count per municipality within a province (for the province SEO
+ * page's "Por municipio" section). Returns rows sorted by count desc,
+ * with null/empty/"desconocida" names filtered out — matches the cleanup
+ * the home ProvinceGrid does client-side, kept consistent server-side here.
+ */
+async function _municipalitiesInProvince(province: string): Promise<Array<{ name: string; count: number }>> {
+  const rows = await prisma.auction.groupBy({
+    by: ['municipality'],
+    where: { status: { in: ACTIVE_STATUSES }, province },
+    _count: { _all: true },
+  });
+  return rows
+    .map((r) => ({ name: (r.municipality ?? '').trim(), count: r._count?._all ?? 0 }))
+    .filter((r) => {
+      if (!r.name) return false;
+      const lc = r.name.toLowerCase();
+      return lc !== 'null' && lc !== 'undefined' && lc !== 'desconocida';
+    })
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'es'));
+}
+
+export const municipalitiesInProvince = unstable_cache(
+  _municipalitiesInProvince,
+  ['seo-municipalities-by-province'],
+  { revalidate: 300, tags: ['seo-counts'] },
+);
+
 /** Slugs of the indexable provinces that actually have inventory (for sitemap). */
 export async function provincesWithInventory(): Promise<Set<string>> {
   const rows = await prisma.auction.findMany({
