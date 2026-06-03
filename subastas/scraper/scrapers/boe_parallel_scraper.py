@@ -133,10 +133,28 @@ class BOEParallelScraper(BOEScraper):
             page.goto(detail_url, wait_until='domcontentloaded', timeout=30000)
             random_delay(1.0, 2.0)
             info = self._extract_detail_from_page(page, boe_id, detail_url)
-            info['lote_numbers'] = self._enumerate_lote_numbers(page)
+            lote_numbers = self._enumerate_lote_numbers(page)
             # G2/G3 docs + snapshot on the ver=3 DOM, BEFORE the ver=5 pujas
             # navigation destroys it (own-browser path mirrors the shared path).
             self._capture_documents_and_snapshot(page, boe_id, detail_url, info)
+            # ALWAYS activate the ver=1 "Información general" panel and re-extract
+            # the financial fields. This own-browser path is the AEAT + judicial
+            # scraper — exactly the categories where 103 active rows rendered
+            # "Precio no disponible". The financial table (Valor subasta /
+            # Tasación / Puja mínima / Importe del depósito / Cantidad reclamada)
+            # lives ONLY on the ver=1 panel, NOT on the ver=3 Bienes DOM this
+            # opens on, and this override never activated the tab at all — so
+            # appraisal stayed NULL even on freshly re-scraped rows. ver=3 capture
+            # (lote enumeration + split detection + docs/snapshot) has already run
+            # above on the pre-click DOM, so activating now cannot regress it.
+            self._activate_general_info_tab(page)
+            dated = self._extract_detail_from_page(page, boe_id, detail_url)
+            for k in ('start_at', 'ends_at', 'detail_status',
+                      'appraisal_value', 'valor_subasta', 'minimum_bid',
+                      'deposit_amount', 'claimed_amount'):
+                if info.get(k) is None and dated.get(k) is not None:
+                    info[k] = dated[k]
+            info['lote_numbers'] = lote_numbers
             # #16 pujas LAST (own-browser path): same page -> ver=5, after the
             # ver=3 DOM read + lote enumeration + docs/snapshot capture.
             self._attach_pujas(page, boe_id, detail_url, info)

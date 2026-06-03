@@ -1249,6 +1249,94 @@ class BOEScraper(BaseScraper):
         except:
             return None
 
+    @staticmethod
+    def _parse_spanish_currency(raw: Optional[str]) -> Optional[float]:
+        """Convert a BOE Spanish-formatted currency string to a float.
+
+        BOE renders amounts as "84.500,00 €" / "84.500,00 &#x20AC;" — '.' is the
+        thousands separator and ',' the decimal separator. Strips the euro
+        glyph/entity and any stray text, then normalises to a float. Returns
+        None when no numeric token is present (e.g. "Sin puja mínima"). Never
+        coerces a missing value to 0.
+        """
+        if not raw:
+            return None
+        # Drop the euro glyph and HTML entity so only the number remains.
+        cleaned = raw.replace('€', '').replace('€', '').replace('&#x20AC;', '').replace('&euro;', '')
+        m = re.search(r'-?[0-9][0-9.\s]*(?:,[0-9]+)?', cleaned)
+        if not m:
+            return None
+        token = m.group(0).replace(' ', '').replace('.', '').replace(',', '.')
+        try:
+            return float(token)
+        except ValueError:
+            return None
+
+    def _extract_financial_rows(self, page: Any) -> Dict[str, str]:
+        """Read the BOE detail financial table by ROW STRUCTURE, not flattened
+        text. BOE renders the "Información general" financial block as
+        <tr><th>Valor subasta</th><td>75.384,55 &#x20AC;</td></tr> (and the same
+        for Tasación / Puja mínima / Importe del depósito / Cantidad reclamada).
+        The old flattened-text regex `{label}[:\\s]+([0-9.,]+)€` was fragile —
+        it broke when whitespace/markup landed between the label and the value,
+        and the `Valor subasta` row sits immediately before `Tasación`, so a
+        greedy flattened match could cross rows. Walking the DOM th/td (and
+        dt/dd) pairs binds each label to ITS OWN value cell, parsing both rows
+        independently. Returns a {label_text: raw_value_text} map (raw — the
+        caller resolves the figure via _parse_spanish_currency); empty on any
+        failure so the body-text regex fallback still runs."""
+        try:
+            return page.evaluate(
+                """
+                () => {
+                  const out = {};
+                  const add = (label, value) => {
+                    if (!label) return;
+                    const k = label.replace(/\\s+/g, ' ').trim();
+                    const v = (value || '').replace(/\\s+/g, ' ').trim();
+                    if (k && v && !(k in out)) out[k] = v;
+                  };
+                  // th -> next td (or sibling td in the same row)
+                  document.querySelectorAll('th').forEach(th => {
+                    const row = th.closest('tr');
+                    let val = null;
+                    if (row) {
+                      const td = row.querySelector('td');
+                      if (td) val = td.innerText;
+                    }
+                    if (val == null) {
+                      const sib = th.nextElementSibling;
+                      if (sib && sib.tagName === 'TD') val = sib.innerText;
+                    }
+                    add(th.innerText, val);
+                  });
+                  // dt -> next dd (some BOE panels use definition lists)
+                  document.querySelectorAll('dt').forEach(dt => {
+                    const dd = dt.nextElementSibling;
+                    if (dd && dd.tagName === 'DD') add(dt.innerText, dd.innerText);
+                  });
+                  return out;
+                }
+                """
+            ) or {}
+        except Exception:
+            return {}
+
+    def _currency_from_rows(self, rows: Dict[str, str], labels: List[str]) -> Optional[float]:
+        """Resolve a currency figure from the row-structured financial map for
+        the first matching label (case-insensitive, accent-tolerant). Returns
+        None when the label is absent — the body-text regex fallback then runs."""
+        if not rows:
+            return None
+        for label in labels:
+            ll = label.lower()
+            for k, v in rows.items():
+                if k.lower() == ll or k.lower().startswith(ll):
+                    parsed = self._parse_spanish_currency(v)
+                    if parsed is not None:
+                        return parsed
+        return None
+
     def _extract_label_value(self, text: str, labels: List[str]) -> Optional[str]:
         """
         Extract the value that follows a label on the BOE detail page.
@@ -1802,15 +1890,30 @@ class BOEScraper(BaseScraper):
             # would lose both the ver=3 verDocumento links and a clean snapshot)
             # and BEFORE the ver=5 pujas navigation (which destroys ver=3).
             self._capture_documents_and_snapshot(page, boe_id, detail_url, info)
-            if info.get('ends_at') is None or info.get('start_at') is None:
-                self._activate_general_info_tab(page)
-                dated = self._extract_detail_from_page(page, boe_id, detail_url)
-                # Merge: prefer the now-present dates/status; keep every other
-                # field from the pre-click extraction (prices/bienes/etc.) since
-                # the tab swap may have blanked them in `dated`.
-                for k in ('start_at', 'ends_at', 'detail_status'):
-                    if info.get(k) is None and dated.get(k) is not None:
-                        info[k] = dated[k]
+            # ALWAYS activate the ver=1 "Información general" panel and re-extract.
+            # The financial table (Valor subasta / Tasación / Puja mínima /
+            # Importe del depósito / Cantidad reclamada) lives ONLY on that panel,
+            # NOT on the ver=3 Bienes DOM. The old code activated it only when a
+            # date was missing — so when the ver=3 DOM already carried the dates
+            # (the common case), the panel was never loaded and appraisal stayed
+            # NULL on 103 active rows (95 AEAT + 8 judicial), even on rows that
+            # were re-scraped today. ver=3 capture (lote enumeration + split
+            # detection + docs/snapshot) has ALREADY run above on the pre-click
+            # DOM, so activating now is safe — it cannot regress those.
+            self._activate_general_info_tab(page)
+            dated = self._extract_detail_from_page(page, boe_id, detail_url)
+            # Merge: lift dates/status (recovered for SIN-FECHA umbrella pages)
+            # AND the financial fields (recovered from the now-loaded ver=1
+            # panel) whenever the pre-click ver=3 pass left them null. Keep every
+            # value the ver=3 pass already captured — the tab swap may blank
+            # bienes/lote fields in `dated`, so we only ever fill nulls, never
+            # clobber. Honest-NULL is preserved: if `dated` is also null (genuine
+            # no-price lote), the field stays null and is never coerced to 0.
+            for k in ('start_at', 'ends_at', 'detail_status',
+                      'appraisal_value', 'valor_subasta', 'minimum_bid',
+                      'deposit_amount', 'claimed_amount'):
+                if info.get(k) is None and dated.get(k) is not None:
+                    info[k] = dated[k]
             info['lote_numbers'] = lote_numbers
             # #16 pujas LAST: navigates the same page to ver=5, after the ver=3
             # DOM has been read + lotes enumerated + docs/snapshot captured.
@@ -2187,6 +2290,55 @@ class BOEScraper(BaseScraper):
             except Exception:
                 body_text = ''
 
+            # ROW-STRUCTURED financial parse (primary). The financial figures
+            # live in the ver=1 "Información general" panel as <th>label</th>
+            # <td>value</td> rows; walking those th/td pairs binds each label to
+            # its own value cell (Valor subasta sits immediately before Tasación
+            # — both parse independently). The flattened body_text regex is kept
+            # ONLY as a fallback for any layout the DOM walk misses. Empty map
+            # (e.g. panel not loaded) simply means every figure falls through to
+            # the body_text regex, exactly as before this change.
+            fin_rows = self._extract_financial_rows(page)
+            appraisal_value = (
+                self._currency_from_rows(fin_rows, ['Tasación', 'Tasacion', 'Valoración', 'Valoracion'])
+                if fin_rows else None
+            )
+            if appraisal_value is None:
+                appraisal_value = self._extract_currency(body_text, ['Tasación', 'Valoración'])
+            valor_subasta = (
+                self._currency_from_rows(fin_rows, ['Valor subasta'])
+                if fin_rows else None
+            )
+            if valor_subasta is None:
+                valor_subasta = self._extract_currency(body_text, ['Valor subasta'])
+            # Puja mínima: honour the literal "Sin puja mínima" honest-NULL.
+            pm_raw = None
+            for k, v in (fin_rows or {}).items():
+                if k.lower().startswith('puja m'):
+                    pm_raw = v
+                    break
+            if pm_raw is not None and re.search(r'sin\s+puja', pm_raw, re.IGNORECASE):
+                minimum_bid = None
+            else:
+                minimum_bid = (
+                    self._currency_from_rows(fin_rows, ['Puja mínima', 'Puja minima'])
+                    if fin_rows else None
+                )
+                if minimum_bid is None:
+                    minimum_bid = self._extract_minimum_bid(body_text)
+            deposit_amount = (
+                self._currency_from_rows(fin_rows, ['Importe del depósito', 'Importe del deposito', 'Depósito', 'Deposito'])
+                if fin_rows else None
+            )
+            if deposit_amount is None:
+                deposit_amount = self._extract_currency(body_text, ['Importe del depósito', 'Depósito'])
+            claimed_amount = (
+                self._currency_from_rows(fin_rows, ['Cantidad reclamada'])
+                if fin_rows else None
+            )
+            if claimed_amount is None:
+                claimed_amount = self._extract_currency(body_text, ['Cantidad reclamada'])
+
             # Authoritative dates from the detail page (label/value pairs):
             #   "Fecha de inicio"      -> start of the bidding window
             #   "Fecha de conclusión"  -> end of the bidding window (= endsAt)
@@ -2229,11 +2381,11 @@ class BOEScraper(BaseScraper):
                 'cadastral_ref': cadastral_ref,
                 'cadastral_data': cadastral_data,
                 'identificador': self._extract_label_value(body_text, ['Identificador']),
-                'appraisal_value': self._extract_currency(body_text, ['Tasación', 'Valoración']),
-                'valor_subasta': self._extract_currency(body_text, ['Valor subasta']),
-                'minimum_bid': self._extract_minimum_bid(body_text),
-                'deposit_amount': self._extract_currency(body_text, ['Importe del depósito', 'Depósito']),
-                'claimed_amount': self._extract_currency(body_text, ['Cantidad reclamada']),
+                'appraisal_value': appraisal_value,
+                'valor_subasta': valor_subasta,
+                'minimum_bid': minimum_bid,
+                'deposit_amount': deposit_amount,
+                'claimed_amount': claimed_amount,
                 'tipo_subasta': self._extract_label_value(body_text, ['Tipo de subasta']),
                 'anuncio_boe': self._extract_label_value(body_text, ['Anuncio BOE']),
                 'lotes': self._extract_label_value(body_text, ['Lotes']),
