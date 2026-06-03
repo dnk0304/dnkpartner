@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
 
     // Create Resend client
     const resend = new Resend(resendKey);
-    const from = process.env.RESEND_FROM_EMAIL || 'SubastaPro <notifications@subastapro.com>';
+    const from = process.env.RESEND_FROM_EMAIL || 'SubastasActivas <notificaciones@subastasactivas.com>';
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_URL || 'http://localhost:3005';
 
     // Create sample auction data for testing
@@ -108,7 +108,7 @@ export async function GET() {
   const admin = await requireAdmin();
   if (admin instanceof NextResponse) return admin;
   const hasResendKey = Boolean(process.env.RESEND_API_KEY);
-  const fromEmail = process.env.RESEND_FROM_EMAIL || 'SubastaPro <notifications@subastapro.com>';
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'SubastasActivas <notificaciones@subastasactivas.com>';
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_URL || 'http://localhost:3005';
 
   return NextResponse.json({

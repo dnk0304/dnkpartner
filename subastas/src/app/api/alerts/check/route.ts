@@ -136,7 +136,7 @@ async function sendNotifications(matchesByAlert: Record<string, { alert: any; au
   }
 
   const resend = new Resend(resendKey);
-  const from = process.env.RESEND_FROM_EMAIL || 'SubastaPro <notifications@subastapro.com>';
+  const from = process.env.RESEND_FROM_EMAIL || 'SubastasActivas <notificaciones@subastasactivas.com>';
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_URL || 'http://localhost:3005';
 
   for (const entry of Object.values(matchesByAlert)) {

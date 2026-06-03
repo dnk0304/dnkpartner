@@ -48,7 +48,13 @@ export async function POST(request: NextRequest) {
         const resend = new Resend(process.env.RESEND_API_KEY);
         
         await resend.emails.send({
-          from: process.env.EMAIL_FROM || 'SubastaPro <noreply@subastapro.com>',
+          // Unified env: RESEND_FROM_EMAIL controls every send path in this app
+          // (dispatcher, alerts/check, alerts/test, register verification, this).
+          // Default kept as the subastasactivas.com address so a fresh deploy
+          // doesn't fall back to a stale subastapro domain.
+          from:
+            process.env.RESEND_FROM_EMAIL ||
+            'SubastasActivas <notificaciones@subastasactivas.com>',
           to: email,
           subject: 'Reset your SubastaPro password',
           html: `

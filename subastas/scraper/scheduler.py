@@ -69,6 +69,16 @@ DISPATCH_ENDPOINT = os.getenv(
 CRON_SECRET = os.getenv("CRON_SECRET", "")
 DISPATCH_INTERVAL_MIN = int(os.getenv("DISPATCH_INTERVAL_MIN", "1"))
 
+# Wave 2c (alert-check fix): trigger_alert_check was hitting a stale
+# /subastas-prefixed path AND posting unauthenticated. /api/alerts/check now
+# requires admin-or-cron and the basePath is gone, so we mirror the dispatcher's
+# config shape: ALERT_CHECK_ENDPOINT defaults to the prefix-free URL and we send
+# the same Bearer CRON_SECRET header.
+ALERT_CHECK_ENDPOINT = os.getenv(
+    "ALERT_CHECK_ENDPOINT",
+    f"{APP_BASE_URL}/api/alerts/check",
+)
+
 
 class ScraperScheduler:
     def __init__(self):
@@ -581,17 +591,32 @@ class ScraperScheduler:
         self._run_category_update("administrativas_scraper", "ADMINISTRATIVAS")
 
     def trigger_alert_check(self):
-        """Trigger /api/alerts/check after daily refresh jobs."""
+        """Trigger /api/alerts/check after daily refresh jobs.
+
+        Wave 2c fix:
+          - Was POSTing `{APP_BASE_URL}/subastas/api/alerts/check` — the
+            /subastas basePath was removed 2026-06-02 so that URL 404s.
+          - Was sending no auth header — the route now requires admin-or-cron
+            (Bearer CRON_SECRET) so it would 401 even with the right path.
+          - Endpoint now overridable via `ALERT_CHECK_ENDPOINT` (mirrors
+            DISPATCH_ENDPOINT so we can target the docker-internal host inside
+            the compose network and skip Traefik).
+        """
+        if not CRON_SECRET:
+            self.log("  trigger_alert_check: skipped (CRON_SECRET not set)")
+            return
         self.log("Triggering alert check endpoint...")
         try:
-            endpoint = f"{APP_BASE_URL}/subastas/api/alerts/check"
-            request = urllib.request.Request(
-                endpoint,
+            req = urllib.request.Request(
+                ALERT_CHECK_ENDPOINT,
                 data=b'{}',
-                headers={'Content-Type': 'application/json'},
+                headers={
+                    'Authorization': f'Bearer {CRON_SECRET}',
+                    'Content-Type': 'application/json',
+                },
                 method='POST',
             )
-            with urllib.request.urlopen(request, timeout=60) as response:
+            with urllib.request.urlopen(req, timeout=60) as response:
                 body = response.read().decode('utf-8', errors='replace')
                 self.log(f"  Alert check triggered ({response.status}): {body[:200]}")
         except Exception as e:
