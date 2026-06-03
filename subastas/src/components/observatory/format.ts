@@ -69,6 +69,32 @@ export function formatTime(value: string | Date | null | undefined): string {
   return TIME_HM.format(d);
 }
 
+/**
+ * Day-granularity update label for the "Datos actualizados {when}" trust
+ * signal. Returns "hoy" / "ayer" / a medium-format date.
+ *
+ * Why not `formatRelativeEs`: Dennis (2026-06-03) — minute-level relative
+ * times ("hace 3 min", "hace 2 h") read as nervous on a judicial-data site;
+ * we sync continuously and the user only needs to know it's current TODAY.
+ * A day-granularity label is calmer and matches what the data actually
+ * promises ("daily official sync, intra-day deltas").
+ */
+export function formatUpdatedDayEs(value: string | Date | null | undefined): string {
+  if (!value) return "—";
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  // Compare on local-date boundaries (not wall-clock diff) so a 23:55 update
+  // viewed at 00:05 reads as "ayer", not "hoy".
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const today = startOfDay(new Date());
+  const that = startOfDay(d);
+  const diffDays = Math.round((today - that) / (24 * 60 * 60 * 1000));
+  if (diffDays <= 0) return "hoy";
+  if (diffDays === 1) return "ayer";
+  // Older than yesterday: show the date so the user knows exactly how stale.
+  return `el ${DATE_MED.format(d)}`;
+}
+
 /** "hace 3 min", "hace 2 h", "hace 4 d", "ayer", "ahora". */
 export function formatRelativeEs(value: string | Date | null | undefined): string {
   if (!value) return "—";

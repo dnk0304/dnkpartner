@@ -25,7 +25,7 @@ import { FollowButton } from "@/components/notifications/FollowButton";
 import { formatPrice, capitalize, titleCase, displayTitle, formatDateMed, prettifyAuctionType } from "./format";
 import { getStatusMeta, effectiveStatus } from "./status";
 import { cn } from "@/lib/utils";
-import { resolveCardImage, isVariosLotesTitle } from "@/lib/resolve-card-image";
+import { resolveCardImage, fallbackImageFor, isVariosLotesTitle } from "@/lib/resolve-card-image";
 
 export type AuctionListRowProps = {
   item: AuctionItem & { hasImage?: boolean | null };
@@ -58,9 +58,11 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
     title: item.title,
     size: "thumbnail",
   });
+  // Rule-respecting fallback on rung-1/2 error: vehicle SVG only for vehicles;
+  // neutral map placeholder for property + everything else (never the cartoon).
   const imageSrc =
     imgFailed && resolved.rung !== "placeholder"
-      ? resolveCardImage({ category: item.category, title: item.title, size: "thumbnail" }).src
+      ? fallbackImageFor(resolved, item.category)
       : resolved.src;
   const hasCurrentBid = item.currentBid != null && Number.isFinite(item.currentBid);
   const hasTasacion = item.appraisalValue != null && Number.isFinite(item.appraisalValue);

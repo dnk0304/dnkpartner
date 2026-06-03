@@ -77,6 +77,28 @@ const VEHICLE_CATEGORIES = new Set([
   'Barcos',
 ]);
 
+/**
+ * Neutral, location-shaped placeholder used when a PROPERTY (or any
+ * non-vehicle row) reaches rung 3 with no real photo and no coords, OR when a
+ * rung-2 map tile fails to load in the browser. The category house/property
+ * cartoon SVG is forbidden for property rows because (per Dennis 2026-06-03)
+ * a property with an address must read as "a located property we don't have
+ * a photo of yet", not as a generic house mock-up. The cartoon is reserved
+ * exclusively for vehicle rows, which legitimately have no location.
+ */
+export const NEUTRAL_MAP_PLACEHOLDER_SRC = '/images/map-placeholder.svg';
+
+/**
+ * Categorical predicate exposed so card surfaces and the detail hero can apply
+ * the SAME rule when picking an onError fallback (rung 1/2 → ?). VEHICLE_CATEGORIES
+ * is the closed allow-list: anything else (property, niche, unknown) must use
+ * the neutral map placeholder, never the category cartoon.
+ */
+export function isVehicleCategory(category: string | null | undefined): boolean {
+  if (!category) return false;
+  return VEHICLE_CATEGORIES.has(category);
+}
+
 export type ImageRung = 'photo' | 'map' | 'placeholder';
 
 export type ResolvedCardImage = {
@@ -152,12 +174,27 @@ function isPlaceholderSvgUrl(url: string | null | undefined): boolean {
   return PLACEHOLDER_PATH_FRAGMENTS.some((frag) => url.includes(frag));
 }
 
+/**
+ * The rung-3 placeholder is allowed to be a category cartoon ONLY for vehicles.
+ *
+ * Why: a property row with an address (whether geocoded yet or not) must NEVER
+ * read as "a generic house cartoon". Either we have coords (rung 2 → real
+ * map-pin) or we don't, in which case we show a neutral map-shaped placeholder
+ * that says "located property, imagery pending". Vehicles, by contrast, have no
+ * location and the category cartoon (turismo/moto/barco/industrial) is exactly
+ * the right signal.
+ *
+ * Rule:
+ *   - category ∈ VEHICLE_CATEGORIES → vehicle category SVG (the only place a
+ *     category cartoon is allowed).
+ *   - everything else (property categories, niche/unknown like Maquinaria /
+ *     Joyas / Arte / null) → NEUTRAL map placeholder SVG.
+ */
 function placeholderFor(category: string | null | undefined): string {
-  if (!category) return getPropertyCategoryImageUrl('Otros inmuebles');
-  if (VEHICLE_CATEGORIES.has(category)) return getVehicleCategoryImageUrl(category);
-  if (PROPERTY_CATEGORIES.has(category)) return getPropertyCategoryImageUrl(category);
-  // Unknown / niche category (Maquinaria, Joyas, Arte…): generic SVG.
-  return getPropertyCategoryImageUrl('Otros inmuebles');
+  if (category && VEHICLE_CATEGORIES.has(category)) {
+    return getVehicleCategoryImageUrl(category);
+  }
+  return NEUTRAL_MAP_PLACEHOLDER_SRC;
 }
 
 /**
@@ -261,6 +298,41 @@ export function resolveCardImage(input: ResolveCardImageInput): ResolvedCardImag
     isPlaceholder: true,
     mapPin: null,
   };
+}
+
+/**
+ * Centralized onError fallback selector. ONE rule, used by every card surface
+ * (ForexCarousel, AuctionCard, AuctionListCard, AuctionListRow) and the detail
+ * hero so the imagery rule cannot drift across surfaces.
+ *
+ *   - resolved.rung === 'placeholder'  → keep `resolved.src` (already the
+ *     terminal local SVG; cannot 404, nothing to fall to).
+ *   - resolved.rung === 'photo' that failed → step DOWN one rung:
+ *     map-pin if the row has coords, else neutral map placeholder /
+ *     vehicle SVG. We approximate this here by routing through
+ *     `placeholderFor(category)` — which, per the rule, returns the vehicle
+ *     SVG only for vehicles and the neutral map placeholder for everything
+ *     else (NEVER the property cartoon).
+ *   - resolved.rung === 'map' that failed (OSM tile throttled / 418 / 429)
+ *     → CRITICAL: for a property this is exactly the case Dennis flagged.
+ *     Fall to the NEUTRAL map placeholder so the card still reads "located
+ *     property" rather than "house cartoon". For a vehicle (vanishingly
+ *     rare — vehicles don't normally have coords) fall to the vehicle SVG.
+ *
+ * Callers pass the SAME `resolved` they got from `resolveCardImage` plus the
+ * row's category. They DON'T re-call `resolveCardImage({ category })` because
+ * that path used to return the property cartoon for property rows — the bug
+ * this whole change closes.
+ */
+export function fallbackImageFor(
+  resolved: ResolvedCardImage,
+  category: string | null | undefined,
+): string {
+  if (resolved.rung === 'placeholder') return resolved.src;
+  // Map tile failed (the dominant case in production due to OSM throttling)
+  // OR a real photo failed. In both cases, use the rule-respecting placeholder:
+  // vehicle SVG for vehicles, neutral map placeholder for everything else.
+  return placeholderFor(category);
 }
 
 /**

@@ -48,7 +48,7 @@ import Image from "next/image";
 import { ChevronLeft, ChevronRight, ArrowRight, Loader2, MapPin, FileText } from "lucide-react";
 import { apiFetch } from "@/lib/api-path";
 import { StatusBadge } from "./StatusBadge";
-import { resolveCardImage, isVariosLotesTitle } from "@/lib/resolve-card-image";
+import { resolveCardImage, fallbackImageFor, isVariosLotesTitle } from "@/lib/resolve-card-image";
 import {
   formatPrice,
   formatDaysLeft,
@@ -690,9 +690,13 @@ function ExpandedCard({
     title: typeHeadline,
     size: "thumbnail",
   });
+  // On error (most often the OSM map tile being throttled), use the shared
+  // rule-respecting fallback: vehicle category SVG ONLY for vehicles; neutral
+  // map placeholder for properties and everything else. The category cartoon
+  // must never appear for a property row.
   const imageSrc =
     imgFailed && resolved.rung !== "placeholder"
-      ? resolveCardImage({ category: auction.category, title: typeHeadline, size: "thumbnail" }).src
+      ? fallbackImageFor(resolved, auction.category)
       : resolved.src;
   const showMapPin = resolved.isMap && !imgFailed;
   const effectiveStatus = ended ? "concluida-portal" : auction.status;

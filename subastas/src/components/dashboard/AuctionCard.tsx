@@ -8,7 +8,7 @@ import { PremiumGuard } from './PremiumGuard';
 import { Clock, MapPin, Gavel, Building2, Pause, CircleDollarSign, Banknote, CheckCircle, XCircle, TrendingUp, Calendar, Landmark, ArrowUpRight, FileText } from 'lucide-react';
 import Image from 'next/image';
 import { capitalizeLocation } from '@/lib/utils';
-import { resolveCardImage, isVariosLotesTitle } from '@/lib/resolve-card-image';
+import { resolveCardImage, fallbackImageFor, isVariosLotesTitle } from '@/lib/resolve-card-image';
 
 interface AuctionCardProps {
   item: AuctionItem;
@@ -180,10 +180,12 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
     size: 'medium',
   });
   // onError safety net: a transient 404 on the real photo or the OSM tile
-  // host drops cleanly to the rung-3 category SVG (purely local, cannot 404).
+  // host drops to the rule-respecting fallback. Property rows fall to the
+  // neutral map placeholder (never the category house cartoon); vehicle rows
+  // fall to the vehicle category SVG.
   const imageSrc =
     imgFailed && resolved.rung !== 'placeholder'
-      ? resolveCardImage({ category: item.category, title: item.title, size: 'medium' }).src
+      ? fallbackImageFor(resolved, item.category)
       : resolved.src;
   const imageAlt = resolved.alt;
   // Pin overlay rules:

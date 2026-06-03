@@ -22,7 +22,7 @@ import { Check, Search, User } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { apiFetch } from "@/lib/api-path";
-import { formatRelativeEs } from "./format";
+import { formatUpdatedDayEs } from "./format";
 import { cn } from "@/lib/utils";
 
 export type ObservatoryHeaderProps = {
@@ -96,7 +96,7 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
           </Link>
           <span className="hidden md:inline text-xs text-[--color-ink-tertiary] tnum truncate">
             {lastUpdate
-              ? t("trustSignalUpdated", { when: formatRelativeEs(lastUpdate) })
+              ? t("trustSignalUpdated", { when: formatUpdatedDayEs(lastUpdate) })
               : t("trustSignalSyncing")}
           </span>
         </div>

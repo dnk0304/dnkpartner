@@ -25,7 +25,7 @@ import { FollowButton } from "@/components/notifications/FollowButton";
 import { formatPrice, capitalize, titleCase, displayTitle, formatDaysLeft, formatDateMed, prettifyAuctionType } from "./format";
 import { effectiveStatus } from "./status";
 import { cn } from "@/lib/utils";
-import { resolveCardImage, isVariosLotesTitle } from "@/lib/resolve-card-image";
+import { resolveCardImage, fallbackImageFor, isVariosLotesTitle } from "@/lib/resolve-card-image";
 
 export type AuctionListCardProps = {
   item: AuctionItem & { hasImage?: boolean | null };
@@ -62,11 +62,12 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
     title: item.title,
     size: "card",
   });
-  // After an onError on rung 1 or 2, fall back to the placeholder SVG (rung 3)
-  // — which is purely local and cannot 404 in production.
+  // After an onError on rung 1 or 2, fall back via the shared rule: vehicle
+  // SVG ONLY for vehicles; neutral map placeholder for property + everything
+  // else. The property cartoon must never be reachable from a property row.
   const imageSrc =
     imgFailed && resolved.rung !== "placeholder"
-      ? resolveCardImage({ category: item.category, title: item.title, size: "card" }).src
+      ? fallbackImageFor(resolved, item.category)
       : resolved.src;
 
   // Field availability — drives conditional hiding.

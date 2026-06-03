@@ -33,7 +33,7 @@ import Image from "next/image";
 import { ArrowLeft, ExternalLink, FileText, Landmark, MapPin, ImageOff, Download, Calendar } from "lucide-react";
 import { apiFetch } from "@/lib/api-path";
 import { AuctionItem, AuctionDocument } from "@/types";
-import { resolveCardImage } from "@/lib/resolve-card-image";
+import { resolveCardImage, isVehicleCategory } from "@/lib/resolve-card-image";
 import { buildCatastroUrl } from "@/lib/catastro-url";
 import { ObservatoryHeader } from "@/components/observatory/ObservatoryHeader";
 import { effectiveStatus } from "@/components/observatory/status";
@@ -399,10 +399,15 @@ export default function AuctionDetailClient({ id }: { id: string }) {
               </section>
             ) : (!photoUrl || photoFailed) ? (
               // Rung 3 — neither photo nor coords. The detail page must NEVER be
-              // blank, so render the per-category SVG placeholder at hero size.
+              // blank, so render a placeholder at hero size. Per Dennis (2026-06-03)
+              // the category house cartoon is forbidden for property rows: a
+              // vehicle row legitimately shows its category icon (no location);
+              // a property without coords shows a NEUTRAL map placeholder
+              // ("located property, imagery pending") — the same resolver rule
+              // the card surfaces use.
               <section aria-labelledby="hero-fallback-heading">
                 <h2 id="hero-fallback-heading" className="sr-only">
-                  Imagen de la categoría
+                  {isVehicleCategory(raw.category) ? "Imagen de la categoría" : "Ubicación pendiente"}
                 </h2>
                 <div className="relative aspect-[16/9] w-full overflow-hidden rounded-lg border border-[--color-hairline] bg-[--color-surface-muted] flex items-center justify-center">
                   <Image
@@ -413,7 +418,11 @@ export default function AuctionDetailClient({ id }: { id: string }) {
                         size: "large",
                       }).src
                     }
-                    alt={`Categoría: ${raw.title}`}
+                    alt={
+                      isVehicleCategory(raw.category)
+                        ? `Categoría: ${raw.title}`
+                        : `Ubicación pendiente para ${raw.title}`
+                    }
                     fill
                     sizes="(max-width: 768px) 100vw, 60vw"
                     className="object-contain p-10 opacity-80"

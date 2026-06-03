@@ -26,7 +26,7 @@ import { ObservatoryHeader } from "@/components/observatory/ObservatoryHeader";
 import { HomeCarouselSection } from "@/components/observatory/HomeCarouselSection";
 import { ProvinceDropdown } from "@/components/observatory/ProvinceDropdown";
 import { apiFetch } from "@/lib/api-path";
-import { formatNumber, formatRelativeEs } from "@/components/observatory/format";
+import { formatNumber, formatUpdatedDayEs } from "@/components/observatory/format";
 import { AuctionItem } from "@/types";
 
 const HierarchicalMap = dynamic(
@@ -149,27 +149,19 @@ export default function HomeObservatory() {
           aria-label={t("liveSummaryAria")}
           className="rounded-lg border border-[--color-hairline] bg-[--color-surface] px-4 py-3"
         >
+          {/*
+            Counter strip — per Dennis (2026-06-03) trimmed back to the single
+            number that matters ("activas") + the wave37 propiedades/vehículos
+            split. The "celebrándose" and "próximas" stats were removed: live=0
+            at most times of day, próximas adds clutter, and Dennis explicitly
+            asked for "no macro-details, just the total active".
+
+            The strip-level duplicate of the header's update timer also went —
+            ObservatoryHeader already carries the trust signal site-wide, so a
+            second one here was noise. The header timer is now day-granularity
+            ("Actualizado hoy") and is the canonical surface for that info.
+          */}
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm tnum">
-            <span className="inline-flex items-center gap-2 text-[--color-ink-primary]">
-              <span
-                aria-hidden="true"
-                className="h-2 w-2 rounded-full bg-[--color-status-live] dnk-pulse"
-              />
-              <strong className="font-semibold">
-                {stats ? formatNumber(stats.trueLiveCount) : "—"}
-              </strong>
-              <span>{t("happeningNow")}</span>
-            </span>
-            <span className="inline-flex items-center gap-2 text-[--color-ink-primary]">
-              <span
-                aria-hidden="true"
-                className="h-2 w-2 rounded-full bg-[--color-status-upcoming]"
-              />
-              <strong className="font-semibold">
-                {stats ? formatNumber(stats.trueUpcomingCount) : "—"}
-              </strong>
-              <span>{t("upcoming")}</span>
-            </span>
             <span className="inline-flex items-center gap-2 text-[--color-ink-primary]">
               <span
                 aria-hidden="true"
@@ -181,11 +173,11 @@ export default function HomeObservatory() {
               <span>{t("activeTotal")}</span>
             </span>
             {/* Breakdown: propiedades vs vehículos (+ otros, only when >0).
-                Subordinate to "activas en total" above — separated by a thin
-                divider on >=sm screens, dot-less to read as detail not headline.
-                Fields come from /api/auctions/stats; each is independently
-                null-safe so the strip degrades gracefully if the API hasn't
-                shipped Forge's classification fix yet. */}
+                Subordinate to "activas" above — separated by a thin divider on
+                >=sm screens, dot-less to read as detail not headline. Fields
+                come from /api/auctions/stats; each is independently null-safe
+                so the strip degrades gracefully if the API hasn't shipped
+                Forge's classification fix yet. wave37 split — preserved. */}
             {typeof stats?.activeProperties === "number" && (
               <>
                 <span
@@ -218,9 +210,6 @@ export default function HomeObservatory() {
                 <span>{t("otherLabel")}</span>
               </span>
             )}
-            <span className="ml-auto text-[--color-ink-tertiary]">
-              {t("updated", { when: stats?.lastUpdateTime ? formatRelativeEs(stats.lastUpdateTime) : t("syncing") })}
-            </span>
           </div>
         </section>
 
@@ -350,7 +339,7 @@ export default function HomeObservatory() {
       <footer className="hairline-t mt-12 py-8 text-center text-xs text-[--color-ink-tertiary]">
         <p className="tnum">
           {stats?.lastUpdateTime
-            ? t("footerTagWithUpdate", { when: formatRelativeEs(stats.lastUpdateTime) })
+            ? t("footerTagWithUpdate", { when: formatUpdatedDayEs(stats.lastUpdateTime) })
             : t("footerTagSyncing")}
         </p>
         <nav className="mt-3 flex items-center justify-center gap-4 text-xs">
