@@ -727,8 +727,12 @@ class ScraperScheduler:
         self.log(f"Postgres: {'YES' if DATABASE_URL else 'NO (SQLite dev mode)'}")
         self.log("=" * 70)
 
-        # Pulse (bid updates) — every 35 min
-        schedule.every(35).minutes.do(self.scrape_pulse)
+        # Pulse (bid updates) — every 90 min.
+        # This is the ONLY frequent job that hits subastas.boe.es over the
+        # network (BOEScraper.update_bid per active auction). Slowed 35->90 to
+        # cut the live request rate against BOE (rate-flag risk). The DB-only
+        # jobs below (monitor/promote) make no site contact — kept at 30 min.
+        schedule.every(90).minutes.do(self.scrape_pulse)
 
         # Status monitor (expire + ending_soon) — every 30 min
         schedule.every(30).minutes.do(self.monitor_status_changes)
@@ -767,7 +771,7 @@ class ScraperScheduler:
         schedule.every(geocode_interval).minutes.do(self.geocode_drain)
 
         self.log("Schedule configured:")
-        self.log("  Pulse (bid updates):  Every 35 min")
+        self.log("  Pulse (bid updates):  Every 90 min")
         self.log("  Status monitor:       Every 30 min")
         self.log("  Promotion (go-live):  Every 30 min (PROXIMA_APERTURA -> CELEBRANDOSE)")
         self.log(f"  Daily BOE + alerts:   08:00, 14:00, 20:00 (JUDICIAL)")
