@@ -650,6 +650,15 @@ export async function GET(request: NextRequest) {
     const endsBeforeRaw = searchParams.get('endsBefore');
     const hasImageRaw = searchParams.get('hasImage');
     const categoriesRaw = searchParams.get('categories'); // multi-value rollup (e.g. "Coches")
+    // search: free-text keyword matched against ALL card-visible text columns
+    // (title, municipality, bienLocalidad, address, province, bienProvincia,
+    // category, propertyType, propertyDescription, lotDescription,
+    // boeAnnouncement, boeId, auctionId, procedureNumber, courtName,
+    // cadastralRef, postalCode), accent + case-insensitive via shared
+    // normalizeText() + matching SQL translate(lower(...)). Validated &
+    // applied BEFORE the preStatusSqlLen snapshot below so totalCount &
+    // teaserCounts reflect the search-narrowed set.
+    const searchRaw = searchParams.get('search');
 
     // priceMax: positive finite number, else ignored.
     const priceMax = (() => {
@@ -678,6 +687,19 @@ export async function GET(request: NextRequest) {
       const list = categoriesRaw.split(',').map(s => s.trim()).filter(Boolean);
       const unique = [...new Set(list)];
       return unique.length > 0 ? unique : null;
+    })();
+    // searchTerm: trim, empty/whitespace -> null, cap length at 120 chars
+    // (defense against absurd %...% scans), then JS-fold via shared
+    // normalizeText() (lower + NFD + strip combining marks). The SQL side
+    // folds matching columns identically via translate(lower(COALESCE(col,''))),
+    // so a plain LIKE (not ILIKE) is correct and slightly cheaper.
+    const searchTerm = (() => {
+      if (!searchRaw) return null;
+      const trimmed = searchRaw.trim();
+      if (!trimmed) return null;
+      const capped = trimmed.length > 120 ? trimmed.slice(0, 120) : trimmed;
+      const folded = normalizeText(capped);
+      return folded || null;
     })();
     
     // Pagination params
@@ -758,7 +780,11 @@ export async function GET(request: NextRequest) {
       pctTasacionMax: pctTasacionMax ?? 'none',
       endsBefore: endsBefore ?? 'none',
       hasImage: hasImage ? 'true' : 'none',
-      categories: categoriesList ? categoriesList.join('|') : 'none'
+      categories: categoriesList ? categoriesList.join('|') : 'none',
+      // Keyed on the FOLDED form (post-normalizeText) so "Arguineguin" and
+      // "arguineguín" collapse to one cache entry — the SQL predicate also
+      // compares on the identical folded value.
+      search: searchTerm ?? 'none'
     };
     
     // Try cache first (30 second TTL)
@@ -869,11 +895,81 @@ export async function GET(request: NextRequest) {
     if (hasImage) {
       sql += ` AND "imageUrl" IS NOT NULL AND ("imageUrl" LIKE '/api/auction-image/%' OR "imageUrl" LIKE '/streetview/%')`;
     }
-    
+
+    // FORGE 2026-06-03 (search across ALL card-text columns, accent +
+    // case-insensitive, count-correct).
+    //
+    // Goal: typing "Arguineguin" must return EVERY listing whose card text
+    // contains that word in ANY of the rendered fields — title, municipality,
+    // bienLocalidad, address, province, bienProvincia, category, propertyType,
+    // propertyDescription, lotDescription, boeAnnouncement, boeId, auctionId,
+    // procedureNumber, courtName, cadastralRef, postalCode. Also accent-fold
+    // so "Arguineguín" (BOE spelling) matches "Arguineguin" (user typing).
+    //
+    // Why this placement: the predicate sits BEFORE preStatusSqlLen so
+    // (a) totalCount, (b) teaserCounts.active and .preAuction snapshots
+    // ALL include the search filter — the badge / result-count UI stays in
+    // sync with the visible row set. The cursor / OFFSET pagination below
+    // sees the same filtered base and stays correct over the narrowed pool.
+    //
+    // Why translate()+lower() and NOT unaccent(): unaccent is NOT installed on
+    // this DB (pg_trgm IS); we deliberately avoid a schema migration in this
+    // wave. The JS side folds via shared normalizeText() (lower + NFD +
+    // strip combining marks) so the bound term is already lowercase-and-
+    // accent-stripped. The SQL translate() list mirrors the Spanish accent
+    // set the JS produces. Keep both sides in sync — adding a char to one
+    // requires adding it to the other.
+    //
+    // Performance: over ~542 active rows this is a sub-50ms seq scan with
+    // multi-column LIKE %term%. No index needed at current scale.
+    if (searchTerm) {
+      // ACCENT_PAIRS — kept inline as a SQL literal so the placeholder count
+      // (the ? bindings) is exactly: 1 per column × 17 columns = 17 binds.
+      const SEARCH_COLUMNS = [
+        'title',
+        'municipality',
+        'bienLocalidad',
+        'address',
+        'province',
+        'bienProvincia',
+        'category',
+        'propertyType',
+        'propertyDescription',
+        'lotDescription',
+        'boeAnnouncement',
+        'boeId',
+        'auctionId',
+        'procedureNumber',
+        'courtName',
+        'cadastralRef',
+        'postalCode',
+      ];
+      // Spanish diacritic fold — covers á à ä â ã é è ë ê í ì ï î ó ò ö ô õ
+      // ú ù ü û ñ ç. JS normalizeText() already produces the de-accented
+      // lowercase form on the bound side, so we use plain LIKE (not ILIKE).
+      const ACCENT_FROM = 'áàäâãéèëêíìïîóòöôõúùüûñç';
+      const ACCENT_TO   = 'aaaaaeeeeiiiiooooouuuunc';
+      const orClauses = SEARCH_COLUMNS
+        .map((col) =>
+          `translate(lower(COALESCE(${col}, '')), '${ACCENT_FROM}', '${ACCENT_TO}') LIKE ?`
+        )
+        .join(' OR ');
+      sql += ` AND (${orClauses})`;
+      const like = `%${searchTerm}%`;
+      for (let i = 0; i < SEARCH_COLUMNS.length; i++) {
+        params.push(like);
+      }
+    }
+
     // FORGE 2026-06-02: snapshot AFTER all non-status, non-pagination filters.
     // This is the "filters minus status" prefix the teaser-count queries reuse,
     // so e.g. teaserCounts.active honors a `?province=Madrid` filter exactly
     // the same way the list does.
+    //
+    // FORGE 2026-06-03: `search` is included in this prefix (it's a
+    // non-status filter), so totalCount + teaserCounts.{active,preAuction}
+    // both reflect the search-narrowed set. This is what makes the result-
+    // count badge in the H1 stay truthful when Dennis types "Arguineguin".
     const preStatusSqlLen = sql.length;
     const preStatusParamsLen = params.length;
 

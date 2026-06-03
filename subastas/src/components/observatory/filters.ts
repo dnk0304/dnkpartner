@@ -309,6 +309,16 @@ export function filtersToApiParams(f: ObservatoryFilters): URLSearchParams {
   if (f.endsBefore) p.set("endsBefore", f.endsBefore);
   if (f.hasImage) p.set("hasImage", "true");
 
+  // Free-text search (FORGE 2026-06-03). The API filters on the FULL pool
+  // across every card-visible text column (title, municipality,
+  // bienLocalidad, address, province, bienProvincia, category, propertyType,
+  // propertyDescription, lotDescription, boeAnnouncement, boeId, auctionId,
+  // procedureNumber, courtName, cadastralRef, postalCode) — accent +
+  // case-insensitive. Sending this to the server is what makes search
+  // actually reach listings beyond the first page; the prior title-only
+  // client filter only saw the rows already loaded into memory.
+  if (f.search) p.set("search", f.search);
+
   // Sort — always send so SSR/CSR stay deterministic. Server default matches DEFAULT_SORT.
   if (f.sort) p.set("sort", f.sort);
 
@@ -494,10 +504,19 @@ export function isPresetActive(f: ObservatoryFilters, id: PresetId, opts?: { pro
 
 /**
  * Client-side post-filter for things the API doesn't filter on yet:
- *   - search keyword across title
  *   - broad kind bucket with >1 category
  *   - price range
  *   - municipality (when API only narrowed to province)
+ *
+ * NOTE (FORGE 2026-06-03): The free-text `f.search` branch USED to live here
+ * as a title-only `it.title.toLowerCase().includes(q)` check. That was
+ * broken — it only matched within the rows already paginated into memory
+ * (~50/page), and never against municipality/address/description. Search
+ * is now SERVER-SIDE in /api/auctions over the full pool, across every
+ * card-text column, accent + case-insensitive. We MUST NOT re-narrow that
+ * result set here — doing so would silently hide the municipality / address
+ * matches the server returned (e.g. "Arguineguin" matching `bienLocalidad`
+ * but not `title`). So: deliberately no `f.search` branch in this filter.
  */
 export function applyClientFilters<T extends {
   title: string;
@@ -506,11 +525,6 @@ export function applyClientFilters<T extends {
   currentBid?: number | null;
 }>(items: T[], f: ObservatoryFilters): T[] {
   return items.filter((it) => {
-    if (f.search) {
-      const q = f.search.toLowerCase();
-      if (!it.title.toLowerCase().includes(q)) return false;
-    }
-
     if (f.categories.length > 1) {
       if (!f.categories.includes(it.category as AuctionCategory)) return false;
     } else if (f.categories.length === 0) {
