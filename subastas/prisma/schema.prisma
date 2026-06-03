@@ -128,6 +128,31 @@ model Auction {
   registryInfo  String?
   contactInfo   String?
 
+  // Document-archive wave (2026-06-03) — discrete "Datos del bien" fields
+  // that today get lost inside the `lotDescription` blob. All additive +
+  // nullable; NULL means "not yet scraped / not present on BOE" (never a
+  // default, never backfilled-as-zero — same convention as pujaStatus/
+  // occupancy). Ghost parses + writes these via the adapter's information_
+  // schema guard so the migration is safe-to-apply-later.
+  //   postalCode          — código postal del bien
+  //   idufir              — IDUFIR (registry-wide unique identifier)
+  //   registryInscription — "Inscripción registral" string
+  //   legalTitle          — "Título jurídico" string
+  //   bienLocalidad       — bien-level locality (distinct from listing-
+  //                         level `municipality` so a bien in Móstoles on a
+  //                         juzgado-de-Madrid listing doesn't clobber the
+  //                         court's location).
+  //   bienProvincia       — bien-level province (same rationale).
+  //   viviendaHabitual    — true / false / NULL (BOE checkbox: "Vivienda
+  //                         habitual del deudor").
+  postalCode          String?
+  idufir              String?
+  registryInscription String?
+  legalTitle          String?
+  bienLocalidad       String?
+  bienProvincia       String?
+  viviendaHabitual    Boolean?
+
   // Media
   pdfUrl   String?
   imageUrl String?
@@ -161,6 +186,9 @@ model Auction {
   statusHistory  AuctionStatusHistory[]
   bidHistory     AuctionBidHistory[]
   outboxEvents   EventOutbox[]
+  // Document-archive wave (2026-06-03). One Auction has many AuctionDocument
+  // rows (nota simple, edicto, anexo, pliego, plus the single snapshot row).
+  documents      AuctionDocument[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -179,6 +207,63 @@ model Auction {
   @@index([municipality, status])
   // #14 split provenance: "all lotes of BOE auction X" + backfill lookups.
   @@index([sourceIdSub])
+}
+
+// ---------------------------------------------------------------------------
+// AuctionDocument — document-archive wave (2026-06-03)
+//
+// BOE exposes multiple PDFs per auction (NOTA_SIMPLE on ver=3, EDICTO on
+// ver=1, plus possible ANEXO/PLIEGO). Ghost mirrors each PDF to
+// /data/auction-docs/<safeKey(boeId)>/<filename>.pdf and writes one row per
+// document here. We keep both the BOE `officialUrl` (so the user can always
+// follow upstream) AND the local `storedPath` (so the app can serve
+// authoritatively + survive BOE link rot).
+//
+// A single per-auction "ver=3" snapshot HTML-print-to-PDF is also persisted
+// under sentinel kind="snapshot", idDoc="SNAPSHOT" — the @@unique on
+// (auctionId, idDoc) collapses re-scrapes to ONE snapshot row so the file is
+// overwritten in-place (Ken's storage-growth flag).
+//
+// STORAGE CONTRACT: storedPath is RELATIVE — `<safeKey(boeId)>/<filename>.pdf`.
+// Resolved at request time via AUCTION_DOCS_DIR (see
+// subastas/src/lib/auction-docs/storage.ts). The serve route validates the
+// stored path before reading from disk so a malformed row can never escape
+// the storage root.
+// ---------------------------------------------------------------------------
+
+model AuctionDocument {
+  id          String   @id @default(cuid())
+  auctionId   String
+  auction     Auction  @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+
+  // BOE "tipo" label normalized by Ghost.
+  //   NOTA_SIMPLE | EDICTO | ANEXO | PLIEGO | SNAPSHOT | OTRO
+  docType     String
+  // BOE link text, e.g. "NOTA SIMPLE REGISTRAL". Free-form, preserved verbatim.
+  title       String
+  // The verDocumento.php URL (or ver=3 detail URL for snapshots). Kept so the
+  // user can fall back to upstream when our cached file is unavailable.
+  officialUrl String?
+  // BOE idDoc query param — the dedup key. Snapshots use the sentinel
+  // "SNAPSHOT" so the @@unique collapses re-scrapes to one snapshot row.
+  idDoc       String?
+  // Relative path under AUCTION_DOCS_DIR, e.g. "BOE-B-2025-12345/nota.pdf".
+  // NULL when we have an officialUrl but haven't (yet) cached the file.
+  storedPath  String?
+  // "download" (an actual BOE-served PDF) | "snapshot" (our HTML-print-to-PDF).
+  kind        String   @default("download")
+  // Optional metadata; sizeBytes fits in Int (PDFs < 2 GB).
+  mimeType    String?
+  sizeBytes   Int?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Dedup: one row per (auction, BOE idDoc). Snapshots dedup via the sentinel
+  // idDoc="SNAPSHOT" so a re-scrape upserts the same row, overwriting the
+  // single per-auction snapshot file in place.
+  @@unique([auctionId, idDoc])
+  @@index([auctionId])
 }
 
 // ---------------------------------------------------------------------------

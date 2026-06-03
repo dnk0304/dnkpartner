@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { boeLinkFor } from '@/lib/boe-link';
+import { publicPathForDocId } from '@/lib/auction-docs/storage';
 
 export async function GET(
   _req: NextRequest,
@@ -25,7 +26,30 @@ export async function GET(
     return NextResponse.json({ success: false, error: 'id_required' }, { status: 400 });
   }
 
-  const auction = await prisma.auction.findUnique({ where: { id } });
+  // Include the AuctionDocument relation (document-archive wave, 2026-06-03).
+  // `include` instead of `select` so we keep the existing "every scalar" shape
+  // the detail page consumes (avoids enumerating ~60 columns + re-breaking on
+  // every additive migration). The BigInt-coercion below already guards
+  // `loteNumber` + `currentBidAmount`; AuctionDocument has no BigInt cols.
+  const auction = await prisma.auction.findUnique({
+    where: { id },
+    include: {
+      documents: {
+        select: {
+          id: true,
+          docType: true,
+          title: true,
+          officialUrl: true,
+          kind: true,
+          storedPath: true,
+        },
+        // Snapshots last so the visible BOE downloads (nota simple, edicto…)
+        // surface first on the detail page. createdAt asc within each kind
+        // preserves scrape order.
+        orderBy: [{ kind: 'asc' }, { createdAt: 'asc' }],
+      },
+    },
+  });
   if (!auction) {
     return NextResponse.json({ success: false, error: 'not_found' }, { status: 404 });
   }
@@ -81,11 +105,28 @@ export async function GET(
     if (!Number.isFinite(cents) || cents <= 0) return null;
     return cents / 100; // cents → euros (matches /api/auctions card projection)
   })();
+  // Project documents: expose a download URL (`/api/auction-doc/<id>`) for
+  // rows that have a cached file on disk; otherwise the caller falls back to
+  // `officialUrl` (the BOE link). The raw `storedPath` is NOT sent to the
+  // client — it's an internal storage detail.
+  const { documents: rawDocuments, ...auctionScalars } = auction;
+  const documents = rawDocuments.map((d) => ({
+    id: d.id,
+    docType: d.docType,
+    title: d.title,
+    kind: d.kind,
+    officialUrl: d.officialUrl,
+    // null when nothing has been cached locally yet — Pixel falls back to
+    // officialUrl in that case (same as the image route's fallback contract).
+    downloadUrl: d.storedPath ? publicPathForDocId(d.id) : null,
+  }));
+
   const projectedAuction = {
-    ...auction,
+    ...auctionScalars,
     boeLink: boeLinkFor(auction.boeId, auction.boeLink),
     loteNumber: Number.isFinite(loteNumberSafe as number) ? loteNumberSafe : null,
     currentBidAmount: currentBidAmountSafe,
+    documents,
   };
 
   return NextResponse.json({

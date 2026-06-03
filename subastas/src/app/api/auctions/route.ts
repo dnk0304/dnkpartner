@@ -130,6 +130,10 @@ interface AuctionFromDB {
   pujaStatus: string | null;
   currentBidAmount: string | number | bigint | null;
   occupancy: string | null;
+  // Document-archive wave (2026-06-03). Computed via a correlated EXISTS
+  // subquery in the SELECT so the list query stays single-shot. pg returns
+  // PG booleans as JS booleans through node-postgres.
+  hasDocuments: boolean | null;
 }
 
 // Map DB status to frontend status
@@ -406,6 +410,10 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
   const pujaStatus = normalizePujaStatus(item.pujaStatus);
   const currentBidAmount = bidCentsToEuros(item.currentBidAmount);
   const occupancy = normalizeOccupancy(item.occupancy);
+  // Document-archive wave (2026-06-03). pg returns boolean from EXISTS as
+  // a JS boolean; null/undefined collapse to false so cards never render
+  // the "documentos" indicator on a row we never queried for.
+  const hasDocuments = Boolean(item.hasDocuments);
 
   if (isLocked) {
     // Locked teaser
@@ -452,6 +460,10 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
       pujaStatus,
       currentBidAmount,
       occupancy,
+      // Document-archive wave (2026-06-03). Even locked teasers expose the
+      // boolean — the BOE document set is public information; locking it
+      // would be misleading without unlocking anything genuinely premium.
+      hasDocuments,
     };
   }
 
@@ -501,6 +513,8 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
     pujaStatus,
     currentBidAmount,
     occupancy,
+    // Document-archive wave (2026-06-03).
+    hasDocuments,
   };
 }
 
@@ -765,7 +779,27 @@ export async function GET(request: NextRequest) {
     // layered snapshots so the list SELECT, the list COUNT, and the teaser
     // counts ALL reuse the same upstream filters (province + category +
     // advanced filters + auction type). Single source of truth.
-    let sql = `SELECT * FROM Auction WHERE 1=1
+    // Document-archive wave (2026-06-03): correlated EXISTS subquery yields a
+    // per-row `hasDocuments` boolean so cards can show a compact "documentos"
+    // indicator without us inlining the full doc array on the list. Uses the
+    // ("AuctionDocument"."auctionId") index so cost is ~one index probe per row.
+    // The base SELECT shape is preserved (SELECT *) so downstream code that
+    // assumes every Auction column is present keeps working; we only ADD a
+    // computed column. Note: the snapshot-prefix slicing below uses
+    // `preStatusSqlLen`/`preCursorSqlLen` indexes into this string AFTER the
+    // SELECT line — those still work because the slices are computed AFTER
+    // this base assignment.
+    // db.ts auto-quotes mixed-case identifiers (Auction, AuctionDocument,
+    // hasDocuments, auctionId) so we write the SQL the same way the rest of
+    // this file does — unquoted PascalCase / camelCase. The alias `ad` is
+    // all-lowercase, which PG accepts unquoted, so no special handling
+    // needed there. The "AS hasDocuments" alias is auto-handled by the
+    // quote-aliases pass in db.ts.
+    let sql = `SELECT Auction.*, EXISTS (
+        SELECT 1 FROM AuctionDocument ad
+         WHERE ad.auctionId = Auction.id
+       ) AS hasDocuments
+      FROM Auction WHERE 1=1
       AND province IS NOT NULL
       AND LOWER(province) NOT IN ('unknown', 'desconocida', 'mapa de la zona', 'mapa del municipio', 'null', 'undefined')
       AND LENGTH(TRIM(province)) > 1`;
@@ -1020,11 +1054,26 @@ export async function GET(request: NextRequest) {
     // again. (The prior implementation tail-stripped LIMIT/OFFSET from the
     // already-mutated `sql` string, which silently included whatever cursor
     // was applied — wrong on the first paginated request.)
+    // Helper to strip the SELECT-list prefix off a snapshot of `sql` so we
+    // can reuse the predicate inside a COUNT query. The previous regex
+    // (`/^SELECT \* FROM Auction WHERE /`) broke when the document-archive
+    // wave widened the SELECT list with the `hasDocuments` EXISTS subquery
+    // (2026-06-03) — we now anchor on the stable `WHERE 1=1` boundary that
+    // every predicate snapshot includes.
+    const PREDICATE_BOUNDARY = 'WHERE 1=1';
+    const stripPredicate = (snapshot: string): string => {
+      const idx = snapshot.indexOf(PREDICATE_BOUNDARY);
+      // Defensive: if the boundary disappears in a future refactor, fall
+      // back to passing the whole snapshot through so the COUNT can still
+      // be debugged from logs rather than silently returning garbage.
+      return idx === -1 ? snapshot : snapshot.slice(idx);
+    };
+
     let totalCount: number | null = null;
     if (page === 1) {
       const listPredicateSql = sql.slice(0, preCursorSqlLen);
       const listPredicateParams = params.slice(0, preCursorParamsLen);
-      const countSql = `SELECT COUNT(*) as count FROM Auction WHERE ${listPredicateSql.replace(/^SELECT \* FROM Auction WHERE /, '')}`;
+      const countSql = `SELECT COUNT(*) as count FROM Auction ${stripPredicate(listPredicateSql)}`;
       const countRow = await queryOne<{ count: string | number }>(countSql, listPredicateParams);
       // PG returns COUNT(*) as bigint -> string; coerce.
       totalCount = countRow ? Number(countRow.count) : 0;
@@ -1053,11 +1102,11 @@ export async function GET(request: NextRequest) {
     if (tier === 'GUEST' && page === 1) {
       const basePredicateSql = sql.slice(0, preStatusSqlLen);
       const basePredicateParams = params.slice(0, preStatusParamsLen);
-      const baseWhere = basePredicateSql.replace(/^SELECT \* FROM Auction WHERE /, '');
+      const baseWhere = stripPredicate(basePredicateSql);
 
       const countWithStatus = async (statusSet: string[]): Promise<number> => {
         const placeholders = statusSet.map(() => '?').join(', ');
-        const countSql = `SELECT COUNT(*) as count FROM Auction WHERE ${baseWhere} AND status IN (${placeholders})`;
+        const countSql = `SELECT COUNT(*) as count FROM Auction ${baseWhere} AND status IN (${placeholders})`;
         const row = await queryOne<{ count: string | number }>(
           countSql,
           [...basePredicateParams, ...statusSet],

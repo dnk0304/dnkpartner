@@ -85,6 +85,10 @@ type FeedAuctionProjection = {
   pujaStatus: 'CON_PUJA' | 'SIN_PUJA' | null;
   currentBidAmount: number | null; // EUROS (BIGINT cents → number)
   occupancy: 'OCUPADO' | 'NO_OCUPADO' | 'NO_CONSTA' | null;
+  // Document-archive wave (2026-06-03). Lightweight flag derived from a
+  // Prisma `_count` on the AuctionDocument relation — no full doc array on
+  // the list/feed payload so the card query stays lean.
+  hasDocuments: boolean;
 };
 
 type FeedItem = {
@@ -213,6 +217,7 @@ function projectAuction(a: {
   pujaStatus?: string | null;
   currentBidAmount?: bigint | number | string | null;
   occupancy?: string | null;
+  _count?: { documents: number } | null;
 }): FeedAuctionProjection {
   return {
     id: a.id,
@@ -250,6 +255,11 @@ function projectAuction(a: {
       a.occupancy === 'OCUPADO' || a.occupancy === 'NO_OCUPADO' || a.occupancy === 'NO_CONSTA'
         ? a.occupancy
         : null,
+    // Document-archive wave: `_count.documents > 0` if at least one
+    // AuctionDocument row exists for this auction. Cards render a compact
+    // "documentos" indicator off this boolean; the full list ships via the
+    // detail endpoint.
+    hasDocuments: (a._count?.documents ?? 0) > 0,
   };
 }
 
@@ -283,6 +293,9 @@ const AUCTION_CARD_SELECT = {
   pujaStatus: true,
   currentBidAmount: true,
   occupancy: true,
+  // Document-archive wave (2026-06-03). `_count` produces `hasDocuments` on
+  // cards WITHOUT inlining the full doc array (keeps the list query lean).
+  _count: { select: { documents: true } },
 } as const;
 
 export async function GET(req: NextRequest) {
