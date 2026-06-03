@@ -48,13 +48,24 @@ DECISIONS LOCKED (per dispatch brief 2026-06-03)
    promote_pending_auctions key on — NOT the legacy PRE_AUCTION alias kept for
    TEJU). We pass status_override='PROXIMA_APERTURA' to parse_listing so a PA
    row is never mistagged CELEBRANDOSE (parse_listing's no-status-text default).
-2. opens_at is MANDATORY. validate_auction_data() drops any PA row whose
-   opens_at is missing or not in the future — such a row would never promote and
-   would pollute the bucket. The detail banner (_extract_detail_status) returns
-   None for a healthy "Próxima apertura" page, so the forced PROXIMA_APERTURA
-   survives; if the detail page genuinely says cancelada/concluida the status
-   override changes it away from PROXIMA_APERTURA and the gate then drops it (it
-   is no longer a pre-auction). Both behaviours are correct.
+2. opens_at is OPTIONAL for PA rows (was MANDATORY — REVERSED 2026-06-03 after
+   Ken verified live that BOE publishes NO opening date during the PA phase).
+   A "Próxima apertura" auction has not been scheduled to open yet, so its detail
+   page has NO "Fecha de inicio"/"Fecha de conclusión" and ZERO date tokens
+   (confirmed on 6/6 PA detail pages JA/JC/JV). A mandatory-future-opens_at gate
+   is therefore UNSATISFIABLE for any PA row and dropped all 116. So
+   validate_auction_data() now ACCEPTS a NULL opens_at (the normal PA state); it
+   only rejects an opens_at that is present-but-not-a-future-datetime (a past/now
+   value means the row already opened — not a pre-auction). This is SAFE:
+   promote_pending_auctions (PROXIMA_APERTURA -> CELEBRANDOSE WHERE opensAt IS NOT
+   NULL AND opensAt<=now) NO-OPs on a NULL opensAt, so the row sits harmlessly in
+   the Próximas bucket until the normal daily celebration scrape finds it open and
+   the idempotent boe_id upsert flips it to CELEBRANDOSE (backfilling opensAt).
+   The detail banner (_extract_detail_status) returns None for a healthy
+   "Próxima apertura" page, so the forced PROXIMA_APERTURA survives; if the detail
+   page genuinely says cancelada/concluida the status override changes it away
+   from PROXIMA_APERTURA and the status gate then drops it (no longer a
+   pre-auction). Both behaviours are correct.
 3. Cadence: every 6h (4x/day), registered in scheduler.setup_schedule and run
    through scheduler._run_sync_scrape (loop-free thread).
 4. Scope (first cut): judicial family nationwide (ORIGEN=J). If BOE returns its
@@ -112,10 +123,14 @@ class BOEPreAuctionScraper(BOEParallelScraper):
           * status must be PROXIMA_APERTURA (a row whose detail page said
             cancelada/concluida/suspendida got overridden away — it is no longer
             a pre-auction, so we drop it from this pass);
-          * opens_at must be present AND strictly in the future (it is the field
-            promote_pending_auctions keys on to flip PROXIMA_APERTURA ->
-            CELEBRANDOSE; without a real future value the row would never promote
-            and would pollute the "Próximas" bucket).
+          * opens_at is OPTIONAL. BOE publishes NO opening date during the PA
+            phase (verified live 2026-06-03: Fecha de inicio absent on every PA
+            detail), so a NULL opens_at is the NORMAL pre-auction state and is
+            ACCEPTED. If an opens_at IS present it must be a future datetime (a
+            past/now value means the row already opened — not a pre-auction).
+            promote_pending_auctions NO-OPs on NULL opensAt, so a NULL-opensAt PA
+            row sits harmlessly in the Próximas bucket until a later scrape
+            backfills the date (idempotent boe_id upsert), then promotes it.
         """
         if not super().validate_auction_data(data):
             return False
@@ -127,29 +142,27 @@ class BOEPreAuctionScraper(BOEParallelScraper):
             )
             return False
 
+        # PA pages publish NO opening date until BOE schedules the auction
+        # (verified live 2026-06-03: Fecha de inicio absent on every PA detail).
+        # A NULL opens_at is the NORMAL pre-auction state — ACCEPT it. Only when
+        # an opens_at IS present do we require it to be a future datetime.
         opens_at = data.get('opens_at')
-        if opens_at is None:
-            self.log_info(
-                f"  Skip {data.get('boe_id')}: no opens_at (Fecha de inicio "
-                f"missing on detail page) — would never promote"
-            )
-            return False
-
-        # opens_at is a datetime by the time the detail extractor sets it.
-        if not isinstance(opens_at, datetime):
-            self.log_warning(
-                f"  Skip {data.get('boe_id')}: opens_at not a datetime "
-                f"({opens_at!r})"
-            )
-            return False
-
-        if opens_at <= datetime.now():
-            self.log_info(
-                f"  Skip {data.get('boe_id')}: opens_at {opens_at} is not in the "
-                f"future — promote_pending_auctions would flip it immediately / "
-                f"it already opened"
-            )
-            return False
+        if opens_at is not None:
+            if not isinstance(opens_at, datetime):
+                self.log_warning(
+                    f"  Skip {data.get('boe_id')}: opens_at not a datetime "
+                    f"({opens_at!r})"
+                )
+                return False
+            if opens_at <= datetime.now():
+                self.log_info(
+                    f"  Skip {data.get('boe_id')}: opens_at {opens_at} is not in "
+                    f"the future — already opened (not a pre-auction)"
+                )
+                return False
+        # opens_at None -> accept (PA rows have no opening date yet; it will be
+        # backfilled by the idempotent boe_id upsert when BOE schedules the
+        # apertura and the daily celebration scrape finds it open).
 
         return True
 
@@ -454,7 +467,7 @@ class BOEPreAuctionScraper(BOEParallelScraper):
             progress['total_auctions'] = saved
             self.log_info(
                 f"PA discovery complete: found={progress['total_found']}, "
-                f"saved(PROXIMA_APERTURA w/ future opensAt)={saved}"
+                f"saved(PROXIMA_APERTURA)={saved}"
             )
         except Exception as e:
             self.log_error(f"PA discovery failed: {e}")

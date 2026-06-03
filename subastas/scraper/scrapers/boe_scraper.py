@@ -841,6 +841,15 @@ class BOEScraper(BaseScraper):
                 # never coerce a missing value to 0 (NULL is the honest signal).
                 if detail_info.get('appraisal_value') is not None:
                     auction_data['appraisal_value'] = detail_info['appraisal_value']
+                # Tasación -> Valor subasta fallback (mirrors the lote-split path
+                # ~L2047). BOE renders "Tasación 0,00 €" on most judicial pages
+                # (every PA detail, verified live 2026-06-03) while the real
+                # figure lives under "Valor subasta". When appraisal_value is
+                # still falsy (None or 0) use valor_subasta so a single-row
+                # auction never lands with a meaningless appraisal — never
+                # fabricate: only adopt a real valor_subasta.
+                if not auction_data.get('appraisal_value') and detail_info.get('valor_subasta'):
+                    auction_data['appraisal_value'] = detail_info['valor_subasta']
                 if detail_info.get('minimum_bid') is not None:
                     auction_data['minimum_bid'] = detail_info['minimum_bid']
                 if detail_info.get('deposit_amount') is not None:
