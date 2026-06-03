@@ -465,6 +465,166 @@ class ScraperScheduler:
             self.log(traceback.format_exc())
 
     # -----------------------------------------------------------------------
+    # cleanup_withdrawn_preauctions — withdrawn-before-opening sweep
+    # -----------------------------------------------------------------------
+    # Dennis's rule: an upcoming (PROXIMA_APERTURA) auction that DISAPPEARS from
+    # BOE before it ever opens (withdrawn / cancelled, never reaches public
+    # auction) must be REMOVED from the public site but KEPT internally with its
+    # full state history.
+    #
+    # Detection without a schema change: the idempotent boe_id upsert
+    # (adapter.py) stamps "updatedAt" = now on EVERY re-discovery of an existing
+    # row. So a PROXIMA_APERTURA row that is STILL in BOE's PA results gets its
+    # "updatedAt" advanced on each discovery pass. A row whose "updatedAt" has
+    # NOT advanced in GRACE_WINDOW (36h ~= 6 consecutive 6h discovery misses) is
+    # genuinely gone from BOE — a consecutive-miss counter with no counter column.
+    #
+    # Candidate predicate:
+    #   status = 'PROXIMA_APERTURA'        -- upcoming, not yet promoted
+    #   AND opensAt IS NULL                -- never got an opening date (a row WITH
+    #                                         a future opensAt is promote_pending's
+    #                                         job, not a withdrawal candidate)
+    #   AND updatedAt < now() - 36h        -- missed ~6 consecutive discovery runs
+    #
+    # FALSE-REMOVAL FLOOR: this sweep runs ONLY at the tail of a real discovery
+    # pass, and is SKIPPED entirely if that pass found 0 results. A flaky / empty
+    # / BOE-down run must never trigger a mass withdrawal of the whole bucket.
+    #
+    # Transition: candidates -> CANCELADA, stamping suspensionReason =
+    # 'WITHDRAWN_PRE_AUCTION', flipped through emit_status_change so the prior
+    # state (PROXIMA_APERTURA -> CANCELADA) is retained in AuctionStatusHistory.
+    # NO hard-delete. NO schema add. CANCELADA is not in ACTIVE_DB_STATUSES (542
+    # untouched) and not in the Próximas bucket -> gone from those public surfaces.
+    # (CANCELADA still leaks into the public "Finalizadas" tab — a small Forge
+    # follow-up must EXCLUDE suspensionReason='WITHDRAWN_PRE_AUCTION' there before
+    # any row is actually withdrawn; flagged to Ken, NOT done here.)
+    #
+    # GRACE_WINDOW is tunable via PREAUCTION_WITHDRAW_GRACE_HOURS (default 36).
+    # -----------------------------------------------------------------------
+    def cleanup_withdrawn_preauctions(self, found_this_run):
+        """
+        Withdraw PROXIMA_APERTURA rows that disappeared from BOE before opening.
+
+        Runs at the TAIL of run_preauction_discovery() only. `found_this_run` is
+        the discovery pass's found count; if it is <= 0 the sweep is skipped to
+        avoid mass false-removal on a flaky/empty BOE run.
+
+        Candidates (status='PROXIMA_APERTURA' AND opensAt IS NULL AND
+        updatedAt < now - GRACE_WINDOW) flip to CANCELADA with
+        suspensionReason='WITHDRAWN_PRE_AUCTION' via emit_status_change, which
+        writes EventOutbox (auction.finished) + AuctionStatusHistory in the same
+        transaction. No hard-delete, no schema change.
+        """
+        # ---- False-removal floor: never sweep on an empty/flaky discovery run --
+        if not found_this_run or found_this_run <= 0:
+            self.log(
+                "  Withdrawal sweep skipped — discovery found 0 this run "
+                "(avoiding false mass-removal of PROXIMA_APERTURA bucket)"
+            )
+            return
+
+        is_postgres = DATABASE_URL and ('postgresql://' in DATABASE_URL or 'postgres://' in DATABASE_URL)
+        if not is_postgres:
+            self.log("  Withdrawal sweep skipped (not Postgres — no DATABASE_URL configured)")
+            return
+
+        grace_hours = int(os.getenv("PREAUCTION_WITHDRAW_GRACE_HOURS", "36"))
+
+        self.log(
+            f"Sweeping withdrawn pre-auctions "
+            f"(PROXIMA_APERTURA, opensAt NULL, not re-seen in {grace_hours}h)..."
+        )
+
+        try:
+            conn = self._get_pg_conn()
+            cursor = conn.cursor()
+            now = datetime.utcnow()
+            stale_before = now - timedelta(hours=grace_hours)
+
+            # Candidate predicate: upcoming, never opened, missed ~6 runs.
+            cursor.execute(f"""
+                SELECT id, "boeId", "endsAt", status, title,
+                       "boeLink", province, municipality,
+                       "appraisalValue", "currentBid", "updatedAt"
+                FROM "Auction"
+                WHERE status = 'PROXIMA_APERTURA'
+                  AND "opensAt" IS NULL
+                  AND "updatedAt" < %s
+                  AND {LEGACY_EXCLUSION_SQL}
+            """, (stale_before,))
+            candidates = cursor.fetchall()
+
+            if not candidates:
+                self.log("  No withdrawn pre-auctions to sweep")
+                cursor.close()
+                conn.close()
+                return
+
+            self.log(f"  Found {len(candidates)} withdrawn pre-auctions to withdraw -> CANCELADA")
+
+            # Same import shim promote_pending_auctions uses.
+            sys.path.insert(0, '/')
+            from app.database.outbox import emit_status_change
+
+            withdrawn_ids = [row[0] for row in candidates]
+            # Flip to CANCELADA + stamp the WITHDRAWN_PRE_AUCTION sentinel so the
+            # frontend can distinguish a withdrawn-pre-auction from a normal
+            # cancelled-after-opening. NO hard-delete — the row stays SELECTable.
+            cursor.execute("""
+                UPDATE "Auction"
+                SET status = 'CANCELADA',
+                    "suspensionReason" = 'WITHDRAWN_PRE_AUCTION',
+                    "transitionedAt" = %s,
+                    "updatedAt" = %s
+                WHERE id = ANY(%s)
+            """, (now, now, withdrawn_ids))
+
+            for (
+                auction_id, boe_id, ends_at, from_status, title,
+                boe_link, province, municipality,
+                appraisal_value, current_bid, updated_at,
+            ) in candidates:
+                # Record Dennis wants: boeId + prior state per withdrawal.
+                self.log(
+                    f"    Withdrew {boe_id} (prior state {from_status}, "
+                    f"last seen {updated_at}) -> CANCELADA"
+                )
+                try:
+                    emit_status_change(
+                        cursor,
+                        auction_id=auction_id,
+                        boe_id=boe_id or "",
+                        boe_link=boe_link or f"https://subastas.boe.es/detalleSubasta.php?idSub={boe_id}",
+                        title=title or "",
+                        from_status=from_status,                 # PROXIMA_APERTURA
+                        to_status="CANCELADA",                   # -> auction.finished event + history
+                        province=province or "",
+                        municipality=municipality or "",
+                        appraisal_value=float(appraisal_value or 0),
+                        current_bid=float(current_bid) if current_bid else None,
+                        ends_at=ends_at,
+                        suspension_reason="WITHDRAWN_PRE_AUCTION",
+                        detected_by="scheduler.cleanup_withdrawn_preauctions",
+                    )
+                except Exception as e:
+                    self.log(f"  Warning: withdrawal outbox write failed for {boe_id}: {e}")
+
+            conn.commit()
+            self.log(
+                f"  Withdrew {len(candidates)} pre-auctions "
+                f"(disappeared from BOE, never opened) -> CANCELADA "
+                f"(history retained, no hard-delete)"
+            )
+
+            cursor.close()
+            conn.close()
+
+        except Exception as e:
+            self.log(f"  Error in cleanup_withdrawn_preauctions: {e}")
+            import traceback
+            self.log(traceback.format_exc())
+
+    # -----------------------------------------------------------------------
     # scrape_pulse — Wave 1 close-out (direct psycopg2) + Wave 2a (outbox)
     # -----------------------------------------------------------------------
 
@@ -687,6 +847,11 @@ class ScraperScheduler:
                 f"  Pre-auction discovery complete: found={found}, "
                 f"saved(PROXIMA_APERTURA)={saved}, errors={errors}"
             )
+            # Withdrawn-before-opening cleanup runs at the TAIL of the discovery
+            # pass — on the back of fresh BOE truth, with the found>0 floor inside
+            # cleanup_withdrawn_preauctions guarding against a flaky/empty run.
+            # Not registered as its own job: it must only fire after a real pass.
+            self.cleanup_withdrawn_preauctions(found)
         except Exception as e:
             self.log(f"  Pre-auction discovery exception: {e}")
             import traceback
