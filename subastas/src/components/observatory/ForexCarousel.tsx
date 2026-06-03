@@ -479,13 +479,11 @@ export function ForexCarousel({
           >
             Últimas actualizaciones
           </h2>
-          <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-[--color-ink-tertiary] tnum">
-            <span
-              aria-hidden="true"
-              className="h-1.5 w-1.5 rounded-full bg-[--color-status-live] dnk-pulse"
-            />
-            {items.length} activas
-          </span>
+          {/* Per Dennis (2026-06-03): removed the "{items.length} activas"
+              indicator. `items.length` is the carousel's fetch cap (30), not
+              the real active total (~541), so surfacing it here read as a
+              site-wide count and was misleading. The pulse-dot stays implicit
+              in the live cards themselves. */}
         </div>
 
         <div className="flex items-center gap-1.5">

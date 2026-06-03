@@ -135,7 +135,10 @@ export function HomeQuickFilterChips({
           "md:flex-wrap md:overflow-visible md:mx-0 md:px-0 md:pb-0",
         )}
       >
-        {/* "Todas" — clears all chips. */}
+        {/* "Todas" — clears all chips. Per Dennis (2026-06-03): no count
+            pill here. The number we had was the carousel's fetch cap (30),
+            not the true active total, so it read as a misleading site count.
+            `driftingCount` is intentionally not rendered. */}
         <button
           type="button"
           onClick={clearAll}
@@ -143,11 +146,6 @@ export function HomeQuickFilterChips({
           className={chipClass(isAllActive)}
         >
           <span>Todas</span>
-          {typeof driftingCount === "number" && (
-            <span className={countPillClass(isAllActive)} aria-label={`${driftingCount} activas`}>
-              {driftingCount.toLocaleString("es-ES")}
-            </span>
-          )}
         </button>
 
         {/* Primary properties-first category chips */}
