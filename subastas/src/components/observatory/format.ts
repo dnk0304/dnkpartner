@@ -151,6 +151,58 @@ export function formatDaysLeft(target: string | Date | null | undefined): string
   return `${dl} d`;
 }
 
+/**
+ * prettifyAuctionType — turn a raw category/propertyType label into the
+ * short, human-readable headline shown on the carousel card.
+ *
+ * Inputs:
+ *   - `propertyType` from the BOE bien-heading parse: e.g. "Inmueble
+ *     (Trastero)", "Trastero", "Garaje".
+ *   - `category` from the row-level scraper: e.g. "Viviendas", "Trasteros",
+ *     "Otros inmuebles".
+ *
+ * Behaviour:
+ *   - Strip a leading "Inmueble (…)" wrapper so the parens label is the type.
+ *   - Singularise the obvious plurals so the headline reads as "this card =
+ *     ONE of these" ("Viviendas" → "Vivienda"). The list is intentionally
+ *     short — better to render the raw category than to risk a wrong singular.
+ *   - Generic fallback ("Subasta") for null / empty / "Unknown".
+ *
+ * Never returns the BOE ref — refs are NEVER headlines.
+ */
+export function prettifyAuctionType(input: string | null | undefined): string {
+  const raw = (input ?? "").trim();
+  if (!raw || raw.toLowerCase() === "unknown") return "Subasta";
+
+  // Strip "Inmueble (TYPE)" → "TYPE".
+  const parens = raw.match(/^\s*Inmueble\s*\(([^)]+)\)\s*$/i);
+  const stripped = (parens ? parens[1] : raw).trim();
+
+  // Singularise common Spanish plurals from the category set.
+  const SINGULAR: Record<string, string> = {
+    viviendas: "Vivienda",
+    garajes: "Garaje",
+    trasteros: "Trastero",
+    terrenos: "Terreno",
+    locales: "Local",
+    "fincas rústicas": "Finca rústica",
+    "naves industriales": "Nave industrial",
+    "otros inmuebles": "Otros inmuebles",
+    turismos: "Turismo",
+    motocicletas: "Motocicleta",
+    "vehículos industriales": "Vehículo industrial",
+    barcos: "Barco",
+    maquinaria: "Maquinaria",
+    joyas: "Joya",
+    arte: "Arte",
+  };
+  const lower = stripped.toLowerCase();
+  if (SINGULAR[lower]) return SINGULAR[lower];
+
+  // Default: capitalise first letter (preserves accents).
+  return capitalize(stripped);
+}
+
 /** Title-case a multi-word string, preserving common Spanish particles. */
 export function titleCase(value: string | null | undefined): string {
   if (!value) return "";

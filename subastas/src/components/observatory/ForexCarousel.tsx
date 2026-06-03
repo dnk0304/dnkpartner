@@ -7,8 +7,8 @@
  * Cards drift sideways at a slow, readable pace like a stock-ticker or
  * airport departures board. As a card exits one edge, the duplicated track
  * makes it look like it re-enters the other — a seamless infinite loop. The
- * track is rendered TWICE back-to-back and translated by exactly -50% over a
- * long linear-infinite keyframe, so there is no visible seam.
+ * track is rendered TWICE back-to-back and translated negatively by JS rAF
+ * (modulo trackWidth) so the loop is invisible.
  *
  * Driven by `HomeQuickFilterChips` (one section, one component sharing state
  * upstream). The `category` / `province` / `when` props are passed straight
@@ -21,8 +21,19 @@
  *   - `prefers-reduced-motion` REQUIRED: the auto-motion is suspended and the
  *     row becomes a manually scrollable flat strip with drag + arrow buttons.
  *     We never ship motion the OS setting can't stop.
- *   - When paused (via `pause` prop — modal open), the keyframe halts so the
- *     card behind the modal stays still.
+ *   - When paused (via `pause` prop — modal open), the rAF loop freezes so
+ *     the card behind the modal stays still.
+ *
+ * Drag-to-scrub (2026-06-03, Dennis):
+ *   - On the motion-OK path the marquee track is a JS rAF translate loop
+ *     (not a CSS keyframe) so a pointer-drag can SCRUB on top of the drift.
+ *   - Pointer-down + horizontal move past a 5px threshold = the user is
+ *     scrubbing: we pause the auto-drift and translate the track by the
+ *     drag delta. On release the rAF auto-drift resumes from the current
+ *     position — no jump back to 0.
+ *   - A click that doesn't cross the threshold still fires `onCardClick`.
+ *   - Reduced-motion path is UNTOUCHED: it's already a native overflow-x
+ *     scroller — manual drag is free, no JS motion to clean up.
  *
  * Source: `/api/auctions/recent?limit=...&types=auction,status,bid&activeOnly=1`,
  * polls every 60s, refetches the moment any chip changes.
@@ -41,21 +52,29 @@ import { resolveCardImage, isVariosLotesTitle } from "@/lib/resolve-card-image";
 import {
   formatPrice,
   formatDaysLeft,
+  formatDateMed,
   daysLeft,
-  displayTitle,
   capitalize,
   titleCase,
+  prettifyAuctionType,
 } from "./format";
 import { cn } from "@/lib/utils";
 
 export type FeedAuction = {
   id: string;
+  /** BOE reference (e.g. "SUB-NH-2026-1646077"). Server projection (see
+   *  `/api/auctions/recent` route, `FeedAuctionProjection.boeId`). Surfaced as
+   *  the small secondary line on the card — never the headline. */
+  boeId?: string | null;
   title: string;
   category: string;
   province: string | null;
   municipality: string | null;
   status: string;
   auctionType: string | null;
+  /** BOE bien-heading type ("Trastero", "Garaje", …). Populated by the
+   *  doc-archive scraper backfill — most active rows are still null today,
+   *  so the card falls back to `category`. Drives the type headline. */
   propertyType: string | null;
   currentBid: number | null;
   appraisalValue: number | null;
@@ -94,11 +113,14 @@ const ACTIVE_STATUSES = new Set([
 
 /**
  * Marquee pixels-per-second. Slow enough to read a card as it passes (a
- * 260px card takes ~13s to cross at 20 px/s). The keyframe duration is
- * derived from this + the measured track width so adding/removing cards
- * keeps the same perceived speed.
+ * 260px card takes ~13s to cross at 22 px/s). Drives the rAF loop's per-
+ * frame translate delta.
  */
 const MARQUEE_PX_PER_SEC = 22;
+
+/** Drag threshold (px). Movement below this counts as a click — preserves
+ *  the card's `onCardClick` for a tap that didn't intend to scrub. */
+const DRAG_THRESHOLD_PX = 5;
 
 /**
  * Pick the first numeric value that is finite AND > 0. The `recent` feed
@@ -132,6 +154,14 @@ function cleanLoc(value: string | null | undefined): string {
   const t = value.trim();
   if (!t || t.toLowerCase() === "unknown") return "";
   return t;
+}
+
+/** True when `raw` looks like a BOE auction reference (SUB-…), not a real
+ *  human title. Used to decide whether to hide the upstream `title` from the
+ *  card — refs go in the small secondary line, never in the headline. */
+function isBoeRefLike(raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  return /^SUB[-A-Z0-9]+/i.test(raw.trim());
 }
 
 export type ForexCarouselProps = {
@@ -177,6 +207,7 @@ export function ForexCarousel({
   const [loading, setLoading] = React.useState(true);
   const [hovered, setHovered] = React.useState(false);
   const [reducedMotion, setReducedMotion] = React.useState(false);
+  const [dragging, setDragging] = React.useState(false);
   const scrollerRef = React.useRef<HTMLDivElement | null>(null);
   const trackRef = React.useRef<HTMLDivElement | null>(null);
   const [trackWidth, setTrackWidth] = React.useState<number | null>(null);
@@ -235,10 +266,9 @@ export function ForexCarousel({
     onItemsCountChange?.(items.length);
   }, [items.length, onItemsCountChange]);
 
-  // Measure the unduplicated track width so we can derive a keyframe
-  // duration proportional to content length (keeps perceived speed constant
-  // whether 6 cards or 30 are drifting). ResizeObserver re-fires on layout
-  // shifts and when the chip filter mutates the row set.
+  // Measure the unduplicated track width so the rAF loop knows where to wrap.
+  // ResizeObserver re-fires on layout shifts and when the chip filter mutates
+  // the row set.
   React.useEffect(() => {
     const el = trackRef.current;
     if (!el) return;
@@ -262,14 +292,169 @@ export function ForexCarousel({
     el.scrollBy({ left: dir * step, behavior: "smooth" });
   };
 
-  // Animation runs unless: reduced-motion, external pause, hover, or empty.
-  const animationPaused = reducedMotion || pause || hovered || items.length === 0;
-  const animationDurationSec =
-    trackWidth && trackWidth > 0 ? Math.max(20, trackWidth / MARQUEE_PX_PER_SEC) : 60;
+  // ─── rAF translate loop + drag scrub ─────────────────────────────────────
+  // Drift is auto unless: reduced-motion, external pause, hover, dragging,
+  // or empty. The same `offsetRef` is the source of truth: rAF advances it
+  // each frame, drag adds to it directly. On release the loop continues from
+  // wherever the drag left it — no snap-back.
+  const offsetRef = React.useRef(0);
+  const rafRef = React.useRef<number | null>(null);
+  const lastTickMsRef = React.useRef<number | null>(null);
+  const draggingRef = React.useRef(false);
+  // We also keep a ref mirror of hover/pause/empty so the rAF callback never
+  // re-reads stale closure state from the previous frame.
+  const pausedRef = React.useRef(false);
 
-  // Decide once which surface to render: a duplicated marquee (default) or a
-  // single manually-scrolled row (reduced-motion fallback).
+  // Apply the current offset to the DOM (transform). One write per frame —
+  // `will-change: transform` already promotes it to the compositor.
+  const applyOffset = React.useCallback((px: number) => {
+    const el = trackRef.current;
+    if (!el) return;
+    el.style.transform = `translate3d(${px}px, 0, 0)`;
+  }, []);
+
+  // Wrap the offset into [-trackWidth, 0]. Modulo keeps it stable as the
+  // duplicate-track makes both ends look identical at the wrap point.
+  const wrapOffset = React.useCallback((px: number, width: number): number => {
+    if (width <= 0) return px;
+    // Force into a single period of length `width`. Result is in (-width, 0].
+    let next = px % width;
+    if (next > 0) next -= width;
+    return next;
+  }, []);
+
+  // Decide whether motion should be running.
   const useStaticScroller = reducedMotion;
+  const isEmpty = items.length === 0;
+  const baseShouldPause =
+    pause || hovered || isEmpty || trackWidth == null || trackWidth <= 0;
+  pausedRef.current = baseShouldPause;
+
+  React.useEffect(() => {
+    if (useStaticScroller) return; // reduced-motion → no rAF loop
+    if (isEmpty || trackWidth == null || trackWidth <= 0) return;
+
+    const tick = (now: number) => {
+      const last = lastTickMsRef.current ?? now;
+      const dt = Math.max(0, now - last); // ms
+      lastTickMsRef.current = now;
+
+      // Auto-drift only when neither paused nor actively being dragged.
+      if (!pausedRef.current && !draggingRef.current) {
+        const delta = -(MARQUEE_PX_PER_SEC * dt) / 1000;
+        const next = wrapOffset(offsetRef.current + delta, trackWidth);
+        offsetRef.current = next;
+        applyOffset(next);
+      }
+      rafRef.current = window.requestAnimationFrame(tick);
+    };
+
+    // Ensure the visible position matches state on (re)mount.
+    applyOffset(offsetRef.current);
+    lastTickMsRef.current = null;
+    rafRef.current = window.requestAnimationFrame(tick);
+
+    return () => {
+      if (rafRef.current != null) {
+        window.cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [useStaticScroller, isEmpty, trackWidth, applyOffset, wrapOffset]);
+
+  // Reset the offset when the item set fully turns over (e.g. a filter chip
+  // changes the underlying card list). Otherwise a long offset from the old
+  // set would translate the new (likely narrower) set off-screen.
+  React.useEffect(() => {
+    offsetRef.current = 0;
+    applyOffset(0);
+  }, [items, applyOffset]);
+
+  // ─── Drag handlers (pointer events — covers mouse + touch + pen) ────────
+  // We track a `startX` + `startOffset` + a `crossedThreshold` flag. Below
+  // the threshold the gesture is still ambiguous (might be a click). Once
+  // crossed, we pause auto-drift, capture the pointer, and stream the
+  // delta straight to the transform.
+  const dragStateRef = React.useRef<{
+    pointerId: number;
+    startX: number;
+    startOffset: number;
+    crossedThreshold: boolean;
+  } | null>(null);
+
+  const onPointerDown = React.useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (useStaticScroller) return;
+      // Only react to the primary button (left mouse / single touch / pen tip).
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      dragStateRef.current = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startOffset: offsetRef.current,
+        crossedThreshold: false,
+      };
+    },
+    [useStaticScroller],
+  );
+
+  const onPointerMove = React.useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const drag = dragStateRef.current;
+      if (!drag || drag.pointerId !== e.pointerId) return;
+      const dx = e.clientX - drag.startX;
+      if (!drag.crossedThreshold) {
+        if (Math.abs(dx) < DRAG_THRESHOLD_PX) return;
+        // Cross the threshold: lock in drag mode.
+        drag.crossedThreshold = true;
+        draggingRef.current = true;
+        setDragging(true);
+        // Capture so we keep receiving move/up events even if the pointer
+        // leaves the element bounds while dragging.
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId);
+        } catch {
+          /* setPointerCapture can throw if the pointer is already released */
+        }
+      }
+      const tw = trackWidth ?? 0;
+      const next = wrapOffset(drag.startOffset + dx, tw);
+      offsetRef.current = next;
+      applyOffset(next);
+      // Once dragging, we own the gesture — stop the browser from also
+      // interpreting it as text selection.
+      e.preventDefault();
+    },
+    [applyOffset, trackWidth, wrapOffset],
+  );
+
+  const endDrag = React.useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const drag = dragStateRef.current;
+      if (!drag || drag.pointerId !== e.pointerId) return;
+      dragStateRef.current = null;
+      if (drag.crossedThreshold) {
+        // Release pointer capture; the rAF auto-drift takes over from the
+        // current offset on the next frame.
+        try {
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        } catch {
+          /* ignore */
+        }
+        draggingRef.current = false;
+        setDragging(false);
+        // Reset the timer so the next frame doesn't dump an accumulated dt
+        // from however long the drag took.
+        lastTickMsRef.current = null;
+      }
+    },
+    [],
+  );
+
+  // A genuine click (no threshold crossed) should NOT propagate as a drag —
+  // and a drag that DID cross the threshold should swallow the click so the
+  // card doesn't open a modal we never meant to open. We use the pointerup's
+  // `crossedThreshold` flag, but it's reset by endDrag — so capture it first
+  // with a click-capture handler on the card surface (see ExpandedCard).
 
   return (
     <section
@@ -366,16 +551,24 @@ export function ForexCarousel({
           ))}
         </div>
       ) : (
-        /* Marquee: a duplicated track translated -50% over a long linear loop.
-           `overflow-hidden` clips the off-screen half — the duplicate is what
-           hides the seam. Edge fade-mask softens cards appearing/leaving. */
+        /* Marquee: a duplicated track translated by the rAF loop. The drag
+           handlers live on the OUTER overflow-hidden box so the user can
+           grab anywhere in the strip; pointer-capture stops escape on fast
+           movement.
+
+           touch-action: pan-y lets vertical page scroll pass through on
+           touch — we only own horizontal drag, never block the user's
+           scroll-down gesture. */
         <div
           className={cn(
-            "relative overflow-hidden",
+            "relative overflow-hidden select-none",
             // Subtle horizontal fade so cards don't pop in/out at hard edges.
             "[mask-image:linear-gradient(to_right,transparent,black_24px,black_calc(100%-24px),transparent)]",
             "[-webkit-mask-image:linear-gradient(to_right,transparent,black_24px,black_calc(100%-24px),transparent)]",
+            // Cursor affordance: open hand at rest, closed when scrubbing.
+            dragging ? "cursor-grabbing" : "cursor-grab",
           )}
+          style={{ touchAction: "pan-y" }}
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
           onFocusCapture={() => setHovered(true)}
@@ -385,16 +578,17 @@ export function ForexCarousel({
               setHovered(false);
             }
           }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
         >
           <div
             ref={trackRef}
             role="region"
             aria-label="Carrusel de subastas activas"
             className="flex gap-2 px-3 py-3 w-max will-change-transform"
-            style={{
-              animation: `dnk-marquee ${animationDurationSec}s linear infinite`,
-              animationPlayState: animationPaused ? "paused" : "running",
-            }}
+            style={{ transform: "translate3d(0,0,0)" }}
           >
             {/* First copy. */}
             {items.map((a) => (
@@ -402,18 +596,20 @@ export function ForexCarousel({
                 key={`a-${a.id}`}
                 auction={a}
                 onCardClick={onCardClick}
+                isDragging={dragging}
               />
             ))}
             {/* Second copy — `duplicate` flag makes each card aria-hidden and
                 untabbable so screen readers + keyboard nav only see the
                 original set. Cards stay direct flex children of the track so
-                the -50% translate aligns exactly to the first copy's start. */}
+                the modulo-wrapped translate aligns the second copy seamlessly. */}
             {items.map((a) => (
               <ExpandedCard
                 key={`b-${a.id}`}
                 auction={a}
                 onCardClick={onCardClick}
                 duplicate
+                isDragging={dragging}
               />
             ))}
           </div>
@@ -429,16 +625,41 @@ function ExpandedCard({
   auction,
   onCardClick,
   duplicate = false,
+  isDragging = false,
 }: {
   auction: FeedAuction;
   onCardClick?: (auction: FeedAuction) => void;
   duplicate?: boolean;
+  /** True while the marquee is being scrubbed — suppress the card click so
+   *  a drag-release doesn't accidentally open the modal. */
+  isDragging?: boolean;
 }) {
   const endsAt = auction.endsAt ?? auction.endDateTime;
   const ended = isEffectivelyEnded(endsAt);
   const dl = daysLeft(endsAt);
   const urgent = !ended && dl != null && dl <= 1;
-  const title = displayTitle(auction);
+
+  // Headline = auction TYPE (propertyType → category → generic).
+  // The BOE ref (boeId, or the upstream title when it's a SUB-… ref) becomes
+  // the small secondary line — never the headline.
+  const typeHeadline = prettifyAuctionType(
+    auction.propertyType ?? auction.category ?? null,
+  );
+  // Compact "Termina en Nd Nh" string — short variant for the card footer.
+  // Distinct from the floating top-right badge which shows just days.
+  const terminaEn = formatEndsInCompact(endsAt);
+  const endDateLabel = formatDateMed(endsAt);
+
+  // Prefer the explicit boeId when projected; fall back to the upstream
+  // `title` if it itself is a SUB- ref (legacy projection where boeId hasn't
+  // made it to the client yet). Never surface a non-ref title here — the
+  // headline already covers that.
+  const refLabel = (() => {
+    if (auction.boeId && auction.boeId.trim()) return auction.boeId.trim();
+    if (isBoeRefLike(auction.title)) return auction.title.trim();
+    return null;
+  })();
+
   const muni = cleanLoc(auction.municipality);
   const prov = cleanLoc(auction.province);
   const where = [muni && titleCase(muni), prov && capitalize(prov)]
@@ -452,23 +673,26 @@ function ExpandedCard({
       ? pickPrice(auction.depositAmount)
       : null;
   const [imgFailed, setImgFailed] = React.useState(false);
+  // Image resolver still wants a "title" for the placeholder alt text; pass
+  // the type headline (always populated and human-readable) rather than the
+  // raw upstream title (which might be "Unknown" or a SUB- ref).
   const resolved = resolveCardImage({
     imageUrl: auction.imageUrl,
     latitude: auction.latitude,
     longitude: auction.longitude,
     category: auction.category,
-    title: title,
+    title: typeHeadline,
     size: "thumbnail",
   });
   const imageSrc =
     imgFailed && resolved.rung !== "placeholder"
-      ? resolveCardImage({ category: auction.category, title: title, size: "thumbnail" }).src
+      ? resolveCardImage({ category: auction.category, title: typeHeadline, size: "thumbnail" }).src
       : resolved.src;
   const showMapPin = resolved.isMap && !imgFailed;
   const effectiveStatus = ended ? "concluida-portal" : auction.status;
   const noPriceData =
     valorSubasta == null && reclamada == null && minBid == null && deposit == null;
-  const isVariosLotes = isVariosLotesTitle(title);
+  const isVariosLotes = isVariosLotesTitle(auction.title);
 
   const cardClass = cn(
     "snap-start shrink-0 w-[260px] rounded-lg border bg-[--color-surface] overflow-hidden",
@@ -535,16 +759,44 @@ function ExpandedCard({
         </span>
       </div>
 
-      <div className="p-2.5 flex flex-col gap-1.5 min-w-0">
-        <div className="text-[13px] font-medium text-[--color-ink-primary] line-clamp-2 leading-snug">
-          {title}
+      <div className="p-2.5 flex flex-col gap-1 min-w-0">
+        {/* Headline = TYPE (Vivienda / Trastero / …). Falls back to category
+            then "Subasta" — never to the BOE ref. */}
+        <div
+          className="text-[13px] font-semibold text-[--color-ink-primary] line-clamp-1 leading-snug"
+          title={typeHeadline}
+        >
+          {typeHeadline}
         </div>
         {where && (
           <div className="text-[11px] text-[--color-ink-tertiary] truncate">
             {where}
           </div>
         )}
-        <div className="mt-1 grid grid-cols-2 gap-x-2 gap-y-1.5 pt-1.5 border-t border-[--color-hairline]">
+        {/* "Termina en …" countdown + end date — Dennis 2026-06-03 ask.
+            Renders together as one line so the time-context reads naturally:
+            "Termina en 4d 6h · 12 jun 2026". The start date slot lives below
+            and is currently empty — see FLAG in the dispatch return. */}
+        {!ended && (terminaEn || endDateLabel !== "—") && (
+          <div className="mt-0.5 flex items-baseline gap-1.5 text-[10.5px] text-[--color-ink-secondary]">
+            {terminaEn && (
+              <span className="tnum">
+                <span className="text-[--color-ink-tertiary]">Termina en </span>
+                <span className="font-semibold text-[--color-ink-primary]">{terminaEn}</span>
+              </span>
+            )}
+            {terminaEn && endDateLabel !== "—" && (
+              <span className="text-[--color-ink-quiet]" aria-hidden="true">·</span>
+            )}
+            {endDateLabel !== "—" && (
+              <span className="tnum text-[--color-ink-tertiary]">{endDateLabel}</span>
+            )}
+          </div>
+        )}
+        {/* Start-date slot — intentionally empty until `opensAt` is projected
+            onto the recent-feed payload. See dispatch return: FLAG-START-
+            DATE-MISSING-FROM-PROJECTION. */}
+        <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 pt-1.5 border-t border-[--color-hairline]">
           {noPriceData && (
             <div className="col-span-2 min-w-0">
               <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
@@ -595,10 +847,37 @@ function ExpandedCard({
               </div>
             </div>
           )}
+          {/* BOE ref — small + muted; copy-selectable. Kept visible per
+              Dennis's note (useful for cross-referencing BOE). Lives at the
+              bottom so the type + price block stays clean. */}
+          {refLabel && (
+            <div className="col-span-2 min-w-0 pt-1">
+              <div className="text-[9px] uppercase tracking-wide text-[--color-ink-quiet]">
+                Ref. BOE
+              </div>
+              <div
+                className="text-[10px] font-mono text-[--color-ink-tertiary] truncate select-text"
+                title={refLabel}
+              >
+                {refLabel}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </>
   );
+
+  // Click-suppression while dragging: a pointer-up after a real drag still
+  // fires `click` on the underlying button. We swallow it in capture phase
+  // when `isDragging` is true at click time, so the modal never opens by
+  // accident at the end of a scrub.
+  const handleClickCapture = (e: React.MouseEvent) => {
+    if (isDragging) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  };
 
   // Click handler: when wired (Item G), the card becomes a `<button>` that
   // opens the detail modal in the parent. When not wired, it falls back to a
@@ -608,13 +887,14 @@ function ExpandedCard({
       <button
         type="button"
         onClick={() => onCardClick(auction)}
+        onClickCapture={handleClickCapture}
         // Duplicate-track copies are presentational — hide from a11y tree and
         // the tab order, so the user only ever focuses one copy of a card.
         aria-hidden={duplicate || undefined}
         tabIndex={duplicate ? -1 : 0}
         className={cardClass}
-        title={title}
-        aria-label={`Ver detalles de ${title}`}
+        title={typeHeadline}
+        aria-label={`Ver detalles: ${typeHeadline}${refLabel ? ` (ref. ${refLabel})` : ""}`}
       >
         {innerBody}
       </button>
@@ -624,12 +904,36 @@ function ExpandedCard({
   return (
     <Link
       href={`/auction/${encodeURIComponent(auction.id)}`}
+      onClickCapture={handleClickCapture}
       aria-hidden={duplicate || undefined}
       tabIndex={duplicate ? -1 : 0}
       className={cardClass}
-      title={title}
+      title={typeHeadline}
     >
       {innerBody}
     </Link>
   );
+}
+
+/**
+ * Compact "Termina en …" body — distinct from `formatDaysLeft` which is a
+ * single token for the top-right badge. Here we surface days + hours so the
+ * user can read time-to-close at a glance:
+ *   - >= 1 day  → "Nd Nh"
+ *   -  < 1 day  → "Nh Nm"
+ *   - finalised → null (caller hides the row)
+ */
+function formatEndsInCompact(target: string | Date | null | undefined): string | null {
+  if (!target) return null;
+  const ms = target instanceof Date ? target.getTime() : new Date(target).getTime();
+  if (!Number.isFinite(ms)) return null;
+  const diff = ms - Date.now();
+  if (diff <= 0) return null;
+  const totalMin = Math.floor(diff / 60_000);
+  const days = Math.floor(totalMin / (60 * 24));
+  const hours = Math.floor((totalMin % (60 * 24)) / 60);
+  const mins = totalMin % 60;
+  if (days >= 1) return `${days}d ${hours}h`;
+  if (hours >= 1) return `${hours}h ${mins}m`;
+  return `${mins}m`;
 }
