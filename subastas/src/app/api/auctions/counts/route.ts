@@ -10,14 +10,44 @@ import {
   isPreAuctionStatus,
   isFinishedStatus,
 } from '@/lib/auction-status';
+import { normalizeText } from '@/lib/normalize';
 
-const normalizeText = (value: string) => {
-  return value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim();
-};
+// Sentinel municipality strings the scraper writes for unknown / blank rows.
+// We bucket them all into a single "Otros / Sin municipio" group so the
+// province total still reconciles to \u03a3(municipality buckets) instead of
+// silently dropping them.
+const MUNICIPALITY_SENTINELS = new Set(['desconocida', 'null', 'undefined', 'sin municipio']);
+const OTROS_BUCKET_LABEL = 'Otros / Sin municipio';
+
+/**
+ * Pick a canonical display label for a folded grouping bucket.
+ *
+ * Prefers any variant that contains at least one uppercase character (so the
+ * chip reads `"Madrid"`, never `"madrid"`). When no variant has uppercase, or
+ * there is a tie between multiple uppercase variants, prefers the variant
+ * with the highest row count. Deterministic last-resort: lexicographic.
+ */
+function pickCanonicalLabel(variants: Map<string, number>): string {
+  let best: { raw: string; count: number; hasUpper: boolean } | null = null;
+  for (const [raw, count] of variants) {
+    const hasUpper = /[A-Z]/.test(raw);
+    if (!best) {
+      best = { raw, count, hasUpper };
+      continue;
+    }
+    // Uppercase-having variants strictly beat all-lowercase variants.
+    if (hasUpper && !best.hasUpper) {
+      best = { raw, count, hasUpper };
+      continue;
+    }
+    if (!hasUpper && best.hasUpper) continue;
+    // Same uppercase status \u2014 break ties by max count, then lex.
+    if (count > best.count || (count === best.count && raw < best.raw)) {
+      best = { raw, count, hasUpper };
+    }
+  }
+  return best ? best.raw : '';
+}
 
 // Filter out invalid provinces
 const isValidProvince = (province: string | null): boolean => {
@@ -73,10 +103,11 @@ export async function GET(request: NextRequest) {
         AND LENGTH(TRIM(province)) > 1
     `;
     
-    // Additional filter for municipality grouping
-    if (groupBy === 'municipality') {
-      sql += ` AND municipality IS NOT NULL AND LOWER(municipality) NOT IN ('desconocida', 'null', 'undefined', 'sin municipio')`;
-    }
+    // Municipality grouping no longer drops null/blank/sentinel rows at the SQL
+    // layer — they would silently vanish from the per-province total. We keep
+    // them in the SELECT and bucket them into the "Otros / Sin municipio"
+    // group in the JS aggregation below, so the post-fix invariant
+    // `province total == Σ municipality buckets (incl. Otros)` holds.
     
     const params: any[] = [];
     
@@ -129,7 +160,19 @@ export async function GET(request: NextRequest) {
     const results = await query<{ [key: string]: string | number }>(sql, params);
     const queryTime = Date.now() - queryStart;
     
-    // Aggregate counts by status
+    // Aggregate counts by status, folded on a normalized grouping key.
+    //
+    // The SQL is `GROUP BY <col>, status` over the raw string, so case-variant
+    // duplicates (`Madrid` vs `madrid`) arrive as separate rows. We re-key
+    // them under `normalizeText(raw)` here, which is what the list route does
+    // too — see `@/lib/normalize`. The dict surfaced to callers uses a
+    // canonical display label per folded group (prefer the variant with
+    // uppercase, tie-break by count).
+    //
+    // For groupBy=municipality the SQL no longer drops null/blank/sentinel
+    // municipality rows; we collapse them into a single
+    // "Otros / Sin municipio" bucket per province here, so the province
+    // total reconciles to Σ(municipalities) without anything vanishing.
     const counts: {
       active: Record<string, number>;
       preAuction: Record<string, number>;
@@ -141,16 +184,65 @@ export async function GET(request: NextRequest) {
       finished: {},
       total: {}
     };
-    
+
+    // Per-bucket variant tallies (raw string -> row count) so we can pick a
+    // canonical display label after the first pass.
+    type Bucket = {
+      variants: Map<string, number>;
+      total: number;
+      active: number;
+      preAuction: number;
+      finished: number;
+    };
+    const buckets = new Map<string, Bucket>();
+
+    const getBucket = (normKey: string, displayHint: string): Bucket => {
+      let b = buckets.get(normKey);
+      if (!b) {
+        b = { variants: new Map(), total: 0, active: 0, preAuction: 0, finished: 0 };
+        buckets.set(normKey, b);
+      }
+      if (displayHint) {
+        b.variants.set(displayHint, (b.variants.get(displayHint) || 0) + 1);
+      }
+      return b;
+    };
+
     results.forEach((row: any) => {
-      const key = row[groupBy];
-      if (!key) return; // Skip null values
-      
+      const rawKey = row[groupBy] as string | null;
       const count = Number(row.count);
-      
-      // Add to total
-      counts.total[key] = (counts.total[key] || 0) + count;
-      
+      const status = row.status as string;
+
+      let normKey: string;
+      let displayHint: string;
+
+      if (groupBy === 'municipality') {
+        // Null / blank / sentinel municipality -> single "Otros" bucket per
+        // (province-filtered) call. The province scope is already constrained
+        // upstream via the `province=...` query param.
+        const trimmed = (rawKey || '').trim();
+        const lower = trimmed.toLowerCase();
+        if (!trimmed || MUNICIPALITY_SENTINELS.has(lower)) {
+          normKey = '__otros__';
+          displayHint = OTROS_BUCKET_LABEL;
+        } else {
+          normKey = normalizeText(trimmed);
+          displayHint = trimmed;
+        }
+      } else if (groupBy === 'province') {
+        if (!rawKey) return; // province null rows are excluded by the SQL guard, defensive skip.
+        normKey = normalizeText(rawKey);
+        displayHint = rawKey;
+      } else {
+        // category — no normalization fold (the taxonomy is server-controlled).
+        if (!rawKey) return;
+        normKey = rawKey;
+        displayHint = rawKey;
+      }
+
+      const bucket = getBucket(normKey, displayHint);
+      bucket.total += count;
+
       // Bucket each row by status-class via the shared predicates. NOTE:
       // because the JS aggregation runs on the GROUPED rows AFTER the SQL,
       // it does NOT see the clock-guard drop. When the caller asks
@@ -159,15 +251,25 @@ export async function GET(request: NextRequest) {
       // filter is supplied (the broad "all groups" call) this aggregation
       // reports the raw status-class bucket totals, same as before; callers
       // that need clock-guarded actives should request `?status=active`.
-      const status = row.status as string;
       if (isActiveStatus(status)) {
-        counts.active[key] = (counts.active[key] || 0) + count;
+        bucket.active += count;
       } else if (isPreAuctionStatus(status)) {
-        counts.preAuction[key] = (counts.preAuction[key] || 0) + count;
+        bucket.preAuction += count;
       } else if (isFinishedStatus(status)) {
-        counts.finished[key] = (counts.finished[key] || 0) + count;
+        bucket.finished += count;
       }
     });
+
+    // Second pass: emit each folded bucket under its canonical display label.
+    // The "Otros / Sin municipio" bucket always uses its fixed label.
+    for (const [normKey, bucket] of buckets) {
+      const label =
+        normKey === '__otros__' ? OTROS_BUCKET_LABEL : pickCanonicalLabel(bucket.variants) || normKey;
+      counts.total[label] = (counts.total[label] || 0) + bucket.total;
+      if (bucket.active) counts.active[label] = (counts.active[label] || 0) + bucket.active;
+      if (bucket.preAuction) counts.preAuction[label] = (counts.preAuction[label] || 0) + bucket.preAuction;
+      if (bucket.finished) counts.finished[label] = (counts.finished[label] || 0) + bucket.finished;
+    }
     
     // Get grand totals
     const grandTotal = Object.values(counts.total).reduce((sum, val) => sum + val, 0);

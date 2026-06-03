@@ -149,6 +149,7 @@ export default function FavoritesPage() {
                 currentBid: favorite.auction.currentBid,
                 appraisalValue: favorite.auction.appraisalValue,
                 minimumBid: favorite.auction.minimumBid,
+                claimedAmount: favorite.auction.claimedAmount,
                 courtName: favorite.auction.courtName,
                 procedureNumber: favorite.auction.procedureNumber,
                 boeLink: favorite.auction.boeLink,

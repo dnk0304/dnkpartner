@@ -273,9 +273,26 @@ export function filtersToApiParams(f: ObservatoryFilters): URLSearchParams {
   // Province
   if (f.province) p.set("province", f.province);
 
-  // Statuses precedence
+  // Statuses precedence.
+  //
+  // Advanced explicit `statuses[]` selection always wins (lets the user pick a
+  // strict subset like "only Suspendida" from the advanced sheet).
+  //
+  // When no advanced selection is active, the default "Activas ahora" tab
+  // MUST route through the canonical `status=active` predicate
+  // (ACTIVE_DB_STATUSES + ACTIVE_CLOCK_GUARD_SQL = 542) rather than the
+  // narrower `statuses=celebrandose` bucket (which expands to
+  // CELEBRANDOSE+ACTIVE only = 441 and drops SUSPENDIDA + has no clock guard).
+  // The 542 active badge / stats route / map already use this branch; the
+  // list now matches under every sort. See
+  // DISPATCH-BRIEF-FORGE-count-hierarchy-sync §8B.
+  //
+  // Próximas / Finalizadas continue to use `statuses=...` — they are already
+  // correct (no clock-guarded "active" notion applies there).
   if (f.statuses.length > 0) {
     p.set("statuses", f.statuses.join(","));
+  } else if (f.when === "activas") {
+    p.set("status", "active");
   } else {
     const bucket = SIMPLE_WHEN_OPTIONS.find((b) => b.id === f.when);
     if (bucket) p.set("statuses", bucket.statuses.join(","));
