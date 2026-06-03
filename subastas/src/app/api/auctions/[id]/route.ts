@@ -121,6 +121,17 @@ export async function GET(
     downloadUrl: d.storedPath ? publicPathForDocId(d.id) : null,
   }));
 
+  // Detail payload contract (Pixel doc-UI, 2026-06-03):
+  //   `...auctionScalars` projects EVERY Auction scalar column verbatim. That
+  //   means the new bien fields introduced by the document-archive wave
+  //   (e8c83a1) — postalCode, idufir, registryInscription, legalTitle,
+  //   bienLocalidad, bienProvincia, viviendaHabitual — flow through
+  //   automatically, as do opensAt (start date), propertyType, and address.
+  //   No per-field listing here — the `findUnique` (no `select`) is the
+  //   contract: any additive scalar migration surfaces on detail without a
+  //   code change. The two BigInt columns (loteNumber, currentBidAmount) are
+  //   overridden below because JSON.stringify cannot serialize BigInt; every
+  //   other scalar passes through untouched and null-safe.
   const projectedAuction = {
     ...auctionScalars,
     boeLink: boeLinkFor(auction.boeId, auction.boeLink),

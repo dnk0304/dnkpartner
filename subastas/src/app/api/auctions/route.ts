@@ -111,6 +111,11 @@ interface AuctionFromDB {
   edictUrl: string | null;
   pdfUrl: string | null;
   publishedAt: string;
+  // opensAt — the auction's official start date ("Fecha de inicio").
+  // Already in `SELECT Auction.*`; surfacing it on the card payload so the
+  // PROXIMA_APERTURA cards can render "start date" alongside endsAt. Nullable;
+  // null = not scheduled yet / not scraped (BOE-side cleanup task).
+  opensAt: string | null;
   endsAt: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -434,6 +439,12 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
       pdfUrl: null,
       status: frontendStatus,
       auctionType: frontendAuctionType,
+      // 2026-06-03 (Pixel cards): opensAt = "Fecha de inicio" (start date).
+      // propertyType = accurate bien-type label for the headline. Both
+      // nullable, null-safe. ISO string passthrough for opensAt — the card
+      // layer parses it the same way it parses publishedAt/endsAt.
+      opensAt: item.opensAt,
+      propertyType: item.propertyType,
       endDate: endsAt || new Date(publishedAt.getTime() + 30 * 24 * 60 * 60 * 1000),
       source: (item.source || 'BOE') as 'BOE' | 'TEJU',
       imageUrl,
@@ -485,6 +496,10 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
     pdfUrl: item.pdfUrl,
     status: frontendStatus,
     auctionType: frontendAuctionType,
+    // 2026-06-03 (Pixel cards): opensAt + propertyType, same rationale as
+    // the locked teaser block above.
+    opensAt: item.opensAt,
+    propertyType: item.propertyType,
     endDate: endsAt || publishedAt,
     source: (item.source || 'BOE') as 'BOE' | 'TEJU',
     imageUrl,

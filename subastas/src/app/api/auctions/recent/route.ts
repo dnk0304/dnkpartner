@@ -105,6 +105,9 @@ type FeedAuctionProjection = {
   minimumBid: number | null;
   depositAmount: number | null;
   endsAt: string | null;
+  // 2026-06-03 (Pixel cards): start date for PROXIMA_APERTURA cards.
+  // Nullable; null = not yet scheduled / not scraped.
+  opensAt: string | null;
   endDateTime: string | null;
   lotNumber: string | null;
   imageUrl: string | null;
@@ -238,6 +241,7 @@ function projectAuction(a: {
   minimumBid: number | null;
   depositAmount: number | null;
   endsAt: Date | null;
+  opensAt: Date | null;
   endDateTime: Date | null;
   lotNumber: string | null;
   imageUrl: string | null;
@@ -266,6 +270,7 @@ function projectAuction(a: {
     minimumBid: a.minimumBid ?? null,
     depositAmount: a.depositAmount ?? null,
     endsAt: a.endsAt?.toISOString() ?? null,
+    opensAt: a.opensAt?.toISOString() ?? null,
     endDateTime: a.endDateTime?.toISOString() ?? null,
     lotNumber: a.lotNumber ?? null,
     imageUrl: a.imageUrl ?? null,
@@ -362,6 +367,8 @@ const AUCTION_CARD_SELECT = {
   minimumBid: true,
   depositAmount: true,
   endsAt: true,
+  // 2026-06-03 (Pixel cards): start date projection for PROXIMA_APERTURA cards.
+  opensAt: true,
   endDateTime: true,
   lotNumber: true,
   imageUrl: true,
