@@ -18,6 +18,8 @@ import { boeLinkFor } from '@/lib/boe-link';
 import { publicPathForDocId } from '@/lib/auction-docs/storage';
 import { getAccessState } from '@/lib/access';
 import { pickTeaserSnippet } from '@/lib/teaser-snippet';
+import { mapStatus } from '@/lib/auction-status';
+import { effectiveStatus } from '@/components/observatory/status';
 
 export async function GET(
   _req: NextRequest,
@@ -164,17 +166,31 @@ export async function GET(
   // appraisalValue (the headline tasacion shown on the card),
   // description snippet.
   if (!fullAccess) {
-    // PII-safe teaser snippet — shared sanitizer with AuctionTeaser.tsx so
-    // the API payload and the SSR-rendered teaser can never drift. The raw
-    // `propertyDescription` blob from the scraper carries IDUFIR / cadastral
-    // ref / Dirección / Código Postal as `Key\tValue` lines in its first
-    // ~280 chars; a naive slice would leak every gated field into both the
-    // JSON response and Google's index. `pickTeaserSnippet` strips structured
-    // lines, keeps prose only, collapses whitespace, clamps to ≤280.
+    // PII-safe-by-construction teaser snippet — shared builder with
+    // AuctionTeaser.tsx so the API payload and the SSR-rendered teaser can
+    // never drift. The raw `propertyDescription` / `lotDescription` /
+    // `boeAnnouncement` blobs are NEVER passed in: they are untrusted free
+    // text that can embed PII (address, cadastral, IDUFIR, postal, registry,
+    // court) inline for ANY source. The snippet is CONSTRUCTED from safe
+    // structured fields only (type, municipality, province, status) — see
+    // lib/teaser-snippet.ts header for the two leak incidents (BOE Key\tValue
+    // dump 2026-06-04, SEGSOCIAL prose paragraph 2026-06-05) that drove
+    // this design.
+    const frontendStatus = effectiveStatus(
+      mapStatus(auction.status),
+      auction.endsAt as Date | string | null,
+    );
     const teaserDescription = pickTeaserSnippet({
-      propertyDescription: projectedAuction.propertyDescription,
-      lotDescription: projectedAuction.lotDescription,
-      boeAnnouncement: projectedAuction.boeAnnouncement,
+      tipoBien:
+        projectedAuction.propertyType ??
+        (projectedAuction.auctionType
+          ? projectedAuction.auctionType.toLowerCase()
+          : null) ??
+        projectedAuction.category ??
+        null,
+      municipio: projectedAuction.municipality,
+      provincia: projectedAuction.province,
+      frontendStatus,
     });
     Object.assign(projectedAuction, {
       // Location detail — keep province/municipality (teaser), strip the

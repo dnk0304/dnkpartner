@@ -86,9 +86,12 @@ async function loadTeaserData(slug: string): Promise<AuctionTeaserData | null> {
       propertyType: true,
       appraisalValue: true,
       valorSubasta: true,
-      propertyDescription: true,
-      lotDescription: true,
-      boeAnnouncement: true,
+      // propertyDescription / lotDescription / boeAnnouncement are
+      // intentionally NOT selected — the public teaser snippet is built
+      // from structured fields only (type, municipality, province, status)
+      // by `pickTeaserSnippet`. Keeping the raw free-text columns OUT of
+      // the SSR payload guarantees they cannot leak via `__next_f` JSON.
+      // The gated detail fetch owns the full description.
       publishedAt: true,
       opensAt: true,
       endsAt: true,
