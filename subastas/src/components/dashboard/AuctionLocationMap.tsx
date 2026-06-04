@@ -56,8 +56,15 @@ const createPin = () =>
     iconAnchor: [16, 42],
   });
 
-// Force a single setView pass after mount so layout settles even if the
-// map was mounted inside a modal that animated open.
+// Force a setView pass + multi-pass `invalidateSize` after mount so layout
+// settles even when the map was mounted inside a Radix Dialog that animated
+// open. The default Dialog zoom-in animation is ~200ms; the legacy single
+// 120ms invalidate measured the container mid-animation and Leaflet
+// positioned tile transforms around the wrong dimensions — the visible
+// symptom (carousel-modal map overlap, 2026-06-04) was a Leaflet pin/tile
+// pane that drifted up over the modal's mid-section price tiles instead of
+// sitting cleanly in the Ubicación section. Retrying across the next frame
+// + a longer trailing timeout re-anchors once the dialog transform settles.
 const FitToProperty: React.FC<{ center: [number, number]; zoom: number }> = ({
   center,
   zoom,
@@ -65,10 +72,27 @@ const FitToProperty: React.FC<{ center: [number, number]; zoom: number }> = ({
   const map = useMap();
   useEffect(() => {
     map.setView(center, zoom, { animate: false });
-    // Modal open animations can leave Leaflet with stale dimensions.
-    // Invalidate once after the next frame so tiles fill the container.
-    const id = window.setTimeout(() => map.invalidateSize(), 120);
-    return () => window.clearTimeout(id);
+    // First pass next frame — covers list/page mounts where the container
+    // is already correctly sized.
+    const raf = window.requestAnimationFrame(() => {
+      map.invalidateSize({ animate: false });
+    });
+    // Second pass after the dialog open-animation ends (default 200ms +
+    // safety buffer). This is the one that fixes the modal-opened bug.
+    const t1 = window.setTimeout(() => {
+      map.invalidateSize({ animate: false });
+      map.setView(center, zoom, { animate: false });
+    }, 260);
+    // Third belt-and-suspenders pass after any late layout shifts above
+    // the map (image lazy-loads, hairline breakpoint changes, etc.).
+    const t2 = window.setTimeout(() => {
+      map.invalidateSize({ animate: false });
+    }, 600);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
   }, [center, zoom, map]);
   return null;
 };
@@ -108,8 +132,21 @@ export const AuctionLocationMap: React.FC<AuctionLocationMapProps> = ({
     .filter(Boolean)
     .join(' - ');
 
+  // `isolation: isolate` + `contain: layout paint` form a hard stacking-
+  // context + paint boundary around the map. Pre-fix, Leaflet's internal
+  // absolutely-positioned tile/marker panes interacted with the global
+  // `.leaflet-container { z-index: 0 !important }` style that HierarchicalMap
+  // injected on the home page and the Radix Dialog's stacking context, with
+  // the visible symptom that the per-auction map's tile pane appeared to
+  // float OVER the modal's mid-section content (price tiles, "Próxima
+  // apertura" badge) when the carousel opened the popup. Locking layout +
+  // paint inside the wrapper guarantees Leaflet's panes can never visually
+  // escape this box, no matter what the surrounding stacking context does.
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-lg border-2 border-gray-200">
+    <div
+      className="relative h-full w-full overflow-hidden rounded-lg border-2 border-gray-200 isolate"
+      style={{ contain: 'layout paint' }}
+    >
       <MapContainer
         center={center}
         zoom={zoom}
