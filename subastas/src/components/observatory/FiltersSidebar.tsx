@@ -70,6 +70,14 @@ export type FiltersSidebarProps = {
   filters: ObservatoryFilters;
   provinces: string[];
   municipalities: string[];
+  /**
+   * Optional map of municipality label -> active auction count, used to
+   * annotate each option in the dropdown (e.g. "Sabadell (3)"). The list
+   * itself comes from `municipalities` (all towns in the province, including
+   * those with zero current auctions); the count just signals where live
+   * inventory is. Missing keys render as "(0)".
+   */
+  municipalityCounts?: Record<string, number>;
   onChange: (next: Partial<ObservatoryFilters>) => void;
   onClear: () => void;
   /** Opens AlertsModal seeded with the current filters. */
@@ -87,6 +95,7 @@ export function FiltersSidebar({
   filters,
   provinces,
   municipalities,
+  municipalityCounts,
   onChange,
   onClear,
   onOpenAlerts,
@@ -130,6 +139,15 @@ export function FiltersSidebar({
   const provinceLocked = Boolean(lockedFilter?.province);
   const categoryLocked = Boolean(lockedFilter?.category);
   const municipalityLocked = Boolean(lockedFilter?.municipality);
+
+  // Annotate each muni option with its live (active) auction count, e.g.
+  // "Sabadell (3)" / "Olesa (0)". The list itself includes every town in the
+  // province — the count just signals which ones have current inventory.
+  // Native <option> can only render text, so we encode the count in the label.
+  const munisuffix = (name: string) => {
+    const n = municipalityCounts?.[name] ?? 0;
+    return `${name} (${n})`;
+  };
 
   return (
     <aside
@@ -268,7 +286,7 @@ export function FiltersSidebar({
                 <option value="">Todos los municipios</option>
                 {municipalities.map((m) => (
                   <option key={m} value={m}>
-                    {m}
+                    {munisuffix(m)}
                   </option>
                 ))}
               </select>
@@ -300,7 +318,7 @@ export function FiltersSidebar({
                 <option value="">Todos los municipios</option>
                 {municipalities.map((m) => (
                   <option key={m} value={m}>
-                    {m}
+                    {munisuffix(m)}
                   </option>
                 ))}
               </select>

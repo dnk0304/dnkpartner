@@ -144,6 +144,11 @@ export default function SubastasListClient({
   const [alertsOpen, setAlertsOpen] = React.useState(false);
   const [provinces, setProvinces] = React.useState<string[]>([]);
   const [municipalities, setMunicipalities] = React.useState<string[]>([]);
+  // Map of municipality label -> active auction count for the currently-
+  // selected province. Used to annotate the muni dropdown ("Sabadell (3)")
+  // so users see live inventory at a glance while still being able to pick
+  // any town in the province — even ones with zero current auctions.
+  const [municipalityCounts, setMunicipalityCounts] = React.useState<Record<string, number>>({});
 
   // Body-scroll lock + Escape-to-close while the mobile filter drawer is open.
   // Prevents the underlying list from scrolling under your fingers and gives
@@ -242,24 +247,39 @@ export default function SubastasListClient({
   React.useEffect(() => {
     if (!filters.province) {
       setMunicipalities([]);
+      setMunicipalityCounts({});
       return;
     }
     let cancelled = false;
     (async () => {
       try {
-        // Pass `status=active` so the muni dropdown reflects the same canonical
-        // active set as the province header / list total (542 globally). Reads
-        // `counts.active`, not `counts.total` (the latter included all
-        // statuses + dropped null-muni rows). See
-        // DISPATCH-BRIEF-FORGE-count-hierarchy-sync §4d.
+        // Source the dropdown from `counts.total` (full distinct municipality
+        // list for the province, all statuses) — NOT `counts.active`. The
+        // active-only source hid the 50-65 historical towns per province and
+        // made the dropdown look broken when most towns had no LIVE auction
+        // right now (e.g. Barcelona 7-of-65, Madrid 3-of-55).
+        //
+        // We keep `counts.active` alongside as an annotation map so each
+        // option can display its live count — "Sabadell (3)", "Olesa (0)".
+        // The SEO town-page pill cluster on /subastas/[slug] stays active-
+        // only (out of scope here — that's an indexing decision, not a UX
+        // one).
         const res = await apiFetch(
-          `/api/auctions/counts?groupBy=municipality&status=active&province=${encodeURIComponent(filters.province)}`,
+          `/api/auctions/counts?groupBy=municipality&province=${encodeURIComponent(filters.province)}`,
         );
         if (cancelled) return;
         if (res.ok) {
           const body = await res.json();
-          const munis = Object.keys(body?.counts?.active || {}).sort((a, b) => a.localeCompare(b));
+          const totalMap: Record<string, number> = body?.counts?.total || {};
+          const activeMap: Record<string, number> = body?.counts?.active || {};
+          // Drop the "Otros / Sin municipio" pseudo-bucket — it represents
+          // null-municipality rows in the DB and isn't a real selectable town
+          // (selecting it filters to nothing meaningful for the user).
+          const munis = Object.keys(totalMap)
+            .filter((m) => m !== "Otros / Sin municipio")
+            .sort((a, b) => a.localeCompare(b, "es"));
           setMunicipalities(munis);
+          setMunicipalityCounts(activeMap);
         }
       } catch {
         /* silent */
@@ -409,6 +429,7 @@ export default function SubastasListClient({
               filters={filters}
               provinces={provinces}
               municipalities={municipalities}
+              municipalityCounts={municipalityCounts}
               onChange={updateFilters}
               onClear={clearFilters}
               onOpenAlerts={() => setAlertsOpen(true)}
@@ -573,6 +594,7 @@ export default function SubastasListClient({
                 filters={filters}
                 provinces={provinces}
                 municipalities={municipalities}
+                municipalityCounts={municipalityCounts}
                 onChange={updateFilters}
                 onClear={clearFilters}
                 onOpenAlerts={() => {
