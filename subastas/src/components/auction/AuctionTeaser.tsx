@@ -40,9 +40,14 @@ export interface AuctionTeaserData {
   propertyType: string | null;
   appraisalValue: number | null;
   valorSubasta: number | null;
-  propertyDescription: string | null;
-  lotDescription: string | null;
-  boeAnnouncement: string | null;
+  // NOTE: propertyDescription / lotDescription / boeAnnouncement are NOT
+  // part of the public teaser shape. They are untrusted free text that can
+  // embed PII (address, cadastral, IDUFIR, postal) for ANY scraper source,
+  // and the safe-by-construction snippet builder
+  // (`pickTeaserSnippet`) takes only structured fields. Keep them OFF this
+  // interface so a future contributor cannot wire them into the teaser by
+  // mistake. The full description still flows through `/api/auctions/[id]`
+  // for callers with `hasFullAccess`.
   publishedAt: Date | string;
   opensAt: Date | string | null;
   endsAt: Date | string | null;
@@ -72,21 +77,28 @@ function formatEuro(value: number | null | undefined): string | null {
 }
 
 /**
- * PII-safe wrapper over the shared sanitizer. `propertyDescription` is a
- * raw `Key\tValue` structured dump from the scraper (IDUFIR / cadastral /
- * Dirección / Código Postal / Localidad / Provincia all live in its first
- * ~280 chars) — a naive slice would leak the gated fields the wall is
- * supposed to hide into the public SSR HTML + the `__next_f` JSON.
+ * PII-safe-by-construction wrapper over the shared snippet builder.
  *
- * `pickTeaserSnippet` strips structured key/value lines, keeps only prose,
- * collapses whitespace, and clamps to ≤280. Single source of truth shared
- * with the API teaser projection — see lib/teaser-snippet.ts.
+ * The public teaser snippet is CONSTRUCTED from known-safe structured fields
+ * only (type, municipality, province, status). The raw `propertyDescription`
+ * / `lotDescription` / `boeAnnouncement` blobs are NEVER passed in — they can
+ * embed PII (street address, cadastral ref, IDUFIR, postal code) inline in
+ * the prose for ANY scraper source, and no sanitizer over untrusted text
+ * survived contact with reality (see lib/teaser-snippet.ts header for the
+ * two leak incidents that drove this design). Single source of truth shared
+ * with the API teaser projection.
  */
-function teaserSnippet(a: AuctionTeaserData): string | null {
+function teaserSnippet(a: AuctionTeaserData, frontendStatus: string): string | null {
+  const tipoBien =
+    a.propertyType ??
+    (a.auctionType ? a.auctionType.toLowerCase() : null) ??
+    a.category ??
+    null;
   return pickTeaserSnippet({
-    propertyDescription: a.propertyDescription,
-    lotDescription: a.lotDescription,
-    boeAnnouncement: a.boeAnnouncement,
+    tipoBien,
+    municipio: a.municipality,
+    provincia: a.province,
+    frontendStatus,
   });
 }
 
@@ -122,7 +134,7 @@ export function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
       ? 'Valor subasta'
       : null;
 
-  const snippet = teaserSnippet(data);
+  const snippet = teaserSnippet(data, status);
 
   return (
     <section aria-labelledby="auction-teaser-heading" className="space-y-4">
