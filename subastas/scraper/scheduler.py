@@ -858,14 +858,27 @@ class ScraperScheduler:
             self.log(traceback.format_exc())
 
     def trigger_alert_check(self):
-        """Trigger /api/alerts/check after daily refresh jobs."""
+        """Trigger /api/alerts/check after daily refresh jobs.
+
+        The app route is gated by requireAdminOrCron (Wave-2b lockdown): it
+        accepts a cron caller only when it carries Authorization: Bearer
+        <CRON_SECRET>. Without the header the route returns 401 (cron) then
+        403 (admin), so NO alert emails go out. The secret lives in this
+        container already (same value as the app), so we just attach it.
+        """
         self.log("Triggering alert check endpoint...")
+        if not CRON_SECRET:
+            self.log("  Alert check skipped: CRON_SECRET not set")
+            return
         try:
             endpoint = f"{APP_BASE_URL}/subastas/api/alerts/check"
             request = urllib.request.Request(
                 endpoint,
                 data=b'{}',
-                headers={'Content-Type': 'application/json'},
+                headers={
+                    'Content-Type': 'application/json',
+                    'Authorization': f'Bearer {CRON_SECRET}',
+                },
                 method='POST',
             )
             with urllib.request.urlopen(request, timeout=60) as response:

@@ -1647,9 +1647,21 @@ class BOEScraper(BaseScraper):
         """
         Download one doc to <safeKey>/<safeKey(idDoc)>.pdf (idempotent: skip the
         download when the file already exists and is non-empty), then upsert its
-        AuctionDocument row. If the response is NOT application/pdf (rare), fall
-        back to rendering the doc page to PDF via page.pdf and mark kind=snapshot.
-        Returns the row dict on success, None on failure (best-effort).
+        AuctionDocument row.
+
+        Most BOE attachments are PDFs. Some are IMAGES (scanned JPG/PNG served
+        with Content-Disposition: attachment). For those the response body we
+        already hold IS the document — we persist those bytes directly and
+        register the row with kind='image'. We must NOT re-navigate the browser
+        to those image URLs: BOE serves them as a download, so page.goto raises
+        "Download is starting" and the doc would be lost (this previously
+        dropped ~660 image docs/day). The on-disk filename keeps the `.pdf`
+        suffix the storage contract / serve route require (the safe_filename
+        helper forces it); the true media type travels in mimeType, and
+        officialUrl is always preserved so the UI can link out to the BOE
+        original regardless of how the serve route labels the bytes.
+        Returns the row dict on success, None when the doc is genuinely
+        unsupported (non-PDF, non-image).
         """
         id_doc = d['id_doc']
         title = d['title']
@@ -1662,33 +1674,63 @@ class BOEScraper(BaseScraper):
         mime = 'application/pdf'
         try:
             doc_storage.ensure_doc_dir(boe_id)
-            # Idempotent: reuse an existing non-empty file (backfill-safe).
+            # Idempotent: reuse an existing non-empty file (backfill-safe). A
+            # multilot doc re-fetched per lot (-L1/-L2/...) is a DIFFERENT boe_id
+            # each time, so this guards only same-id re-scrapes; it reuses the
+            # file without re-downloading and stays quiet (no per-lot log spam).
             size = None
+            already_on_disk = False
             if os.path.exists(disk) and os.path.getsize(disk) > 0:
                 size = os.path.getsize(disk)
+                already_on_disk = True
+                # We can't re-sniff the media type without the bytes; infer it
+                # from the on-disk magic so a re-scrape keeps kind/mime correct
+                # for image docs as well as PDFs.
+                try:
+                    with open(disk, 'rb') as fh:
+                        head = fh.read(8)
+                    if head[:3] == b'\xff\xd8\xff':
+                        kind, mime = 'image', 'image/jpeg'
+                    elif head[:8] == b'\x89PNG\r\n\x1a\n':
+                        kind, mime = 'image', 'image/png'
+                except Exception:
+                    pass
             else:
                 resp = page.context.request.get(url, timeout=45000)
                 ctype = (resp.headers or {}).get('content-type', '')
+                ctype_l = ctype.lower()
                 body = resp.body()
-                if 'application/pdf' in ctype.lower() and body[:5] == b'%PDF-':
+                if 'application/pdf' in ctype_l and body[:5] == b'%PDF-':
                     with open(disk, 'wb') as fh:
                         fh.write(body)
                     size = len(body)
-                else:
-                    # Fallback: not a direct PDF -> render the doc page to PDF.
-                    self.log_warning(
-                        f"doc {id_doc} for {boe_id} not direct PDF "
-                        f"(ctype={ctype!r}) — rendering snapshot fallback"
-                    )
-                    page.goto(url, wait_until='domcontentloaded', timeout=30000)
-                    random_delay(0.5, 1.0)
-                    pdf_bytes = page.pdf(print_background=True, format='A4')
-                    if not pdf_bytes:
-                        return None
+                elif body and (
+                    ctype_l.startswith('image/')
+                    or body[:3] == b'\xff\xd8\xff'              # JPEG magic
+                    or body[:8] == b'\x89PNG\r\n\x1a\n'         # PNG magic
+                ):
+                    # Image attachment: the bytes in hand ARE the document.
+                    # Persist directly (no re-navigate). Keep the .pdf on-disk
+                    # filename for the serve-route/storage contract; record the
+                    # real media type in mimeType.
+                    is_png = ('png' in ctype_l) or body[:8] == b'\x89PNG\r\n\x1a\n'
                     with open(disk, 'wb') as fh:
-                        fh.write(pdf_bytes)
-                    size = len(pdf_bytes)
-                    kind = 'snapshot'
+                        fh.write(body)
+                    size = len(body)
+                    kind = 'image'
+                    mime = 'image/png' if is_png else 'image/jpeg'
+                    self.log_info(
+                        f"doc {id_doc} for {boe_id} stored as image "
+                        f"({mime}, {size} bytes)"
+                    )
+                else:
+                    # Genuinely unsupported (non-PDF, non-image). Skip quietly —
+                    # do NOT re-navigate (it would trigger a download and raise).
+                    self.log_info(
+                        f"doc {id_doc} for {boe_id} skipped: unsupported "
+                        f"ctype={ctype!r}"
+                    )
+                    return None
             row = {
                 'docType': doc_type,
                 'title': title,
@@ -1700,9 +1742,13 @@ class BOEScraper(BaseScraper):
                 'sizeBytes': size,
             }
             self.db_adapter.upsert_document(boe_id, row)
-            self.log_info(f"doc {id_doc} ({doc_type}) mirrored for {boe_id} ({size} bytes)")
-            # politeness between doc GETs (govt portal)
-            random_delay(0.6, 1.4)
+            if not already_on_disk:
+                # On a fresh download, log once. Image docs already logged their
+                # own "stored as image" INFO above; PDFs log the mirror line here.
+                if kind != 'image':
+                    self.log_info(f"doc {id_doc} ({doc_type}) mirrored for {boe_id} ({size} bytes)")
+                # politeness between doc GETs (govt portal) — only after a real GET
+                random_delay(0.6, 1.4)
             return row
         except Exception as e:
             self.log_warning(f"doc download/register failed for {boe_id} idDoc={id_doc}: {e}")
