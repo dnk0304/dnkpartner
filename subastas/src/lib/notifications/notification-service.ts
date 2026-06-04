@@ -82,7 +82,7 @@ export class NotificationService {
     // Configure VAPID keys (set in env)
     if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
       webpush.setVapidDetails(
-        'mailto:notifications@subastapro.com',
+        'mailto:notifications@subastasactivas.com',
         process.env.VAPID_PUBLIC_KEY,
         process.env.VAPID_PRIVATE_KEY
       );
@@ -174,7 +174,7 @@ export class NotificationService {
       'status_change': 'Actualización de Estado',
       'ending_soon': 'Subasta Finalizando Pronto'
     };
-    return titles[type] || 'Notificación SubastaPro';
+    return titles[type] || 'Notificación SubastasActivas';
   }
   
   private getNotificationBody(payload: NotificationPayload): string {
@@ -188,7 +188,7 @@ export class NotificationService {
   private formatWhatsAppMessage(payload: NotificationPayload): string {
     const { type, data } = payload;
     
-    let message = `🏛️ *SubastaPro Alerta*\n\n`;
+    let message = `🏛️ *SubastasActivas Alerta*\n\n`;
     
     switch (type) {
       case 'new_auction':

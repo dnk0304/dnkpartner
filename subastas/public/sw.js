@@ -8,7 +8,7 @@ self.addEventListener('push', function(event) {
   }
 
   const data = event.data.json();
-  const title = data.title || 'SubastaPro';
+  const title = data.title || 'SubastasActivas';
   const options = {
     body: data.body,
     icon: data.icon || '/icon-192.png',

@@ -10,8 +10,8 @@ export function createMagicLinkEmail({ url, host, email }: EmailTemplateProps): 
   text: string;
 } {
   const brandColor = "#000000";
-  const brandName = "SubastaPro";
-  
+  const brandName = "SubastasActivas";
+
   const escapedEmail = email.replace(/[&<>"']/g, (char) => {
     const escapeChars: Record<string, string> = {
       '&': '&amp;',
@@ -234,8 +234,8 @@ export function createVerificationEmail({ url, host, email }: EmailTemplateProps
   text: string;
 } {
   const brandColor = "#000000";
-  const brandName = "SubastaPro";
-  
+  const brandName = "SubastasActivas";
+
   const escapedEmail = email.replace(/[&<>"']/g, (char) => {
     const escapeChars: Record<string, string> = {
       '&': '&amp;',
@@ -494,6 +494,14 @@ export function createVerificationEmail({ url, host, email }: EmailTemplateProps
   return { subject, html, text };
 }
 
+/**
+ * Auction-alert email block — what each matched auction renders to.
+ *
+ * Every field except title/url is optional/nullable because the alert query
+ * (`SELECT * FROM Auction`) returns whatever the row carries — some rows are
+ * pre-auctions with no `endsAt`, some have no coords, some have no photo.
+ * The template degrades gracefully when fields are absent.
+ */
 export interface AuctionAlertEmailProps {
   alertName?: string;
   auctions: Array<{
@@ -502,8 +510,158 @@ export interface AuctionAlertEmailProps {
     province?: string | null;
     municipality?: string | null;
     appraisalValue?: number | null;
+    /** Primary "ends" timestamp — when the subasta is officially over. */
+    endsAt?: string | Date | null;
+    /** Legacy/secondary end timestamp some scrapers populate instead of endsAt. */
+    endDateTime?: string | Date | null;
+    /** Opening timestamp — used when status is PROXIMA_APERTURA / row has no endsAt. */
+    opensAt?: string | Date | null;
+    /** Status enum — drives the badge (En curso / Próxima apertura / …). */
+    status?: string | null;
+    /** Category enum — Viviendas / Turismos / Terrenos / Garajes / etc. */
+    category?: string | null;
+    /** Raw imageUrl from the projection (may be a /api/auction-image/… resolver URL or a placeholder). */
+    imageUrl?: string | null;
+    /** Coords for the rung-2 OSM static-map fallback. */
+    latitude?: number | null;
+    longitude?: number | null;
   }>;
   manageUrl: string;
+}
+
+/**
+ * Email-safe absolute-URL image picker (server-side mirror of the resolve-card-image ladder).
+ *
+ * Email clients can't run client JS, can't resolve relative paths, and Gmail/Outlook
+ * frequently refuse to render inline SVG. We collapse the 3-rung ladder into an absolute
+ * URL that an email client will actually fetch:
+ *
+ *   Rung 1 — real photo: `imageUrl` that starts with `/api/auction-image/` or `/streetview/`
+ *            → `${APP_URL}${imageUrl}`. The resolver returns a PNG/JPEG, email-safe.
+ *   Rung 2 — static map: lat+lng present → an absolute `https://tile.openstreetmap.org/...`
+ *            URL. OSM tiles are PNG, hosted on HTTPS, and render reliably in every mail client.
+ *   Rung 3 — placeholder: NO real photo AND NO coords. We deliberately do NOT use the SVG
+ *            category cartoons here — Gmail/Outlook block inline SVG `<img>` and would render
+ *            a broken image. We fall back to a centered-on-Spain OSM tile (Madrid, low zoom)
+ *            so something always renders. The alt text labels it accordingly.
+ *
+ * The result is always an absolute https:// URL.
+ */
+function emailAuctionImageUrl(
+  auction: AuctionAlertEmailProps['auctions'][number],
+  appUrl: string,
+): { src: string; alt: string; rung: 'photo' | 'map' | 'placeholder' } {
+  const { imageUrl, latitude, longitude, title, category } = auction;
+
+  // Rung 1 — real photo resolver paths.
+  if (imageUrl && (imageUrl.startsWith('/api/auction-image/') || imageUrl.startsWith('/streetview/'))) {
+    return {
+      src: `${appUrl}${imageUrl}`,
+      alt: title ? `Foto de ${title}` : 'Foto del bien',
+      rung: 'photo',
+    };
+  }
+
+  // If imageUrl is already an absolute http(s) URL (e.g. an external CDN), use it directly
+  // — only when it's clearly not a placeholder SVG (those wouldn't render in email anyway).
+  if (imageUrl && /^https?:\/\//.test(imageUrl) && !imageUrl.endsWith('.svg')) {
+    return {
+      src: imageUrl,
+      alt: title ? `Foto de ${title}` : 'Foto del bien',
+      rung: 'photo',
+    };
+  }
+
+  // Rung 2 — static map tile (PNG, https, email-safe).
+  const hasCoords =
+    typeof latitude === 'number' &&
+    typeof longitude === 'number' &&
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude);
+  if (hasCoords) {
+    // Slippy-map tile, zoom 16 (close enough to read the street) — keeps this
+    // helper self-contained instead of importing the server map-image module.
+    const zoom = 16;
+    const n = Math.pow(2, zoom);
+    const xFloat = ((longitude! + 180) / 360) * n;
+    const latRad = (latitude! * Math.PI) / 180;
+    const yFloat =
+      ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n;
+    const x = Math.floor(xFloat);
+    const y = Math.floor(yFloat);
+    return {
+      src: `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`,
+      alt: title ? `Mapa con ubicación de ${title}` : 'Mapa con la ubicación del bien',
+      rung: 'map',
+    };
+  }
+
+  // Rung 3 — no photo, no coords. Use a low-zoom OSM tile centered on Spain (Madrid area)
+  // so SOMETHING renders. Avoids the broken-image icon in Gmail/Outlook that an SVG would cause.
+  // Tile coords for Madrid (40.4168, -3.7038) @ zoom 6: x=31, y=24.
+  void category; // category unused at rung 3 (we don't ship SVG cartoons in email)
+  return {
+    src: `https://tile.openstreetmap.org/6/31/24.png`,
+    alt: title ? `Categoría: ${title}` : 'Subasta sin imagen disponible',
+    rung: 'placeholder',
+  };
+}
+
+/**
+ * Format an end-date into a clean Spanish short date — "14 jun 2026".
+ * Returns null when the input is missing/unparseable.
+ */
+function formatEndDate(value: string | Date | null | undefined): string | null {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat('es-ES', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(d);
+}
+
+/**
+ * Resolve the end-date line for an auction block:
+ *   - prefer endsAt → fallback to endDateTime
+ *   - for PROXIMA_APERTURA (or when only opensAt is set), use opensAt labelled "Apertura"
+ * Returns { label, dateStr } so the caller can render "Termina: 14 jun 2026"
+ * or "Apertura: 20 jul 2026", or null if no date can be resolved.
+ */
+function resolveAuctionDateLine(
+  auction: AuctionAlertEmailProps['auctions'][number],
+): { label: 'Termina' | 'Apertura'; dateStr: string } | null {
+  // Primary: explicit end timestamp(s).
+  const end = formatEndDate(auction.endsAt) ?? formatEndDate(auction.endDateTime);
+  if (end) return { label: 'Termina', dateStr: end };
+  // Pre-auction fallback: show the opening date instead.
+  const open = formatEndDate(auction.opensAt);
+  if (open) return { label: 'Apertura', dateStr: open };
+  return null;
+}
+
+/**
+ * Status enum → human-readable Spanish label + email-safe inline-styled colors.
+ * Greys-out unknown / other statuses (SUSPENDIDA etc.) into a neutral pill so we
+ * never render an unstyled raw enum string.
+ */
+function statusBadge(status: string | null | undefined): { label: string; bg: string; fg: string } | null {
+  if (!status) return null;
+  switch (status) {
+    case 'CELEBRANDOSE':
+      return { label: 'En curso', bg: '#dcfce7', fg: '#166534' };
+    case 'PROXIMA_APERTURA':
+      return { label: 'Próxima apertura', bg: '#fef3c7', fg: '#92400e' };
+    case 'SUSPENDIDA':
+      return { label: 'Suspendida', bg: '#f3f4f6', fg: '#4b5563' };
+    case 'CANCELADA':
+      return { label: 'Cancelada', bg: '#f3f4f6', fg: '#4b5563' };
+    case 'CELEBRADA':
+      return { label: 'Celebrada', bg: '#f3f4f6', fg: '#4b5563' };
+    default:
+      return { label: String(status), bg: '#f3f4f6', fg: '#4b5563' };
+  }
 }
 
 export function createAuctionAlertEmail({ alertName, auctions, manageUrl }: AuctionAlertEmailProps): {
@@ -511,25 +669,54 @@ export function createAuctionAlertEmail({ alertName, auctions, manageUrl }: Auct
   html: string;
   text: string;
 } {
-  const brandName = "SubastaPro";
+  const brandName = "SubastasActivas";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_URL || 'https://subastasactivas.com';
   const subject = alertName
     ? `Nuevas subastas para tu alerta: ${alertName}`
     : "Nuevas subastas que coinciden con tus alertas";
 
+  const escapeHtml = (s: string) =>
+    s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+
   const listHtml = auctions
     .map((auction) => {
-      const location = [auction.municipality, auction.province].filter(Boolean).join(', ');
+      const location = [auction.municipality, auction.province].filter(Boolean).join(', ') || 'Sin ubicación';
       const price = auction.appraisalValue
         ? new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(auction.appraisalValue)
         : 'Sin tasación';
+      const image = emailAuctionImageUrl(auction, appUrl);
+      const dateLine = resolveAuctionDateLine(auction);
+      const badge = statusBadge(auction.status);
+      const category = auction.category ? escapeHtml(auction.category) : null;
+
+      const badgeHtml = badge
+        ? `<span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600;background:${badge.bg};color:${badge.fg};line-height:1.4;">${escapeHtml(badge.label)}</span>`
+        : '';
+      const categoryHtml = category
+        ? `<span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:500;background:#eef2ff;color:#3730a3;line-height:1.4;margin-left:6px;">${category}</span>`
+        : '';
+      const dateHtml = dateLine
+        ? `<div style="font-size:13px;color:#374151;margin-top:6px;"><strong>${dateLine.label}:</strong> ${escapeHtml(dateLine.dateStr)}</div>`
+        : '';
+
       return `
-        <div style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
-          <div style="font-weight: 600; color: #111827;">${auction.title}</div>
-          <div style="font-size: 13px; color: #6b7280; margin-top: 4px;">${location || 'Sin ubicación'} • ${price}</div>
-          <div style="margin-top: 8px;">
-            <a href="${auction.url}" style="color: #2563eb; text-decoration: none; font-size: 13px;">Ver subasta</a>
-          </div>
-        </div>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 16px;border-bottom:1px solid #e5e7eb;padding-bottom:16px;">
+          <tr>
+            <td valign="top" width="130" style="width:130px;padding-right:12px;">
+              <img src="${escapeHtml(image.src)}" alt="${escapeHtml(image.alt)}" width="120" height="90" style="display:block;width:120px;height:90px;border-radius:6px;object-fit:cover;border:0;outline:none;text-decoration:none;background:#e5e7eb;" />
+            </td>
+            <td valign="top" style="vertical-align:top;">
+              <div style="font-weight:600;color:#111827;font-size:15px;line-height:1.35;margin-bottom:6px;">${escapeHtml(auction.title)}</div>
+              <div style="margin-bottom:6px;">${badgeHtml}${categoryHtml}</div>
+              <div style="font-size:13px;color:#6b7280;">${escapeHtml(location)}</div>
+              <div style="font-size:13px;color:#111827;font-weight:600;margin-top:4px;">${price}</div>
+              ${dateHtml}
+              <div style="margin-top:8px;">
+                <a href="${escapeHtml(auction.url)}" style="color:#2563eb;text-decoration:none;font-size:13px;font-weight:600;">Ver subasta &rarr;</a>
+              </div>
+            </td>
+          </tr>
+        </table>
       `;
     })
     .join('');
@@ -540,7 +727,12 @@ export function createAuctionAlertEmail({ alertName, auctions, manageUrl }: Auct
       const price = auction.appraisalValue
         ? new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(auction.appraisalValue)
         : 'Sin tasación';
-      return `- ${auction.title} (${location}) ${price}\n  ${auction.url}`;
+      const dateLine = resolveAuctionDateLine(auction);
+      const badge = statusBadge(auction.status);
+      const tags = [badge?.label, auction.category].filter(Boolean).join(' · ');
+      const tagPart = tags ? ` [${tags}]` : '';
+      const datePart = dateLine ? ` — ${dateLine.label} ${dateLine.dateStr}` : '';
+      return `- ${auction.title}${tagPart} (${location}) — ${price}${datePart}\n  ${auction.url}`;
     })
     .join('\n');
 

@@ -48,13 +48,13 @@ export async function POST(request: NextRequest) {
         const resend = new Resend(process.env.RESEND_API_KEY);
         
         await resend.emails.send({
-          from: process.env.EMAIL_FROM || 'SubastaPro <noreply@subastapro.com>',
+          from: process.env.EMAIL_FROM || 'SubastasActivas <noreply@subastasactivas.com>',
           to: email,
-          subject: 'Reset your SubastaPro password',
+          subject: 'Reset your SubastasActivas password',
           html: `
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
               <h1>Reset your password</h1>
-              <p>We received a request to reset the password for your SubastaPro account.</p>
+              <p>We received a request to reset the password for your SubastasActivas account.</p>
               <p>Click the button below to reset your password:</p>
               <p style="margin: 32px 0;">
                 <a href="${resetUrl}" style="background: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
               <p>If you didn't request this, you can safely ignore this email.</p>
             </div>
           `,
-          text: `Reset your password for SubastaPro\n\nWe received a request to reset your password.\n\nClick the link below to reset your password:\n\n${resetUrl}\n\nThis link will expire in 1 hour.\n\nIf you didn't request this, you can safely ignore this email.`,
+          text: `Reset your password for SubastasActivas\n\nWe received a request to reset your password.\n\nClick the link below to reset your password:\n\n${resetUrl}\n\nThis link will expire in 1 hour.\n\nIf you didn't request this, you can safely ignore this email.`,
         });
       } catch (error) {
         console.error('Failed to send password reset email:', error);
