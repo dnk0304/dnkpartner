@@ -26,6 +26,7 @@ import { PROVINCE_DB_KEY_TO_SLUG } from '@/lib/seo/slugs';
 import { capitalize, titleCase, formatDateLong } from '@/components/observatory/format';
 import { StatusBadge } from '@/components/observatory/StatusBadge';
 import { effectiveStatus } from '@/components/observatory/status';
+import { pickTeaserSnippet } from '@/lib/teaser-snippet';
 
 export interface AuctionTeaserData {
   id: string;
@@ -70,12 +71,23 @@ function formatEuro(value: number | null | undefined): string | null {
   }).format(value);
 }
 
+/**
+ * PII-safe wrapper over the shared sanitizer. `propertyDescription` is a
+ * raw `Key\tValue` structured dump from the scraper (IDUFIR / cadastral /
+ * Dirección / Código Postal / Localidad / Provincia all live in its first
+ * ~280 chars) — a naive slice would leak the gated fields the wall is
+ * supposed to hide into the public SSR HTML + the `__next_f` JSON.
+ *
+ * `pickTeaserSnippet` strips structured key/value lines, keeps only prose,
+ * collapses whitespace, and clamps to ≤280. Single source of truth shared
+ * with the API teaser projection — see lib/teaser-snippet.ts.
+ */
 function teaserSnippet(a: AuctionTeaserData): string | null {
-  const src = a.propertyDescription || a.lotDescription || a.boeAnnouncement || '';
-  if (!src) return null;
-  const trimmed = String(src).trim();
-  if (trimmed.length <= 280) return trimmed;
-  return trimmed.slice(0, 277).trimEnd() + '…';
+  return pickTeaserSnippet({
+    propertyDescription: a.propertyDescription,
+    lotDescription: a.lotDescription,
+    boeAnnouncement: a.boeAnnouncement,
+  });
 }
 
 export function AuctionTeaser({ data }: { data: AuctionTeaserData }) {

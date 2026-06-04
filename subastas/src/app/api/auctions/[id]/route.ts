@@ -17,6 +17,7 @@ import { auth } from '@/lib/auth';
 import { boeLinkFor } from '@/lib/boe-link';
 import { publicPathForDocId } from '@/lib/auction-docs/storage';
 import { getAccessState } from '@/lib/access';
+import { pickTeaserSnippet } from '@/lib/teaser-snippet';
 
 export async function GET(
   _req: NextRequest,
@@ -163,17 +164,18 @@ export async function GET(
   // appraisalValue (the headline tasacion shown on the card),
   // description snippet.
   if (!fullAccess) {
-    const teaserDescription = (() => {
-      const src =
-        projectedAuction.propertyDescription ||
-        projectedAuction.lotDescription ||
-        projectedAuction.boeAnnouncement ||
-        '';
-      if (!src) return null;
-      const trimmed = String(src).trim();
-      if (trimmed.length <= 280) return trimmed;
-      return trimmed.slice(0, 277).trimEnd() + '…';
-    })();
+    // PII-safe teaser snippet — shared sanitizer with AuctionTeaser.tsx so
+    // the API payload and the SSR-rendered teaser can never drift. The raw
+    // `propertyDescription` blob from the scraper carries IDUFIR / cadastral
+    // ref / Dirección / Código Postal as `Key\tValue` lines in its first
+    // ~280 chars; a naive slice would leak every gated field into both the
+    // JSON response and Google's index. `pickTeaserSnippet` strips structured
+    // lines, keeps prose only, collapses whitespace, clamps to ≤280.
+    const teaserDescription = pickTeaserSnippet({
+      propertyDescription: projectedAuction.propertyDescription,
+      lotDescription: projectedAuction.lotDescription,
+      boeAnnouncement: projectedAuction.boeAnnouncement,
+    });
     Object.assign(projectedAuction, {
       // Location detail — keep province/municipality (teaser), strip the
       // exact address + map coordinates.
