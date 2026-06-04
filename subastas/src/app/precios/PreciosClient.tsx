@@ -6,7 +6,7 @@
  * Layout (top → bottom):
  *   1. ObservatoryHeader (consistent persistent nav)
  *   2. Hero strip — eyebrow + title + lead + trial badge
- *   3. Two-column pricing grid — Free vs Acceso (€5.99 with 30-day trial)
+ *   3. Single centered pricing card — Acceso (€5.99 with 30-day free access)
  *   4. Embedded Whop checkout — iframe to plan `plan_c4MzcxWSJP7eT` with
  *      the local userId wired into `metadata[userId]` so the live webhook
  *      can auto-upgrade the user on `membership.activated`. Signed-out
@@ -72,36 +72,11 @@ export default function PreciosClient() {
           </div>
         </section>
 
-        {/* Pricing grid — two columns */}
+        {/* Pricing — single centered offer */}
         <section
-          className="mt-10 grid grid-cols-1 gap-5 md:mt-12 md:grid-cols-2 md:gap-6"
+          className="mx-auto mt-10 max-w-md md:mt-12"
           aria-label={t("heroTitle")}
         >
-          {/* FREE */}
-          <PricingCard
-            name={t("freeName")}
-            price={t("freePrice")}
-            priceSuffix={null}
-            tagline={t("freeTagline")}
-            features={[
-              t("freeFeature1"),
-              t("freeFeature2"),
-              t("freeFeature3"),
-              t("freeFeature4"),
-            ]}
-            cta={
-              isAuthed ? (
-                <CtaButton variant="ghost" disabled>
-                  {t("freeCtaSignedIn")}
-                </CtaButton>
-              ) : (
-                <CtaButton variant="ghost" href="/register">
-                  {t("freeCta")}
-                </CtaButton>
-              )
-            }
-          />
-
           {/* ACCESO */}
           <PricingCard
             featured
