@@ -20,15 +20,19 @@
 
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import Link from 'next/link';
 import { Suspense } from 'react';
 import {
   resolveSubastasSlug,
   RESERVED_SEGMENTS,
+  TIPO_SLUGS,
+  TIPO_LABEL_PLURAL,
 } from '@/lib/seo/slugs';
 import {
   countActiveAuctions,
   minStartingPrice,
   municipalitySlugToDbName,
+  municipalitiesInProvince,
 } from '@/lib/seo/page-data';
 import { SeoIntroBlock } from '@/components/seo/SeoIntroBlock';
 import { Breadcrumbs } from '@/components/seo/Breadcrumbs';
@@ -38,6 +42,8 @@ import SubastasListClient from '../../SubastasListClient';
 type PageProps = { params: Promise<{ slug: string; municipio: string }> };
 const SITE = 'https://subastasactivas.com';
 
+type SiblingMuni = { name: string; count: number; municipioSlug: string };
+
 type Resolved = {
   provinceSlug: string;
   provinceDbKey: string;
@@ -46,6 +52,8 @@ type Resolved = {
   municipalityName: string;
   count: number;
   minPrice: number | null;
+  siblings: SiblingMuni[];
+  provinceTotal: number;
 };
 
 async function loadTown(slug: string, municipio: string): Promise<Resolved | null> {
@@ -58,10 +66,18 @@ async function loadTown(slug: string, municipio: string): Promise<Resolved | nul
   const municipalityName = await municipalitySlugToDbName(r.dbKey, municipio);
   if (!municipalityName) return null;
 
-  const [count, minPrice] = await Promise.all([
+  const [count, minPrice, allMunis, provinceTotal] = await Promise.all([
     countActiveAuctions({ province: r.dbKey, municipality: municipalityName }),
     minStartingPrice({ province: r.dbKey, municipality: municipalityName }),
+    municipalitiesInProvince(r.dbKey),
+    countActiveAuctions({ province: r.dbKey }),
   ]);
+
+  // Sibling cluster: every active municipality in the same province
+  // EXCEPT the current one. Already sorted by count desc.
+  const siblings: SiblingMuni[] = allMunis
+    .filter((m) => m.municipioSlug !== municipio)
+    .map((m) => ({ name: m.name, count: m.count, municipioSlug: m.municipioSlug }));
 
   return {
     provinceSlug: r.slug,
@@ -71,6 +87,8 @@ async function loadTown(slug: string, municipio: string): Promise<Resolved | nul
     municipalityName,
     count,
     minPrice,
+    siblings,
+    provinceTotal,
   };
 }
 
@@ -79,7 +97,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const data = await loadTown(slug, municipio);
   if (!data) return { title: 'Página no encontrada' };
   const muniLabel = capitalizeLocation(data.municipalityName);
-  const title = `${data.count.toLocaleString('es-ES')} subastas en ${muniLabel} (${data.provinceLabel}) · estado en vivo | SubastasActivas`;
+  const title = `${data.count.toLocaleString('es-ES')} subastas en ${muniLabel} (${data.provinceLabel}) · estado en vivo | dnksubastas`;
   const description = `${data.count.toLocaleString('es-ES')} subastas públicas activas en ${muniLabel} (${data.provinceLabel}) con estado en vivo, precio de salida y enlace al BOE. Actualizado a diario.`.slice(0, 158);
   return {
     title,
@@ -101,7 +119,7 @@ export default async function MunicipioPage({ params }: PageProps) {
   const collectionLd = {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
-    name: `Subastas públicas en ${muniLabel} (${data.provinceLabel})`,
+    name: `Subastas en ${muniLabel} (${data.provinceLabel})`,
     description: `Subastas públicas activas en ${muniLabel}, ${data.provinceLabel}.`,
     url: `${SITE}/subastas/${data.provinceSlug}/${data.municipioSlug}`,
   };
@@ -126,10 +144,6 @@ export default async function MunicipioPage({ params }: PageProps) {
     ],
   };
 
-  // Skeleton intro/footer slots — Pixel's brief will fill the long-form copy,
-  // internal-link cluster (back-to-province + sibling municipalities), and
-  // any extra structured data. Forge owns: breadcrumb path + count/minPrice
-  // data + canonical + JSON-LD URLs + lockedFilter wiring.
   const introSlot = (
     <>
       <Breadcrumbs
@@ -153,6 +167,66 @@ export default async function MunicipioPage({ params }: PageProps) {
 
   const footerSlot = (
     <>
+      {/* Back-to-province CTA — single prominent link to the parent province
+          page (full inventory). This is the primary back-link the brief asks
+          for ("Ver todas las subastas en {Provincia}"). */}
+      <section className="mt-2">
+        <Link
+          href={`/subastas/${data.provinceSlug}`}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[--color-border] text-sm font-medium hover:bg-[--color-surface-muted]"
+        >
+          <span>Ver todas las subastas en {data.provinceLabel}</span>
+          <span className="text-[--color-text-muted] tnum">
+            ({data.provinceTotal.toLocaleString('es-ES')})
+          </span>
+        </Link>
+      </section>
+
+      {/* Sibling-municipality cluster — every OTHER active municipality in
+          the same province, each linking to its own clean town URL. Drives
+          the lateral crawl path between siblings (the SEO win). */}
+      {data.siblings.length > 0 && (
+        <section className="mt-10">
+          <h2 className="text-lg font-semibold mb-3">
+            Otros municipios en {data.provinceLabel}
+          </h2>
+          <ul className="flex flex-wrap gap-2">
+            {data.siblings.map((m) => (
+              <li key={m.municipioSlug}>
+                <Link
+                  href={`/subastas/${data.provinceSlug}/${m.municipioSlug}`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[--color-border] text-xs hover:bg-[--color-surface-muted]"
+                >
+                  <span>{capitalizeLocation(m.name)}</span>
+                  <span className="text-[--color-text-muted] tnum">
+                    ({m.count.toLocaleString('es-ES')})
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* Tipo cluster — mirrors the province page. Tipo pages are
+          location-agnostic so this is the same set everywhere; it preserves
+          the crawl path the brief calls out. */}
+      <section className="mt-10">
+        <h2 className="text-lg font-semibold mb-3">Por tipo de subasta</h2>
+        <ul className="flex flex-wrap gap-2">
+          {TIPO_SLUGS.map((t) => (
+            <li key={t}>
+              <Link
+                href={`/subastas/tipo/${t}`}
+                className="inline-block px-3 py-1 rounded-full border border-[--color-border] text-xs hover:bg-[--color-surface-muted]"
+              >
+                {TIPO_LABEL_PLURAL[t]}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
+
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionLd) }}
@@ -171,7 +245,9 @@ export default async function MunicipioPage({ params }: PageProps) {
           province: data.provinceDbKey,
           municipality: data.municipalityName,
         }}
-        seoTitle={`Subastas públicas en ${muniLabel} (${data.provinceLabel})`}
+        // Single indexable H1, mirrors the brief: "Subastas en {Municipio}
+        // ({Provincia})" — proper-cased via capitalizeLocation.
+        seoTitle={`Subastas en ${muniLabel} (${data.provinceLabel})`}
         seoIntroSlot={introSlot}
         seoFooterSlot={footerSlot}
       />

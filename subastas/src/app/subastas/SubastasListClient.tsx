@@ -5,9 +5,9 @@
  *
  * Used by:
  *   - /subastas                          (no lockedFilter)
- *   - /subastas/provincia/[provincia]    (lockedFilter.province)
+ *   - /subastas/[slug]                   (lockedFilter.province | .category)
+ *   - /subastas/[slug]/[municipio]       (lockedFilter.province + .municipality)
  *   - /subastas/tipo/[tipo]              (lockedFilter.type)
- *   - /subastas/[categoria]              (lockedFilter.category)
  *
  * Layout:
  *   ┌──────────────┬─────────────────────────────────────────────┐

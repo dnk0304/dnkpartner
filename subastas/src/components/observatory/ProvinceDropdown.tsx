@@ -11,8 +11,10 @@
  * We render EXACTLY what the API returns — no hardcoded list, no client
  * resort. If the API filters/changes, the UI follows for free.
  *
- * Selection routes to `/subastas?province={province}` so the URL is the
- * source of truth and the selection is shareable.
+ * Selection routes to the canonical clean province URL `/subastas/{slug}`
+ * (Wave 56 Option A — was `/subastas?province=…`). The URL is still the
+ * source of truth and the selection is shareable, but it's now the
+ * SEO-canonical path instead of a querystring filter that 301s.
  *
  * Mobile = native <select> (best a11y + ergonomics). Desktop keeps the
  * native <select> too — built-in keyboard nav, no popover edge-cases.
@@ -24,6 +26,7 @@ import { useRouter } from "next/navigation";
 import { ChevronDown, MapPin, Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/api-path";
 import { cn } from "@/lib/utils";
+import { PROVINCE_DB_KEY_TO_SLUG } from "@/lib/seo/slugs";
 
 type ProvinceRow = {
   province: string;
@@ -34,7 +37,14 @@ type ProvinceRow = {
 export type ProvinceDropdownProps = {
   /** Currently selected province key (matches `province` on rows). */
   value?: string;
-  /** Where to route on selection. `:province` replaced with chosen key. */
+  /**
+   * Where to route on selection. `:province` is replaced with the chosen
+   * DB province key (URL-encoded). Default: clean SEO URL
+   * `/subastas/{provinceSlug}` (Wave 56 Option A); if the picked value is
+   * off-taxonomy we fall back to the querystring form so navigation never
+   * dead-ends. Pass a custom template only when you need a non-SEO target
+   * (e.g. a query-only filter elsewhere in the app).
+   */
   routeTemplate?: string;
   /** Hide provinces with zero available auctions. Default true. */
   hideEmpty?: boolean;
@@ -43,7 +53,7 @@ export type ProvinceDropdownProps = {
 
 export function ProvinceDropdown({
   value = "",
-  routeTemplate = "/subastas?province=:province",
+  routeTemplate,
   hideEmpty = true,
   className,
 }: ProvinceDropdownProps) {
@@ -85,7 +95,19 @@ export function ProvinceDropdown({
       router.push("/subastas");
       return;
     }
-    router.push(routeTemplate.replace(":province", encodeURIComponent(next)));
+    if (routeTemplate) {
+      router.push(routeTemplate.replace(":province", encodeURIComponent(next)));
+      return;
+    }
+    // Default: clean SEO URL `/subastas/{provinceSlug}`. Fall back to the
+    // querystring filter when we don't have a canonical slug (off-taxonomy
+    // data — the API shouldn't return such rows, but the guard is cheap).
+    const slug = PROVINCE_DB_KEY_TO_SLUG[next];
+    router.push(
+      slug
+        ? `/subastas/${slug}`
+        : `/subastas?province=${encodeURIComponent(next)}`,
+    );
   };
 
   const totalAvailable = rows.reduce((s, r) => s + r.count, 0);

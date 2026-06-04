@@ -186,9 +186,9 @@ async function renderProvincePage(slugUrl: string, r: {
           <h2 className="text-lg font-semibold mb-3">Por municipio en {label}</h2>
           <ul className="flex flex-wrap gap-2">
             {municipalities.map((m) => (
-              <li key={m.name}>
+              <li key={m.municipioSlug}>
                 <Link
-                  href={`/subastas?province=${encodeURIComponent(dbKey)}&municipality=${encodeURIComponent(m.name)}`}
+                  href={`/subastas/${slugUrl}/${m.municipioSlug}`}
                   className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[--color-border] text-xs hover:bg-[--color-surface-muted]"
                 >
                   <span>{capitalizeLocation(m.name)}</span>

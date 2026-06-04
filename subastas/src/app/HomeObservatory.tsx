@@ -27,6 +27,34 @@ import { ProvinceDropdown } from "@/components/observatory/ProvinceDropdown";
 import { apiFetch } from "@/lib/api-path";
 import { formatNumber } from "@/components/observatory/format";
 import { AuctionItem } from "@/types";
+import { PROVINCE_DB_KEY_TO_SLUG, slugify } from "@/lib/seo/slugs";
+
+/**
+ * Build the canonical clean SEO URL for a province click. Wave 56 (Option A):
+ * province pages live at `/subastas/{slug}` — no more `/provincia/` prefix,
+ * no more `?province=` querystring round-trip. If the raw province name is
+ * off-taxonomy (not in our 52-province map) we fall back to the interactive
+ * list filter so the user still sees something useful.
+ */
+function provinceHref(province: string): string {
+  const slug = PROVINCE_DB_KEY_TO_SLUG[province];
+  return slug
+    ? `/subastas/${slug}`
+    : `/subastas?province=${encodeURIComponent(province)}`;
+}
+
+/**
+ * Build the canonical clean SEO URL for a (province, municipality) click —
+ * goes straight at the new town page `/subastas/{prov}/{muni}`. Fallback to
+ * the QS filter when the province isn't in our taxonomy.
+ */
+function townHref(province: string, municipality: string): string {
+  const slug = PROVINCE_DB_KEY_TO_SLUG[province];
+  const muniSlug = slugify(municipality);
+  return slug && muniSlug
+    ? `/subastas/${slug}/${muniSlug}`
+    : `/subastas?province=${encodeURIComponent(province)}&municipality=${encodeURIComponent(municipality)}`;
+}
 
 const HierarchicalMap = dynamic(
   () => import("@/components/dashboard/HierarchicalMap").then((m) => m.HierarchicalMap),
@@ -277,7 +305,7 @@ export default function HomeObservatory() {
               items={mapItems}
               onMarkerClick={(a: AuctionItem) => router.push(`/auction/${encodeURIComponent(a.id)}`)}
               onProvinceClick={(province: string) =>
-                router.push(`/subastas?province=${encodeURIComponent(province)}`)
+                router.push(provinceHref(province))
               }
               onBackToProvinces={() => {}}
               onBackToMunicipalities={() => {}}
@@ -296,12 +324,10 @@ export default function HomeObservatory() {
           <ProvinceGrid
             provinceCounts={provinceCounts}
             onProvinceClick={(province: string) =>
-              router.push(`/subastas?province=${encodeURIComponent(province)}`)
+              router.push(provinceHref(province))
             }
             onMunicipalityClick={(municipality: string, province: string) =>
-              router.push(
-                `/subastas?province=${encodeURIComponent(province)}&municipality=${encodeURIComponent(municipality)}`,
-              )
+              router.push(townHref(province, municipality))
             }
           />
         </section>

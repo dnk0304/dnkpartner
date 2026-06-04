@@ -113,20 +113,50 @@ export const minStartingPrice = unstable_cache(_minStartingPrice, ['seo-min-pric
  * page's "Por municipio" section). Returns rows sorted by count desc,
  * with null/empty/"desconocida" names filtered out — matches the cleanup
  * the home ProvinceGrid does client-side, kept consistent server-side here.
+ *
+ * Wave 56: each row carries the canonical `municipioSlug` so the province
+ * page can link straight at the new town URL `/subastas/{prov}/{muni}`.
+ * Per-slug collisions are folded to the highest-count casing — same rule
+ * `municipalitySlugToDbName` uses — keeping the link cluster and the
+ * resolver in lockstep.
  */
-async function _municipalitiesInProvince(province: string): Promise<Array<{ name: string; count: number }>> {
+async function _municipalitiesInProvince(
+  province: string,
+): Promise<Array<{ name: string; count: number; municipioSlug: string }>> {
   const rows = await prisma.auction.groupBy({
     by: ['municipality'],
     where: { status: { in: ACTIVE_STATUSES }, province },
     _count: { _all: true },
   });
-  return rows
-    .map((r) => ({ name: (r.municipality ?? '').trim(), count: r._count?._all ?? 0 }))
-    .filter((r) => {
-      if (!r.name) return false;
-      const lc = r.name.toLowerCase();
-      return lc !== 'null' && lc !== 'undefined' && lc !== 'desconocida';
-    })
+  // Fold per-slug collisions in two passes so we don't double-count:
+  //   1. Sum total active count per slug.
+  //   2. Pick the highest-individual-count DB casing as the display name
+  //      (mirrors `municipalitySlugToDbName`'s resolution so the link
+  //      cluster and the town-page resolver agree on the same canonical
+  //      DB name).
+  type Acc = { name: string; topCount: number; total: number; municipioSlug: string };
+  const bySlug = new Map<string, Acc>();
+  for (const r of rows) {
+    const name = (r.municipality ?? '').trim();
+    if (!name) continue;
+    const lc = name.toLowerCase();
+    if (lc === 'null' || lc === 'undefined' || lc === 'desconocida') continue;
+    const municipioSlug = slugify(name);
+    if (!municipioSlug) continue;
+    const count = r._count?._all ?? 0;
+    const prev = bySlug.get(municipioSlug);
+    if (!prev) {
+      bySlug.set(municipioSlug, { name, topCount: count, total: count, municipioSlug });
+    } else {
+      prev.total += count;
+      if (count > prev.topCount) {
+        prev.name = name;
+        prev.topCount = count;
+      }
+    }
+  }
+  return Array.from(bySlug.values())
+    .map((a) => ({ name: a.name, count: a.total, municipioSlug: a.municipioSlug }))
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'es'));
 }
 

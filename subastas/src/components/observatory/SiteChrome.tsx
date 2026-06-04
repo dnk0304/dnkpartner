@@ -7,7 +7,7 @@
  * `ObservatoryHeader` (search/wordmark/notification/auth) and the shared
  * `SiteFooter`. Before this existed, the header lived per-page inside
  * individual client components — so the programmatic-SEO routes
- * (`/subastas/provincia/[x]`, `/subastas/tipo/[x]`, `/subastas/[categoria]`,
+ * (`/subastas/[slug]`, `/subastas/[slug]/[municipio]`, `/subastas/tipo/[x]`,
  * `/blog`, `/guia/[slug]`) silently shipped without it. Centralising the
  * chrome here is the regression-proof fix: future routes get nav for free.
  *

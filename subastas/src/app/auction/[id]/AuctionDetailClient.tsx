@@ -38,6 +38,7 @@ import { buildCatastroUrl } from "@/lib/catastro-url";
 import { effectiveStatus } from "@/components/observatory/status";
 import { DetailStatusPanel } from "@/components/observatory/DetailStatusPanel";
 import { DetailTimeline } from "@/components/observatory/DetailTimeline";
+import { PROVINCE_DB_KEY_TO_SLUG } from "@/lib/seo/slugs";
 import { StatusBadge } from "@/components/observatory/StatusBadge";
 import { FollowButton } from "@/components/notifications/FollowButton";
 import { GatedField } from "@/components/dashboard/GatedField";
@@ -301,7 +302,14 @@ export default function AuctionDetailClient({ id }: { id: string }) {
             <>
               <span aria-hidden="true" className="mx-2">·</span>
               <Link
-                href={`/subastas?province=${encodeURIComponent(raw.province)}`}
+                // Wave 56 Option A — clean province URL. If the raw value
+                // isn't in our taxonomy (off-canon data) fall back to the
+                // interactive list filter so the link still resolves.
+                href={
+                  PROVINCE_DB_KEY_TO_SLUG[raw.province]
+                    ? `/subastas/${PROVINCE_DB_KEY_TO_SLUG[raw.province]}`
+                    : `/subastas?province=${encodeURIComponent(raw.province)}`
+                }
                 className="hover:text-[--color-brand]"
               >
                 {capitalize(raw.province)}
