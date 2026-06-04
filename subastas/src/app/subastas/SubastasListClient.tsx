@@ -142,7 +142,6 @@ export default function SubastasListClient({
   const [advOpen, setAdvOpen] = React.useState(false);
   const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false);
   const [alertsOpen, setAlertsOpen] = React.useState(false);
-  const [provinces, setProvinces] = React.useState<string[]>([]);
   const [municipalities, setMunicipalities] = React.useState<string[]>([]);
   // Map of municipality label -> active auction count for the currently-
   // selected province. Used to annotate the muni dropdown ("Sabadell (3)")
@@ -221,29 +220,11 @@ export default function SubastasListClient({
     [filters, pathname, router, lockedFilter],
   );
 
-  // Load provinces from the canonical endpoint.
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await apiFetch("/api/auctions/provinces?sort=count_desc&minimum_count=1");
-        if (cancelled) return;
-        if (res.ok) {
-          const body = await res.json();
-          if (body?.success && Array.isArray(body.data)) {
-            setProvinces((body.data as Array<{ province: string }>).map((r) => r.province));
-          }
-        }
-      } catch {
-        /* silent */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Load municipalities for current province.
+  // Load municipalities for current province. Only fires when a province is
+  // active in filter state — that's the LOCKED-province SEO-page branch
+  // (the unlocked /subastas flow navigates instead of mutating filters).
+  // The list feeds the editable Municipio dropdown in FiltersSidebar's
+  // locked branch.
   React.useEffect(() => {
     if (!filters.province) {
       setMunicipalities([]);
@@ -427,7 +408,10 @@ export default function SubastasListClient({
           <div className="hidden lg:block sticky top-24">
             <FiltersSidebar
               filters={filters}
-              provinces={provinces}
+              // `municipalities` / `municipalityCounts` feed the LOCKED-
+              // province SEO-page branch (editable muni dropdown narrowing
+              // within a locked province). The unlocked /subastas branch now
+              // uses ProvinceTownTree, which owns its own data.
               municipalities={municipalities}
               municipalityCounts={municipalityCounts}
               onChange={updateFilters}
@@ -592,7 +576,6 @@ export default function SubastasListClient({
             <div className="flex-1 overflow-y-auto overscroll-contain p-4 bg-[var(--color-surface)]">
               <FiltersSidebar
                 filters={filters}
-                provinces={provinces}
                 municipalities={municipalities}
                 municipalityCounts={municipalityCounts}
                 onChange={updateFilters}

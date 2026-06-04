@@ -44,6 +44,7 @@ import {
 } from "./filters";
 import { AuctionType } from "@/types";
 import { cn } from "@/lib/utils";
+import { ProvinceTownTree } from "./ProvinceTownTree";
 
 /**
  * Which dimensions a parent page can LOCK so users can't widen out of them
@@ -68,14 +69,17 @@ export type LockedFilter = {
 
 export type FiltersSidebarProps = {
   filters: ObservatoryFilters;
-  provinces: string[];
-  municipalities: string[];
+  /**
+   * Town list for the LOCKED-province SEO page branch only — the editable
+   * Municipio dropdown that narrows within a locked province. The UNLOCKED
+   * /subastas branch uses `ProvinceTownTree` (wave 59) and owns its own data,
+   * so `municipalities` / `municipalityCounts` are NOT needed there.
+   */
+  municipalities?: string[];
   /**
    * Optional map of municipality label -> active auction count, used to
-   * annotate each option in the dropdown (e.g. "Sabadell (3)"). The list
-   * itself comes from `municipalities` (all towns in the province, including
-   * those with zero current auctions); the count just signals where live
-   * inventory is. Missing keys render as "(0)".
+   * annotate each option in the locked-branch dropdown (e.g. "Sabadell (3)").
+   * Same scope as `municipalities` — locked-province pages only.
    */
   municipalityCounts?: Record<string, number>;
   onChange: (next: Partial<ObservatoryFilters>) => void;
@@ -93,8 +97,7 @@ export type FiltersSidebarProps = {
 
 export function FiltersSidebar({
   filters,
-  provinces,
-  municipalities,
+  municipalities = [],
   municipalityCounts,
   onChange,
   onClear,
@@ -293,37 +296,13 @@ export function FiltersSidebar({
             )}
           </div>
         ) : (
-          <div className="space-y-2">
-            <select
-              value={filters.province}
-              onChange={(e) => onChange({ province: e.target.value, municipality: "" })}
-              className="tnum w-full rounded-md border border-[var(--color-hairline)] bg-white px-3 py-2 text-sm text-[var(--color-ink-primary)] focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15"
-              aria-label="Provincia"
-            >
-              <option value="">Todas las provincias</option>
-              {provinces.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-            {filters.province && (
-              <select
-                value={filters.municipality}
-                onChange={(e) => onChange({ municipality: e.target.value })}
-                className="tnum w-full rounded-md border border-[var(--color-hairline)] bg-white px-3 py-2 text-sm text-[var(--color-ink-primary)] focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15"
-                aria-label="Municipio"
-                disabled={municipalities.length === 0}
-              >
-                <option value="">Todos los municipios</option>
-                {municipalities.map((m) => (
-                  <option key={m} value={m}>
-                    {munisuffix(m)}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
+          /* Wave 59 — expandable PROVINCE→TOWN tree replaces the flat
+             Provincia + Municipio dropdowns. Each row clicks through to a
+             clean SEO URL (/subastas/{prov} or /subastas/{prov}/{muni}),
+             which is also the muni-clean-URL fix Dennis flagged (no more
+             `?municipality=`). Tree owns its own data fetches against
+             /api/auctions/counts. */
+          <ProvinceTownTree filters={filters} />
         )}
       </FilterBlock>
 
