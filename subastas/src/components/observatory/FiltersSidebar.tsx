@@ -538,7 +538,13 @@ export function SortTabs({
 }
 
 /**
- * StatusTabs — Activas / Finalizadas. Maps to filters.when. Two buttons.
+ * StatusTabs — Activas / Próximas / Finalizadas. Maps to filters.when.
+ *
+ * Added Próximas (2026-06-04) per Dennis: the ~220 upcoming auctions
+ * (`proxima-apertura` status) had no browse surface — the when-bucket was
+ * defined in filters.ts but unreachable from the UI. Tab sits between
+ * Activas and Finalizadas to match the natural lifecycle order
+ * (open → live → finished).
  */
 export function StatusTabs({
   value,
@@ -551,6 +557,7 @@ export function StatusTabs({
 }) {
   const TABS: Array<{ id: ObservatoryFilters["when"]; label: string }> = [
     { id: "activas", label: "Activas" },
+    { id: "proximas", label: "Próximas" },
     { id: "finalizadas", label: "Finalizadas" },
   ];
   return (

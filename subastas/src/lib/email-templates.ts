@@ -762,12 +762,57 @@ export function createAuctionAlertEmail({ alertName, auctions, manageUrl }: Auct
   const escapeHtml = (s: string) =>
     s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
+  const EUR = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+
+  /**
+   * Build the three-labelled-value block for a single auction (Dennis-locked
+   * 2026-06-04, brief `three-values-card-display`). Renders up to three
+   * lines: Tasación (`appraisalValue`), Valor subasta (`valorSubasta`,
+   * NEW after Ghost's 2026-06-04 split), Cantidad reclamada
+   * (`claimedAmount`). Honest-NULL: a missing value is OMITTED — never
+   * coerced to "0 €" or "Sin tasación". Returns "" when ALL three are
+   * absent so the email block stays clean.
+   */
+  const valuesHtml = (auction: AuctionAlertEmailProps['auctions'][number]): string => {
+    const lines: Array<{ label: string; amount: number }> = [];
+    if (auction.appraisalValue != null && auction.appraisalValue > 0) {
+      lines.push({ label: 'Tasación', amount: auction.appraisalValue });
+    }
+    if (auction.valorSubasta != null && auction.valorSubasta > 0) {
+      lines.push({ label: 'Valor subasta', amount: auction.valorSubasta });
+    }
+    if (auction.claimedAmount != null && auction.claimedAmount > 0) {
+      lines.push({ label: 'Cantidad reclamada', amount: auction.claimedAmount });
+    }
+    if (lines.length === 0) return '';
+    return lines
+      .map(
+        (l, i) =>
+          `<div style="font-size:13px;color:#111827;margin-top:${i === 0 ? 4 : 2}px;">
+            <span style="color:#6b7280;font-weight:500;">${escapeHtml(l.label)}:</span>
+            <span style="color:#111827;font-weight:600;margin-left:4px;">${EUR.format(l.amount)}</span>
+          </div>`,
+      )
+      .join('');
+  };
+
+  const valuesText = (auction: AuctionAlertEmailProps['auctions'][number]): string => {
+    const parts: string[] = [];
+    if (auction.appraisalValue != null && auction.appraisalValue > 0) {
+      parts.push(`Tasación ${EUR.format(auction.appraisalValue)}`);
+    }
+    if (auction.valorSubasta != null && auction.valorSubasta > 0) {
+      parts.push(`Valor subasta ${EUR.format(auction.valorSubasta)}`);
+    }
+    if (auction.claimedAmount != null && auction.claimedAmount > 0) {
+      parts.push(`Cantidad reclamada ${EUR.format(auction.claimedAmount)}`);
+    }
+    return parts.join(' · ');
+  };
+
   const listHtml = auctions
     .map((auction) => {
       const location = [auction.municipality, auction.province].filter(Boolean).join(', ') || 'Sin ubicación';
-      const price = auction.appraisalValue
-        ? new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(auction.appraisalValue)
-        : 'Sin tasación';
       const image = emailAuctionImageUrl(auction, appUrl);
       const dateLine = resolveAuctionDateLine(auction);
       const badge = statusBadge(auction.status);
@@ -793,7 +838,7 @@ export function createAuctionAlertEmail({ alertName, auctions, manageUrl }: Auct
               <div style="font-weight:600;color:#111827;font-size:15px;line-height:1.35;margin-bottom:6px;">${escapeHtml(auction.title)}</div>
               <div style="margin-bottom:6px;">${badgeHtml}${categoryHtml}</div>
               <div style="font-size:13px;color:#6b7280;">${escapeHtml(location)}</div>
-              <div style="font-size:13px;color:#111827;font-weight:600;margin-top:4px;">${price}</div>
+              ${valuesHtml(auction)}
               ${dateHtml}
               <div style="margin-top:8px;">
                 <a href="${escapeHtml(auction.url)}" style="color:#2563eb;text-decoration:none;font-size:13px;font-weight:600;">Ver subasta &rarr;</a>
@@ -808,15 +853,14 @@ export function createAuctionAlertEmail({ alertName, auctions, manageUrl }: Auct
   const textList = auctions
     .map((auction) => {
       const location = [auction.municipality, auction.province].filter(Boolean).join(', ') || 'Sin ubicación';
-      const price = auction.appraisalValue
-        ? new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(auction.appraisalValue)
-        : 'Sin tasación';
       const dateLine = resolveAuctionDateLine(auction);
       const badge = statusBadge(auction.status);
       const tags = [badge?.label, auction.category].filter(Boolean).join(' · ');
       const tagPart = tags ? ` [${tags}]` : '';
       const datePart = dateLine ? ` — ${dateLine.label} ${dateLine.dateStr}` : '';
-      return `- ${auction.title}${tagPart} (${location}) — ${price}${datePart}\n  ${auction.url}`;
+      const values = valuesText(auction);
+      const valuesPart = values ? ` — ${values}` : '';
+      return `- ${auction.title}${tagPart} (${location})${valuesPart}${datePart}\n  ${auction.url}`;
     })
     .join('\n');
 

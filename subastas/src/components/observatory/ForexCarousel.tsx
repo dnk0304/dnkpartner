@@ -82,6 +82,14 @@ export type FeedAuction = {
   propertyType: string | null;
   currentBid: number | null;
   appraisalValue: number | null;
+  /**
+   * Valor subasta — DISTINCT from `appraisalValue` (Tasación) since Ghost's
+   * 2026-06-04 split (commit `443a864`). Projected by the carousel-mix
+   * endpoint (Forge `c921b0c`). Honest-NULL — the carousel card renders the
+   * "Valor subasta" line only when this field is non-null and > 0; otherwise
+   * the line is omitted entirely.
+   */
+  valorSubasta?: number | null;
   minimumBid: number | null;
   depositAmount: number | null;
   claimedAmount: number | null;
@@ -725,19 +733,26 @@ function ExpandedCard({
   const where = [muni && titleCase(muni), prov && capitalize(prov)]
     .filter(Boolean)
     .join(" · ");
-  // Price hierarchy (Dennis-locked 2026-06-03): Tasación PRIMARY (the
-  // prominent number — label is "Tasación", NOT "Valor subasta"; the
-  // scraper's valor-subasta fallback still shows under the same "Tasación"
-  // label, locked by Ken — no flag exists to distinguish on the payload).
-  // Cantidad reclamada SECONDARY (when present). Puja mínima REMOVED from
-  // the carousel card. Depósito only as a last-resort fallback when nothing
-  // else exists.
+  // Three-value display (Dennis-locked 2026-06-04, brief
+  // `three-values-card-display`): Tasación + Valor subasta + Cantidad
+  // reclamada are now distinct columns after Ghost's 2026-06-04 split. The
+  // carousel card surfaces all three with correct labels — Tasación reads
+  // `appraisalValue`, Valor subasta reads the new `valorSubasta` field
+  // (NOT the same as Tasación any longer). Honest-NULL — every line is
+  // omitted when its field is null/≤0. Depósito remains a last-resort
+  // fallback when none of the three primary values exist.
   const tasacion = pickPrice(auction.appraisalValue);
+  const valorSubasta = pickPrice(auction.valorSubasta);
   const reclamada = pickPrice(auction.claimedAmount);
   const deposit =
-    tasacion == null && reclamada == null
+    tasacion == null && valorSubasta == null && reclamada == null
       ? pickPrice(auction.depositAmount)
       : null;
+  // Build the labelled price-line list — used by the bottom price grid.
+  const priceLines: Array<{ key: string; label: string; amount: number }> = [];
+  if (tasacion != null) priceLines.push({ key: 'tasacion', label: 'Tasación', amount: tasacion });
+  if (valorSubasta != null) priceLines.push({ key: 'valorSubasta', label: 'Valor subasta', amount: valorSubasta });
+  if (reclamada != null) priceLines.push({ key: 'claimedAmount', label: 'Cantidad reclamada', amount: reclamada });
   const [imgFailed, setImgFailed] = React.useState(false);
   // Image resolver still wants a "title" for the placeholder alt text; pass
   // the type headline (always populated and human-readable) rather than the
@@ -761,7 +776,7 @@ function ExpandedCard({
   const showMapPin = resolved.isMap && !imgFailed;
   const effectiveStatus = ended ? "concluida-portal" : auction.status;
   const noPriceData =
-    tasacion == null && reclamada == null && deposit == null;
+    tasacion == null && valorSubasta == null && reclamada == null && deposit == null;
   const isVariosLotes = isVariosLotesTitle(auction.title);
 
   const cardClass = cn(
@@ -944,26 +959,40 @@ function ExpandedCard({
               </div>
             </div>
           )}
-          {tasacion != null && (
-            <div className={cn("min-w-0", reclamada == null && "col-span-2")}>
-              <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
-                Tasación
+          {/* Three labelled values — Tasación + Valor subasta + Cantidad
+              reclamada. Each cell is OMITTED when its field is null/≤0
+              (honest-NULL). With 1 value it spans the row; with 2 it shares
+              the 2-col grid; with 3 the third drops to a full-width row
+              underneath so labels never wrap. The first present line reads
+              as the prominent number; the rest are slightly muted. */}
+          {priceLines.map((line, i) => {
+            // Layout: 1 line → col-span-2; 2 lines → left-aligned / right-
+            // aligned in 2-col grid; 3 lines → first two share row, third
+            // spans the row below.
+            const total = priceLines.length;
+            let cellClass = 'min-w-0';
+            if (total === 1) cellClass += ' col-span-2';
+            else if (total === 2 && i === 1) cellClass += ' text-right';
+            else if (total === 3 && i === 2) cellClass += ' col-span-2';
+            const isHeadline = i === 0;
+            return (
+              <div key={line.key} className={cellClass}>
+                <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
+                  {line.label}
+                </div>
+                <div
+                  className={cn(
+                    'tnum font-semibold truncate',
+                    isHeadline
+                      ? 'text-[15px] text-[--color-ink-primary]'
+                      : 'text-[13px] text-[--color-ink-secondary]',
+                  )}
+                >
+                  {formatPrice(line.amount)}
+                </div>
               </div>
-              <div className="tnum text-[15px] font-semibold text-[--color-ink-primary] truncate">
-                {formatPrice(tasacion)}
-              </div>
-            </div>
-          )}
-          {reclamada != null && (
-            <div className={cn("min-w-0", tasacion != null && "text-right")}>
-              <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
-                Cantidad reclamada
-              </div>
-              <div className="tnum text-[13px] font-semibold text-[--color-ink-secondary] truncate">
-                {formatPrice(reclamada)}
-              </div>
-            </div>
-          )}
+            );
+          })}
           {deposit != null && (
             <div className="min-w-0 col-span-2">
               <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">

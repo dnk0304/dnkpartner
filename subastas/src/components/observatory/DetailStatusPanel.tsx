@@ -37,6 +37,7 @@ export type DetailStatusPanelProps = {
     depositAmount?: number | null;
     bidIncrement?: number | null;
     claimedAmount?: number | null;
+    valorSubasta?: number | null;
   };
   initialFollowing: boolean;
   className?: string;
@@ -158,9 +159,25 @@ export function DetailStatusPanel({
         </div>
       </div>
 
-      {/* Values */}
+      {/* Values — Tasación + Valor subasta + Cantidad reclamada are the
+          three Dennis-canonical figures (locked 2026-06-04, brief
+          `three-values-card-display`). Each is rendered ONLY when present
+          (honest-NULL); a value of 0 is treated as absent on the user-visible
+          columns since the scraper writes honest-NULL there too. Tasación is
+          kept first for continuity with the old layout; Valor subasta sits
+          immediately under it so the two BOE-distinct figures read side-by-
+          side. Puja mínima, Depósito and Tramo stay below as secondary
+          contractual fields. */}
       <dl className="space-y-2 hairline-t pt-4 text-sm">
-        <ValueRow label="Tasación" value={formatPrice(auction.appraisalValue)} />
+        {auction.appraisalValue != null && auction.appraisalValue > 0 && (
+          <ValueRow label="Tasación" value={formatPrice(auction.appraisalValue)} />
+        )}
+        {auction.valorSubasta != null && auction.valorSubasta > 0 && (
+          <ValueRow label="Valor subasta" value={formatPrice(auction.valorSubasta)} />
+        )}
+        {auction.claimedAmount != null && auction.claimedAmount > 0 && (
+          <ValueRow label="Cantidad reclamada" value={formatPrice(auction.claimedAmount)} />
+        )}
         {auction.minimumBid != null && (
           <ValueRow label="Puja mínima" value={formatPrice(auction.minimumBid)} />
         )}
@@ -169,9 +186,6 @@ export function DetailStatusPanel({
         )}
         {auction.bidIncrement != null && (
           <ValueRow label="Tramo entre pujas" value={formatPrice(auction.bidIncrement)} />
-        )}
-        {auction.claimedAmount != null && (
-          <ValueRow label="Cantidad reclamada" value={formatPrice(auction.claimedAmount)} />
         )}
       </dl>
 

@@ -90,38 +90,47 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
       ? fallbackImageFor(resolved, item.category)
       : resolved.src;
 
-  // Price hierarchy (Dennis-locked 2026-06-03):
-  //   PRIMARY  = Tasación (`appraisalValue`) — the prominent headline number.
-  //   SECONDARY = Cantidad reclamada (`claimedAmount`) — only when present.
-  //   Puja mínima is NEVER the card headline anymore (lives on detail/modal).
+  // Three-value display (Dennis-locked 2026-06-04, brief
+  // `three-values-card-display`): the BOE-distinct figures Tasación
+  // (`appraisalValue`), Valor subasta (`valorSubasta`, NEW after Ghost's
+  // 2026-06-04 split) and Cantidad reclamada (`claimedAmount`) are rendered
+  // as three labelled values. Honest-NULL: a missing value is OMITTED — we
+  // never coerce to 0 or "—".
   //
-  // Tasación is populated on ~100% of active rows (scraper falls back to
-  // valor-subasta when judicial Tasación=0). We label it simply "Tasación"
-  // in every case — there is no payload flag distinguishing the two and the
-  // label decision is locked.
-  //
-  // Cantidad reclamada coverage is uneven (~30% overall, near-zero on AEAT)
-  // so the line MUST be omitted when null/≤0 — never reserve empty space.
-  //
-  // currentBid stays available as an optional small caption only when a real
-  // bid exists (rare on active rows); it never displaces Tasación as primary.
+  // Visual hierarchy: the first present of (Tasación → Valor subasta →
+  // currentBid) becomes the prominent headline number; the others render as
+  // small secondary captions on the same row. Each line vanishes cleanly
+  // when its field is null, so judicial rows (often Tasación=null,
+  // valorSubasta=real) and AEAT rows (Tasación-only) both look clean.
   const hasTasacion = item.appraisalValue != null && Number.isFinite(item.appraisalValue) && (item.appraisalValue as number) > 0;
+  const hasValorSubasta = item.valorSubasta != null && Number.isFinite(item.valorSubasta as number) && (item.valorSubasta as number) > 0;
   const hasClaimed = item.claimedAmount != null && Number.isFinite(item.claimedAmount as number) && (item.claimedAmount as number) > 0;
   const hasCurrentBid = item.currentBid != null && Number.isFinite(item.currentBid) && (item.currentBid as number) > 0;
+  // Pick the headline: Tasación wins when present; else Valor subasta; else
+  // currentBid (rare last resort). Whichever wins is rendered large; the
+  // others slide into the secondary caption row below.
   const primaryPrice = hasTasacion
-    ? { label: "Tasación", amount: item.appraisalValue as number }
+    ? { key: "tasacion", label: "Tasación", amount: item.appraisalValue as number }
+    : hasValorSubasta
+    ? { key: "valorSubasta", label: "Valor subasta", amount: item.valorSubasta as number }
     : hasCurrentBid
-    ? { label: "Puja actual", amount: item.currentBid as number }
+    ? { key: "currentBid", label: "Puja actual", amount: item.currentBid as number }
     : null;
-  const claimedLine = hasClaimed
-    ? { label: "Cantidad reclamada", amount: item.claimedAmount as number }
-    : null;
-  // Tiny "puja actual" caption only if the primary is Tasación AND there's a
-  // real current bid worth showing — never the headline.
-  const currentBidLine =
-    primaryPrice?.label === "Tasación" && hasCurrentBid
-      ? { label: "Puja actual", amount: item.currentBid as number }
-      : null;
+  // Secondary lines — only the values NOT used as the headline, and only
+  // when present (honest-NULL).
+  const secondaryLines: Array<{ key: string; label: string; amount: number }> = [];
+  if (hasValorSubasta && primaryPrice?.key !== "valorSubasta") {
+    secondaryLines.push({ key: "valorSubasta", label: "Valor subasta", amount: item.valorSubasta as number });
+  }
+  if (hasClaimed) {
+    secondaryLines.push({ key: "claimedAmount", label: "Cantidad reclamada", amount: item.claimedAmount as number });
+  }
+  if (hasCurrentBid && primaryPrice?.key !== "currentBid" && primaryPrice?.key === "tasacion") {
+    // Only show "Puja actual" as a secondary caption when Tasación is the
+    // headline (matches the original Pixel intent — never bury a bid under
+    // the lower-tier Valor subasta).
+    secondaryLines.push({ key: "currentBid", label: "Puja actual", amount: item.currentBid as number });
+  }
 
   const hasEndDate =
     item.endDate instanceof Date
@@ -248,10 +257,11 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
           </Link>
         </div>
 
-        {/* Price row — Tasación as the prominent headline; Cantidad reclamada
-            as a small secondary line ONLY when present; optional "Puja actual"
-            mini-caption when a real currentBid exists. Hides cleanly to a soft
-            "Precio no disponible" when no numeric price exists. */}
+        {/* Price row — headline value (Tasación → Valor subasta → currentBid)
+            shown large; remaining values appear as compact labelled captions
+            on the same row. Honest-NULL: any absent value vanishes (no "—",
+            no "0 €", no reserved cell). Falls back to "Precio no disponible"
+            when ALL numeric fields are null. */}
         {primaryPrice ? (
           <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <div className="flex items-baseline gap-1.5">
@@ -262,22 +272,14 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
                 {primaryPrice.label}
               </span>
             </div>
-            {claimedLine && (
-              <span className="tnum text-xs text-[--color-ink-tertiary]">
-                {claimedLine.label}{" "}
+            {secondaryLines.map((line) => (
+              <span key={line.key} className="tnum text-xs text-[--color-ink-tertiary]">
+                {line.label}{" "}
                 <span className="text-[--color-ink-secondary]">
-                  {formatPrice(claimedLine.amount)}
+                  {formatPrice(line.amount)}
                 </span>
               </span>
-            )}
-            {currentBidLine && (
-              <span className="tnum text-xs text-[--color-ink-tertiary]">
-                {currentBidLine.label}{" "}
-                <span className="text-[--color-ink-secondary]">
-                  {formatPrice(currentBidLine.amount)}
-                </span>
-              </span>
-            )}
+            ))}
           </div>
         ) : (
           <div className="mt-2 text-sm text-[--color-ink-secondary]">

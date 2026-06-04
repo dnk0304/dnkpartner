@@ -415,7 +415,13 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
               </div>
             </div>
 
-            {auction.appraisalValue && (
+            {/* Tasación · Valor subasta · Cantidad reclamada — three
+                BOE-canonical figures (Dennis-locked 2026-06-04, brief
+                `three-values-card-display`). Each tile is OMITTED when the
+                corresponding field is null (honest-NULL); the flex row
+                reflows so the remaining tiles span evenly. Puja Mínima
+                stays below in the secondary grid as a contractual field. */}
+            {auction.appraisalValue ? (
               <div className="flex-1 min-w-[240px] p-6 lg:p-8 bg-blue-50 rounded-xl border-2 border-blue-200 hover:shadow-lg transition-shadow">
                 <div className="text-xs lg:text-sm text-blue-600 font-bold uppercase tracking-wider mb-2 lg:mb-3">
                   Tasación
@@ -424,7 +430,29 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
                   {formatCurrency(auction.appraisalValue)}
                 </div>
               </div>
-            )}
+            ) : null}
+
+            {auction.valorSubasta ? (
+              <div className="flex-1 min-w-[240px] p-6 lg:p-8 bg-indigo-50 rounded-xl border-2 border-indigo-200 hover:shadow-lg transition-shadow">
+                <div className="text-xs lg:text-sm text-indigo-600 font-bold uppercase tracking-wider mb-2 lg:mb-3">
+                  Valor Subasta
+                </div>
+                <div className="text-2xl lg:text-3xl xl:text-4xl font-bold text-indigo-700 whitespace-nowrap overflow-hidden text-ellipsis">
+                  {formatCurrency(auction.valorSubasta)}
+                </div>
+              </div>
+            ) : null}
+
+            {auction.claimedAmount ? (
+              <div className="flex-1 min-w-[240px] p-6 lg:p-8 bg-rose-50 rounded-xl border-2 border-rose-200 hover:shadow-lg transition-shadow">
+                <div className="text-xs lg:text-sm text-rose-600 font-bold uppercase tracking-wider mb-2 lg:mb-3">
+                  Cantidad Reclamada
+                </div>
+                <div className="text-2xl lg:text-3xl xl:text-4xl font-bold text-rose-700 whitespace-nowrap overflow-hidden text-ellipsis">
+                  {formatCurrency(auction.claimedAmount)}
+                </div>
+              </div>
+            ) : null}
 
             {auction.minimumBid && (
               <div className="flex-1 min-w-[240px] p-6 lg:p-8 bg-purple-50 rounded-xl border-2 border-purple-200 hover:shadow-lg transition-shadow">

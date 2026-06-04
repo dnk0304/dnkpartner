@@ -361,7 +361,11 @@ export default function SubastasListClient({
             {seoTitle && (
               <p className="mt-1 text-sm text-[var(--color-ink-tertiary)] tnum">
                 {renderedCount.toLocaleString("es-ES")} subastas
-                {filters.when === "finalizadas" ? " finalizadas" : " activas"}
+                {filters.when === "finalizadas"
+                  ? " finalizadas"
+                  : filters.when === "proximas"
+                  ? " próximas"
+                  : " activas"}
               </p>
             )}
           </div>

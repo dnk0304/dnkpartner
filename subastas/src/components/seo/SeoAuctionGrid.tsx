@@ -18,24 +18,44 @@ type Row = AuctionForSlug & {
   currentBid: number | null;
   minimumBid: number | null;
   appraisalValue: number | null;
+  /**
+   * Valor subasta — distinct from `appraisalValue` (Tasación) after Ghost's
+   * 2026-06-04 split (commit `443a864`). Optional on the SEO row type — the
+   * SEO read path will pick it up automatically once the query selects it,
+   * and the renderer below stays honest-NULL when absent.
+   */
+  valorSubasta?: number | null;
+  /**
+   * Cantidad reclamada — third labelled value rendered on each SEO card when
+   * present (honest-NULL). Optional so existing SEO routes pre-projection
+   * compile without change.
+   */
+  claimedAmount?: number | null;
   endsAt: Date | null;
 };
 
 const EUR = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
 
-// Card price hierarchy (Dennis-locked 2026-06-03): Tasación PRIMARY on every
-// card surface. SEO cards previously led with currentBid → minimumBid; both
-// are demoted. minimumBid is no longer surfaced as the headline (lives on
-// detail page only). currentBid stays as the last-resort fallback when no
-// Tasación is projected for the row.
-function priceLabel(r: Row): { value: string; label: string } {
+// Three-value display (Dennis-locked 2026-06-04, brief
+// `three-values-card-display`): Tasación + Valor subasta + Cantidad reclamada
+// as three labelled lines. Honest-NULL: each line is OMITTED when its field
+// is null/≤0. The first present value (in display order) is shown larger as
+// the SEO card's headline; the rest read as compact secondary captions
+// underneath.
+type ValueLine = { key: string; label: string; amount: number };
+
+function valueLinesFor(r: Row): ValueLine[] {
+  const out: ValueLine[] = [];
   if (r.appraisalValue && r.appraisalValue > 0) {
-    return { value: EUR.format(r.appraisalValue), label: 'Tasación' };
+    out.push({ key: 'tasacion', label: 'Tasación', amount: r.appraisalValue });
   }
-  if (r.currentBid && r.currentBid > 0) {
-    return { value: EUR.format(r.currentBid), label: 'Puja actual' };
+  if (r.valorSubasta && r.valorSubasta > 0) {
+    out.push({ key: 'valorSubasta', label: 'Valor subasta', amount: r.valorSubasta });
   }
-  return { value: 'Sin precio publicado', label: '' };
+  if (r.claimedAmount && r.claimedAmount > 0) {
+    out.push({ key: 'claimedAmount', label: 'Cantidad reclamada', amount: r.claimedAmount });
+  }
+  return out;
 }
 
 export function SeoAuctionGrid({ auctions, emptyMessage }: { auctions: Row[]; emptyMessage?: string }) {
@@ -64,7 +84,13 @@ export function SeoAuctionGrid({ auctions, emptyMessage }: { auctions: Row[]; em
         {auctions.map((a) => {
           const slug = buildAuctionSlug(a);
           const where = [a.municipality, a.province].filter(Boolean).join(', ');
-          const price = priceLabel(a);
+          const lines = valueLinesFor(a);
+          // Fallback to currentBid only when NONE of the three primary values
+          // exist (keeps the existing "Sin precio publicado" affordance).
+          const fallbackBid =
+            lines.length === 0 && a.currentBid && a.currentBid > 0
+              ? { key: 'currentBid', label: 'Puja actual', amount: a.currentBid }
+              : null;
           return (
             <li key={a.id} className="rounded-md border border-[--color-border] p-4 hover:shadow-md transition-shadow">
               <Link href={`/subastas/subasta/${slug}`} className="block">
@@ -73,12 +99,38 @@ export function SeoAuctionGrid({ auctions, emptyMessage }: { auctions: Row[]; em
                   {a.title || `${a.category} en ${a.province ?? 'España'}`}
                 </h3>
                 {where ? <div className="text-xs text-[--color-text-muted] mt-1">{where}</div> : null}
-                <div className="mt-2 flex items-baseline gap-1.5">
-                  <span className="text-sm font-semibold">{price.value}</span>
-                  {price.label ? (
-                    <span className="text-[10px] uppercase tracking-wide text-[--color-text-muted]">{price.label}</span>
-                  ) : null}
-                </div>
+                {/* Three-value labelled stack — first value is the SEO card's
+                    headline, others render as compact secondary captions.
+                    Honest-NULL: each line is OMITTED when absent. */}
+                {lines.length > 0 ? (
+                  <div className="mt-2 space-y-0.5">
+                    {lines.map((line, i) => (
+                      <div key={line.key} className="flex items-baseline gap-1.5">
+                        <span
+                          className={
+                            i === 0
+                              ? 'text-sm font-semibold'
+                              : 'text-xs font-medium text-[--color-text-muted]'
+                          }
+                        >
+                          {EUR.format(line.amount)}
+                        </span>
+                        <span className="text-[10px] uppercase tracking-wide text-[--color-text-muted]">
+                          {line.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : fallbackBid ? (
+                  <div className="mt-2 flex items-baseline gap-1.5">
+                    <span className="text-sm font-semibold">{EUR.format(fallbackBid.amount)}</span>
+                    <span className="text-[10px] uppercase tracking-wide text-[--color-text-muted]">
+                      {fallbackBid.label}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="mt-2 text-sm text-[--color-text-muted]">Sin precio publicado</div>
+                )}
               </Link>
             </li>
           );

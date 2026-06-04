@@ -72,17 +72,29 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
       : resolved.src;
 
   // Field availability — drives conditional hiding.
-  // Card price hierarchy (Dennis-locked 2026-06-03): Tasación PRIMARY,
-  // Cantidad reclamada SECONDARY (gated on presence), Puja mínima removed
-  // from the card headline (lives on detail/modal). currentBid stays as a
-  // small "Puja actual" caption when a real bid exists.
+  // Three-value display (Dennis-locked 2026-06-04, brief
+  // `three-values-card-display`): Tasación + Valor subasta + Cantidad
+  // reclamada are surfaced as three labelled lines when present. Honest-NULL:
+  // each line is OMITTED when its field is null (never coerced to 0 or "—").
+  // Judicial rows that scrape Tasación=null show Valor subasta in its place;
+  // AEAT rows that have only Tasación show that alone. currentBid (Puja
+  // actual) stays as a small caption when a real bid exists.
   const hasTasacion = item.appraisalValue != null && Number.isFinite(item.appraisalValue) && (item.appraisalValue as number) > 0;
+  const hasValorSubasta = item.valorSubasta != null && Number.isFinite(item.valorSubasta as number) && (item.valorSubasta as number) > 0;
   const hasClaimed = item.claimedAmount != null && Number.isFinite(item.claimedAmount as number) && (item.claimedAmount as number) > 0;
   const hasCurrentBid = item.currentBid != null && Number.isFinite(item.currentBid) && (item.currentBid as number) > 0;
+  // Build the labelled price-line list in display order (Tasación → Valor
+  // subasta → Cantidad reclamada). The first becomes the prominent number;
+  // the rest render as smaller secondary lines in the same block. This list
+  // is what drives the responsive 1/2/3-column layout in the price block.
+  const valueLines: Array<{ key: string; label: string; amount: number }> = [];
+  if (hasTasacion) valueLines.push({ key: "tasacion", label: "Tasación", amount: item.appraisalValue as number });
+  if (hasValorSubasta) valueLines.push({ key: "valorSubasta", label: "Valor subasta", amount: item.valorSubasta as number });
+  if (hasClaimed) valueLines.push({ key: "claimedAmount", label: "Cantidad reclamada", amount: item.claimedAmount as number });
   // Ghost may split multi-lot auctions into per-lote rows tagged "Varios Lotes"
   // with no usable price. Render a clean "Precio no disponible" affordance
   // instead of an empty price block.
-  const noPriceData = !hasTasacion && !hasClaimed && !hasCurrentBid;
+  const noPriceData = valueLines.length === 0 && !hasCurrentBid;
   const isVariosLotes = isVariosLotesTitle(item.title);
   // Type headline — propertyType (from the doc-archive backfill) is the
   // BOE-accurate bien type; fall back to category for the ~99% of rows still
@@ -243,48 +255,49 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
           </div>
         )}
 
-        {/* PRIMARY: Tasación (left, largest). Cantidad reclamada in the right
-            cell ONLY when present — when absent, Tasación stretches to span
-            the full row width so the card never shows an orphaned empty cell
-            (the ~70% AEAT/ADMINISTRATIVAS case). */}
-        {hasTasacion && (
+        {/* Three-value price block — Tasación · Valor subasta · Cantidad
+            reclamada. Each present value gets its own labelled cell; the
+            CSS grid reflows from 1→2→3 columns based on how many are
+            present so the card never shows a reserved empty cell. The first
+            present value reads as the prominent number (text-base, semibold);
+            the trailing values are slightly muted secondary readings.
+            Honest-NULL: an absent value is OMITTED — no "0 €", no em-dash. */}
+        {valueLines.length > 0 && (
           <div
             className={cn(
-              "pt-2 hairline-t",
-              hasClaimed ? "grid grid-cols-2 gap-3" : "",
+              "pt-2 hairline-t grid gap-3",
+              valueLines.length === 1 && "grid-cols-1",
+              valueLines.length === 2 && "grid-cols-2",
+              valueLines.length === 3 && "grid-cols-3",
             )}
           >
-            <div>
-              <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
-                Tasación
-              </div>
-              <div className="tnum text-base font-semibold text-[--color-ink-primary]">
-                {formatPrice(item.appraisalValue)}
-              </div>
-            </div>
-            {hasClaimed && (
-              <div className="text-right">
+            {valueLines.map((line, i) => (
+              <div
+                key={line.key}
+                className={cn(
+                  "min-w-0",
+                  // Last cell aligns to the right in multi-column layouts so
+                  // the secondary numbers don't crowd the left primary.
+                  i > 0 && valueLines.length === 2 && "text-right",
+                  i === valueLines.length - 1 && valueLines.length === 3 && "text-right",
+                )}
+              >
                 <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
-                  Cantidad reclamada
+                  {line.label}
                 </div>
-                <div className="tnum text-base font-semibold text-[--color-ink-primary]">
-                  {formatPrice(item.claimedAmount)}
+                <div
+                  className={cn(
+                    "tnum font-semibold text-[--color-ink-primary]",
+                    // First value reads as the prominent headline; others are
+                    // slightly smaller so the visual hierarchy stays clear
+                    // even when three numbers share the same row.
+                    i === 0 ? "text-base" : "text-sm",
+                  )}
+                >
+                  {formatPrice(line.amount)}
                 </div>
               </div>
-            )}
-          </div>
-        )}
-        {/* Edge case: no Tasación but Cantidad reclamada exists (rare —
-            judicial rows where even the valor-subasta fallback is null).
-            Render reclamada alone rather than skipping the price block. */}
-        {!hasTasacion && hasClaimed && (
-          <div className="pt-2 hairline-t">
-            <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
-              Cantidad reclamada
-            </div>
-            <div className="tnum text-base font-semibold text-[--color-ink-primary]">
-              {formatPrice(item.claimedAmount)}
-            </div>
+            ))}
           </div>
         )}
 

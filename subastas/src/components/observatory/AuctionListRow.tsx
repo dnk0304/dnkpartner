@@ -65,14 +65,36 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
     imgFailed && resolved.rung !== "placeholder"
       ? fallbackImageFor(resolved, item.category)
       : resolved.src;
-  // Price hierarchy (Dennis-locked 2026-06-03): Tasación PRIMARY (formerly
-  // the dim right-hand cell, now the prominent number); Cantidad reclamada
-  // replaces "puja mín." in the secondary cell when present; Puja mínima is
-  // no longer rendered on this row.
+  // Three-value display (Dennis-locked 2026-06-04, brief
+  // `three-values-card-display`): Tasación + Valor subasta + Cantidad
+  // reclamada are surfaced as distinct labelled numbers. The dense table
+  // row carries them across two cells — the primary (md+) renders the
+  // prominent headline number; the secondary (lg+) stacks any extra labelled
+  // values present. Honest-NULL across the board.
   const hasCurrentBid = item.currentBid != null && Number.isFinite(item.currentBid) && (item.currentBid as number) > 0;
   const hasTasacion = item.appraisalValue != null && Number.isFinite(item.appraisalValue) && (item.appraisalValue as number) > 0;
+  const hasValorSubasta = item.valorSubasta != null && Number.isFinite(item.valorSubasta as number) && (item.valorSubasta as number) > 0;
   const hasClaimed = item.claimedAmount != null && Number.isFinite(item.claimedAmount as number) && (item.claimedAmount as number) > 0;
-  const noPriceData = !hasTasacion && !hasClaimed && !hasCurrentBid;
+  const noPriceData = !hasTasacion && !hasValorSubasta && !hasClaimed && !hasCurrentBid;
+  // Pick the headline: Tasación → Valor subasta → currentBid. Whichever
+  // value wins is the prominent number in the primary price cell; the
+  // remaining present values stack in the secondary cell.
+  const headlinePrice = hasTasacion
+    ? { key: "tasacion", label: "tasación", amount: item.appraisalValue as number }
+    : hasValorSubasta
+    ? { key: "valorSubasta", label: "valor subasta", amount: item.valorSubasta as number }
+    : hasCurrentBid
+    ? { key: "currentBid", label: "puja actual", amount: item.currentBid as number }
+    : null;
+  // Secondary stacked lines — only ones NOT used as the headline, in display
+  // order (Valor subasta → Cantidad reclamada).
+  const secondaryStack: Array<{ key: string; label: string; amount: number }> = [];
+  if (hasValorSubasta && headlinePrice?.key !== "valorSubasta") {
+    secondaryStack.push({ key: "valorSubasta", label: "valor subasta", amount: item.valorSubasta as number });
+  }
+  if (hasClaimed) {
+    secondaryStack.push({ key: "claimedAmount", label: "cant. reclamada", amount: item.claimedAmount as number });
+  }
   const isVariosLotes = isVariosLotesTitle(item.title);
   // Type label — propertyType (from doc-archive backfill) preferred over the
   // less specific row-level `category`. Pre-backfill rows still show the
@@ -224,27 +246,37 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
         )}
       </td>
 
-      {/* Primary price cell = Tasación (the prominent number). When Tasación is
-          absent but a real currentBid exists, surface that instead so the row
-          still has a number; otherwise the no-price affordance renders. */}
+      {/* Primary price cell = the headline number (Tasación → Valor subasta
+          → currentBid in order of presence). Below md the secondary cell is
+          hidden, so any extra values fall here as small lines so the row
+          never loses a number a wider viewport would show. */}
       <td className="align-top py-3 pr-3 text-right whitespace-nowrap">
-        {hasTasacion ? (
+        {headlinePrice ? (
           <>
             <div className="tnum text-sm font-semibold text-[--color-ink-primary]">
-              {formatPrice(item.appraisalValue)}
+              {formatPrice(headlinePrice.amount)}
             </div>
             <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
-              tasación
+              {headlinePrice.label}
             </div>
-          </>
-        ) : hasCurrentBid ? (
-          <>
-            <div className="tnum text-sm font-semibold text-[--color-ink-primary]">
-              {formatPrice(item.currentBid)}
-            </div>
-            <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
-              puja actual
-            </div>
+            {/* Below lg: the secondary cell is hidden — fold the extra
+                labelled values here so a narrower viewport still sees
+                Valor subasta + Cant. reclamada (just stacked under the
+                headline instead of beside it). */}
+            {secondaryStack.length > 0 && (
+              <div className="lg:hidden mt-1 space-y-0.5">
+                {secondaryStack.map((line) => (
+                  <div key={line.key}>
+                    <div className="tnum text-xs text-[--color-ink-secondary]">
+                      {formatPrice(line.amount)}
+                    </div>
+                    <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
+                      {line.label}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         ) : noPriceData ? (
           <div className="text-right">
@@ -260,19 +292,24 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
         )}
       </td>
 
-      {/* Secondary price cell = Cantidad reclamada when present, otherwise
-          left empty (dash). Replaces the former dim Tasación column — the
-          old "puja mín." cell is gone (Puja mínima no longer headlines). */}
+      {/* Secondary price cell (lg+) — stacks Valor subasta + Cantidad
+          reclamada when present. Each line vanishes when its field is null
+          (honest-NULL). The cell collapses to a dash only when NEITHER
+          extra value exists. */}
       <td className="hidden lg:table-cell align-top py-3 pr-3 text-right whitespace-nowrap">
-        {hasClaimed ? (
-          <>
-            <div className="tnum text-sm text-[--color-ink-secondary]">
-              {formatPrice(item.claimedAmount)}
-            </div>
-            <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
-              cant. reclamada
-            </div>
-          </>
+        {secondaryStack.length > 0 ? (
+          <div className="space-y-1">
+            {secondaryStack.map((line) => (
+              <div key={line.key}>
+                <div className="tnum text-sm text-[--color-ink-secondary]">
+                  {formatPrice(line.amount)}
+                </div>
+                <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+                  {line.label}
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
           <span className="text-[10px] text-[--color-ink-tertiary]">—</span>
         )}

@@ -211,18 +211,25 @@ export default function HomeObservatory() {
             )}
             {/* Próximas — re-added 2026-06-04 per Dennis. Was removed on
                 2026-06-03 ("próximas adds clutter"), then re-requested for the
-                count specifically. Rendered as a subordinate detail in the
-                same visual tier as propiedades/vehículos, not as a second
-                headline. Value comes from /api/auctions/stats →
-                trueUpcomingCount (~220 live). i18n key reused: home.upcoming
-                ("próximas" / "upcoming"). */}
+                count specifically. Wrapped as a Link to /subastas?when=proximas
+                (2026-06-04) so the ~220 upcoming auctions are now reachable
+                directly from the hero count — pairs with the new "Próximas"
+                tab in the /subastas page header. Visual styling matches the
+                other counter chips; the link styling adds an underline on
+                hover so the affordance reads clearly. */}
             {typeof stats?.trueUpcomingCount === "number" && (
-              <span className="inline-flex items-center gap-2 text-[--color-ink-secondary]">
+              <Link
+                href="/subastas?when=proximas"
+                className="inline-flex items-center gap-2 text-[--color-ink-secondary] rounded hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40 group"
+                aria-label={`Ver ${formatNumber(stats.trueUpcomingCount)} subastas próximas`}
+              >
                 <strong className="font-semibold text-[--color-ink-primary]">
                   {formatNumber(stats.trueUpcomingCount)}
                 </strong>
-                <span>{t("upcoming")}</span>
-              </span>
+                <span className="group-hover:underline underline-offset-2">
+                  {t("upcoming")}
+                </span>
+              </Link>
             )}
           </div>
         </section>

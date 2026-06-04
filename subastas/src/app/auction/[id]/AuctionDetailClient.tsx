@@ -214,6 +214,7 @@ export default function AuctionDetailClient({ id }: { id: string }) {
     depositAmount?: number | null;
     bidIncrement?: number | null;
     claimedAmount?: number | null;
+    valorSubasta?: number | null;
   } = {
     id: raw.id,
     title: raw.title,
@@ -224,6 +225,11 @@ export default function AuctionDetailClient({ id }: { id: string }) {
     status: status as AuctionItem["status"],
     auctionType: raw.auctionType?.toLowerCase() as AuctionItem["auctionType"],
     appraisalValue: raw.appraisalValue ?? null,
+    // Valor subasta — distinct from `appraisalValue` (Tasación) since
+    // Ghost's 2026-06-04 split (commit `443a864`). The /api/auctions/[id]
+    // route uses Prisma `include` so this scalar flows through automatically
+    // once the generated client picks up the migrated schema. Honest-NULL.
+    valorSubasta: (raw as { valorSubasta?: number | null }).valorSubasta ?? null,
     currentBid: raw.currentBid ?? null,
     minimumBid: raw.minimumBid ?? null,
     depositAmount: raw.depositAmount ?? null,
