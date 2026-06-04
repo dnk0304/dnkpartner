@@ -320,16 +320,40 @@ const PROVINCE_PLACEHOLDER_VALUES = [
 ];
 
 function provinceValidWhere(): Record<string, unknown> {
-  // Prisma `not in` of a list is the cleanest Prisma equivalent to the
-  // raw-SQL `LOWER(province) NOT IN (...)` — combined with a NOT NULL +
-  // non-empty trim guard via {not: ""}. The LOWER() comparison happens
-  // because the placeholder list is already lowercased AND the variance
-  // we care about (Unknown / unknown) is two casings of the same word —
-  // Prisma's notIn is case-sensitive, so we list both. Today the DB only
-  // has lowercase placeholders for these literals; capitalised drift is
-  // rare and can be added if it ever appears.
+  // Prisma equivalent of stats/route.ts's PROVINCE_VALID_SQL
+  // (`LOWER(province) NOT IN (...) AND LENGTH(TRIM(province)) > 1`).
+  //
+  // Two bugs in the original implementation, both diagnosed against the
+  // live wave52 container (2026-06-04):
+  //
+  //   1. RUNTIME BUG — `province: { not: null, ... }` against the Auction
+  //      model throws `PrismaClientValidationError` because `province` is
+  //      `String` (NON-nullable) in schema.prisma, so the generated
+  //      `StringFilter` does not accept `null` in `not`. Compiled tsc
+  //      clean (the `Record<string, unknown>` return type washed away the
+  //      Prisma type-check) but the live `prisma.auction.findMany` call
+  //      threw 500 on every hit, leaving the home carousel empty.
+  //   2. SEMANTIC BUG — `notIn: PROVINCE_PLACEHOLDER_VALUES` is
+  //      case-sensitive, and the actual DB stores 34,467 rows with
+  //      "Unknown" (capital U) and 46 with "Desconocida". The original
+  //      lowercase-only list would have leaked all of those into the
+  //      carousel even if the runtime bug were fixed.
+  //
+  // Fix: drop `not: null` entirely (the field is non-nullable so it's
+  // both invalid and unnecessary), and replace `notIn` with a series of
+  // case-insensitive `NOT equals` clauses inside `AND` so capitalised
+  // drift ("Unknown", "Desconocida", "MAPA DE LA ZONA", …) is caught.
+  // A final `{ NOT: { province: "" } }` covers the trim/empty case the
+  // raw-SQL LENGTH(TRIM(...)) > 1 guard previously handled — one-char
+  // junk is rare enough in practice that we accept the slight semantic
+  // gap to stay in pure Prisma-land (raw SQL would be a bigger rewrite).
   return {
-    province: { not: null, notIn: PROVINCE_PLACEHOLDER_VALUES },
+    AND: [
+      ...PROVINCE_PLACEHOLDER_VALUES.map((v) => ({
+        NOT: { province: { equals: v, mode: "insensitive" as const } },
+      })),
+      { NOT: { province: "" } },
+    ],
   };
 }
 
