@@ -14,6 +14,10 @@ interface AuctionStatsRow {
   preAuctionCount: number;
 }
 
+interface TotalTrackedAllRow {
+  totalTrackedAll: number;
+}
+
 interface ActiveSplitRow {
   activeTotal: number;
   activeProperties: number;
@@ -26,15 +30,26 @@ interface TrueActiveRow {
   trueUpcomingCount: number;
 }
 
-// First day of the current month (UTC, ISO 8601). Used by the "new this month"
-// hero chip — counts rows whose publishedAt landed on or after this anchor.
-// Computed once per request handler invocation; route is GET-only and the
-// month boundary is coarse enough that re-rendering inside a single request
-// doesn't matter.
+// First day of the current month (UTC, ISO 8601). Used by the legacy
+// `newThisMonthCount` field — preserved so existing consumers don't break,
+// but the hero now reads `newLast30DaysCount` (rolling 30d) so the chip
+// never resets to ~0 at month boundaries.
 function firstOfMonthIsoUtc(now: Date = new Date()): string {
   const y = now.getUTCFullYear();
   const m = now.getUTCMonth();
   return new Date(Date.UTC(y, m, 1, 0, 0, 0, 0)).toISOString();
+}
+
+// Anchor for the rolling-30-day "Nuevas" chip. Today minus 30 days, UTC,
+// ISO 8601. Computed once per request handler invocation. Counts rows whose
+// `createdAt` (ingestion timestamp — the date OUR catalog learned about the
+// auction) lands on/after this anchor. Using createdAt rather than
+// publishedAt guarantees a non-zero number even when the BOE publish date
+// field lags or clusters: this measures freshness of OUR ingestion, which
+// is what the hero claim ("nuevas en los últimos 30 días") promises.
+function thirtyDaysAgoIsoUtc(now: Date = new Date()): string {
+  const ms = now.getTime() - 30 * 24 * 60 * 60 * 1000;
+  return new Date(ms).toISOString();
 }
 
 // Re-export the canonical sets locally as mutable arrays for the legacy
@@ -162,11 +177,9 @@ export async function GET() {
         AND ${PROVINCE_VALID_SQL}
     `;
 
-    // "Nuevas este mes" — auctions whose publishedAt is on/after the first day
-    // of the current month. Honest framing: this is "registered in our catalog
-    // this month" (publishedAt is the BOE publish date we ingest from). Uses
-    // the same PROVINCE_VALID predicate so the number reconciles with the
-    // rest of the catalog (no orphan rows).
+    // "Nuevas este mes" — legacy field, calendar-month anchored. Preserved
+    // for back-compat with any existing consumer. The HERO now reads
+    // `newLast30DaysCount` instead (rolling window — never resets to 0).
     const newThisMonthSql = `
       SELECT COUNT(*) AS count
       FROM Auction
@@ -175,11 +188,33 @@ export async function GET() {
     `;
     const monthAnchor = firstOfMonthIsoUtc();
 
-    const [trueActiveRow, trueLiveRow, trueUpcomingRow, newThisMonthRow] = await Promise.all([
+    // "Nuevas (últimos 30 días)" — rolling 30-day window keyed on
+    // `createdAt` (when OUR catalog ingested the row). Province-filtered
+    // for consistency with the rest of the catalog so it reconciles with
+    // `totalAuctions` (the cleanly-categorized total). This is the field
+    // the landing hero "Nuevas" chip should consume.
+    const newLast30DaysSql = `
+      SELECT COUNT(*) AS count
+      FROM Auction
+      WHERE createdAt >= ?
+        AND ${PROVINCE_VALID_SQL}
+    `;
+    const thirtyDayAnchor = thirtyDaysAgoIsoUtc();
+
+    // Raw grand total — COUNT(*) over the entire Auction table with NO
+    // province or status filter. This is the honest "auctions we've ever
+    // tracked" number (~235767 on 2026-06-04), distinct from `totalAuctions`
+    // which is the cleanly-categorized province-valid subset (~198753).
+    // Landing hero "Rastreadas" chip consumes this field.
+    const totalTrackedAllSql = `SELECT COUNT(*) AS totalTrackedAll FROM Auction`;
+
+    const [trueActiveRow, trueLiveRow, trueUpcomingRow, newThisMonthRow, newLast30DaysRow, totalTrackedAllRaw] = await Promise.all([
       queryOne<{ count: number }>(trueActiveSql, [...ACTIVE_DB_STATUSES]),
       queryOne<{ count: number }>(trueLiveSql, [...LIVE_NOW_DB_STATUSES]),
       queryOne<{ count: number }>(trueUpcomingSql, [...PRE_AUCTION_DB_STATUSES]),
       queryOne<{ count: number }>(newThisMonthSql, [monthAnchor]),
+      queryOne<{ count: number }>(newLast30DaysSql, [thirtyDayAnchor]),
+      queryOne<TotalTrackedAllRow>(totalTrackedAllSql, []),
     ]);
 
     const trueRaw: TrueActiveRow = {
@@ -212,9 +247,17 @@ export async function GET() {
       trueActiveCount: trueRaw.trueActiveCount,
       trueLiveCount: trueRaw.trueLiveCount,
       trueUpcomingCount: trueRaw.trueUpcomingCount,
-      // P3 hero chip — auctions whose publishedAt landed on/after the first
-      // of the current month (UTC). Degrades to 0 if the row is missing.
+      // Legacy hero chip — auctions whose publishedAt landed on/after the
+      // first of the current month (UTC). PRESERVED for back-compat; hero
+      // now reads `newLast30DaysCount` so the chip never resets to 0 at a
+      // month boundary.
       newThisMonthCount: Number(newThisMonthRow?.count ?? 0),
+      // P3 hero chip (rolling) — auctions WE ingested in the last 30 days.
+      // Always-fresh number for the "Nuevas" stat card.
+      newLast30DaysCount: Number(newLast30DaysRow?.count ?? 0),
+      // Raw grand total — COUNT(*) over Auction with NO filters. The honest
+      // "auctions we've ever tracked" number for the hero "Rastreadas" chip.
+      totalTrackedAll: Number(totalTrackedAllRaw?.totalTrackedAll || 0),
     };
 
     return NextResponse.json({ success: true, data: stats });
