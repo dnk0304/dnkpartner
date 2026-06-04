@@ -86,7 +86,7 @@ def run_backfill(dry_run=False, include_finished=False, limit=None):
         status_pred = "TRUE"
         logger.info("Scope: ALL rows (active + finished).")
     else:
-        status_pred = 'status = ANY(%(statuses)s)'
+        status_pred = 'status = ANY(%(statuses)s::"AuctionStatus"[])'
         logger.info(f"Scope: ACTIVE rows only {ACTIVE_STATUSES}.")
 
     base_params = {"statuses": list(ACTIVE_STATUSES)}
