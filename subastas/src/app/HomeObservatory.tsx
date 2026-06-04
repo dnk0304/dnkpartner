@@ -79,6 +79,10 @@ type Stats = {
   activeProperties?: number;
   activeVehicles?: number;
   activeOtros?: number;
+  // P3 teasing-hero chip — auctions whose publishedAt landed on/after the 1st
+  // of the current month. Optional so the hero degrades gracefully if the
+  // stats API hasn't been redeployed with this field yet.
+  newThisMonthCount?: number;
 };
 
 export default function HomeObservatory() {
@@ -171,114 +175,127 @@ export default function HomeObservatory() {
       {/* Header + footer are rendered site-wide by SiteChrome in the root layout. */}
 
       <main className="mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8 space-y-6 md:space-y-8">
-        {/* DIRECTION A — Live counter strip (Bloomberg-style) */}
+        {/* ───────────────────────────────────────────────────────────────
+            P3 TEASING HERO (2026-06-04 — Pixel, conversion redesign).
+            Replaces the Bloomberg-style counter strip + editorial heading
+            with a single conversion-focused block:
+              1. Honest scale — 4 .count-chip cards (gradient accent) with
+                 the real numbers from /api/auctions/stats:
+                 Rastreadas · Activas · Próximas · Nuevas este mes.
+              2. Simple ES headline + plain subhead. No "en juego", no
+                 explainer of what BOE is.
+              3. Source-type bullets — judiciales · Hacienda (AEAT) ·
+                 notariales · administrativas (honest framing as one set
+                 rastreadas del BOE oficial; we don't claim separate
+                 portals we don't have).
+              4. Primary CTA "Empieza gratis — sin tarjeta" with the
+                 .cta-gradient token + a quiet secondary "Ver las subastas".
+
+            Restraint = crisp. White surface, gradient as accent on the
+            chips + the primary CTA only (NOT a green wallpaper). Max two
+            greens + white + one ink-gray on screen.
+
+            All numbers degrade gracefully: chips render "—" until the
+            stats API resolves (same shape as the legacy strip used).
+            ─────────────────────────────────────────────────────────────── */}
         <section
-          aria-label={t("liveSummaryAria")}
-          className="rounded-lg border border-[--color-hairline] bg-[--color-surface] px-4 py-3"
+          aria-labelledby="hero-headline"
+          className="pt-2"
         >
-          {/*
-            Counter strip — per Dennis (2026-06-03) trimmed back to the single
-            number that matters ("activas") + the wave37 propiedades/vehículos
-            split. The "celebrándose" and "próximas" stats were removed: live=0
-            at most times of day, próximas adds clutter, and Dennis explicitly
-            asked for "no macro-details, just the total active".
-
-            The strip-level duplicate of the header's update timer also went —
-            ObservatoryHeader already carries the trust signal site-wide, so a
-            second one here was noise. The header timer is now day-granularity
-            ("Actualizado hoy") and is the canonical surface for that info.
-          */}
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm tnum">
-            <span className="inline-flex items-center gap-2 text-[--color-ink-primary]">
-              <span
-                aria-hidden="true"
-                className="h-2 w-2 rounded-full bg-[--color-warn-info]"
-              />
-              <strong className="font-semibold">
+          {/* Chip row — the social proof / scale-flex. 2 columns on mobile,
+              4 across from md up. Numbers use tabular-nums via the
+              .count-chip-num token so digit width stays even. */}
+          <ul
+            className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4"
+            aria-label={t("liveSummaryAria")}
+          >
+            <li className="count-chip">
+              <span className="count-chip-num">
+                {stats ? formatNumber(stats.totalAuctions) : "—"}
+              </span>
+              <span className="count-chip-label">
+                {t("heroChipTrackedLabel")}
+              </span>
+            </li>
+            <li className="count-chip">
+              <span className="count-chip-num">
                 {stats ? formatNumber(stats.trueActiveCount) : "—"}
-              </strong>
-              <span>{t("activeTotal")}</span>
-            </span>
-            {/* Breakdown: propiedades vs vehículos (+ otros, only when >0).
-                Subordinate to "activas" above — separated by a thin divider on
-                >=sm screens, dot-less to read as detail not headline. Fields
-                come from /api/auctions/stats; each is independently null-safe
-                so the strip degrades gracefully if the API hasn't shipped
-                Forge's classification fix yet. wave37 split — preserved. */}
-            {typeof stats?.activeProperties === "number" && (
-              <>
-                <span
-                  aria-hidden="true"
-                  className="hidden sm:inline text-[--color-hairline]"
-                >
-                  |
-                </span>
-                <span className="inline-flex items-center gap-2 text-[--color-ink-secondary]">
-                  <strong className="font-semibold text-[--color-ink-primary]">
-                    {formatNumber(stats.activeProperties)}
-                  </strong>
-                  <span>{t("propertiesLabel")}</span>
-                </span>
-              </>
-            )}
-            {typeof stats?.activeVehicles === "number" && (
-              <span className="inline-flex items-center gap-2 text-[--color-ink-secondary]">
-                <strong className="font-semibold text-[--color-ink-primary]">
-                  {formatNumber(stats.activeVehicles)}
-                </strong>
-                <span>{t("vehiclesLabel")}</span>
               </span>
-            )}
-            {typeof stats?.activeOtros === "number" && stats.activeOtros > 0 && (
-              <span className="inline-flex items-center gap-2 text-[--color-ink-secondary]">
-                <strong className="font-semibold text-[--color-ink-primary]">
-                  {formatNumber(stats.activeOtros)}
-                </strong>
-                <span>{t("otherLabel")}</span>
+              <span className="count-chip-label">
+                {t("heroChipActiveLabel")}
               </span>
-            )}
-            {/* Próximas — re-added 2026-06-04 per Dennis. Was removed on
-                2026-06-03 ("próximas adds clutter"), then re-requested for the
-                count specifically. Wrapped as a Link to /subastas?when=proximas
-                (2026-06-04) so the ~220 upcoming auctions are now reachable
-                directly from the hero count — pairs with the new "Próximas"
-                tab in the /subastas page header. Visual styling matches the
-                other counter chips; the link styling adds an underline on
-                hover so the affordance reads clearly. */}
-            {typeof stats?.trueUpcomingCount === "number" && (
-              <Link
-                href="/subastas?when=proximas"
-                className="inline-flex items-center gap-2 text-[--color-ink-secondary] rounded hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40 group"
-                aria-label={`Ver ${formatNumber(stats.trueUpcomingCount)} subastas próximas`}
-              >
-                <strong className="font-semibold text-[--color-ink-primary]">
-                  {formatNumber(stats.trueUpcomingCount)}
-                </strong>
-                <span className="group-hover:underline underline-offset-2">
-                  {t("upcoming")}
-                </span>
-              </Link>
-            )}
-          </div>
-        </section>
+            </li>
+            <li className="count-chip">
+              <span className="count-chip-num">
+                {stats ? formatNumber(stats.trueUpcomingCount) : "—"}
+              </span>
+              <span className="count-chip-label">
+                {t("heroChipUpcomingLabel")}
+              </span>
+            </li>
+            <li className="count-chip">
+              <span className="count-chip-num">
+                {typeof stats?.newThisMonthCount === "number"
+                  ? formatNumber(stats.newThisMonthCount)
+                  : "—"}
+              </span>
+              <span className="count-chip-label">
+                {t("heroChipNewLabel")}
+              </span>
+            </li>
+          </ul>
 
-        {/* HERO — modern register heading + lead.
-            Hero search form was removed (2026-06-03, Dennis): it submitted
-            ?q= to /subastas which reads ?search=, so the term was silently
-            dropped. Search lives in the global navbar (ObservatoryHeader)
-            and on /subastas. Removing the form also removed the when-select
-            (it was bound to the same submit and had no standalone purpose
-            — the marquee's "Ver todas" link below already routes to
-            /subastas?when=activas). Spacing tightened to space-y-3 so the
-            heading + lead read as one balanced block instead of carrying
-            the gap the form left behind. */}
-        <section className="space-y-3">
-          <h1 className="font-display text-3xl md:text-4xl lg:text-[44px] leading-[1.1] tracking-tight text-[--color-ink-primary]">
-            {t("heroTitle")}
-          </h1>
-          <p className="max-w-prose text-[15px] leading-relaxed text-[--color-ink-secondary]">
-            {t("heroLead")}
-          </p>
+          {/* Headline + subhead. Simple Spanish — Dennis explicit: no "en
+              juego", no fluff explaining what BOE is. */}
+          <div className="mt-8 md:mt-10 space-y-3 max-w-2xl">
+            <h1
+              id="hero-headline"
+              className="font-display text-[28px] sm:text-4xl lg:text-[44px] leading-[1.1] tracking-tight text-[--color-ink-primary]"
+            >
+              {t("heroHeadline")}
+            </h1>
+            <p className="text-[15px] md:text-base leading-relaxed text-[--color-ink-secondary]">
+              {t("heroSubhead")}
+            </p>
+          </div>
+
+          {/* Source-type inline row — one line on md+, wraps on mobile.
+              "Rastreadas del BOE oficial: judiciales · Hacienda (AEAT) ·
+              notariales · administrativas". Framed as one set so we don't
+              imply separate portal coverage we don't have yet. */}
+          <div className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[--color-ink-tertiary]">
+            <span className="font-medium text-[--color-ink-secondary]">
+              {t("heroSourcesIntro")}
+            </span>
+            <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span>{t("heroSourceJudicial")}</span>
+              <span aria-hidden="true" className="text-[--color-hairline]">·</span>
+              <span>{t("heroSourceHacienda")}</span>
+              <span aria-hidden="true" className="text-[--color-hairline]">·</span>
+              <span>{t("heroSourceNotarial")}</span>
+              <span aria-hidden="true" className="text-[--color-hairline]">·</span>
+              <span>{t("heroSourceAdministrativa")}</span>
+            </span>
+          </div>
+
+          {/* CTA row — primary gradient + quiet secondary. Primary leads to
+              registration (the conversion goal). Secondary keeps the
+              free-catalog tease alive for users not ready to register. */}
+          <div className="mt-7 flex flex-wrap items-center gap-3">
+            <Link
+              href="/register"
+              className="cta-gradient text-base px-6 py-3 rounded-lg"
+              aria-label={t("heroCtaPrimaryAria")}
+            >
+              {t("heroCtaPrimary")}
+            </Link>
+            <Link
+              href="/subastas?when=activas"
+              className="inline-flex items-center text-sm font-medium text-[--color-action] hover:text-[--color-brand] hover:underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-action]/40 rounded px-2 py-2"
+            >
+              {t("heroCtaSecondary")}
+            </Link>
+          </div>
         </section>
 
         {/* Endless marquee + quick-filter chips + click-to-modal (D + E + G).

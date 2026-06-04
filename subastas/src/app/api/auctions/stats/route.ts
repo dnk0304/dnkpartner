@@ -26,6 +26,17 @@ interface TrueActiveRow {
   trueUpcomingCount: number;
 }
 
+// First day of the current month (UTC, ISO 8601). Used by the "new this month"
+// hero chip — counts rows whose publishedAt landed on or after this anchor.
+// Computed once per request handler invocation; route is GET-only and the
+// month boundary is coarse enough that re-rendering inside a single request
+// doesn't matter.
+function firstOfMonthIsoUtc(now: Date = new Date()): string {
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth();
+  return new Date(Date.UTC(y, m, 1, 0, 0, 0, 0)).toISOString();
+}
+
 // Re-export the canonical sets locally as mutable arrays for the legacy
 // province-filtered block below (it builds raw-SQL `?` placeholders by length).
 // Values are identical to the lib's `as const` tuples — no semantic change.
@@ -151,10 +162,24 @@ export async function GET() {
         AND ${PROVINCE_VALID_SQL}
     `;
 
-    const [trueActiveRow, trueLiveRow, trueUpcomingRow] = await Promise.all([
+    // "Nuevas este mes" — auctions whose publishedAt is on/after the first day
+    // of the current month. Honest framing: this is "registered in our catalog
+    // this month" (publishedAt is the BOE publish date we ingest from). Uses
+    // the same PROVINCE_VALID predicate so the number reconciles with the
+    // rest of the catalog (no orphan rows).
+    const newThisMonthSql = `
+      SELECT COUNT(*) AS count
+      FROM Auction
+      WHERE publishedAt >= ?
+        AND ${PROVINCE_VALID_SQL}
+    `;
+    const monthAnchor = firstOfMonthIsoUtc();
+
+    const [trueActiveRow, trueLiveRow, trueUpcomingRow, newThisMonthRow] = await Promise.all([
       queryOne<{ count: number }>(trueActiveSql, [...ACTIVE_DB_STATUSES]),
       queryOne<{ count: number }>(trueLiveSql, [...LIVE_NOW_DB_STATUSES]),
       queryOne<{ count: number }>(trueUpcomingSql, [...PRE_AUCTION_DB_STATUSES]),
+      queryOne<{ count: number }>(newThisMonthSql, [monthAnchor]),
     ]);
 
     const trueRaw: TrueActiveRow = {
@@ -187,6 +212,9 @@ export async function GET() {
       trueActiveCount: trueRaw.trueActiveCount,
       trueLiveCount: trueRaw.trueLiveCount,
       trueUpcomingCount: trueRaw.trueUpcomingCount,
+      // P3 hero chip — auctions whose publishedAt landed on/after the first
+      // of the current month (UTC). Degrades to 0 if the row is missing.
+      newThisMonthCount: Number(newThisMonthRow?.count ?? 0),
     };
 
     return NextResponse.json({ success: true, data: stats });
