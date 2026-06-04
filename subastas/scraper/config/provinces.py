@@ -3,6 +3,8 @@ Provinces Module
 All 50 Spanish provinces with BOE codes and metadata
 """
 
+import unicodedata as _unicodedata
+
 PROVINCES = {
     # Andalucía (8 provinces)
     'Almería': {
@@ -349,3 +351,108 @@ def get_all_province_names() -> list:
 def get_all_province_codes() -> list:
     """Get list of all province codes"""
     return [data['code'] for data in ALL_PROVINCES.values()]
+
+
+# ---------------------------------------------------------------------------
+# Canonicalization — fold a raw province string (from BOE "Datos del bien
+# subastado → Provincia", or a case/accent-variant already stored in the DB)
+# to the EXACT province key used above (and by the website filters).
+# Used by the scraper forward path AND the province/municipality backfill so
+# the two stay byte-identical (no drift). NEVER guesses — returns None when the
+# string does not resolve to a real Spanish province.
+# ---------------------------------------------------------------------------
+
+def _strip_accents_lower(name: str) -> str:
+    """Lowercase, strip accents, collapse whitespace — for fuzzy key matching."""
+    if not name:
+        return ""
+    nfkd = _unicodedata.normalize("NFKD", str(name))
+    ascii_str = "".join(c for c in nfkd if not _unicodedata.combining(c))
+    return " ".join(ascii_str.lower().split())
+
+
+# Accent/case-folded province key -> canonical provinces.py name.
+# Built once from ALL_PROVINCES so it always tracks the dict above.
+_NORM_TO_CANONICAL = {
+    _strip_accents_lower(name): name for name in ALL_PROVINCES
+}
+
+# Co-official / BOE spelling variants -> canonical Castilian key.
+# BOE's "Provincia" field occasionally renders the co-official or alternate
+# form; map those to the single key the website filters on. Keys are
+# accent/case-folded (matched after _strip_accents_lower).
+_PROVINCE_ALIASES = {
+    # Comunidad Valenciana
+    "alacant": "Alicante",
+    "alicante/alacant": "Alicante",
+    "valencia/valencia": "Valencia",
+    "valencia": "Valencia",
+    "castello": "Castellón",
+    "castellon/castello": "Castellón",
+    # Galicia
+    "a coruna": "A Coruña",
+    "la coruna": "A Coruña",
+    "coruna": "A Coruña",
+    "coruna, a": "A Coruña",
+    "orense": "Ourense",
+    # Illes Balears
+    "baleares": "Illes Balears",
+    "islas baleares": "Illes Balears",
+    "illes balears": "Illes Balears",
+    "balears, illes": "Illes Balears",
+    # País Vasco
+    "guipuzcoa": "Gipuzkoa",
+    "vizcaya": "Bizkaia",
+    "alava": "Álava",
+    "araba": "Álava",
+    "araba/alava": "Álava",
+    # Cataluña
+    "lerida": "Lleida",
+    "gerona": "Girona",
+    # Article-prefixed / inverted forms seen in BOE text
+    "rioja, la": "La Rioja",
+    "rioja": "La Rioja",
+    "palmas, las": "Las Palmas",
+    "palmas": "Las Palmas",
+}
+
+
+def canonical_province(raw):
+    """
+    Fold a raw province string to the exact provinces.py key.
+
+    Resolution order (all accent/case-insensitive):
+      1. exact fold against a real province name
+      2. co-official / BOE variant alias map
+    Returns the canonical province name, or None when the input does not
+    resolve to a real Spanish province (caller must NOT guess).
+    """
+    if not raw:
+        return None
+    key = _strip_accents_lower(raw)
+    if not key:
+        return None
+    hit = _NORM_TO_CANONICAL.get(key)
+    if hit:
+        return hit
+    return _PROVINCE_ALIASES.get(key)
+
+
+def province_by_code_strict(code):
+    """
+    Province name from a 2-digit INE code, or None on a true miss.
+
+    Unlike get_province_by_code (which defaults to 'Las Palmas' for
+    backward-compatible callers), this returns None when the code is not a
+    real 01–52 province code — so the province-derivation chain can fall
+    through to the next signal instead of silently stamping Las Palmas.
+    """
+    if not code:
+        return None
+    code = str(code).strip()
+    if len(code) != 2 or not code.isdigit():
+        return None
+    for name, data in ALL_PROVINCES.items():
+        if data['code'] == code:
+            return name
+    return None

@@ -17,9 +17,13 @@ import os
 from ..core.base_scraper import BaseScraper
 from ..core.browser import get_browser_manager
 from ..core.stealth import random_delay
-from ..config.provinces import get_province_code, ALL_PROVINCES
+from ..config.provinces import (
+    get_province_code, ALL_PROVINCES, canonical_province, province_by_code_strict,
+)
 from ..config.categories import get_category_type
-from ..config.municipality_province import municipality_to_province, province_from_text
+from ..config.municipality_province import (
+    municipality_to_province, province_from_text, normalize_municipality,
+)
 from ..config.settings import SCRAPE_MAX_PAGES, SCRAPE_MAX_ITEMS_PER_PAGE, BOE_REQUEST_DELAY_SECONDS
 from ..database.adapter import get_database_adapter
 from ..lib import doc_storage
@@ -514,6 +518,84 @@ def parse_bien_fields(bien_text: Optional[str]) -> Dict[str, Any]:
     return out
 
 
+def canonical_municipality(name: Optional[str]) -> Optional[str]:
+    """
+    Title-case a raw town name (BOE 'Localidad') for the `municipality` column,
+    accent-preserving. Returns None for an empty value so the adapter's
+    write-only-when-present guard leaves the column untouched.
+
+    BOE renders localities in mixed case ('NIJAR', 'l'Eliana', 'Vélez-Málaga').
+    We do NOT strip accents here — the column is display text — only normalize
+    casing. `normalize_municipality()` (accent/lowercase) is still used for the
+    province LOOKUP, never for the stored display value.
+    """
+    if not name:
+        return None
+    cleaned = " ".join(str(name).split())
+    if not cleaned:
+        return None
+    # Title-case but keep small Spanish connectors lowercase (de, del, la, ...)
+    minor = {"de", "del", "la", "las", "el", "los", "y", "a", "i", "da", "do"}
+    parts = cleaned.split(" ")
+    out_parts = []
+    for idx, w in enumerate(parts):
+        low = w.lower()
+        # Preserve hyphenated compounds (Vélez-Málaga, Huércal-Overa)
+        if "-" in w:
+            out_parts.append("-".join(seg.capitalize() for seg in w.split("-")))
+        elif idx > 0 and low in minor:
+            out_parts.append(low)
+        else:
+            out_parts.append(w[:1].upper() + w[1:].lower() if w else w)
+    return " ".join(out_parts)
+
+
+def derive_property_province(bien_provincia: Optional[str],
+                             postal_code: Optional[str],
+                             bien_localidad: Optional[str],
+                             court_province: Optional[str]):
+    """
+    Resolve the PROPERTY's province from the authoritative signals the scraper
+    already captures, in descending order of reliability:
+
+      1. bienProvincia  — BOE "Datos del bien subastado → Provincia"
+                          (proven to agree with the postcode-derived province
+                          on 649/649 active rows). Folded to a canonical key.
+      2. postal code     — first 2 digits = INE province code (strict lookup,
+                          no Las-Palmas default).
+      3. bienLocalidad   — real town -> INE municipality_to_province() map.
+      4. give up         — keep the court province but flag provenance so the
+                          caller/backfill can leave the row untouched and
+                          report it. NEVER fabricates a province.
+
+    Returns (province_name, source) where source is one of
+    'bienProvincia' | 'postalCode' | 'bienLocalidad' | 'court-fallback'.
+    The province_name is always non-None (court fallback ensures the NOT-NULL
+    `province` column is satisfied); 'court-fallback' is the signal to flag.
+    """
+    # 1. bienProvincia (most reliable)
+    p = canonical_province(bien_provincia)
+    if p:
+        return p, 'bienProvincia'
+
+    # 2. postal code prefix (also the cross-check for #1; used standalone here)
+    if postal_code:
+        m = re.match(r'^\s*(\d{2})\d{3}\s*$', str(postal_code))
+        if m:
+            p = province_by_code_strict(m.group(1))
+            if p:
+                return p, 'postalCode'
+
+    # 3. real town -> province map
+    if bien_localidad:
+        p = municipality_to_province(normalize_municipality(bien_localidad))
+        if p:
+            return p, 'bienLocalidad'
+
+    # 4. nothing authoritative -> keep court province, flag for review
+    return (canonical_province(court_province) or court_province), 'court-fallback'
+
+
 class BOEScraper(BaseScraper):
     """
     BOE Portal de Subastas scraper
@@ -760,10 +842,14 @@ class BOEScraper(BaseScraper):
             # fall back to the autoridad-gestora text heuristic.
             auction_type = self.detect_auction_type(autoridad_gestora, boe_id=boe_id)
             
-            # Province: prefer self.province (set when scraping per-province),
-            # otherwise derive from municipality or from full listing text.
-            # Fall back to 'Unknown' only when all derivation paths fail.
-            province = self.province
+            # Province (INITIAL value only). self.province is the BOE CODPROV
+            # search filter = the issuing COURT's province, NOT the property's.
+            # This is a placeholder that the detail-page pass below REPLACES via
+            # derive_property_province() with the real bienProvincia / postcode /
+            # town-derived province. It only survives when detail fetch is off
+            # (BOE_FETCH_DETAIL=0) or yields no bien fields. Canonicalize casing
+            # so court-fallback rows still fold with the rest of the data.
+            province = canonical_province(self.province) or self.province
             if not province and municipality:
                 province = municipality_to_province(municipality)
             if not province:
@@ -825,6 +911,32 @@ class BOEScraper(BaseScraper):
 
                 # --- G1 discrete bien fields + authoritative category ---
                 self._merge_bien_fields(auction_data, detail_info)
+
+                # --- PROPERTY province + town (NOT the court's province) ---
+                # The `province` set upstream was self.province = the BOE
+                # CODPROV search filter = the issuing COURT's province, which
+                # routinely differs from where the property actually sits.
+                # Now that _merge_bien_fields has populated bienProvincia /
+                # bienLocalidad / postalCode, promote the property's real
+                # province via the authority chain (bienProvincia -> postal
+                # code -> INE town map -> else keep court + flag). The
+                # municipality column becomes the real town (bienLocalidad),
+                # not the 18-big-city heuristic.
+                prop_prov, prov_src = derive_property_province(
+                    auction_data.get('bien_provincia'),
+                    auction_data.get('postal_code'),
+                    auction_data.get('bien_localidad'),
+                    auction_data.get('province'),
+                )
+                # When an authoritative signal resolved, prop_prov is the real
+                # property province; on 'court-fallback' it is the court province
+                # with its casing/accents canonicalized (never a fabricated
+                # guess). Either way it is the value to persist.
+                auction_data['province'] = prop_prov
+                # Real town -> municipality column (canonicalized casing).
+                town = canonical_municipality(auction_data.get('bien_localidad'))
+                if town:
+                    auction_data['municipality'] = town
 
                 # --- G2 convenience URLs (canonical store is AuctionDocument) ---
                 # The nota-simple PDF + edicto BOE links are surfaced on the
@@ -2245,6 +2357,22 @@ class BOEScraper(BaseScraper):
         # were already captured inside _navigate_and_extract (keyed by the
         # composite boe_id), so nothing doc-related is needed here.
         self._merge_bien_fields(rec, info)
+
+        # Promote the PROPERTY province + real town for this lote, same authority
+        # chain as the single-auction path (bienProvincia -> postcode -> INE town
+        # map -> else keep the lote/umbrella province + flag). The lote page's own
+        # bien block now drives province/municipality instead of the umbrella's
+        # (court) province or a big-city text guess.
+        lote_prov, _src = derive_property_province(
+            rec.get('bien_provincia'),
+            rec.get('postal_code'),
+            rec.get('bien_localidad'),
+            rec.get('province'),
+        )
+        rec['province'] = lote_prov
+        lote_town = canonical_municipality(rec.get('bien_localidad'))
+        if lote_town:
+            rec['municipality'] = lote_town
         return rec
 
     def _extract_detail_from_page(self, page: Any, boe_id: str,
