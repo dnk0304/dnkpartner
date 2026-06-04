@@ -35,8 +35,11 @@
  *   - Reduced-motion path is UNTOUCHED: it's already a native overflow-x
  *     scroller — manual drag is free, no JS motion to clean up.
  *
- * Source: `/api/auctions/recent?limit=...&types=auction,status,bid&activeOnly=1`,
- * polls every 60s, refetches the moment any chip changes.
+ * Source: `/api/auctions/carousel-mix?limit=...` — the home composed feed
+ * (50% celebrandose / 30% próxima-apertura / 20% suspendida, weighted-
+ * interleaved by Forge). Polls every 60s, refetches the moment any chip
+ * changes. Envelope is identical to `/api/auctions/recent` so the
+ * `body.data.map(it => it.auction)` projection unchanged.
  *
  * Card clicks fire `onCardClick(auction)` (no `<Link>` navigation). Item G
  * wires this to open `AuctionDetailModal` in the parent.
@@ -111,7 +114,15 @@ type FeedItem = {
 };
 
 const POLL_MS = 60_000;
-const ACTIVE_STATUSES = new Set([
+/**
+ * Frontend-canonical status keys the carousel-mix endpoint can return.
+ * The server is the authoritative selector (50/30/20 ratio of celebrandose
+ * / proxima-apertura / suspendida), so this set is belt-and-suspenders only:
+ * it prevents a stray unexpected status (e.g. concluida-portal) from
+ * sneaking into the marquee if the route ever widens its bucket selection.
+ * The client MUST NOT re-strip `suspendida` — that bucket is part of the mix.
+ */
+const CAROUSEL_STATUSES = new Set([
   "celebrandose",
   "proxima-apertura",
   "suspendida",
@@ -204,7 +215,11 @@ export function ForexCarousel({
   className,
   category = null,
   province = null,
-  when = null,
+  // `when` is accepted for API stability with HomeCarouselSection (chip
+  // value still flows through the section), but the carousel-mix endpoint
+  // does not honour it — the mix is its own ratio-driven slice. Renamed to
+  // _when so lint doesn't flag it as unused.
+  when: _when = null,
   onCardClick,
   pause = false,
   onItemsCountChange,
@@ -232,18 +247,25 @@ export function ForexCarousel({
     try {
       const params = new URLSearchParams();
       params.set("limit", String(limit));
-      params.set("types", "auction,status,bid");
-      params.set("activeOnly", "1");
+      // /api/auctions/carousel-mix returns the 50/30/20 composed feed
+      // (active / próxima-apertura / suspendida, interleaved). It only
+      // accepts `limit`, `province`, `category` — `when` and the old
+      // recent-route knobs (`types`, `activeOnly`) are not used. The chip-
+      // driven `when` bucket no longer applies here: the carousel-mix is
+      // its own ratio-driven slice. Pixel keeps the `when` prop on the
+      // component for API stability with HomeCarouselSection.
       if (category) params.set("category", category);
       if (province) params.set("province", province);
-      if (when) params.set("when", when);
-      const res = await apiFetch(`/api/auctions/recent?${params.toString()}`);
+      const res = await apiFetch(`/api/auctions/carousel-mix?${params.toString()}`);
       if (!res.ok) return;
       const body = await res.json();
       if (body?.success && Array.isArray(body.data)) {
+        // The server is authoritative — `CAROUSEL_STATUSES` is a safety net,
+        // never a re-strip of the mix. Critically, `suspendida` MUST pass
+        // through (it's part of the composed feed by design).
         const rows = (body.data as FeedItem[])
           .map((it) => it.auction)
-          .filter((a) => ACTIVE_STATUSES.has(a.status));
+          .filter((a) => CAROUSEL_STATUSES.has(a.status));
         // Dedupe by id keeping first occurrence (most recent activity).
         const seen = new Set<string>();
         const deduped: FeedAuction[] = [];
@@ -259,7 +281,12 @@ export function ForexCarousel({
     } finally {
       setLoading(false);
     }
-  }, [limit, category, province, when]);
+    // `when` intentionally NOT in deps: the carousel-mix endpoint doesn't
+    // accept a `when` bucket (it composes its own ratio across active /
+    // próxima / suspendida), so changing the chip shouldn't refetch on
+    // that axis. Kept on the prop signature for API stability with
+    // HomeCarouselSection.
+  }, [limit, category, province]);
 
   React.useEffect(() => {
     setLoading(true);
