@@ -115,14 +115,27 @@ def _save_ckpt(done, path=CHECKPOINT):
 def rescrape(conn):
     only_null = "--only-null-endsat" in sys.argv
     only_null_appr = "--only-null-appraisal" in sys.argv
+    only_suspended = "--only-suspended" in sys.argv
     if only_null:
         logger.info("--- Re-scrape: CELEBRANDOSE rows with NULL endsAt only ---")
     elif only_null_appr:
         logger.info("--- Re-scrape: ACTIVE rows with NULL appraisalValue only ---")
+    elif only_suspended:
+        logger.info("--- Re-scrape: SUSPENDIDA rows only (resume date + motive) ---")
     else:
         logger.info("--- Re-scrape: full active pool ---")
     cur = conn.cursor()
-    if only_null:
+    if only_suspended:
+        # Fast targeted run for the ~119 existing SUSPENDIDA rows. The daily
+        # 5-day celebration-window scrape never revisits them, so this is how
+        # resumeAt + suspensionMotive get backfilled. Own checkpoint below.
+        cur.execute(f"""
+            SELECT "boeId" FROM "Auction"
+            WHERE status = 'SUSPENDIDA' AND "boeId" IS NOT NULL
+              AND {LEGACY_EXCLUSION_SQL}
+            ORDER BY "boeId" ASC
+        """)
+    elif only_null:
         cur.execute(f"""
             SELECT "boeId" FROM "Auction"
             WHERE status = 'CELEBRANDOSE' AND "endsAt" IS NULL
@@ -155,12 +168,26 @@ def rescrape(conn):
     boe_ids = [r[0] for r in cur.fetchall()]
     logger.info(f"  {len(boe_ids):,} active rows in scope")
 
+    # suspensionMotive is an additive column (migration 20260604). Probe so an
+    # out-of-order run (backfill before migrate) is a safe no-op rather than a
+    # write failure. resumeAt already exists (Wave 1) — written unconditionally.
+    try:
+        cur.execute("""
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'Auction' AND column_name = 'suspensionMotive'
+        """)
+        has_suspension_motive = cur.fetchone() is not None
+    except Exception:
+        has_suspension_motive = False
+
     # Isolate the appraisal re-fetch on its own checkpoint so a prior full /
     # endsat run's checkpoint never skips a null-appraisal row (and vice versa).
     # Still env-overridable via BACKFILL_CHECKPOINT for an explicit shared run.
     ckpt = CHECKPOINT
     if only_null_appr and "BACKFILL_CHECKPOINT" not in os.environ:
         ckpt = "/tmp/backfill_null_appraisal.checkpoint.json"
+    elif only_suspended and "BACKFILL_CHECKPOINT" not in os.environ:
+        ckpt = "/tmp/backfill_suspended.checkpoint.json"
 
     done = _load_ckpt(ckpt)
     if done:
@@ -219,6 +246,13 @@ def rescrape(conn):
                 updates['address'] = addr
             if info.get("ends_at") is not None:
                 updates['"endsAt"'] = info["ends_at"]
+            # SUSPENDIDA: resume date + motive from the BOE aviso block. resumeAt
+            # already exists; suspensionMotive guarded by the info_schema probe.
+            # Honest-NULL: only written when BOE actually stated the value.
+            if info.get("resume_at") is not None:
+                updates['"resumeAt"'] = info["resume_at"]
+            if has_suspension_motive and info.get("suspension_motive") is not None:
+                updates['"suspensionMotive"'] = info["suspension_motive"]
             if info.get("detail_url"):
                 updates['"boeLink"'] = info["detail_url"]
             new_status = info.get("detail_status")
@@ -270,10 +304,11 @@ def main():
     if "--status-only" in sys.argv:
         status_sweep_sql(cur, conn)
     cur.close()
-    # --only-null-endsat / --only-null-appraisal imply a re-scrape run, so Ken
-    # can fire the targeted backfill without also passing --rescrape.
+    # --only-null-endsat / --only-null-appraisal / --only-suspended imply a
+    # re-scrape run, so Ken can fire the targeted backfill without --rescrape.
     if any(f in sys.argv for f in
-           ("--rescrape", "--only-null-endsat", "--only-null-appraisal")):
+           ("--rescrape", "--only-null-endsat", "--only-null-appraisal",
+            "--only-suspended")):
         rescrape(conn)
     conn.close()
 

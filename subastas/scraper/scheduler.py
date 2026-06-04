@@ -722,6 +722,177 @@ class ScraperScheduler:
             self.log(traceback.format_exc())
 
     # -----------------------------------------------------------------------
+    # recheck_suspended_auctions — daily SUSPENDIDA reopen-recheck (Ghost)
+    # -----------------------------------------------------------------------
+    # Dennis's rule: BOE states "La Autoridad Gestora puede reanudar la subasta
+    # en cualquier momento" — a suspended auction can reopen ANY day, and the
+    # "Fecha de reanudación prevista" is only a forecast, not a guarantee. The
+    # daily 5-day celebration-window scrape (run_daily_update_scraper) never
+    # revisits SUSPENDIDA rows whose closing date is outside the window, so a
+    # reopen would otherwise go undetected until the next full active backfill.
+    #
+    # This pass is the SUSPENDIDA parallel of promote_pending_auctions: it
+    # re-scrapes EVERY SUSPENDIDA row's BOE detail page and, when BOE no longer
+    # shows the suspension banner (the auction is active again), flips the row
+    # SUSPENDIDA -> CELEBRANDOSE and emits the status change (emit_status_change
+    # auto-selects auction.go_live for this transition, so alerts fire — exactly
+    # like the PA promotion). It also captures resumeAt + suspensionMotive on the
+    # rows that stay suspended (the detail fetch carries them for free).
+    #
+    # FALSE-FLIP GUARD: a flip happens ONLY on a CONFIRMED successful detail
+    # parse (the real return dict, not the empty-on-exception fallback) whose
+    # status banner is gone. A fetch failure / transient miss leaves the row
+    # SUSPENDIDA untouched — never flipped on a guess. Idempotent by boeId: a
+    # row already flipped is no longer SUSPENDIDA so the next pass skips it; the
+    # go_live dedupeKey (auctionId:auction.go_live:live) also de-dupes the event.
+    def recheck_suspended_auctions(self):
+        """Re-scrape every SUSPENDIDA row; flip -> CELEBRANDOSE on BOE reopen."""
+        self.log("Rechecking SUSPENDIDA auctions for BOE reopen...")
+
+        is_postgres = DATABASE_URL and ('postgresql://' in DATABASE_URL or 'postgres://' in DATABASE_URL)
+        if not is_postgres:
+            self.log("  Suspended recheck skipped (not Postgres — no DATABASE_URL)")
+            return
+
+        try:
+            conn = self._get_pg_conn()
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                SELECT id, "boeId", "endsAt", title, "boeLink",
+                       province, municipality, "appraisalValue", "currentBid"
+                FROM "Auction"
+                WHERE status = 'SUSPENDIDA'
+                  AND "boeId" IS NOT NULL
+                  AND {LEGACY_EXCLUSION_SQL}
+                ORDER BY "boeId" ASC
+            """)
+            suspended = cursor.fetchall()
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            self.log(f"  Suspended recheck: scope query failed: {e}")
+            return
+
+        if not suspended:
+            self.log("  No SUSPENDIDA rows to recheck")
+            return
+
+        self.log(f"  Rechecking {len(suspended)} SUSPENDIDA rows")
+
+        # Build the scraper + run all detail fetches on ONE fresh loop-free
+        # thread (the asyncio-loop fix): a single sync-Playwright lifecycle for
+        # the whole batch, sequential page loads, no overlap with other jobs.
+        def _recheck():
+            os.environ.setdefault("BOE_FETCH_DETAIL", "1")
+            sys.path.insert(0, '/')
+            from app.scrapers.boe_scraper import BOEScraper
+            from app.database.outbox import emit_status_change
+            scraper = BOEScraper()
+
+            reopened = still_susp = terminal = failed = 0
+            conn2 = self._get_pg_conn()
+            now = datetime.utcnow()
+
+            for (auction_id, boe_id, ends_at, title, boe_link,
+                 province, municipality, appraisal_value, current_bid) in suspended:
+                try:
+                    info = scraper._fetch_detail_info(boe_id)
+                    # Confirmed successful parse only: the full return dict has an
+                    # 'identificador' key; the empty-on-exception fallback never
+                    # does. A failed fetch leaves the row SUSPENDIDA (no guess).
+                    if 'identificador' not in info:
+                        failed += 1
+                        continue
+
+                    detail_status = info.get('detail_status')
+                    di_ends = info.get('ends_at')
+                    eff_ends = di_ends if di_ends is not None else ends_at
+
+                    # Decide the transition from the authoritative detail banner.
+                    if detail_status == 'SUSPENDIDA':
+                        # Still suspended — refresh resumeAt + motive (honest-NULL
+                        # safe: only overwrite when BOE actually states a value).
+                        still_susp += 1
+                        sets, params = [], []
+                        if info.get('resume_at') is not None:
+                            sets.append('"resumeAt" = %s'); params.append(info['resume_at'])
+                        if info.get('suspension_motive') is not None:
+                            sets.append('"suspensionMotive" = %s'); params.append(info['suspension_motive'])
+                        if sets:
+                            params.append(auction_id)
+                            c = conn2.cursor()
+                            c.execute(
+                                f'UPDATE "Auction" SET {", ".join(sets)}, "updatedAt" = NOW() WHERE id = %s',
+                                params)
+                            conn2.commit(); c.close()
+                        continue
+
+                    if detail_status in ('CANCELADA', 'CONCLUIDA_PORTAL'):
+                        # The suspension resolved into a terminal state — honor it
+                        # (keeps a concluded/cancelled auction from staying stuck
+                        # SUSPENDIDA). emit_status_change -> auction.finished.
+                        c = conn2.cursor()
+                        c.execute(
+                            'UPDATE "Auction" SET status = %s, "transitionedAt" = %s, "updatedAt" = %s WHERE id = %s',
+                            (detail_status, now, now, auction_id))
+                        emit_status_change(
+                            c, auction_id=auction_id, boe_id=boe_id or "",
+                            boe_link=boe_link or f"https://subastas.boe.es/detalleSubasta.php?idSub={boe_id}",
+                            title=title or "", from_status='SUSPENDIDA', to_status=detail_status,
+                            province=province or "", municipality=municipality or "",
+                            appraisal_value=float(appraisal_value or 0),
+                            current_bid=float(current_bid) if current_bid else None,
+                            ends_at=eff_ends, detected_by="scheduler.recheck_suspended_auctions")
+                        conn2.commit(); c.close()
+                        terminal += 1
+                        continue
+
+                    # detail_status is None => no banner on a confirmed-parsed
+                    # page => the suspension is LIFTED => reopened. Flip to
+                    # CELEBRANDOSE only if the window has not already closed.
+                    if eff_ends is not None and eff_ends <= now:
+                        # Reopened but already past its close -> let the normal
+                        # sweep conclude it; do not resurrect a dead window.
+                        still_susp += 1
+                        continue
+
+                    c = conn2.cursor()
+                    c.execute(
+                        'UPDATE "Auction" SET status = %s, "transitionedAt" = %s, "updatedAt" = %s WHERE id = %s',
+                        ('CELEBRANDOSE', now, now, auction_id))
+                    emit_status_change(
+                        c, auction_id=auction_id, boe_id=boe_id or "",
+                        boe_link=boe_link or f"https://subastas.boe.es/detalleSubasta.php?idSub={boe_id}",
+                        title=title or "", from_status='SUSPENDIDA', to_status='CELEBRANDOSE',
+                        province=province or "", municipality=municipality or "",
+                        appraisal_value=float(appraisal_value or 0),
+                        current_bid=float(current_bid) if current_bid else None,
+                        ends_at=eff_ends, detected_by="scheduler.recheck_suspended_auctions")
+                    conn2.commit(); c.close()
+                    reopened += 1
+                    self.log(f"  REOPENED {boe_id}: SUSPENDIDA -> CELEBRANDOSE (go_live emitted)")
+                except Exception as e:
+                    failed += 1
+                    self.log(f"  Suspended recheck error for {boe_id}: {e}")
+                    try:
+                        conn2.rollback()
+                    except Exception:
+                        pass
+
+            conn2.close()
+            return reopened, still_susp, terminal, failed
+
+        result = self._run_sync_scrape("SUSPENDED_RECHECK", _recheck)
+        if result is None:
+            self.log("  Suspended recheck: thread crashed (see traceback above)")
+            return
+        reopened, still_susp, terminal, failed = result
+        self.log(
+            f"  Suspended recheck complete: reopened={reopened} "
+            f"still_suspended={still_susp} terminal={terminal} failed={failed}"
+        )
+
+    # -----------------------------------------------------------------------
     # run_daily_update_scraper — Wave 1 close-out (inline BOEParallelScraper)
     # -----------------------------------------------------------------------
 
@@ -991,6 +1162,14 @@ class ScraperScheduler:
         # opensAt arrives. Runs through _run_sync_scrape (loop-free thread).
         schedule.every(6).hours.do(self.run_preauction_discovery)
 
+        # SUSPENDIDA reopen-recheck — daily. Re-scrapes EVERY suspended row's
+        # BOE detail (which the 5-day window scrape never revisits) and flips
+        # SUSPENDIDA -> CELEBRANDOSE when BOE drops the suspension banner
+        # (emit_status_change -> auction.go_live, alerts fire). Also refreshes
+        # resumeAt + suspensionMotive on rows that stay suspended. ~119 rows ->
+        # one staggered daily slot clear of the category browsers above.
+        schedule.every().day.at("05:30").do(self.recheck_suspended_auctions)
+
         # Wave 2b: dispatcher drain — every DISPATCH_INTERVAL_MIN minutes
         schedule.every(DISPATCH_INTERVAL_MIN).minutes.do(self.dispatch_outbox)
 
@@ -1048,6 +1227,8 @@ def main():
     parser.add_argument('--promote-once', action='store_true', help='Run promotion once and exit')
     parser.add_argument('--preauction-once', action='store_true',
                         help='Run one BOE PA (Próxima apertura) discovery pass and exit')
+    parser.add_argument('--recheck-suspended-once', action='store_true',
+                        help='Run one SUSPENDIDA reopen-recheck pass and exit')
 
     args = parser.parse_args()
     scheduler = ScraperScheduler()
@@ -1064,6 +1245,9 @@ def main():
     elif args.preauction_once:
         scheduler.log("Running pre-auction (PA) discovery once...")
         scheduler.run_preauction_discovery()
+    elif args.recheck_suspended_once:
+        scheduler.log("Running SUSPENDIDA reopen-recheck once...")
+        scheduler.recheck_suspended_auctions()
     else:
         scheduler.run()
 

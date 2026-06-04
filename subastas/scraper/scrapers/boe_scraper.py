@@ -872,6 +872,15 @@ class BOEScraper(BaseScraper):
                 if detail_info.get('possession_status') is not None:
                     auction_data['possession_status'] = detail_info['possession_status']
 
+                # --- SUSPENDIDA: resume date + motive from the BOE aviso block ---
+                # "Fecha de reanudación prevista" -> resumeAt (existing column);
+                # the parenthetical motive -> suspensionMotive (new column).
+                # Honest-NULL: only stamped when BOE actually states them.
+                if detail_info.get('resume_at') is not None:
+                    auction_data['resume_at'] = detail_info['resume_at']
+                if detail_info.get('suspension_motive') is not None:
+                    auction_data['suspension_motive'] = detail_info['suspension_motive']
+
                 # --- Authoritative end date from detail page ---
                 # The listing estimate (now()+7d) is a placeholder; the detail
                 # page carries the real "Fecha de conclusión". Without it, rows
@@ -1967,6 +1976,9 @@ class BOEScraper(BaseScraper):
             'property_type': None,
             # G2/G3 documents (filled by _capture_documents_and_snapshot)
             'documents': [],
+            # SUSPENDIDA — resume date + motive (honest-NULL by default)
+            'resume_at': None,
+            'suspension_motive': None,
         }
 
     def _merge_bien_fields(self, auction_data: Dict[str, Any],
@@ -2321,6 +2333,10 @@ class BOEScraper(BaseScraper):
             if not bien_fields:
                 bien_fields = parse_bien_fields(body_text) or {}
 
+            # SUSPENDIDA capture — resume date + motive from the BOE aviso block
+            # (already in body_text). Honest-NULL on non-suspended / bare rows.
+            resume_at, suspension_motive = self._extract_suspension_info(body_text)
+
             return {
                 'general_info': general_info,
                 'autoridad_gestora': autoridad,
@@ -2366,10 +2382,69 @@ class BOEScraper(BaseScraper):
                 'vivienda_habitual': bien_fields.get('vivienda_habitual'),
                 'bien_type': bien_fields.get('bien_type'),
                 'property_type': bien_fields.get('bien_type'),
+                # SUSPENDIDA — "Fecha de reanudación prevista" (reuses resumeAt)
+                # + the BOE suspension motive (new suspensionMotive column).
+                'resume_at': resume_at,
+                'suspension_motive': suspension_motive,
             }
         except Exception as e:
             self.log_warning(f"Failed to extract detail info for {boe_id}: {e}")
             return self._empty_detail_info(boe_id)
+
+    def _extract_suspension_info(
+        self, body_text: str
+    ) -> "tuple[Optional[datetime], Optional[str]]":
+        """
+        SUSPENDIDA capture — parse the official BOE suspension block that renders
+        server-side in `<div class="caja gris aviso">` (above #tabs, already in
+        body_text — no JS/tab needed). Returns (resume_at, suspension_motive).
+
+        resume_at  — "Fecha de reanudación prevista: DD-MM-YYYY HH:MM:SS CET
+                      (ISO: 2026-06-08T12:00:00+02:00)". PREFER the unambiguous
+                      ISO form; fall back to DD-MM-YYYY HH:MM:SS. Honest-NULL
+                      when neither is present (an aware datetime otherwise).
+        motive     — the parenthetical immediately after "temporalmente
+                      suspendida (...)" — the text INSIDE the parens, NOT the
+                      boilerplate. Honest-NULL for a bare suspension (no parens).
+                      Capped defensively at 300 chars.
+
+        Either value is None unless BOE actually states it — NEVER a default.
+        """
+        if not body_text:
+            return None, None
+
+        resume_at: Optional[datetime] = None
+        # Prefer the ISO form — unambiguous and timezone-correct.
+        m = re.search(
+            r"Fecha\s+de\s+reanudaci[oó]n\s+prevista[:\s]*"
+            r"[\d:\sCETcet\-]*?\(ISO:\s*([0-9T:\+\-]+)\)",
+            body_text, re.IGNORECASE)
+        if m:
+            try:
+                resume_at = datetime.fromisoformat(m.group(1).strip())
+            except (ValueError, TypeError):
+                resume_at = None
+        if resume_at is None:
+            # Fallback: parse the DD-MM-YYYY HH:MM:SS literal (CET dropped).
+            m = re.search(
+                r"Fecha\s+de\s+reanudaci[oó]n\s+prevista[:\s]*"
+                r"(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2}):(\d{2})",
+                body_text, re.IGNORECASE)
+            if m:
+                try:
+                    d, mo, y, hh, mm, ss = (int(g) for g in m.groups())
+                    resume_at = datetime(y, mo, d, hh, mm, ss)
+                except (ValueError, TypeError):
+                    resume_at = None
+
+        motive: Optional[str] = None
+        m = re.search(
+            r"temporalmente\s+suspendida\s*\(([^)]+)\)",
+            body_text, re.IGNORECASE)
+        if m:
+            motive = m.group(1).strip()[:300] or None
+
+        return resume_at, motive
 
     def _extract_section_text(self, page: Any, title: str) -> Optional[str]:
         try:

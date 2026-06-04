@@ -412,6 +412,7 @@ class DatabaseAdapter:
                 SELECT column_name FROM information_schema.columns
                 WHERE table_name = 'Auction'
                   AND column_name IN ('suspensionReason', 'resumeAt', 'lastVerifiedAt', 'opensAt',
+                                      'suspensionMotive',
                                       'sourceIdSub', 'loteNumber',
                                       'pujaStatus', 'currentBidAmount', 'occupancy',
                                       'postalCode', 'idufir', 'registryInscription',
@@ -515,6 +516,9 @@ class DatabaseAdapter:
             if 'resumeAt' in forge_cols and data.get('resume_at') is not None:
                 update_fields.append('"resumeAt" = %s')
                 params.append(data['resume_at'])
+            if 'suspensionMotive' in forge_cols and data.get('suspension_motive') is not None:
+                update_fields.append('"suspensionMotive" = %s')
+                params.append(data['suspension_motive'])
             if 'lastVerifiedAt' in forge_cols:
                 update_fields.append('"lastVerifiedAt" = %s')
                 params.append(now)
@@ -638,6 +642,10 @@ class DatabaseAdapter:
                 col_names.append('"resumeAt"')
                 placeholders.append('%s')
                 vals.append(data['resume_at'])
+            if 'suspensionMotive' in forge_cols and data.get('suspension_motive') is not None:
+                col_names.append('"suspensionMotive"')
+                placeholders.append('%s')
+                vals.append(data['suspension_motive'])
             if 'lastVerifiedAt' in forge_cols:
                 col_names.append('"lastVerifiedAt"')
                 placeholders.append('%s')

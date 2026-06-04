@@ -1,0 +1,24 @@
+-- SUSPENDIDA resume-date + suspension-motive capture (2026-06-04) — Ghost.
+-- Additive ONLY. ONE new nullable column on "Auction": "suspensionMotive".
+-- CREATED, NOT APPLIED — Ken applies on the box via `prisma migrate deploy`.
+--
+-- Idempotent (IF NOT EXISTS) so a partial prior apply or local re-run is a
+-- no-op. Follows the convention set by:
+--   20260601_add_opens_at
+--   20260602_add_lote_split_provenance
+--   20260602_add_pujas_occupancy
+--   20260603_add_auction_documents
+--
+-- Sequencing (Ken applies): AFTER 20260603_add_auction_documents. Independent
+-- of every prior wave's columns. Existing rows get NULL until Ghost backfills
+-- via backfill_active_full.py --rescrape (adapter's information_schema guard).
+--
+-- NOTE: "resumeAt" needs NO migration — the column already exists (Wave 1,
+-- created "feed suspension/reschedule notifications", 100% NULL to date). This
+-- wave reuses it for "Fecha de reanudación prevista" and adds ONLY the motive.
+--
+-- "suspensionMotive" is DISTINCT from the pre-existing "suspensionReason", which
+-- the scheduler overloads with the internal sentinel 'WITHDRAWN_PRE_AUCTION'.
+-- Do NOT collapse the two. NULL motive = BOE stated no parenthetical reason.
+
+ALTER TABLE "Auction" ADD COLUMN IF NOT EXISTS "suspensionMotive" TEXT;
