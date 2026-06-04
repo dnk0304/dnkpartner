@@ -209,6 +209,21 @@ export default function HomeObservatory() {
                 <span>{t("otherLabel")}</span>
               </span>
             )}
+            {/* Próximas — re-added 2026-06-04 per Dennis. Was removed on
+                2026-06-03 ("próximas adds clutter"), then re-requested for the
+                count specifically. Rendered as a subordinate detail in the
+                same visual tier as propiedades/vehículos, not as a second
+                headline. Value comes from /api/auctions/stats →
+                trueUpcomingCount (~220 live). i18n key reused: home.upcoming
+                ("próximas" / "upcoming"). */}
+            {typeof stats?.trueUpcomingCount === "number" && (
+              <span className="inline-flex items-center gap-2 text-[--color-ink-secondary]">
+                <strong className="font-semibold text-[--color-ink-primary]">
+                  {formatNumber(stats.trueUpcomingCount)}
+                </strong>
+                <span>{t("upcoming")}</span>
+              </span>
+            )}
           </div>
         </section>
 

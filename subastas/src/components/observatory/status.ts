@@ -48,11 +48,18 @@ const UPCOMING: StatusMeta = {
   pulse: false,
   helper: "Publicada pero todavía no abierta a pujas.",
 };
+// SUSPENDIDA — Dennis-locked 2026-06-04: grey/muted, not warning-amber.
+// The previous brown-amber palette read as a second "warning" tier next to
+// Próxima apertura, making the two too similar in the carousel. Grey/muted
+// communicates "paused, not live" without competing with the amber/green
+// in the active stack. Distinct from CONCLUDED's neutral slate by being
+// slightly cooler + a touch more saturated so the chip still reads as a
+// live state of the auction (paused, can resume), not a terminal one.
 const SUSPENDED: StatusMeta = {
   label: "Suspendida",
-  color: "#92400E",
-  tint: "#FDE7CF",
-  border: "rgba(146, 64, 14, 0.35)",
+  color: "#64748B",
+  tint: "#F1F5F9",
+  border: "rgba(100, 116, 139, 0.35)",
   glyph: "▲",
   pulse: false,
   helper: "El juzgado ha suspendido la subasta. Puede reanudarse.",
