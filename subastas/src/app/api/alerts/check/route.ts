@@ -136,7 +136,7 @@ async function sendNotifications(matchesByAlert: Record<string, { alert: any; au
   }
 
   const resend = new Resend(resendKey);
-  const from = process.env.RESEND_FROM_EMAIL || 'SubastaPro <notifications@subastapro.com>';
+  const from = process.env.RESEND_FROM_EMAIL || 'SubastasActivas <alertas@subastasactivas.com>';
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_URL || 'http://localhost:3005';
 
   for (const entry of Object.values(matchesByAlert)) {
@@ -157,6 +157,17 @@ async function sendNotifications(matchesByAlert: Record<string, { alert: any; au
         province: auction.province,
         municipality: auction.municipality,
         appraisalValue: auction.appraisalValue,
+        // Enrichment (wave50c): the email template now renders end-date,
+        // image, category chip, status badge, and a richer location line.
+        // All optional/nullable — template degrades gracefully when absent.
+        endsAt: auction.endsAt,
+        endDateTime: auction.endDateTime,
+        opensAt: auction.opensAt,
+        status: auction.status,
+        category: auction.category,
+        imageUrl: auction.imageUrl,
+        latitude: auction.latitude,
+        longitude: auction.longitude,
       }));
 
       const { subject, html, text } = createAuctionAlertEmail({
@@ -185,6 +196,15 @@ async function sendNotifications(matchesByAlert: Record<string, { alert: any; au
           province: auction.province,
           municipality: auction.municipality,
           appraisalValue: auction.appraisalValue,
+          // Enrichment (wave50c) — mirrors the grouped branch above.
+          endsAt: auction.endsAt,
+          endDateTime: auction.endDateTime,
+          opensAt: auction.opensAt,
+          status: auction.status,
+          category: auction.category,
+          imageUrl: auction.imageUrl,
+          latitude: auction.latitude,
+          longitude: auction.longitude,
         }];
 
         const { subject, html, text } = createAuctionAlertEmail({

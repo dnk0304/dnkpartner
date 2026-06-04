@@ -115,13 +115,13 @@ export class WhatsAppChannel {
    */
   private formatAuctionMessage(auction: any): string {
     return `
-🏛️ *SubastaPro - Nueva Subasta*
+🏛️ *SubastasActivas - Nueva Subasta*
 
 📋 ${auction.title}
 💰 Valor: ${this.formatCurrency(auction.appraisalValue)}
 📍 ${auction.municipality || ''}, ${auction.province}
 
-🔗 Ver detalles: ${process.env.NEXT_PUBLIC_URL || 'https://subastapro.com'}/auction/${auction.id}
+🔗 Ver detalles: ${process.env.NEXT_PUBLIC_URL || 'https://subastasactivas.com'}/auction/${auction.id}
     `.trim();
   }
   

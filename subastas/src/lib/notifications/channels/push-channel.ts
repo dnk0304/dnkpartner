@@ -18,7 +18,7 @@ export class PushChannel {
     // Configure VAPID keys
     if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
       webpush.setVapidDetails(
-        'mailto:notifications@subastapro.com',
+        'mailto:notifications@subastasactivas.com',
         process.env.VAPID_PUBLIC_KEY,
         process.env.VAPID_PRIVATE_KEY
       );
