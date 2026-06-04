@@ -174,6 +174,12 @@ async function sendNotifications(matchesByAlert: Record<string, { alert: any; au
         province: auction.province,
         municipality: auction.municipality,
         appraisalValue: auction.appraisalValue,
+        // Three-values projection (2026-06-04, Ghost split commit `443a864`):
+        // ALL THREE of Tasación / Valor subasta / Cantidad reclamada flow to
+        // the email so the template can render them as three distinct lines.
+        // Honest-NULL — template omits absent values (never renders 0).
+        valorSubasta: auction.valorSubasta,
+        claimedAmount: auction.claimedAmount,
         // Enrichment (wave50c): the email template renders status-branched
         // date, image, category chip, status badge, and a richer location.
         // Wave52: + resumeAt (drives the SUSPENDIDA "Fecha prevista de
@@ -216,6 +222,10 @@ async function sendNotifications(matchesByAlert: Record<string, { alert: any; au
           province: auction.province,
           municipality: auction.municipality,
           appraisalValue: auction.appraisalValue,
+          // Three-values projection (2026-06-04, Ghost split) — Tasación +
+          // Valor subasta + Cantidad reclamada flow distinctly. Honest-NULL.
+          valorSubasta: auction.valorSubasta,
+          claimedAmount: auction.claimedAmount,
           // Enrichment (wave50c + wave52 resumeAt) — mirrors the grouped branch above.
           endsAt: auction.endsAt,
           endDateTime: auction.endDateTime,

@@ -66,7 +66,18 @@ export interface AuctionItem {
   province: string;
   community: string;
   currentBid: number | null;
+  // Tasación — the official appraisal value (`Tasación`). After Ghost's
+  // 2026-06-04 three-values split (commit `443a864`), this field carries
+  // ONLY the BOE "Tasación" figure — the previously-conflated "Valor subasta"
+  // moved to its own column (`valorSubasta` below). Honest-NULL: omit when
+  // absent, never coerce to 0.
   appraisalValue: number | null;
+  // Valor subasta — DISTINCT from `appraisalValue` (Tasación). BOE judicial
+  // pages routinely render "Tasación 0,00 €" while carrying the real reference
+  // figure under "Valor subasta"; the scraper now stores the two SEPARATELY so
+  // cards can show Tasación + Valor subasta + Cantidad reclamada as three
+  // distinct numbers. Honest-NULL: omit when absent (never 0).
+  valorSubasta?: number | null;
   minimumBid?: number | null;
   // Cantidad reclamada — the amount being claimed. Populated on ~30% of
   // active rows overall (uneven by auctionType — NOTARIAL 100%, AEAT ~0.6%).

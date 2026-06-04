@@ -92,6 +92,12 @@ interface AuctionFromDB {
   status: DBStatus;
   auctionType: DBAuctionType | null;
   appraisalValue: number | null;
+  // Valor subasta — the BOE "Valor subasta" reference figure. Distinct from
+  // appraisalValue (Tasación) and claimedAmount (Cantidad reclamada) after
+  // Ghost's 2026-06-04 split (commit `443a864`). Already selected by
+  // `SELECT Auction.*`; surfaced on the full-access card payload so cards
+  // can render the three values as three distinct lines. Honest-NULL.
+  valorSubasta: number | null;
   currentBid: number | null;
   minimumBid: number | null;
   // Cantidad reclamada — the amount being claimed in the auction. Already
@@ -432,8 +438,9 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
       currentBid: null,
       appraisalValue,
       minimumBid: null,
-      // Locked-tier teasers withhold all price values; claimedAmount follows
-      // the same posture as minimumBid above.
+      // Locked-tier teasers withhold all price values; claimedAmount +
+      // valorSubasta follow the same posture as minimumBid above.
+      valorSubasta: null,
       claimedAmount: null,
       courtName: null,
       procedureNumber: null,
@@ -494,6 +501,13 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
     community: 'Canarias',
     currentBid: item.currentBid,
     appraisalValue,
+    // Valor subasta — the BOE "Valor subasta" reference figure (DISTINCT
+    // from Tasación / Cantidad reclamada). Already in the row via
+    // `SELECT Auction.*`. Honest-NULL passthrough — the scraper writes NULL
+    // when the BOE page carries no Valor subasta, and the card must omit
+    // the line entirely rather than rendering 0/—. Mirror of the
+    // claimedAmount posture below.
+    valorSubasta: item.valorSubasta ?? null,
     minimumBid: item.minimumBid,
     // Cantidad reclamada — the amount being claimed. Already in the row via
     // `SELECT Auction.*`. Card UIs render a "Cantidad reclamada" secondary

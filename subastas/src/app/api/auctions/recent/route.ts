@@ -108,6 +108,11 @@ type FeedAuctionProjection = {
   propertyType: string | null;
   currentBid: number | null;
   appraisalValue: number | null;
+  // Valor subasta — DISTINCT from appraisalValue (Tasación) and claimedAmount
+  // (Cantidad reclamada). Ghost split (2026-06-04, commit `443a864`) carries
+  // the BOE "Valor subasta" figure separately so the card can show three
+  // distinct numbers. Honest-NULL — omit the line when absent.
+  valorSubasta: number | null;
   claimedAmount: number | null;
   minimumBid: number | null;
   depositAmount: number | null;
@@ -235,6 +240,11 @@ function projectAuction(a: {
   propertyType: string | null;
   currentBid: number | null;
   appraisalValue: number | null;
+  // Valor subasta — DISTINCT from appraisalValue (Tasación) and claimedAmount
+  // (Cantidad reclamada). Ghost split (2026-06-04, commit `443a864`) carries
+  // the BOE "Valor subasta" figure separately so the card can show three
+  // distinct numbers. Honest-NULL — omit the line when absent.
+  valorSubasta: number | null;
   claimedAmount: number | null;
   minimumBid: number | null;
   depositAmount: number | null;
@@ -265,6 +275,7 @@ function projectAuction(a: {
     propertyType: a.propertyType ?? null,
     currentBid: a.currentBid ?? null,
     appraisalValue: a.appraisalValue ?? null,
+    valorSubasta: a.valorSubasta ?? null,
     claimedAmount: a.claimedAmount ?? null,
     minimumBid: a.minimumBid ?? null,
     depositAmount: a.depositAmount ?? null,
@@ -317,6 +328,7 @@ function qualityScoreOf(a: {
   title: string | null;
   imageUrl: string | null;
   appraisalValue: number | null;
+  valorSubasta: number | null;
   claimedAmount: number | null;
   minimumBid: number | null;
   municipality: string | null;
@@ -334,8 +346,13 @@ function qualityScoreOf(a: {
   if (img.length > 0) s += 2;
   const title = (a.title ?? "").trim();
   if (title.length > 0 && title.toLowerCase() !== "unknown") s += 1;
+  // hasPrice: any of the three Dennis-spec price columns + minimumBid count.
+  // Post-Ghost-split (2026-06-04), judicial rows often have Tasación=NULL but
+  // valorSubasta>0 — without including valorSubasta here, those rows would
+  // sink in the soft quality sort despite being fully-priced listings.
   const hasPrice =
     (a.appraisalValue ?? 0) > 0 ||
+    (a.valorSubasta ?? 0) > 0 ||
     (a.claimedAmount ?? 0) > 0 ||
     (a.minimumBid ?? 0) > 0;
   if (hasPrice) s += 1;
@@ -363,6 +380,9 @@ const AUCTION_CARD_SELECT = {
   propertyType: true,
   currentBid: true,
   appraisalValue: true,
+  // Valor subasta — Ghost's 2026-06-04 split (commit `443a864`) added this
+  // column distinct from appraisalValue (Tasación). Projected for the card.
+  valorSubasta: true,
   claimedAmount: true,
   minimumBid: true,
   depositAmount: true,

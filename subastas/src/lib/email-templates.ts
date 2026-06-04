@@ -519,6 +519,20 @@ export interface AuctionAlertEmailProps {
     province?: string | null;
     municipality?: string | null;
     appraisalValue?: number | null;
+    /**
+     * Valor subasta — DISTINCT from `appraisalValue` (Tasación). After Ghost's
+     * 2026-06-04 split (commit `443a864`), the BOE "Valor subasta" reference
+     * figure ships separately so the email can render Tasación + Valor subasta
+     * + Cantidad reclamada as three distinct lines. Honest-NULL — Pixel's
+     * renderer must omit the line when absent (never coerce to 0).
+     */
+    valorSubasta?: number | null;
+    /**
+     * Cantidad reclamada — the amount being claimed. Distinct from the other
+     * two price columns; Pixel renders as a third secondary line when present.
+     * Honest-NULL.
+     */
+    claimedAmount?: number | null;
     /** Primary "ends" timestamp — when the subasta is officially over. */
     endsAt?: string | Date | null;
     /** Legacy/secondary end timestamp some scrapers populate instead of endsAt. */

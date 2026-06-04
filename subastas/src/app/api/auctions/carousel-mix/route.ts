@@ -86,6 +86,9 @@ type FeedAuctionProjection = {
   propertyType: string | null;
   currentBid: number | null;
   appraisalValue: number | null;
+  // Valor subasta — DISTINCT from appraisalValue (Tasación) and claimedAmount.
+  // Ghost split (2026-06-04, commit `443a864`). Honest-NULL.
+  valorSubasta: number | null;
   claimedAmount: number | null;
   minimumBid: number | null;
   depositAmount: number | null;
@@ -176,6 +179,8 @@ const AUCTION_CARD_SELECT = {
   propertyType: true,
   currentBid: true,
   appraisalValue: true,
+  // Valor subasta — Ghost's 2026-06-04 split projection (commit `443a864`).
+  valorSubasta: true,
   claimedAmount: true,
   minimumBid: true,
   depositAmount: true,
@@ -209,6 +214,7 @@ type AuctionRow = {
   propertyType: string | null;
   currentBid: number | null;
   appraisalValue: number | null;
+  valorSubasta: number | null;
   claimedAmount: number | null;
   minimumBid: number | null;
   depositAmount: number | null;
@@ -243,6 +249,7 @@ function projectAuction(a: AuctionRow): FeedAuctionProjection {
     propertyType: a.propertyType ?? null,
     currentBid: a.currentBid ?? null,
     appraisalValue: a.appraisalValue ?? null,
+    valorSubasta: a.valorSubasta ?? null,
     claimedAmount: a.claimedAmount ?? null,
     minimumBid: a.minimumBid ?? null,
     depositAmount: a.depositAmount ?? null,
@@ -294,8 +301,12 @@ function qualityScoreOf(a: AuctionRow): number {
   if (img.length > 0) s += 2;
   const title = (a.title ?? "").trim();
   if (title.length > 0 && title.toLowerCase() !== "unknown") s += 1;
+  // hasPrice: post-Ghost-split (2026-06-04), judicial rows often have
+  // Tasación=NULL but valorSubasta>0 — including valorSubasta keeps fully-
+  // priced judicial rows from sinking under the soft quality sort.
   const hasPrice =
     (a.appraisalValue ?? 0) > 0 ||
+    (a.valorSubasta ?? 0) > 0 ||
     (a.claimedAmount ?? 0) > 0 ||
     (a.minimumBid ?? 0) > 0;
   if (hasPrice) s += 1;
