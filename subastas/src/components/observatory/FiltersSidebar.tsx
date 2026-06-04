@@ -57,6 +57,13 @@ export type LockedFilter = {
   /** A precise category (e.g. "Viviendas"). When set, the kind row is replaced
    *  with a single locked label and the category list is fixed to this one. */
   category?: string;
+  /**
+   * Wave 56 — exact-DB-name municipality lock for /subastas/{province}/{municipio}
+   * town SEO pages. Always paired with `province`. When set, the municipality
+   * dropdown is replaced with a labelled chip and stripped from the URL
+   * querystring (it lives in the path).
+   */
+  municipality?: string;
 };
 
 export type FiltersSidebarProps = {
@@ -122,6 +129,7 @@ export function FiltersSidebar({
 
   const provinceLocked = Boolean(lockedFilter?.province);
   const categoryLocked = Boolean(lockedFilter?.category);
+  const municipalityLocked = Boolean(lockedFilter?.municipality);
 
   return (
     <aside
@@ -241,21 +249,30 @@ export function FiltersSidebar({
               {lockedFilter?.province}
               <span className="ml-1 text-[var(--color-ink-tertiary)]">(bloqueado)</span>
             </div>
-            {/* Municipality stays editable — narrows within the locked province. */}
-            <select
-              value={filters.municipality}
-              onChange={(e) => onChange({ municipality: e.target.value })}
-              className="tnum w-full rounded-md border border-[var(--color-hairline)] bg-white px-3 py-2 text-sm text-[var(--color-ink-primary)] focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15"
-              aria-label="Municipio"
-              disabled={municipalities.length === 0}
-            >
-              <option value="">Todos los municipios</option>
-              {municipalities.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
+            {municipalityLocked ? (
+              /* Wave 56 — town SEO page. Municipality is also locked (path-
+                 encoded); render as a labelled chip. */
+              <div className="rounded-md border border-[var(--color-action)]/40 bg-[var(--color-action-soft)] px-2.5 py-1.5 text-xs text-[var(--color-ink-primary)]">
+                {lockedFilter?.municipality}
+                <span className="ml-1 text-[var(--color-ink-tertiary)]">(bloqueado)</span>
+              </div>
+            ) : (
+              /* Municipality stays editable — narrows within the locked province. */
+              <select
+                value={filters.municipality}
+                onChange={(e) => onChange({ municipality: e.target.value })}
+                className="tnum w-full rounded-md border border-[var(--color-hairline)] bg-white px-3 py-2 text-sm text-[var(--color-ink-primary)] focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15"
+                aria-label="Municipio"
+                disabled={municipalities.length === 0}
+              >
+                <option value="">Todos los municipios</option>
+                {municipalities.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         ) : (
           <div className="space-y-2">

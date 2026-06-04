@@ -114,6 +114,10 @@ export default function SubastasListClient({
     if (lockedFilter.province) {
       next.province = lockedFilter.province;
     }
+    if (lockedFilter.municipality) {
+      // Wave 56 — town SEO page. Always paired with province.
+      next.municipality = lockedFilter.municipality;
+    }
     if (lockedFilter.type) {
       if (!next.types.includes(lockedFilter.type)) {
         next.types = [lockedFilter.type, ...next.types];
@@ -164,6 +168,7 @@ export default function SubastasListClient({
     (patch: Partial<ObservatoryFilters>) => {
       const next = { ...filters, ...patch };
       if (lockedFilter?.province) next.province = lockedFilter.province;
+      if (lockedFilter?.municipality) next.municipality = lockedFilter.municipality;
       if (lockedFilter?.type && !next.types.includes(lockedFilter.type)) {
         next.types = [lockedFilter.type, ...next.types];
       }
@@ -172,6 +177,7 @@ export default function SubastasListClient({
       }
       const qs = paramsFromFilters(next);
       if (lockedFilter?.province) qs.delete("province");
+      if (lockedFilter?.municipality) qs.delete("municipality");
       if (lockedFilter?.type) {
         if (next.types.length === 1 && next.types[0] === lockedFilter.type) {
           qs.delete("types");
@@ -197,6 +203,7 @@ export default function SubastasListClient({
     (next: ViewMode) => {
       const qs = paramsFromFilters(filters);
       if (lockedFilter?.province) qs.delete("province");
+      if (lockedFilter?.municipality) qs.delete("municipality");
       if (lockedFilter?.type && filters.types.length === 1) qs.delete("types");
       if (lockedFilter?.category) {
         qs.delete("categories");

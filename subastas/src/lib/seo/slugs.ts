@@ -303,3 +303,77 @@ export const CATEGORY_INDEX_THRESHOLD = 5;
 export function isOfficialCategory(dbLabel: string | null | undefined): boolean {
   return Boolean(dbLabel) && OFFICIAL_CATEGORIES.has(dbLabel as string);
 }
+
+// ---------------------------------------------------------------------------
+// Wave 56 — Option A merged-slot resolver.
+//
+// After the URL re-architecture, `/subastas/{slug}` (1-segment) serves BOTH
+// category pages and province pages. Resolution is deterministic by
+// disjointness of slug sets:
+//   1. RESERVED_SEGMENTS    → 404
+//   2. CATEGORY canonical   → kind='category' (15)
+//   3. PROVINCE canonical   → kind='province' (52)
+//   4. CATEGORY alias       → 301 to canonical category
+//   5. PROVINCE alias       → 301 to canonical province
+//   6. else                 → 404
+//
+// Build-time assertion below guarantees province ∩ category = ∅ — if anyone
+// ever introduces an overlapping slug, the module fails to load. Categories
+// win on precedence as a belt-and-braces guard.
+// ---------------------------------------------------------------------------
+
+export type SubastasSlugResolution =
+  | { kind: 'category'; slug: CategorySlug; dbLabel: string }
+  | { kind: 'province'; slug: string; dbKey: string; label: string }
+  | { kind: 'redirect'; to: string } // 301 target path (relative, e.g. "/subastas/vivienda")
+  | { kind: 'reserved' }
+  | { kind: 'invalid' };
+
+export function resolveSubastasSlug(slug: string): SubastasSlugResolution {
+  if (!slug) return { kind: 'invalid' };
+  if (RESERVED_SEGMENTS.has(slug)) return { kind: 'reserved' };
+
+  // 2. Category (canonical, 15)
+  if (slug in CATEGORY_SLUG_TO_DB_LABEL) {
+    const s = slug as CategorySlug;
+    return { kind: 'category', slug: s, dbLabel: CATEGORY_SLUG_TO_DB_LABEL[s] };
+  }
+
+  // 3. Province (canonical, 52)
+  if (slug in PROVINCE_SLUG_TO_DB_KEY) {
+    const dbKey = PROVINCE_SLUG_TO_DB_KEY[slug];
+    const label = provinceLabelForSlug(slug) ?? dbKey;
+    return { kind: 'province', slug, dbKey, label };
+  }
+
+  // 4. Category alias → 301
+  const catCanon = CATEGORY_ALIAS_TO_CANONICAL[slug];
+  if (catCanon) return { kind: 'redirect', to: `/subastas/${catCanon}` };
+
+  // 5. Province alias → 301
+  const provCanon = PROVINCE_ALIAS_TO_CANONICAL[slug];
+  if (provCanon) return { kind: 'redirect', to: `/subastas/${provCanon}` };
+
+  return { kind: 'invalid' };
+}
+
+/**
+ * Build-time assertion (07 §1.6) — province slug set and category slug set
+ * MUST be disjoint. If a province ever takes a category-shaped name (or vice
+ * versa) we'd silently shadow one with the other; better to fail loud at
+ * module-load so it surfaces in tests + build.
+ */
+const _PROVINCE_CATEGORY_OVERLAP = (() => {
+  const cats = new Set<string>(CATEGORY_SLUGS);
+  const dupes: string[] = [];
+  for (const p of PROVINCE_SLUGS) if (cats.has(p)) dupes.push(p);
+  return dupes;
+})();
+if (_PROVINCE_CATEGORY_OVERLAP.length > 0) {
+  throw new Error(
+    `[seo/slugs] FATAL: PROVINCE_SLUGS ∩ CATEGORY_SLUGS must be empty, ` +
+      `found overlap: ${_PROVINCE_CATEGORY_OVERLAP.join(', ')}`,
+  );
+}
+/** Exposed for tests/diagnostics — the result of the build-time disjointness check. */
+export const PROVINCE_CATEGORY_OVERLAP: ReadonlyArray<string> = _PROVINCE_CATEGORY_OVERLAP;

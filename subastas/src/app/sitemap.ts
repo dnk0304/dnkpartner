@@ -34,7 +34,7 @@ import {
   isOfficialCategory,
   type CategorySlug,
 } from '@/lib/seo/slugs';
-import { categoryActiveCounts } from '@/lib/seo/page-data';
+import { categoryActiveCounts, activeMunicipalityPairs } from '@/lib/seo/page-data';
 import { buildAuctionSlug } from '@/lib/seo/auction-slug';
 
 const SITE = 'https://subastasactivas.com';
@@ -56,13 +56,33 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   );
 
   // --- 52 provinces (always indexable per 07 §6.1) ---
+  // Wave 56 — clean URL (no /provincia/ prefix). Old URLs 301 → these via
+  // middleware Rule 2b; sitemaps list canonical targets only.
   for (const slug of PROVINCE_SLUGS) {
     entries.push({
-      url: `${SITE}/subastas/provincia/${slug}`,
+      url: `${SITE}/subastas/${slug}`,
       lastModified: now,
       changeFrequency: 'daily',
       priority: 0.8,
     });
+  }
+
+  // --- Town pages (Wave 56 additive) ---
+  // Only municipalities with ≥1 active auction are indexable; off-taxonomy
+  // junk filtered inside activeMunicipalityPairs(). ~17 pairs in current
+  // inventory — well under any sitemap cap.
+  try {
+    const pairs = await activeMunicipalityPairs();
+    for (const p of pairs) {
+      entries.push({
+        url: `${SITE}/subastas/${p.provinceSlug}/${p.municipioSlug}`,
+        lastModified: now,
+        changeFrequency: 'daily',
+        priority: 0.7,
+      });
+    }
+  } catch {
+    // Non-fatal — if the pair query trips, the rest of the sitemap is still useful.
   }
 
   // --- 5 tipos (always indexable) ---

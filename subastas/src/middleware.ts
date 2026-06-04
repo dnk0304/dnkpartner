@@ -60,6 +60,51 @@ function normaliseSlugToken(s: string): string {
 }
 
 /**
+ * Wave 56 — given a raw 1-seg slug, compute its canonical form for the merged
+ * /subastas/{slug} slot. Returns the target slug if normalization or an alias
+ * resolves it; null if no transformation needed; null on unknown (we let the
+ * page render its own 404 — we don't want middleware to gobble unknown slugs).
+ */
+function canonicaliseSubastasSlug(raw: string): string | null {
+  const norm = normaliseSlugToken(raw).replace(/\s+/g, '-');
+  // Province canonical match — only target when raw isn't already that.
+  if (norm in PROVINCE_SLUG_TO_DB_KEY) return norm !== raw ? norm : null;
+  // Category canonical match.
+  if (norm in CATEGORY_SLUG_TO_DB_LABEL) return norm !== raw ? norm : null;
+  // Province alias — 301 to canonical.
+  const provAlias = PROVINCE_ALIAS_TO_CANONICAL[norm];
+  if (provAlias) return provAlias !== raw ? provAlias : null;
+  // Category alias — 301 to canonical.
+  const catAlias = CATEGORY_ALIAS_TO_CANONICAL[norm];
+  if (catAlias) return catAlias !== raw ? catAlias : null;
+  return null;
+}
+
+/** Reserved first-segments that must NOT be treated as a province slug for
+ *  the 2-seg town-normalize rule. Mirrors RESERVED_SEGMENTS in slugs.ts but
+ *  kept local to keep middleware bundle small. */
+const RESERVED_FIRST_SEGMENTS = new Set([
+  'provincia',
+  'tipo',
+  'subasta',
+  'municipio',
+  'provincias',
+  'tipos',
+  'en',
+  'guia',
+  'page',
+  'api',
+  'studio',
+  'admin',
+  'auth',
+  'login',
+  'register',
+  'pagina',
+  'sitemap',
+  'robots',
+]);
+
+/**
  * Detect locale from pathname/cookie. Returns the canonical locale and the
  * pathname with any `/en` prefix stripped (so SEO rules see a locale-agnostic
  * path). When the locale was carried in the URL, `urlHadLocale` is true and
@@ -132,6 +177,39 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url, 301);
   }
 
+  // ---- Rule 2b (Wave 56 Option A): old province URL → clean province URL.
+  //
+  // The 52 province pages MOVED from /subastas/provincia/{slug} to the clean
+  // 1-seg slot /subastas/{slug}. We MUST emit a 301 from every old URL to its
+  // new canonical so accrued SEO ranking is preserved. Fold + alias-resolve
+  // in the SAME hop so weird inputs like /subastas/provincia/Vizcaya land
+  // directly on /subastas/bizkaia (not via /subastas/provincia/vizcaya).
+  //
+  // Runs BEFORE the legacy /subastas/provincia/{slug} normalize block (Rule
+  // 3) — that block becomes unreachable for normal traffic (the new 301
+  // intercepts it) but the file route was deleted so even an internal
+  // route-resolution attempt would 404 without this redirect.
+  const oldProvinceMatch = pathname.match(/^\/subastas\/provincia\/([^/?#]+)\/?$/);
+  if (oldProvinceMatch) {
+    const raw = oldProvinceMatch[1];
+    const norm = normaliseSlugToken(raw).replace(/\s+/g, '-');
+    let canonical: string | null = null;
+    if (norm in PROVINCE_SLUG_TO_DB_KEY) {
+      canonical = norm;
+    } else {
+      const alias = PROVINCE_ALIAS_TO_CANONICAL[norm];
+      if (alias) canonical = alias;
+    }
+    // Fallback: even on an unknown slug, redirect to /subastas/{lowered} so we
+    // never serve a 404 at the deleted old route — the merged [slug] page
+    // will then 404 cleanly (or 301 again via the alias maps). Single safe
+    // landing for crawlers.
+    const target = canonical ?? norm;
+    const url = request.nextUrl.clone();
+    url.pathname = relocale(`/subastas/${target}`, urlHadLocale);
+    return NextResponse.redirect(url, 301);
+  }
+
   // ---- Rule 5: /subastas?province=... → /subastas/provincia/{slug} -------
   //
   // SEO canonicalisation: a bare `/subastas?province=Madrid` redirects to the
@@ -192,7 +270,8 @@ export function middleware(request: NextRequest) {
         }
         if (canonical) {
           const url = request.nextUrl.clone();
-          url.pathname = relocale(`/subastas/provincia/${canonical}`, urlHadLocale);
+          // Wave 56 — province moved to the clean 1-seg slot. No /provincia/.
+          url.pathname = relocale(`/subastas/${canonical}`, urlHadLocale);
           url.search = '';
           return NextResponse.redirect(url, 301);
         }
@@ -220,20 +299,10 @@ export function middleware(request: NextRequest) {
   }
 
   // ---- Rule 3 + 4: normalisation + alias 301s on SEO routes --------------
-  const provinciaMatch = pathname.match(/^\/subastas\/provincia\/([^/?#]+)\/?$/);
-  if (provinciaMatch) {
-    const raw = provinciaMatch[1];
-    const norm = normaliseSlugToken(raw).replace(/\s+/g, '-');
-    let target: string | null = null;
-    if (raw !== norm) target = norm;
-    const aliased = PROVINCE_ALIAS_TO_CANONICAL[norm];
-    if (aliased) target = aliased;
-    if (target && target !== raw) {
-      const url = request.nextUrl.clone();
-      url.pathname = relocale(`/subastas/provincia/${target}`, urlHadLocale);
-      return NextResponse.redirect(url, 301);
-    }
-  }
+  // (Wave 56 — old /subastas/provincia/{x} normalization block REMOVED; the
+  // route file was deleted and Rule 2b above 301s every hit of it to the
+  // clean URL in one hop. The catMatch block below now handles province
+  // alias/case folding INSIDE the merged /subastas/{slug} slot.)
 
   const tipoMatch = pathname.match(/^\/subastas\/tipo\/([^/?#]+)\/?$/);
   if (tipoMatch) {
@@ -250,19 +319,56 @@ export function middleware(request: NextRequest) {
     }
   }
 
+  // Wave 56 — merged-slot single-seg normalize. The /subastas/{slug} slot
+  // now serves BOTH categories and provinces (DISJOINT slug sets, asserted
+  // in src/lib/seo/slugs.ts). Fold + alias-resolve for either grammar in
+  // the same pass: a raw token resolving to a category alias 301s to the
+  // canonical category; a token resolving to a province alias 301s to the
+  // canonical province; a casing-only mismatch 301s to the lowercased form
+  // when it lands on a canonical category OR canonical province slug.
   const catMatch = pathname.match(/^\/subastas\/([^/?#]+)\/?$/);
   if (catMatch) {
     const raw = catMatch[1];
-    const norm = normaliseSlugToken(raw);
+    // Static-segment routes win at the same level — skip them so we don't
+    // accidentally rewrite literal sub-route paths.
     const isSubRoute = raw === 'provincia' || raw === 'tipo' || raw === 'subasta' || raw === 'provincias' || raw === 'tipos';
     if (!isSubRoute) {
-      let target: string | null = null;
-      if (raw !== norm) target = norm;
-      const aliased = CATEGORY_ALIAS_TO_CANONICAL[norm];
-      if (aliased) target = aliased;
-      if (target && target !== raw) {
+      const target = canonicaliseSubastasSlug(raw);
+      if (target) {
         const url = request.nextUrl.clone();
         url.pathname = relocale(`/subastas/${target}`, urlHadLocale);
+        return NextResponse.redirect(url, 301);
+      }
+    }
+  }
+
+  // Wave 56 (D) — 2-seg town-route normalize for /subastas/{province}/{municipio}.
+  //
+  // Fold + alias-resolve the province (seg-1) and case-fold the municipio
+  // (seg-2). Skip when seg-1 is a reserved/static first-segment (tipo,
+  // subasta, provincia, etc.) — Next.js routes those literally and the
+  // /tipo and /subasta blocks above already own their own normalize.
+  // Re-prepend /en via relocale. Guarantees one canonical town URL per pair.
+  const townMatch = pathname.match(/^\/subastas\/([^/?#]+)\/([^/?#]+)\/?$/);
+  if (townMatch) {
+    const rawProv = townMatch[1];
+    const rawMuni = townMatch[2];
+    if (!RESERVED_FIRST_SEGMENTS.has(rawProv)) {
+      const provNorm = normaliseSlugToken(rawProv).replace(/\s+/g, '-');
+      let provCanon: string | null = null;
+      if (provNorm in PROVINCE_SLUG_TO_DB_KEY) provCanon = provNorm;
+      else {
+        const alias = PROVINCE_ALIAS_TO_CANONICAL[provNorm];
+        if (alias) provCanon = alias;
+      }
+      const muniNorm = normaliseSlugToken(rawMuni).replace(/\s+/g, '-');
+      // Only emit a 301 when one of the segments is non-canonical AND we can
+      // confidently resolve the province. (If the province slug is unknown,
+      // let the page render its own 404 — middleware must not mask invalid
+      // URLs as redirects to a malformed canonical.)
+      if (provCanon && (provCanon !== rawProv || muniNorm !== rawMuni)) {
+        const url = request.nextUrl.clone();
+        url.pathname = relocale(`/subastas/${provCanon}/${muniNorm}`, urlHadLocale);
         return NextResponse.redirect(url, 301);
       }
     }

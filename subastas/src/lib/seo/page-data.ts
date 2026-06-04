@@ -9,7 +9,12 @@
 import { unstable_cache } from 'next/cache';
 import { AuctionStatus, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { TIPO_SLUG_TO_DB_KEYS, type TipoSlug } from './slugs';
+import {
+  TIPO_SLUG_TO_DB_KEYS,
+  type TipoSlug,
+  PROVINCE_DB_KEY_TO_SLUG,
+  slugify,
+} from './slugs';
 
 /** "Active" auctions for the count-in-title — celebrandose + pre-auction. */
 const ACTIVE_STATUSES: AuctionStatus[] = [
@@ -23,13 +28,16 @@ type CountInput = {
   province?: string | null;
   auctionTypeKeys?: string[] | null;
   category?: string | null;
+  /** Wave 56 — exact-DB-name municipality scope, paired with province. */
+  municipality?: string | null;
 };
 
-async function _countActive({ province, auctionTypeKeys, category }: CountInput): Promise<number> {
+async function _countActive({ province, auctionTypeKeys, category, municipality }: CountInput): Promise<number> {
   const where: Prisma.AuctionWhereInput = { status: { in: ACTIVE_STATUSES } };
   if (province) where.province = province;
   if (auctionTypeKeys && auctionTypeKeys.length > 0) where.auctionType = { in: auctionTypeKeys };
   if (category) where.category = category;
+  if (municipality) where.municipality = municipality;
   return prisma.auction.count({ where });
 }
 
@@ -81,7 +89,7 @@ export function tipoSlugToDbKeys(slug: TipoSlug): string[] {
 }
 
 /** Minimum starting price across active auctions for a given filter (Euros). */
-async function _minStartingPrice({ province, auctionTypeKeys, category }: CountInput): Promise<number | null> {
+async function _minStartingPrice({ province, auctionTypeKeys, category, municipality }: CountInput): Promise<number | null> {
   const where: Prisma.AuctionWhereInput = {
     status: { in: ACTIVE_STATUSES },
     OR: [{ minimumBid: { gt: 0 } }, { currentBid: { gt: 0 } }],
@@ -89,6 +97,7 @@ async function _minStartingPrice({ province, auctionTypeKeys, category }: CountI
   if (province) where.province = province;
   if (auctionTypeKeys && auctionTypeKeys.length > 0) where.auctionType = { in: auctionTypeKeys };
   if (category) where.category = category;
+  if (municipality) where.municipality = municipality;
   const row = await prisma.auction.aggregate({
     where,
     _min: { minimumBid: true, currentBid: true },
@@ -136,6 +145,106 @@ export async function provincesWithInventory(): Promise<Set<string>> {
   });
   return new Set(rows.map((r) => r.province as string));
 }
+
+// ---------------------------------------------------------------------------
+// Wave 56 — municipality slug resolver + active-pairs helper.
+//
+// `municipalitySlugToDbName(provinceDbKey, slug)`: given a province's DB key
+// and a URL slug for a municipality, return the canonical DB municipality
+// name. Implementation: scan distinct municipality names within that province
+// (ACTIVE_STATUSES only — town pages are about live inventory), slugify each,
+// match. On per-slug collision pick the highest-count variant ("most-frequent
+// casing wins"). Cached per-province (300s) since the universe is small.
+// ---------------------------------------------------------------------------
+
+async function _distinctActiveMunicipalitiesInProvince(
+  provinceDbKey: string,
+): Promise<Array<{ name: string; count: number }>> {
+  const rows = await prisma.auction.groupBy({
+    by: ['municipality'],
+    where: { status: { in: ACTIVE_STATUSES }, province: provinceDbKey },
+    _count: { _all: true },
+  });
+  return rows
+    .map((r) => ({ name: (r.municipality ?? '').trim(), count: r._count?._all ?? 0 }))
+    .filter((r) => {
+      if (!r.name) return false;
+      const lc = r.name.toLowerCase();
+      return lc !== 'null' && lc !== 'undefined' && lc !== 'desconocida';
+    });
+}
+
+const distinctActiveMunicipalitiesInProvince = unstable_cache(
+  _distinctActiveMunicipalitiesInProvince,
+  ['seo-distinct-municipalities-in-province'],
+  { revalidate: 300, tags: ['seo-counts'] },
+);
+
+/**
+ * Resolve a municipality slug to its canonical DB name within a given
+ * province. Returns null when no active municipality in that province
+ * matches. Collision-safe: if two casings fold to the same slug the
+ * highest-count variant wins.
+ */
+export async function municipalitySlugToDbName(
+  provinceDbKey: string,
+  municipalitySlug: string,
+): Promise<string | null> {
+  if (!provinceDbKey || !municipalitySlug) return null;
+  const rows = await distinctActiveMunicipalitiesInProvince(provinceDbKey);
+  let best: { name: string; count: number } | null = null;
+  for (const row of rows) {
+    if (slugify(row.name) === municipalitySlug) {
+      if (!best || row.count > best.count) best = row;
+    }
+  }
+  return best ? best.name : null;
+}
+
+/**
+ * All (provinceSlug, municipioSlug) pairs that currently have ≥1 active
+ * auction. Used by the sitemap. Folds casing collisions to a single canonical
+ * slug per pair (highest-count variant wins) and skips any province not in
+ * `PROVINCE_DB_KEY_TO_SLUG` (off-taxonomy junk).
+ */
+async function _activeMunicipalityPairs(): Promise<
+  Array<{ provinceSlug: string; municipioSlug: string; count: number; municipalityName: string }>
+> {
+  const rows = await prisma.auction.groupBy({
+    by: ['province', 'municipality'],
+    where: { status: { in: ACTIVE_STATUSES } },
+    _count: { _all: true },
+  });
+  // Fold (provinceSlug, municipioSlug) collisions to highest-count variant.
+  const best = new Map<
+    string,
+    { provinceSlug: string; municipioSlug: string; count: number; municipalityName: string }
+  >();
+  for (const r of rows) {
+    const provinceKey = (r.province ?? '').trim();
+    const muniName = (r.municipality ?? '').trim();
+    if (!provinceKey || !muniName) continue;
+    const lcMuni = muniName.toLowerCase();
+    if (lcMuni === 'null' || lcMuni === 'undefined' || lcMuni === 'desconocida') continue;
+    const provinceSlug = PROVINCE_DB_KEY_TO_SLUG[provinceKey];
+    if (!provinceSlug) continue;
+    const municipioSlug = slugify(muniName);
+    if (!municipioSlug) continue;
+    const key = `${provinceSlug}|${municipioSlug}`;
+    const count = r._count?._all ?? 0;
+    const prev = best.get(key);
+    if (!prev || count > prev.count) {
+      best.set(key, { provinceSlug, municipioSlug, count, municipalityName: muniName });
+    }
+  }
+  return Array.from(best.values()).sort((a, b) => b.count - a.count);
+}
+
+export const activeMunicipalityPairs = unstable_cache(
+  _activeMunicipalityPairs,
+  ['seo-active-municipality-pairs'],
+  { revalidate: 300, tags: ['seo-counts'] },
+);
 
 /** Active-count per category label (for sitemap / threshold check). */
 export async function categoryActiveCounts(): Promise<Map<string, number>> {

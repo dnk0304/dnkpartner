@@ -40,6 +40,32 @@ async function getCachedDistinctProvinces(): Promise<string[]> {
   return provinceCache.values;
 }
 
+// FORGE 2026-06-04 (Wave 56 \u2014 Option A municipality SEO):
+// Cached "SELECT DISTINCT municipality" per province. Mirrors the province
+// cache shape. Used by the new server-side `?municipality=` filter so a
+// folded slug like "abrera" matches every DB casing variant ("Abrera",
+// "ABRERA") in one parameterized IN-list. Keyed by province (always sent
+// alongside municipality on town SEO pages) to keep each cache slot small.
+// 5-minute TTL \u2014 distinct municipality lists move slowly.
+const municipalityCacheByProvince = new Map<
+  string,
+  { values: string[]; expiresAt: number }
+>();
+async function getCachedDistinctMunicipalitiesInProvince(province: string): Promise<string[]> {
+  const cached = municipalityCacheByProvince.get(province);
+  if (cached && cached.expiresAt > Date.now()) return cached.values;
+  const rows = await query<{ municipality: string }>(
+    'SELECT DISTINCT municipality FROM Auction WHERE municipality IS NOT NULL AND province = ?',
+    [province],
+  );
+  const values = rows.map((r) => r.municipality).filter((v): v is string => Boolean(v));
+  municipalityCacheByProvince.set(province, {
+    values,
+    expiresAt: Date.now() + 5 * 60 * 1000,
+  });
+  return values;
+}
+
 // Streetview directory listing cache \u2014 `fs.existsSync` ran per row, per request.
 // Replace with one directory scan, cached 1 minute.
 let streetviewFileCache: { files: Set<string>; expiresAt: number } | null = null;
@@ -661,6 +687,12 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const province = searchParams.get('province');
+    // FORGE 2026-06-04 (Wave 56) — server-side `municipality` filter for
+    // /subastas/[province]/[municipio] SEO pages. lockedFilter sends BOTH
+    // province AND municipality, so we apply the muni predicate on top of the
+    // province one (same-named towns across provinces stay separate). No-op
+    // when absent — every existing 1-dim caller is unaffected.
+    const municipality = searchParams.get('municipality');
     const category = searchParams.get('category');
     const status = searchParams.get('status');
     const statuses = searchParams.get('statuses'); // Support multiple statuses
@@ -792,6 +824,7 @@ export async function GET(request: NextRequest) {
     // Create cache key (include sort so different orderings don't collide)
     const cacheKey = {
       province: province || 'all',
+      municipality: municipality || 'all',
       category: category || 'all',
       status: status || 'all',
       statuses: statuses || 'all',
@@ -890,6 +923,55 @@ export async function GET(request: NextRequest) {
         params.push(province);
       }
     }
+
+    // FORGE 2026-06-04 (Wave 56) — server-side `municipality` filter.
+    //
+    // Folded match via the SAME normalizeText() the search and province blocks
+    // use, against the per-province distinct-municipalities cache so a slug
+    // like "Abrera" matches every DB casing variant in one IN-list. Province
+    // MUST be applied (above) so same-name towns across provinces stay
+    // separate; the town SEO page always sends both. If the muni param was
+    // sent without a province, we fall back to a folded LIKE-on-LOWER (cheap
+    // since the row set is already filtered by status/category).
+    //
+    // The predicate sits AFTER province and BEFORE preStatusSqlLen so
+    // totalCount + teaserCounts.{active,preAuction} all reflect the
+    // municipality-narrowed set — count/list invariant preserved.
+    if (municipality && municipality.trim().length > 0) {
+      const folded = normalizeText(municipality);
+      if (province) {
+        // Find the original-casing DB names whose folded form matches.
+        // Scoped to the SAME province values we already pushed above (so
+        // there is no cross-province leakage).
+        const dbProvinces = await getCachedDistinctProvinces();
+        const provinceMatches = dbProvinces.filter((v) => normalizeText(v) === normalizeText(province));
+        const targetProvinces = provinceMatches.length > 0 ? provinceMatches : [province];
+        const muniSet = new Set<string>();
+        for (const prov of targetProvinces) {
+          const munis = await getCachedDistinctMunicipalitiesInProvince(prov);
+          for (const m of munis) {
+            if (normalizeText(m) === folded) muniSet.add(m);
+          }
+        }
+        const muniMatches = Array.from(muniSet);
+        if (muniMatches.length > 0) {
+          sql += ` AND municipality IN (${muniMatches.map(() => '?').join(',')})`;
+          params.push(...muniMatches);
+        } else {
+          // No DB casing match — fall through to LOWER() comparison so the
+          // request still produces a deterministic (likely-empty) result set
+          // instead of leaking all municipalities in the province.
+          sql += ' AND LOWER(municipality) = LOWER(?)';
+          params.push(municipality);
+        }
+      } else {
+        // No province context — fall back to a folded LOWER compare. Used
+        // rarely (the town SEO page always sends province too).
+        sql += ' AND LOWER(municipality) = LOWER(?)';
+        params.push(municipality);
+      }
+    }
+
     if (categoriesList && categoriesList.length > 0) {
       // P1: multi-value category rollup (e.g. "Coches" = Turismos,Motocicletas,...)
       // Takes precedence over single `category` if both are provided.
