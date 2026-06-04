@@ -1,0 +1,32 @@
+-- Valor subasta — store SEPARATELY from appraisalValue/Tasación (2026-06-05) — Ghost.
+-- Additive ONLY. ONE new nullable column on "Auction": "valorSubasta".
+-- CREATED, NOT APPLIED — Ken applies on the box via `prisma migrate deploy`
+-- FIRST (before the scheduler rebuild), mirroring the wave52 suspensionMotive
+-- pattern.
+--
+-- WHY: today the scraper extracts both Tasación ("appraisal_value") and Valor
+-- subasta ("valor_subasta") but COLLAPSES them — appraisalValue held Tasación
+-- OR (when Tasación was 0/absent) Valor subasta as a fallback, and valor_subasta
+-- was discarded. Dennis wants THREE distinct numbers on every card: Tasación,
+-- Valor subasta, Cantidad reclamada. This column un-collapses the first two.
+--
+-- Idempotent (IF NOT EXISTS) so a partial prior apply or local re-run is a
+-- no-op. Follows the convention set by:
+--   20260602_add_pujas_occupancy
+--   20260603_add_auction_documents
+--   20260604_add_suspension_motive
+--
+-- Sequencing (Ken applies): AFTER 20260604_add_suspension_motive. Independent of
+-- every prior wave's columns. Existing rows get NULL until Ghost backfills via
+-- backfill_active_full.py --split-appraisal-valorsubasta (adapter's
+-- information_schema guard makes the write safe pre/post migration).
+--
+-- SEMANTICS GOING FORWARD:
+--   "appraisalValue" = Tasación ONLY (honest-NULL when Tasación is 0/absent).
+--   "valorSubasta"   = Valor subasta ONLY (honest-NULL when 0/absent).
+-- A judicial row with Tasación=0 will now carry appraisalValue NULL +
+-- valorSubasta=real (was appraisalValue=real via the now-removed collapse).
+-- That is the INTENDED change — the card shows both labelled. Type is
+-- DOUBLE PRECISION to match every other money column (Float? in schema.prisma).
+
+ALTER TABLE "Auction" ADD COLUMN IF NOT EXISTS "valorSubasta" DOUBLE PRECISION;

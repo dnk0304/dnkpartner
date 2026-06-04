@@ -21,6 +21,10 @@ Phases:
   --rescrape browser re-fetch of the whole active pool (checkpointed, resumable).
   --status-only  apply the widened SQL status sweep (endsAt < now -> CONCLUIDA_PORTAL)
                  across CELEBRANDOSE/ACTIVE/PROXIMA_APERTURA/SUSPENDIDA.
+  --split-appraisal-valorsubasta  re-fetch the FULL active pool and write
+                 Tasación (appraisalValue) and Valor subasta (valorSubasta) to
+                 their OWN columns (un-collapse). Own checkpoint; 250ms delay.
+                 Requires migration 20260605_add_valor_subasta applied first.
 
 Checkpoint file lets a long run resume after interruption.
 Run inside the scheduler container (has playwright + DATABASE_URL):
@@ -116,12 +120,15 @@ def rescrape(conn):
     only_null = "--only-null-endsat" in sys.argv
     only_null_appr = "--only-null-appraisal" in sys.argv
     only_suspended = "--only-suspended" in sys.argv
+    split_valor = "--split-appraisal-valorsubasta" in sys.argv
     if only_null:
         logger.info("--- Re-scrape: CELEBRANDOSE rows with NULL endsAt only ---")
     elif only_null_appr:
         logger.info("--- Re-scrape: ACTIVE rows with NULL appraisalValue only ---")
     elif only_suspended:
         logger.info("--- Re-scrape: SUSPENDIDA rows only (resume date + motive) ---")
+    elif split_valor:
+        logger.info("--- Re-scrape: ALL active rows — split Tasación / Valor subasta ---")
     else:
         logger.info("--- Re-scrape: full active pool ---")
     cur = conn.cursor()
@@ -158,6 +165,17 @@ def rescrape(conn):
               AND {LEGACY_EXCLUSION_SQL}
             ORDER BY "boeId" ASC
         """)
+    elif split_valor:
+        # The full active pool — re-fetch every active row so Tasación and Valor
+        # subasta get written to their OWN columns (un-collapse). Rides the
+        # universal info-general fetch already live in production. Own checkpoint
+        # below so it never collides with the full/endsat/null-appraisal runs.
+        cur.execute(f"""
+            SELECT "boeId" FROM "Auction"
+            WHERE status IN {ACTIVE_STATUSES} AND "boeId" IS NOT NULL
+              AND {LEGACY_EXCLUSION_SQL}
+            ORDER BY "boeId" ASC
+        """)
     else:
         cur.execute(f"""
             SELECT "boeId" FROM "Auction"
@@ -180,6 +198,24 @@ def rescrape(conn):
     except Exception:
         has_suspension_motive = False
 
+    # valorSubasta is an additive column (migration 20260605). Probe so an
+    # out-of-order run (backfill before migrate) is a safe no-op rather than a
+    # write failure. When absent, valor_subasta is simply not written (the
+    # appraisalValue/Tasación split still applies).
+    try:
+        cur.execute("""
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'Auction' AND column_name = 'valorSubasta'
+        """)
+        has_valor_subasta = cur.fetchone() is not None
+    except Exception:
+        has_valor_subasta = False
+    if (split_valor) and not has_valor_subasta:
+        logger.warning(
+            "  valorSubasta column ABSENT — apply migration 20260605_add_valor_subasta "
+            "before this run, or valorSubasta will not be written."
+        )
+
     # Isolate the appraisal re-fetch on its own checkpoint so a prior full /
     # endsat run's checkpoint never skips a null-appraisal row (and vice versa).
     # Still env-overridable via BACKFILL_CHECKPOINT for an explicit shared run.
@@ -188,6 +224,8 @@ def rescrape(conn):
         ckpt = "/tmp/backfill_null_appraisal.checkpoint.json"
     elif only_suspended and "BACKFILL_CHECKPOINT" not in os.environ:
         ckpt = "/tmp/backfill_suspended.checkpoint.json"
+    elif split_valor and "BACKFILL_CHECKPOINT" not in os.environ:
+        ckpt = "/tmp/backfill_split_valorsubasta.checkpoint.json"
 
     done = _load_ckpt(ckpt)
     if done:
@@ -220,16 +258,21 @@ def rescrape(conn):
         try:
             info = scraper._fetch_detail_info(boe_id)
             updates = {}
-            # Appraisal: prefer Tasación; but many judicial auctions render
-            # "Tasación 0,00 €" while carrying the real reference valuation in
-            # "Valor subasta". Use Valor subasta as the appraisal when Tasación
-            # is absent or literally 0 — that is the figure the UI should show.
+            # Tasación and Valor subasta are stored SEPARATELY now (Dennis wants
+            # three distinct card numbers). The old collapse — fold valor_subasta
+            # into appraisalValue when Tasación was 0/absent — is REMOVED.
+            #   appraisalValue <- Tasación ONLY (honest-NULL when 0/absent).
+            #   valorSubasta   <- Valor subasta ONLY (honest-NULL when 0/absent).
+            # A judicial row with Tasación=0 + real Valor subasta now lands
+            # appraisalValue untouched (NULL) + valorSubasta=real. valorSubasta is
+            # written only when the live DB carries the column (split run: the
+            # 20260605 migration must be applied first; Ken applies it before this).
             appr = info.get("appraisal_value")
             valor = info.get("valor_subasta")
-            if (appr is None or appr == 0) and valor not in (None, 0):
-                appr = valor
             if appr is not None and appr != 0:
                 updates['"appraisalValue"'] = appr
+            if has_valor_subasta and valor is not None and valor != 0:
+                updates['"valorSubasta"'] = valor
             if info.get("minimum_bid") is not None:
                 updates['"minimumBid"'] = info["minimum_bid"]
             if info.get("deposit_amount") is not None:
@@ -284,6 +327,10 @@ def rescrape(conn):
                     conn.commit()
                 touched += 1
             done.add(boe_id)
+            if split_valor:
+                # Politeness delay for the split backfill (250ms) — this run
+                # touches the full active pool over the live info-general fetch.
+                time.sleep(0.25)
             if i % 25 == 0:
                 _save_ckpt(done, ckpt)
                 logger.info(f"  {i}/{len(queue)} touched={touched} enriched={enriched} swept={swept} failed={failed}")
@@ -308,7 +355,7 @@ def main():
     # re-scrape run, so Ken can fire the targeted backfill without --rescrape.
     if any(f in sys.argv for f in
            ("--rescrape", "--only-null-endsat", "--only-null-appraisal",
-            "--only-suspended")):
+            "--only-suspended", "--split-appraisal-valorsubasta")):
         rescrape(conn)
     conn.close()
 

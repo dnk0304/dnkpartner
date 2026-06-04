@@ -415,6 +415,7 @@ class DatabaseAdapter:
                                       'suspensionMotive',
                                       'sourceIdSub', 'loteNumber',
                                       'pujaStatus', 'currentBidAmount', 'occupancy',
+                                      'valorSubasta',
                                       'postalCode', 'idufir', 'registryInscription',
                                       'legalTitle', 'bienLocalidad', 'bienProvincia',
                                       'viviendaHabitual')
@@ -543,6 +544,12 @@ class DatabaseAdapter:
             if 'occupancy' in forge_cols and data.get('occupancy') is not None:
                 update_fields.append('"occupancy" = %s')
                 params.append(data['occupancy'])
+            # Valor subasta (additive, guarded). Stored SEPARATELY from
+            # appraisalValue/Tasación. Only persisted when present so a transient
+            # parse miss never blanks a good value (honest-NULL preserved).
+            if 'valorSubasta' in forge_cols and data.get('valor_subasta') is not None:
+                update_fields.append('"valorSubasta" = %s')
+                params.append(data['valor_subasta'])
             # G1 discrete "Datos del bien" columns (Forge 20260603). Guarded by
             # info_schema so this is safe before the migration is applied; only
             # written when the scraper actually parsed a value (never blanks).
@@ -676,6 +683,12 @@ class DatabaseAdapter:
                 col_names.append('"occupancy"')
                 placeholders.append('%s')
                 vals.append(data['occupancy'])
+            # Valor subasta (additive, guarded) — stored SEPARATELY from
+            # appraisalValue/Tasación. Honest-NULL: only written when present.
+            if 'valorSubasta' in forge_cols and data.get('valor_subasta') is not None:
+                col_names.append('"valorSubasta"')
+                placeholders.append('%s')
+                vals.append(data['valor_subasta'])
             # G1 discrete "Datos del bien" columns (Forge 20260603, guarded).
             for _data_key, _col in _BIEN_FIELD_COLS:
                 if _col in forge_cols and data.get(_data_key) is not None:

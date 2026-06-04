@@ -38,6 +38,12 @@ model Auction {
   // Nullable: the real Tasación comes from the BOE detail page; when genuinely
   // absent the value is NULL (honest). NEVER coerce a missing value to 0.
   appraisalValue Float?
+  // Valor subasta — DISTINCT from appraisalValue (Tasación). BOE judicial pages
+  // routinely render "Tasación 0,00 €" while carrying the real reference figure
+  // under "Valor subasta"; we now store the two SEPARATELY so the card can show
+  // Tasación + Valor subasta + Cantidad reclamada as three distinct numbers.
+  // Nullable + honest-NULL: NULL when the BOE page carries no Valor subasta.
+  valorSubasta   Float?
   currentBid     Float?
   minimumBid     Float?
   depositAmount  Float?

@@ -841,15 +841,15 @@ class BOEScraper(BaseScraper):
                 # never coerce a missing value to 0 (NULL is the honest signal).
                 if detail_info.get('appraisal_value') is not None:
                     auction_data['appraisal_value'] = detail_info['appraisal_value']
-                # Tasación -> Valor subasta fallback (mirrors the lote-split path
-                # ~L2047). BOE renders "Tasación 0,00 €" on most judicial pages
-                # (every PA detail, verified live 2026-06-03) while the real
-                # figure lives under "Valor subasta". When appraisal_value is
-                # still falsy (None or 0) use valor_subasta so a single-row
-                # auction never lands with a meaningless appraisal — never
-                # fabricate: only adopt a real valor_subasta.
-                if not auction_data.get('appraisal_value') and detail_info.get('valor_subasta'):
-                    auction_data['appraisal_value'] = detail_info['valor_subasta']
+                # Tasación and Valor subasta are stored SEPARATELY now (Dennis
+                # wants three distinct card numbers). appraisalValue = Tasación
+                # ONLY; the old collapse (when Tasación was 0/absent we used
+                # valor_subasta as the appraisal) is REMOVED. Carry valor_subasta
+                # through as its OWN key -> the adapter writes the valorSubasta
+                # column. Honest-NULL each: a judicial row with Tasación=0 lands
+                # appraisalValue 0/NULL + valorSubasta=real (the card shows both).
+                if detail_info.get('valor_subasta') is not None:
+                    auction_data['valor_subasta'] = detail_info['valor_subasta']
                 if detail_info.get('minimum_bid') is not None:
                     auction_data['minimum_bid'] = detail_info['minimum_bid']
                 if detail_info.get('deposit_amount') is not None:
@@ -1935,10 +1935,12 @@ class BOEScraper(BaseScraper):
           financials in `dated`) from clobbering a single-lot page whose real
           prices were already on the pre-click DOM.
 
-        The downstream Tasación -> Valor-subasta resolve (parse_listing ~L851 /
-        backfill per-row) then turns the now-populated `valor_subasta` into the
-        final appraisalValue. Honest-NULL is preserved end to end: if neither
-        ver=3 nor ver=1 carries a price, every key stays None (never coerced)."""
+        appraisal_value (Tasación) and valor_subasta (Valor subasta) are kept as
+        DISTINCT keys here and flow to DISTINCT columns downstream
+        (appraisalValue vs valorSubasta) — the old downstream collapse that
+        folded valor_subasta into appraisalValue is REMOVED (Dennis wants three
+        card numbers). Honest-NULL is preserved end to end: if neither ver=3 nor
+        ver=1 carries a price, every key stays None (never coerced)."""
         self._activate_general_info_tab(page)
         dated = self._extract_detail_from_page(page, boe_id, detail_url)
         for k in self._GENERAL_INFO_DATE_KEYS:
@@ -2148,14 +2150,13 @@ class BOEScraper(BaseScraper):
         # so carry the umbrella's type (derived from the shared idSub prefix).
         auction_type = umbrella.get('auction_type') or auction_type_from_boe_id(source_id_sub)
 
-        # appraisalValue: prefer Tasación, fall back to Valor subasta. BOE lote
-        # pages frequently render "Valor de tasación 0,00 €" while carrying the
-        # real figure under "Valor Subasta" (verified on SUB-JA-2024-235417),
-        # so treat a 0/missing tasación as absent and use Valor subasta — never
-        # let a row land with a meaningless appraisal=0.
+        # appraisalValue = Tasación ONLY. Valor subasta is stored SEPARATELY
+        # (its own column) now — the old collapse (use valor_subasta as the
+        # appraisal when Tasación was 0/absent, verified on SUB-JA-2024-235417)
+        # is REMOVED so the card can show Tasación + Valor subasta as two
+        # distinct numbers. Honest-NULL each.
         appraisal = info.get('appraisal_value')
-        if not appraisal:  # None or 0.0
-            appraisal = info.get('valor_subasta')
+        valor_subasta = info.get('valor_subasta')
 
         minimum_bid = info.get('minimum_bid')
 
@@ -2165,8 +2166,11 @@ class BOEScraper(BaseScraper):
         # NULL price rather than coercing to 0 or inventing a number. Zero-
         # migration path: leave appraisal_value/minimum_bid = None and inject the
         # literal token into the title (front-end reads the title). Per-lote and
-        # last-resort only: a lote WITH a real price keeps its real price.
-        no_fetchable_price = (not appraisal) and (minimum_bid in (None, 0))
+        # last-resort only: a lote WITH ANY real price keeps its real price.
+        # NB: Valor subasta is now stored separately but STILL counts as a real
+        # price here — a row with valor_subasta but no Tasación must NOT regress
+        # to "Varios Lotes".
+        no_fetchable_price = (not appraisal) and (not valor_subasta) and (minimum_bid in (None, 0))
 
         # Province/municipality come from the LOTE's own page text (lotes can
         # differ — that's the whole point of independent listing). Fall back to
@@ -2205,6 +2209,7 @@ class BOEScraper(BaseScraper):
             'auction_type': auction_type,
             'source': 'BOE',
             'appraisal_value': appraisal,
+            'valor_subasta': valor_subasta,
             'minimum_bid': minimum_bid,
             'address': lote_address,
             'deposit_amount': info.get('deposit_amount'),
