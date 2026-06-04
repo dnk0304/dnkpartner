@@ -17,7 +17,10 @@ import { fetchCatastroFacade } from './catastro';
 import { fetchStreetView } from './streetview';
 import { extractRCFromRow } from './extract-rc';
 
-export const ACTIVE_STATUSES = ['CELEBRANDOSE', 'PROXIMA_APERTURA', 'ACTIVE', 'PRE_AUCTION'] as const;
+// Wave52 (2026-06-04): include SUSPENDIDA / SUSPENDED so the Street View
+// backfill covers suspended auctions (they're still "live" for a buyer
+// watching them — they carry a resumeAt and surface in the card grid + email).
+export const ACTIVE_STATUSES = ['CELEBRANDOSE', 'PROXIMA_APERTURA', 'ACTIVE', 'PRE_AUCTION', 'SUSPENDIDA', 'SUSPENDED'] as const;
 
 export interface ResolverRow {
   boeId: string;

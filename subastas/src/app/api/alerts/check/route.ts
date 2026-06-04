@@ -3,6 +3,7 @@ import { query } from '@/lib/db';
 import { Resend } from 'resend';
 import { createAuctionAlertEmail } from '@/lib/email-templates';
 import { requireAdminOrCron } from '@/lib/auth-helpers';
+import { ALERTABLE_DB_STATUSES_SQL } from '@/lib/auction-status';
 
 /**
  * API endpoint to check for new auctions matching user alerts
@@ -27,10 +28,26 @@ export async function POST(request: NextRequest) {
       LEFT JOIN User u ON a.userId = u.id
     `, []);
 
-    // Get recent auctions (last 24 hours)
+    // Get recent auctions (last 24 hours), FLOORED to ALERTABLE statuses.
+    //
+    // Wave52 BUG-3 fix (Ken-locked 2026-06-04): a user must NEVER be alerted
+    // on a CANCELADA / CONCLUIDA_PORTAL / FINISHED / FINALIZADA_AUTORIDAD
+    // row. Previously the query had no status filter and the per-alert
+    // `alert.statuses` user-narrowing check was the only gate — but an
+    // alert with null/empty `statuses` matches every status, so cancelled
+    // and concluded auctions slipped into emails.
+    //
+    // The floor is live + upcoming + suspended. The per-alert `alert.statuses`
+    // check below still stacks on top (a user narrowing to just CELEBRANDOSE
+    // still works), but it can never RE-INCLUDE a terminal state.
+    //
+    // ALERTABLE_DB_STATUSES_SQL is a static quoted-comma list — no user input,
+    // safe to inline (same pattern used by /api/admin/images/backfill).
     const cutoffDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const recentAuctions = await query<any>(`
-      SELECT * FROM Auction WHERE createdAt >= ?
+      SELECT * FROM Auction
+      WHERE createdAt >= ?
+        AND status IN (${ALERTABLE_DB_STATUSES_SQL})
     `, [cutoffDate]);
 
     const matchesByAlert: Record<string, { alert: any; auctions: any[] }> = {};
@@ -157,12 +174,15 @@ async function sendNotifications(matchesByAlert: Record<string, { alert: any; au
         province: auction.province,
         municipality: auction.municipality,
         appraisalValue: auction.appraisalValue,
-        // Enrichment (wave50c): the email template now renders end-date,
-        // image, category chip, status badge, and a richer location line.
+        // Enrichment (wave50c): the email template renders status-branched
+        // date, image, category chip, status badge, and a richer location.
+        // Wave52: + resumeAt (drives the SUSPENDIDA "Fecha prevista de
+        // reanudación" line — populated by the suspended-auction scraper).
         // All optional/nullable — template degrades gracefully when absent.
         endsAt: auction.endsAt,
         endDateTime: auction.endDateTime,
         opensAt: auction.opensAt,
+        resumeAt: auction.resumeAt,
         status: auction.status,
         category: auction.category,
         imageUrl: auction.imageUrl,
@@ -196,10 +216,11 @@ async function sendNotifications(matchesByAlert: Record<string, { alert: any; au
           province: auction.province,
           municipality: auction.municipality,
           appraisalValue: auction.appraisalValue,
-          // Enrichment (wave50c) — mirrors the grouped branch above.
+          // Enrichment (wave50c + wave52 resumeAt) — mirrors the grouped branch above.
           endsAt: auction.endsAt,
           endDateTime: auction.endDateTime,
           opensAt: auction.opensAt,
+          resumeAt: auction.resumeAt,
           status: auction.status,
           category: auction.category,
           imageUrl: auction.imageUrl,

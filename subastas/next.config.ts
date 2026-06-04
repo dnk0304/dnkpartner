@@ -16,11 +16,17 @@ const nextConfig: NextConfig = {
         hostname: "images.unsplash.com",
       },
       {
-        // Rung-2 OSM raster tile host. Replaced the dead
-        // staticmap.openstreetmap.de entry on 2026-06-02 — that service was
-        // discontinued and its DNS no longer resolves. See lib/map-image.ts.
+        // Rung-2 fallback host (wave52, 2026-06-04). Replaces the
+        // tile.openstreetmap.org entry — OSM blocks hot-linking and rung-2
+        // tiles rendered as a broken image in production. The new ladder
+        // (auction-image-url.ts) emits Google Static Maps URLs with a
+        // server-side baked-in pin. Email + site share the same source.
+        //
+        // Leaflet (the interactive map components) loads tiles client-side
+        // OUTSIDE next/image, so removing tile.openstreetmap.org from this
+        // list does NOT affect HierarchicalMap / AuctionLocationMap.
         protocol: "https",
-        hostname: "tile.openstreetmap.org",
+        hostname: "maps.googleapis.com",
       },
     ],
   },

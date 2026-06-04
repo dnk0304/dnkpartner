@@ -97,6 +97,38 @@ export const ACTIVE_OR_UPCOMING_DB_STATUSES = [
   ...PRE_AUCTION_DB_STATUSES,
 ] as const;
 
+/**
+ * Statuses a user can be legitimately ALERTED on. A real alert must NEVER
+ * notify on terminal/cancelled rows.
+ *
+ * Includes:
+ *   - CELEBRANDOSE / ACTIVE        (live now)
+ *   - PROXIMA_APERTURA / PRE_AUCTION (upcoming)
+ *   - SUSPENDIDA / SUSPENDED       (suspended but still "live" — carries a
+ *                                   resumeAt, the buyer watching it wants to
+ *                                   know when it resumes)
+ *
+ * Excludes:
+ *   - CANCELADA / CANCELLED
+ *   - CONCLUIDA_PORTAL / FINISHED / FINALIZADA_AUTORIDAD
+ *
+ * Ken-locked 2026-06-04 (wave52 alert-status-filter brief).
+ *
+ * Floor filter: applied at the recent-auctions SQL query level in
+ * /api/alerts/check so cancelled/concluded rows never even enter the match
+ * loop. The per-alert `alert.statuses` user-narrowing check still stacks
+ * on top — a user narrowing to CELEBRANDOSE only still works, but the
+ * baseline floor is now alertable-only.
+ */
+export const ALERTABLE_DB_STATUSES = [
+  'CELEBRANDOSE',
+  'ACTIVE',
+  'PROXIMA_APERTURA',
+  'PRE_AUCTION',
+  'SUSPENDIDA',
+  'SUSPENDED',
+] as const;
+
 /** Default map status set: active + pre-auction (buyers want upcoming pins). */
 export const MAP_DEFAULT_DB_STATUSES = ACTIVE_OR_UPCOMING_DB_STATUSES;
 
@@ -185,6 +217,115 @@ export function activeClockGuardPrisma(now: Date = new Date()): {
   >;
 } {
   return { OR: [{ endsAt: null }, { endsAt: { gt: now } }] };
+}
+
+// ─── ALERTABLE predicate + raw-SQL helper ─────────────────────────────────
+
+const ALERTABLE_SET = new Set<string>(ALERTABLE_DB_STATUSES);
+
+/** True iff the row's status is in the ALERTABLE floor (live / upcoming / suspended). */
+export function isAlertableStatus(
+  dbStatus: string | null | undefined,
+): boolean {
+  return dbStatus != null && ALERTABLE_SET.has(dbStatus);
+}
+
+/**
+ * Quoted comma-separated SQL literal list of ALERTABLE_DB_STATUSES, for use
+ * inline in a raw-SQL `WHERE status IN (...)` clause. Values are static enum
+ * strings (no user input), so direct interpolation is safe — same pattern
+ * used by /api/admin/images/backfill for ACTIVE_STATUSES.
+ *
+ *   const sql = `SELECT * FROM Auction WHERE status IN (${ALERTABLE_DB_STATUSES_SQL})`;
+ */
+export const ALERTABLE_DB_STATUSES_SQL = ALERTABLE_DB_STATUSES
+  .map((s) => `'${s}'`)
+  .join(',');
+
+// ─── Status → human Spanish label (no raw enum codes ever) ───────────────
+
+/**
+ * DB status → human Spanish label. Translates EVERY status the app can carry,
+ * including the legacy aliases (ACTIVE / SUSPENDED / PRE_AUCTION / FINISHED /
+ * CANCELLED / FINALIZADA_AUTORIDAD) AND the BOE-accurate values. The default
+ * branch title-cases + replaces underscores so a never-before-seen value
+ * still degrades to a clean label — never a raw `CONCLUIDA_PORTAL`-style code.
+ *
+ * Shared with the email template (`statusBadge`) and the site card render so
+ * the same label appears everywhere. Pixel: import this for card surfaces.
+ */
+export function statusHumanLabel(dbStatus: string | null | undefined): string {
+  if (!dbStatus) return 'Sin estado';
+  switch (dbStatus) {
+    case 'CELEBRANDOSE':
+    case 'ACTIVE':
+      return 'En curso';
+    case 'PROXIMA_APERTURA':
+    case 'PRE_AUCTION':
+      return 'Próxima apertura';
+    case 'SUSPENDIDA':
+    case 'SUSPENDED':
+      return 'Suspendida';
+    case 'CANCELADA':
+    case 'CANCELLED':
+      return 'Cancelada';
+    case 'CONCLUIDA_PORTAL':
+    case 'FINISHED':
+      return 'Concluida';
+    case 'FINALIZADA_AUTORIDAD':
+      return 'Finalizada';
+    case 'CELEBRADA':
+      return 'Celebrada';
+    default: {
+      // Defensive: any unrecognised value gets cleaned to "Proxima apertura"-style
+      // title casing instead of a raw enum string. We never leak codes.
+      const cleaned = String(dbStatus)
+        .toLowerCase()
+        .replace(/_/g, ' ')
+        .replace(/^\w/, (c) => c.toUpperCase());
+      return cleaned;
+    }
+  }
+}
+
+// ─── Status-branched date-line label (shared site + email) ───────────────
+
+/**
+ * Status-branched date label for the listing card / email row.
+ *
+ * Locked Ken/Dennis 2026-06-04 (wave52 status-DATES brief):
+ *   - CELEBRANDOSE / ACTIVE  → "Termina"
+ *   - PROXIMA_APERTURA / PRE_AUCTION → "Próxima apertura"
+ *   - SUSPENDIDA / SUSPENDED → "Fecha prevista de reanudación"
+ *   - CANCELADA / CONCLUIDA_PORTAL / FINISHED / FINALIZADA_AUTORIDAD
+ *       → null (defensively never render a date line for terminal states)
+ *
+ * The CALLER picks which auction column to feed in (endsAt for CELEBRANDOSE,
+ * opensAt for PROXIMA_APERTURA, resumeAt for SUSPENDIDA). This helper does
+ * NOT pick the column — that decision lives at the call site so it can
+ * also format the date in its preferred locale.
+ *
+ * Returns null when the status is terminal / unknown / null.
+ */
+export function statusDateLabel(
+  dbStatus: string | null | undefined,
+): 'Termina' | 'Próxima apertura' | 'Fecha prevista de reanudación' | null {
+  if (!dbStatus) return null;
+  switch (dbStatus) {
+    case 'CELEBRANDOSE':
+    case 'ACTIVE':
+      return 'Termina';
+    case 'PROXIMA_APERTURA':
+    case 'PRE_AUCTION':
+      return 'Próxima apertura';
+    case 'SUSPENDIDA':
+    case 'SUSPENDED':
+      return 'Fecha prevista de reanudación';
+    default:
+      // CANCELADA / CONCLUIDA_PORTAL / FINISHED / FINALIZADA_AUTORIDAD /
+      // CELEBRADA / unknown — never render a date line.
+      return null;
+  }
 }
 
 // ─── Backward-compatible re-exports ───────────────────────────────────────

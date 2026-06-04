@@ -1,141 +1,102 @@
 /**
- * Map Image Generator — keyless OSM raster tile (slippy-map) thumbnails.
+ * Map Image Generator — Google Static Maps pin (rung 2 of the imagery ladder).
  *
- * Background: until 2026-06-02 this module pointed at
- * `staticmap.openstreetmap.de` (a discontinued static-map render service
- * whose DNS no longer resolves), which broke the rung-2 map-pin thumbnail
- * on every geocoded listing.
+ * History:
+ *   - Until 2026-06-02: pointed at `staticmap.openstreetmap.de` (discontinued,
+ *     DNS dead) — rung-2 thumbnails broke on every geocoded listing.
+ *   - 2026-06-02 → 2026-06-04: pointed at `https://tile.openstreetmap.org/...`
+ *     — better than dead DNS, but OSM blocks server-side / bulk / email
+ *     hot-linking (policy: osm.wiki/Blocked), so the tiles still rendered as
+ *     a broken-image icon in production for the majority of requests.
+ *   - 2026-06-04 (wave52, this file): the rung-2 fallback now uses Google
+ *     Static Maps via the SHARED helper in `src/lib/auction-image-url.ts`.
+ *     If the Static Maps API isn't enabled on the GCP project (Dennis-action
+ *     toggle), we degrade STRAIGHT to the branded rung-3 PNG — NEVER back
+ *     to an OSM hot-link.
  *
- * Replacement: a single OSM raster tile from `https://tile.openstreetmap.org/{z}/{x}/{y}.png`,
- * the same keyless host already used by the live Leaflet maps elsewhere in
- * the app. Tile coords are computed from the listing's lat/lng via the
- * standard Web-Mercator slippy-map formula.
+ * IMPORTANT — pin overlay no longer needed for rung 2:
+ *   With Google Static Maps the marker is BAKED INTO the image (centered on
+ *   the auction's coords). The intra-tile `object-position` pin overlay that
+ *   was needed for the slippy OSM tile is now superfluous when the rung-2 URL
+ *   is a Static Maps URL. `getMapPinPosition()` is kept as a stable API (some
+ *   callers in `resolve-card-image.ts` still destructure it) but now returns
+ *   `null` for any input — callers should treat null as "no overlay needed".
  *
- * The returned URL is a single 256×256 PNG. The point's exact intra-tile
- * position is exposed separately via `getMapPinPosition()` so callers can
- * overlay a pin at the property's real location (the lat/lng is rarely at
- * the tile centre — it can land anywhere inside the tile). The card box uses
- * `object-position` with that fractional position so the pin sits centred on
- * the rendered thumbnail, with the surrounding map panned to match.
+ *   For rung-3 (branded PNG placeholder) there is also no pin overlay.
  *
- * Keyless, no API key, no signup. Width/height arguments are retained for
- * backwards compatibility (the API route at /api/auctions calls this with
- * 800×600) but a tile is always 256×256 — the CSS box drives display size.
+ * Function signatures + `generateResponsiveMapImages` return-shape are
+ * PRESERVED so existing callers in `resolve-card-image.ts` (which destructure
+ * by size key) keep working with zero call-site changes.
  */
-
-// OSM serves zoom levels 0–19 inclusive. Anything outside is a 404.
-const MIN_ZOOM = 0;
-const MAX_ZOOM = 19;
+import { siteFallbackImageUrl } from './auction-image-url';
 
 /**
- * Convert lng/lat to slippy-map tile x/y at the given zoom.
- * Returns the integer tile indices AND the fractional position within that
- * tile (0–1) so an overlay can be positioned at the exact point.
+ * Generate a fallback image URL for the given coordinates.
  *
- * Standard Web-Mercator formula:
- *   x_float = (lng + 180) / 360 * 2^z
- *   y_float = (1 - ln(tan(lat·π/180) + sec(lat·π/180)) / π) / 2 * 2^z
- */
-function lngLatToTile(latitude: number, longitude: number, zoom: number) {
-  const z = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.floor(zoom)));
-  const n = Math.pow(2, z);
-  const xFloat = ((longitude + 180) / 360) * n;
-  const latRad = (latitude * Math.PI) / 180;
-  const yFloat =
-    ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n;
-  const x = Math.floor(xFloat);
-  const y = Math.floor(yFloat);
-  return {
-    z,
-    x,
-    y,
-    // Fractional position inside the tile, 0–1.
-    fx: xFloat - x,
-    fy: yFloat - y,
-  };
-}
-
-/**
- * Generate a static map tile URL for the given coordinates.
+ * Now returns the SHARED rung-2/3 ladder result:
+ *   - Google Static Maps URL (when API usable + coords valid)
+ *   - Branded placeholder PNG (otherwise — NEVER an OSM URL)
  *
- * @param latitude - Latitude coordinate
- * @param longitude - Longitude coordinate
- * @param _width - DEPRECATED: ignored (tiles are always 256×256). Kept for backwards compat.
- * @param _height - DEPRECATED: ignored. Kept for backwards compat.
- * @param zoom - Zoom level (clamped to 0–19, OSM's served range)
- * @returns Tile URL, or the local placeholder SVG when coords are missing.
+ * @param latitude  - Latitude coordinate (or null when row has no coords)
+ * @param longitude - Longitude coordinate (or null when row has no coords)
+ * @param _width    - DEPRECATED: ignored (Static Maps sizing handled internally). Kept for backwards compat.
+ * @param _height   - DEPRECATED: ignored. Kept for backwards compat.
+ * @param _zoom     - DEPRECATED: handled by the shared helper. Kept for backwards compat.
  */
 export function generateMapImageUrl(
   latitude: number | null,
   longitude: number | null,
   _width: number = 400,
   _height: number = 200,
-  zoom: number = 16,
+  _zoom: number = 16,
 ): string {
-  // No-coords guard — preserved from the original implementation. The
-  // resolve-card-image rung-3 SVG covers the no-coords case in the UI; this
-  // local placeholder is the API-layer fallback.
-  if (latitude == null || longitude == null) {
-    return '/images/map-placeholder.svg';
-  }
-
-  const { z, x, y } = lngLatToTile(latitude, longitude, zoom);
-  // Apex host (not the `{s}.` subdomain form): next/image remotePatterns
-  // needs a concrete hostname, and the apex returned HTTP 200 in probes.
-  return `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+  return siteFallbackImageUrl(latitude, longitude);
 }
 
 /**
  * Generate responsive map image URLs for the various card slots.
  *
- * NOTE: with single-tile rendering, every size key resolves to the same tile
- * URL — a tile is always 256×256 and the CSS box (object-cover + object-position)
- * scales it into whatever box the surface needs. The shape of the return object
- * is preserved unchanged because callers in resolve-card-image.ts destructure
- * by size key — do NOT remove keys.
+ * Shape PRESERVED — `resolve-card-image.ts` destructures by key. Every key
+ * resolves to the same URL because the Google Static Maps image (or the
+ * branded placeholder) is a single asset that scales via CSS / next/image.
  */
 export function generateResponsiveMapImages(
   latitude: number | null,
   longitude: number | null,
-  zoom: number = 17,
+  _zoom: number = 17,
 ) {
-  const tile = generateMapImageUrl(latitude, longitude, 0, 0, zoom);
+  const url = generateMapImageUrl(latitude, longitude);
   return {
-    thumbnail: tile,
-    small: tile,
-    card: tile,
-    medium: tile,
-    large: tile,
+    thumbnail: url,
+    small: url,
+    card: url,
+    medium: url,
+    large: url,
   };
 }
 
 /**
- * Get the pin overlay position for the given coordinates at the given zoom.
- * Returned as percentages 0–100 so a surface can set `object-position` on the
- * tile image (panning the tile so the point is centred) and place a centred
- * pin element on top of the rendered box.
+ * Pin overlay position — DEPRECATED.
  *
- * Returns null when coords are missing — the caller should not render a pin.
+ * Google Static Maps bakes the marker into the image at the center, so a
+ * separate pin overlay is no longer needed for the rung-2 surface. The
+ * function is kept so existing callers (resolve-card-image.ts) continue to
+ * compile and run, but it now always returns `null`. Callers should treat
+ * `null` as "do not render a pin overlay — the pin is in the image (or this
+ * is the branded placeholder which has no pin)".
  */
 export function getMapPinPosition(
-  latitude: number | null,
-  longitude: number | null,
-  zoom: number = 17,
+  _latitude: number | null,
+  _longitude: number | null,
+  _zoom: number = 17,
 ): { xPct: number; yPct: number } | null {
-  if (latitude == null || longitude == null) return null;
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
-  const { fx, fy } = lngLatToTile(latitude, longitude, zoom);
-  return {
-    xPct: fx * 100,
-    yPct: fy * 100,
-  };
+  return null;
 }
 
 /**
- * Get optimal zoom level based on property type.
- *
- * Closer zoom for buildings (where a precise pin matters), wider for
- * land/vehicles (where the neighbourhood is the useful context).
+ * Get optimal zoom level based on property type. Preserved for callers that
+ * want a sensible zoom hint; the Static Maps helper uses its own default
+ * (zoom 16) but this map remains useful for any future per-category tuning.
  */
 export function getOptimalZoom(category: string): number {
   const zoomLevels: Record<string, number> = {

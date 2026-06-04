@@ -1,3 +1,12 @@
+import {
+  emailFallbackImageUrl,
+  BRANDED_PLACEHOLDER_PATH,
+} from './auction-image-url';
+import {
+  statusDateLabel,
+  statusHumanLabel,
+} from './auction-status';
+
 export interface EmailTemplateProps {
   url: string;
   host: string;
@@ -514,15 +523,17 @@ export interface AuctionAlertEmailProps {
     endsAt?: string | Date | null;
     /** Legacy/secondary end timestamp some scrapers populate instead of endsAt. */
     endDateTime?: string | Date | null;
-    /** Opening timestamp — used when status is PROXIMA_APERTURA / row has no endsAt. */
+    /** Opening timestamp — used for PROXIMA_APERTURA "Próxima apertura" date. */
     opensAt?: string | Date | null;
-    /** Status enum — drives the badge (En curso / Próxima apertura / …). */
+    /** Suspended-auction resume target — used for SUSPENDIDA "Fecha prevista de reanudación". */
+    resumeAt?: string | Date | null;
+    /** Status enum — drives the badge (En curso / Próxima apertura / …) AND the date-line label. */
     status?: string | null;
     /** Category enum — Viviendas / Turismos / Terrenos / Garajes / etc. */
     category?: string | null;
     /** Raw imageUrl from the projection (may be a /api/auction-image/… resolver URL or a placeholder). */
     imageUrl?: string | null;
-    /** Coords for the rung-2 OSM static-map fallback. */
+    /** Coords for the rung-2 Google Static Maps fallback. */
     latitude?: number | null;
     longitude?: number | null;
   }>;
@@ -530,20 +541,30 @@ export interface AuctionAlertEmailProps {
 }
 
 /**
- * Email-safe absolute-URL image picker (server-side mirror of the resolve-card-image ladder).
+ * Email-safe absolute-URL image picker (server-side mirror of the
+ * resolve-card-image ladder, via the SHARED helper in `auction-image-url.ts`).
  *
- * Email clients can't run client JS, can't resolve relative paths, and Gmail/Outlook
- * frequently refuse to render inline SVG. We collapse the 3-rung ladder into an absolute
- * URL that an email client will actually fetch:
+ * Wave52 (2026-06-04) — replaces the broken `tile.openstreetmap.org`
+ * hot-link rungs 2/3 with the Google Static Maps → branded PNG placeholder
+ * ladder. Zero OSM URLs ever leave this function.
  *
- *   Rung 1 — real photo: `imageUrl` that starts with `/api/auction-image/` or `/streetview/`
- *            → `${APP_URL}${imageUrl}`. The resolver returns a PNG/JPEG, email-safe.
- *   Rung 2 — static map: lat+lng present → an absolute `https://tile.openstreetmap.org/...`
- *            URL. OSM tiles are PNG, hosted on HTTPS, and render reliably in every mail client.
- *   Rung 3 — placeholder: NO real photo AND NO coords. We deliberately do NOT use the SVG
- *            category cartoons here — Gmail/Outlook block inline SVG `<img>` and would render
- *            a broken image. We fall back to a centered-on-Spain OSM tile (Madrid, low zoom)
- *            so something always renders. The alt text labels it accordingly.
+ * Ladder:
+ *   Rung 1 — real photo: `imageUrl` that starts with `/api/auction-image/` or
+ *            `/streetview/` → `${appUrl}${imageUrl}` (resolver-served JPEG).
+ *            Also: any absolute https http(s) imageUrl (external CDN) that
+ *            isn't an SVG → used directly.
+ *   Rung 2 — Google Static Maps pin at the auction's coords (lat+lng present
+ *            AND Maps Static API usable). Absolute https URL, key in querystring,
+ *            email-safe (renders in Gmail/Outlook).
+ *   Rung 3 — branded raster PNG placeholder hosted at our domain
+ *            (`${appUrl}/images/email-placeholder.png`). PNG so Gmail/Outlook
+ *            render it. SVG would be blocked.
+ *
+ * Degrade-to-placeholder behaviour:
+ *   When the Static Maps API isn't usable (no key, or
+ *   STATIC_MAPS_API_DISABLED=1 — the expected state until Dennis enables the
+ *   "Maps Static API" toggle in GCP), rung-2 collapses STRAIGHT into rung 3.
+ *   NEVER an OSM hot-link.
  *
  * The result is always an absolute https:// URL.
  */
@@ -562,8 +583,8 @@ function emailAuctionImageUrl(
     };
   }
 
-  // If imageUrl is already an absolute http(s) URL (e.g. an external CDN), use it directly
-  // — only when it's clearly not a placeholder SVG (those wouldn't render in email anyway).
+  // Rung 1b — absolute http(s) imageUrl from an external CDN. Skip SVGs
+  // (Gmail/Outlook block inline SVG in <img src>).
   if (imageUrl && /^https?:\/\//.test(imageUrl) && !imageUrl.endsWith('.svg')) {
     return {
       src: imageUrl,
@@ -572,38 +593,29 @@ function emailAuctionImageUrl(
     };
   }
 
-  // Rung 2 — static map tile (PNG, https, email-safe).
-  const hasCoords =
-    typeof latitude === 'number' &&
-    typeof longitude === 'number' &&
-    Number.isFinite(latitude) &&
-    Number.isFinite(longitude);
-  if (hasCoords) {
-    // Slippy-map tile, zoom 16 (close enough to read the street) — keeps this
-    // helper self-contained instead of importing the server map-image module.
-    const zoom = 16;
-    const n = Math.pow(2, zoom);
-    const xFloat = ((longitude! + 180) / 360) * n;
-    const latRad = (latitude! * Math.PI) / 180;
-    const yFloat =
-      ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n;
-    const x = Math.floor(xFloat);
-    const y = Math.floor(yFloat);
+  // Rungs 2 + 3 — delegate to the shared helper.
+  //
+  // The shared helper returns either:
+  //   - a Google Static Maps URL (rung 2) when coords present AND API usable, or
+  //   - `${appUrl}/images/email-placeholder.png` (rung 3) otherwise.
+  //
+  // It NEVER returns an OSM URL. So whether we're rung 2 or rung 3 is decided
+  // by inspecting the returned URL (the only branded-placeholder URL contains
+  // BRANDED_PLACEHOLDER_PATH; everything else is Google Static Maps).
+  void category; // category not used for the image source (we deliberately do not ship SVG cartoons in email).
+  const src = emailFallbackImageUrl(latitude ?? null, longitude ?? null, appUrl, category);
+  const isPlaceholder = src.endsWith(BRANDED_PLACEHOLDER_PATH);
+  if (isPlaceholder) {
     return {
-      src: `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`,
-      alt: title ? `Mapa con ubicación de ${title}` : 'Mapa con la ubicación del bien',
-      rung: 'map',
+      src,
+      alt: title ? `Categoría: ${title}` : 'Subasta sin imagen disponible',
+      rung: 'placeholder',
     };
   }
-
-  // Rung 3 — no photo, no coords. Use a low-zoom OSM tile centered on Spain (Madrid area)
-  // so SOMETHING renders. Avoids the broken-image icon in Gmail/Outlook that an SVG would cause.
-  // Tile coords for Madrid (40.4168, -3.7038) @ zoom 6: x=31, y=24.
-  void category; // category unused at rung 3 (we don't ship SVG cartoons in email)
   return {
-    src: `https://tile.openstreetmap.org/6/31/24.png`,
-    alt: title ? `Categoría: ${title}` : 'Subasta sin imagen disponible',
-    rung: 'placeholder',
+    src,
+    alt: title ? `Mapa con ubicación de ${title}` : 'Mapa con la ubicación del bien',
+    rung: 'map',
   };
 }
 
@@ -623,44 +635,102 @@ function formatEndDate(value: string | Date | null | undefined): string | null {
 }
 
 /**
- * Resolve the end-date line for an auction block:
- *   - prefer endsAt → fallback to endDateTime
- *   - for PROXIMA_APERTURA (or when only opensAt is set), use opensAt labelled "Apertura"
- * Returns { label, dateStr } so the caller can render "Termina: 14 jun 2026"
- * or "Apertura: 20 jul 2026", or null if no date can be resolved.
+ * Resolve the date line for an auction block — STATUS-BRANCHED (locked by
+ * Ken/Dennis 2026-06-04 wave52 status-DATES brief).
+ *
+ *   CELEBRANDOSE / ACTIVE       → "Termina: <endsAt>"           (fallback endDateTime)
+ *   PROXIMA_APERTURA / PRE_AUCTION → "Próxima apertura: <opensAt>"
+ *                                  OR "Próxima apertura: Fecha por confirmar"
+ *                                  (NEVER a faked endsAt/endDateTime date —
+ *                                  the scraper leaves placeholders in those
+ *                                  columns for pre-auctions and we must not
+ *                                  surface them.)
+ *   SUSPENDIDA / SUSPENDED      → "Fecha prevista de reanudación: <resumeAt>"
+ *                                  OR "Fecha prevista de reanudación: Fecha por confirmar"
+ *   CANCELADA / CONCLUIDA_PORTAL / FINISHED / FINALIZADA_AUTORIDAD
+ *                               → null (no date line — defensively, even
+ *                                  though the ALERTABLE filter in
+ *                                  /api/alerts/check should already exclude
+ *                                  these from the email entirely)
+ *
+ * Uses `statusDateLabel()` from auction-status.ts as the single source of
+ * truth for the label string (shared with the site card render).
+ *
+ * Returns { label, dateStr } where dateStr may be "Fecha por confirmar" when
+ * the underlying date column is missing/null. Returns null only for terminal
+ * statuses (defensive) or when status itself is null.
  */
 function resolveAuctionDateLine(
   auction: AuctionAlertEmailProps['auctions'][number],
-): { label: 'Termina' | 'Apertura'; dateStr: string } | null {
-  // Primary: explicit end timestamp(s).
-  const end = formatEndDate(auction.endsAt) ?? formatEndDate(auction.endDateTime);
-  if (end) return { label: 'Termina', dateStr: end };
-  // Pre-auction fallback: show the opening date instead.
-  const open = formatEndDate(auction.opensAt);
-  if (open) return { label: 'Apertura', dateStr: open };
-  return null;
+): { label: string; dateStr: string } | null {
+  const label = statusDateLabel(auction.status);
+  if (!label) return null;
+
+  // Pick the date column to render based on the label (= status branch).
+  const TBC = 'Fecha por confirmar';
+  switch (label) {
+    case 'Termina': {
+      const end =
+        formatEndDate(auction.endsAt) ?? formatEndDate(auction.endDateTime);
+      // CELEBRANDOSE without any end timestamp → no date line at all (the
+      // brief says "If neither parses → no date line").
+      if (!end) return null;
+      return { label, dateStr: end };
+    }
+    case 'Próxima apertura': {
+      const open = formatEndDate(auction.opensAt);
+      // BOE usually leaves opensAt null in the pre-auction phase. We surface
+      // the label with "Fecha por confirmar" rather than NO line — so a buyer
+      // still sees "Próxima apertura · pending date" instead of a silent gap.
+      // Crucially we do NOT fall through to endsAt/endDateTime here (that
+      // was the old bug — placeholder end dates leaked as "Termina").
+      return { label, dateStr: open ?? TBC };
+    }
+    case 'Fecha prevista de reanudación': {
+      const resume = formatEndDate(auction.resumeAt);
+      return { label, dateStr: resume ?? TBC };
+    }
+    default:
+      return null;
+  }
 }
 
 /**
  * Status enum → human-readable Spanish label + email-safe inline-styled colors.
- * Greys-out unknown / other statuses (SUSPENDIDA etc.) into a neutral pill so we
- * never render an unstyled raw enum string.
+ *
+ * The LABEL is always taken from the shared `statusHumanLabel()` (single
+ * source of truth across email + site card) so a never-before-seen value
+ * still gets a clean title-cased label — NEVER a raw `CONCLUIDA_PORTAL`-style
+ * code (wave52 BUG-4 fix).
+ *
+ * The COLORS stay local because the email needs inline styles (CSS classes
+ * don't survive Gmail's CSS pruning). One color per canonical status; legacy
+ * aliases share the canonical color.
  */
 function statusBadge(status: string | null | undefined): { label: string; bg: string; fg: string } | null {
   if (!status) return null;
+  const label = statusHumanLabel(status);
   switch (status) {
     case 'CELEBRANDOSE':
-      return { label: 'En curso', bg: '#dcfce7', fg: '#166534' };
+    case 'ACTIVE':
+      return { label, bg: '#dcfce7', fg: '#166534' };
     case 'PROXIMA_APERTURA':
-      return { label: 'Próxima apertura', bg: '#fef3c7', fg: '#92400e' };
+    case 'PRE_AUCTION':
+      return { label, bg: '#fef3c7', fg: '#92400e' };
     case 'SUSPENDIDA':
-      return { label: 'Suspendida', bg: '#f3f4f6', fg: '#4b5563' };
+    case 'SUSPENDED':
+      return { label, bg: '#fef3c7', fg: '#92400e' };
     case 'CANCELADA':
-      return { label: 'Cancelada', bg: '#f3f4f6', fg: '#4b5563' };
+    case 'CANCELLED':
+    case 'CONCLUIDA_PORTAL':
+    case 'FINISHED':
+    case 'FINALIZADA_AUTORIDAD':
     case 'CELEBRADA':
-      return { label: 'Celebrada', bg: '#f3f4f6', fg: '#4b5563' };
+      return { label, bg: '#f3f4f6', fg: '#4b5563' };
     default:
-      return { label: String(status), bg: '#f3f4f6', fg: '#4b5563' };
+      // Unknown / future status → neutral pill, but ALWAYS the human label
+      // (never the raw code — statusHumanLabel cleans it).
+      return { label, bg: '#f3f4f6', fg: '#4b5563' };
   }
 }
 
