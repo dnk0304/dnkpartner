@@ -11,6 +11,7 @@ import {
   isFinishedStatus,
 } from '@/lib/auction-status';
 import { normalizeText } from '@/lib/normalize';
+import { toCanonicalProvince } from '@/lib/spain-provinces';
 
 // Sentinel municipality strings the scraper writes for unknown / blank rows.
 // We bucket them all into a single "Otros / Sin municipio" group so the
@@ -18,6 +19,7 @@ import { normalizeText } from '@/lib/normalize';
 // silently dropping them.
 const MUNICIPALITY_SENTINELS = new Set(['desconocida', 'null', 'undefined', 'sin municipio']);
 const OTROS_BUCKET_LABEL = 'Otros / Sin municipio';
+const OTROS_PROVINCIA_LABEL = 'Otros / Sin provincia';
 
 /**
  * Pick a canonical display label for a folded grouping bucket.
@@ -231,8 +233,27 @@ export async function GET(request: NextRequest) {
         }
       } else if (groupBy === 'province') {
         if (!rawKey) return; // province null rows are excluded by the SQL guard, defensive skip.
-        normKey = normalizeText(rawKey);
-        displayHint = rawKey;
+        // CANONICAL FOLD — collapse 314 dirty province variants onto the 52
+        // real Spanish provinces. The DB has historical case/accent/format
+        // variants ("Madrid ", "madrid", "MADRID", "Madrid / Provincia",
+        // postal-code junk like "CP 28013"). Without this fold the province
+        // tree would render 314 garbage rows. `toCanonicalProvince` is the
+        // same helper /api/auctions/provinces already uses — single source of
+        // truth from `@/lib/spain-provinces`.
+        //
+        // Display label = the canonical `.label` (proper-cased, accented),
+        // not the raw scraper string. Anything that fails the canonical
+        // whitelist (postal-code junk, "Unknown", numeric noise) is bucketed
+        // into a single "Otros / Sin provincia" group so Σ(canonical) +
+        // Otros == grand total — nothing silently vanishes.
+        const canonical = toCanonicalProvince(rawKey);
+        if (canonical) {
+          normKey = normalizeText(canonical.key);
+          displayHint = canonical.label;
+        } else {
+          normKey = '__otros_provincia__';
+          displayHint = OTROS_PROVINCIA_LABEL;
+        }
       } else {
         // category — no normalization fold (the taxonomy is server-controlled).
         if (!rawKey) return;
@@ -261,10 +282,17 @@ export async function GET(request: NextRequest) {
     });
 
     // Second pass: emit each folded bucket under its canonical display label.
-    // The "Otros / Sin municipio" bucket always uses its fixed label.
+    // The "Otros / Sin municipio" and "Otros / Sin provincia" buckets use
+    // their fixed labels. For canonically-folded provinces the bucket's only
+    // recorded variant is already the canonical .label (set above), so
+    // pickCanonicalLabel returns it untouched.
     for (const [normKey, bucket] of buckets) {
       const label =
-        normKey === '__otros__' ? OTROS_BUCKET_LABEL : pickCanonicalLabel(bucket.variants) || normKey;
+        normKey === '__otros__'
+          ? OTROS_BUCKET_LABEL
+          : normKey === '__otros_provincia__'
+            ? OTROS_PROVINCIA_LABEL
+            : pickCanonicalLabel(bucket.variants) || normKey;
       counts.total[label] = (counts.total[label] || 0) + bucket.total;
       if (bucket.active) counts.active[label] = (counts.active[label] || 0) + bucket.active;
       if (bucket.preAuction) counts.preAuction[label] = (counts.preAuction[label] || 0) + bucket.preAuction;
