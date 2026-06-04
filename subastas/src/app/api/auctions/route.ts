@@ -125,6 +125,12 @@ interface AuctionFromDB {
   // PROXIMA_APERTURA cards can render "start date" alongside endsAt. Nullable;
   // null = not scheduled yet / not scraped (BOE-side cleanup task).
   opensAt: string | null;
+  // resumeAt — the suspended-scraper's "fecha prevista de reanudación" date.
+  // Already in the row via `SELECT Auction.*`. Projected on the card payload
+  // so the status-branched date line for SUSPENDIDA rows renders
+  // "Fecha prevista de reanudación: <resumeAt>" (or "Fecha por confirmar"
+  // when null). Wave52 (Pixel 2026-06-04).
+  resumeAt: string | null;
   endsAt: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -441,6 +447,9 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
       // nullable, null-safe. ISO string passthrough for opensAt — the card
       // layer parses it the same way it parses publishedAt/endsAt.
       opensAt: item.opensAt,
+      // resumeAt — null on non-SUSPENDIDA rows; locked teasers still expose it
+      // because the suspension date is public information from the courts.
+      resumeAt: item.resumeAt,
       propertyType: item.propertyType,
       endDate: endsAt || new Date(publishedAt.getTime() + 30 * 24 * 60 * 60 * 1000),
       source: (item.source || 'BOE') as 'BOE' | 'TEJU',
@@ -501,6 +510,10 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
     // 2026-06-03 (Pixel cards): opensAt + propertyType, same rationale as
     // the locked teaser block above.
     opensAt: item.opensAt,
+    // resumeAt — populated on SUSPENDIDA rows by the suspended-scraper. Card
+    // date line uses it via `statusDateLabel('suspendida')` → "Fecha prevista
+    // de reanudación". Null on every non-SUSPENDIDA row.
+    resumeAt: item.resumeAt,
     propertyType: item.propertyType,
     endDate: endsAt || publishedAt,
     source: (item.source || 'BOE') as 'BOE' | 'TEJU',

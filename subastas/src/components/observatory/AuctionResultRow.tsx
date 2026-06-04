@@ -41,6 +41,7 @@ import {
   titleCase,
   displayTitle,
   formatDaysLeft,
+  formatDateMed,
 } from "./format";
 import { effectiveStatus } from "./status";
 import { cn } from "@/lib/utils";
@@ -48,6 +49,7 @@ import {
   resolveCardImage,
   fallbackImageFor,
 } from "@/lib/resolve-card-image";
+import { statusDateLabel } from "@/lib/auction-status";
 
 export type AuctionResultRowProps = {
   item: AuctionItem & { hasImage?: boolean | null };
@@ -125,7 +127,27 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
     item.endDate instanceof Date
       ? !Number.isNaN(item.endDate.getTime()) && item.endDate.getTime() > 0
       : Boolean(item.endDate);
-  const daysBadge = hasEndDate ? formatDaysLeft(item.endDate) : null;
+  // Status-branched date line (Wave52, Pixel 2026-06-04). The countdown +
+  // "Termina en" + days-left badge are gated to active status only. PROXIMA
+  // shows "Próxima apertura · opensAt / Fecha por confirmar" with NO
+  // countdown — pre-auctions have no real end date. SUSPENDIDA shows
+  // "Fecha prevista de reanudación · resumeAt / Fecha por confirmar".
+  // Terminal status returns null and renders nothing here (the status badge
+  // already says Finalizada / Concluida elsewhere).
+  const dateLabel = statusDateLabel(effective);
+  const isActiveLabel = dateLabel === "Termina";
+  const daysBadge = isActiveLabel && hasEndDate ? formatDaysLeft(item.endDate) : null;
+  const opensLabel = (() => {
+    if (!item.opensAt) return null;
+    const d = new Date(item.opensAt);
+    return Number.isNaN(d.getTime()) ? null : formatDateMed(d);
+  })();
+  const resumeDateStr = (() => {
+    const v = (item as { resumeAt?: string | null }).resumeAt;
+    if (!v) return null;
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? null : formatDateMed(d);
+  })();
 
   // Short description excerpt — propertyDescription wins when present, else
   // lotDescription. Trimmed to ~160 chars and clamped to 2 lines so the row
@@ -283,9 +305,14 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
           </p>
         )}
 
-        {/* Footer — live countdown. Mirrors AuctionListCard's bottom strip.
-            Hidden when no endDate is projected. */}
-        {hasEndDate && (
+        {/* Footer — status-branched date line (wave52 Pixel 2026-06-04).
+            ACTIVE  → live "Termina en …" countdown (the real endsAt).
+            PROXIMA → "Próxima apertura: opensAt" or "· Fecha por confirmar".
+                      NO countdown, NO days badge — pre-auctions have no end.
+            SUSPENDIDA → "Fecha prevista de reanudación: resumeAt" or "·
+                         Fecha por confirmar".
+            Terminal → nothing (status badge already labels it). */}
+        {dateLabel === "Termina" && hasEndDate && (
           <div className="mt-2 text-xs text-[--color-ink-tertiary]">
             <LiveCountdown
               target={item.endDate}
@@ -293,6 +320,26 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
               prefix="Termina en"
               effectiveStatus={effective}
             />
+          </div>
+        )}
+        {dateLabel === "Próxima apertura" && (
+          <div className="mt-2 text-xs text-[--color-ink-tertiary] tnum">
+            <span className="text-[--color-ink-secondary]">Próxima apertura</span>
+            {opensLabel ? (
+              <>: <span className="text-[--color-ink-primary]">{opensLabel}</span></>
+            ) : (
+              <> · <span className="text-[--color-ink-quiet]">Fecha por confirmar</span></>
+            )}
+          </div>
+        )}
+        {dateLabel === "Fecha prevista de reanudación" && (
+          <div className="mt-2 text-xs text-[--color-ink-tertiary] tnum">
+            <span className="text-[--color-ink-secondary]">Fecha prevista de reanudación</span>
+            {resumeDateStr ? (
+              <>: <span className="text-[--color-ink-primary]">{resumeDateStr}</span></>
+            ) : (
+              <> · <span className="text-[--color-ink-quiet]">Fecha por confirmar</span></>
+            )}
           </div>
         )}
       </div>

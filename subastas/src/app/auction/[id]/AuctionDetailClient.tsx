@@ -209,6 +209,7 @@ export default function AuctionDetailClient({ id }: { id: string }) {
   const auctionItem: AuctionItem & {
     startedAt?: string | null;
     endsAt?: string | null;
+    resumeAt?: string | null;
     minimumBid?: number | null;
     depositAmount?: number | null;
     bidIncrement?: number | null;
@@ -249,6 +250,11 @@ export default function AuctionDetailClient({ id }: { id: string }) {
     // FIX 2026-06-03: real opensAt (was endDateTime — a close-time field).
     startedAt: raw.opensAt ?? null,
     endsAt: raw.endsAt ?? null,
+    // Wave52 (Pixel 2026-06-04): SUSPENDIDA "fecha prevista de reanudación".
+    // Surfaces in DetailStatusPanel as the static date line for suspended
+    // rows (no countdown — the panel never paints a fake "Termina en" for a
+    // non-active row).
+    resumeAt: raw.resumeAt ?? null,
     // Document-archive wave: surface so the (lazy) modal reuse works, and so
     // the page header can flag "Inicio …" alongside the existing "Termina …".
     opensAt: raw.opensAt ?? null,

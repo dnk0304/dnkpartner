@@ -25,12 +25,14 @@ import { FollowButton } from "@/components/notifications/FollowButton";
 import { NotifyPrefsPopover } from "@/components/notifications/NotifyPrefsPopover";
 import { formatPrice, formatDateLong } from "./format";
 import { getStatusMeta, isLive, isUpcoming, effectiveStatus } from "./status";
+import { statusDateLabel } from "@/lib/auction-status";
 import { cn } from "@/lib/utils";
 
 export type DetailStatusPanelProps = {
   auction: AuctionItem & {
     startedAt?: string | Date | null;
     endsAt?: string | Date | null;
+    resumeAt?: string | Date | null;
     minimumBid?: number | null;
     depositAmount?: number | null;
     bidIncrement?: number | null;
@@ -53,13 +55,20 @@ export function DetailStatusPanel({
   const meta = getStatusMeta(resolvedStatus);
   const live = isLive(resolvedStatus);
   const upcoming = isUpcoming(resolvedStatus);
+  // Status-branched date intent — shared with email + every card surface.
+  const dateLabelKind = statusDateLabel(resolvedStatus);
+  const suspended = dateLabelKind === "Fecha prevista de reanudación";
 
-  // Pick the right countdown target: live → endsAt, upcoming → startedAt,
-  // otherwise nothing (finished states).
+  // Pick the right countdown target: live → endsAt; upcoming → startedAt
+  // (opensAt is the canonical start, but only ever when GENUINELY set; we
+  // do NOT fall back to endsAt for upcoming — that would re-introduce the
+  // "Termina en 6d" bug on pre-auctions). Suspended → no countdown; the
+  // panel renders a static "Fecha prevista de reanudación" line instead.
+  // Terminal → nothing.
   const countdownTarget = live
     ? (auction.endsAt ?? auction.endDate ?? null)
     : upcoming
-      ? (auction.startedAt ?? auction.endsAt ?? auction.endDate ?? null)
+      ? (auction.startedAt ?? null)
       : null;
   const countdownPrefix = live ? "Termina en" : upcoming ? "Abre en" : undefined;
 
@@ -81,7 +90,16 @@ export function DetailStatusPanel({
         <p className="mt-2 text-xs text-[--color-ink-tertiary]">{meta.helper}</p>
       </header>
 
-      {/* Live countdown — the most important moving element on the page. */}
+      {/* Status-branched date / countdown block (Wave52, Pixel 2026-06-04).
+          LIVE     → ticking countdown to endsAt.
+          UPCOMING → ticking countdown to opensAt when set, otherwise a
+                     static "Próxima apertura · Fecha por confirmar" line.
+                     We deliberately do NOT fall back to endsAt for upcoming
+                     — pre-auctions' endsAt is a placeholder and surfacing
+                     it as "Termina en …" is the bug Dennis flagged.
+          SUSPEND  → static "Fecha prevista de reanudación: <resumeAt>" or
+                     "Fecha por confirmar". NEVER a live countdown.
+          TERMINAL → nothing. */}
       {countdownTarget ? (
         <div className="rounded-md bg-[--color-surface-muted] px-4 py-3">
           <div className="text-[10px] font-semibold uppercase tracking-wider text-[--color-ink-tertiary]">
@@ -101,6 +119,31 @@ export function DetailStatusPanel({
               : auction.startedAt
                 ? `Abre el ${formatDateLong(auction.startedAt)}`
                 : null}
+          </div>
+        </div>
+      ) : upcoming ? (
+        // PROXIMA without a real opensAt — static, NO countdown, NO fake end.
+        <div className="rounded-md bg-[--color-surface-muted] px-4 py-3">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-[--color-ink-tertiary]">
+            Próxima apertura
+          </div>
+          <div className="mt-1 text-base text-[--color-ink-quiet]">
+            Fecha por confirmar
+          </div>
+        </div>
+      ) : suspended ? (
+        // SUSPENDIDA — render resumeAt (or "Fecha por confirmar"), never a
+        // countdown to endsAt.
+        <div className="rounded-md bg-[--color-surface-muted] px-4 py-3">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-[--color-ink-tertiary]">
+            Fecha prevista de reanudación
+          </div>
+          <div className="mt-1 text-base tnum text-[--color-ink-primary]">
+            {auction.resumeAt ? (
+              formatDateLong(auction.resumeAt)
+            ) : (
+              <span className="text-[--color-ink-quiet]">Fecha por confirmar</span>
+            )}
           </div>
         </div>
       ) : null}

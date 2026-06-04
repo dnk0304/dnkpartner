@@ -26,6 +26,7 @@ import { formatPrice, capitalize, titleCase, displayTitle, formatDaysLeft, forma
 import { effectiveStatus } from "./status";
 import { cn } from "@/lib/utils";
 import { resolveCardImage, fallbackImageFor, isVariosLotesTitle } from "@/lib/resolve-card-image";
+import { statusDateLabel } from "@/lib/auction-status";
 
 export type AuctionListCardProps = {
   item: AuctionItem & { hasImage?: boolean | null };
@@ -99,7 +100,18 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
     item.endDate instanceof Date
       ? !Number.isNaN(item.endDate.getTime()) && item.endDate.getTime() > 0
       : Boolean(item.endDate);
-  const daysBadge = hasEndDate ? formatDaysLeft(item.endDate) : null;
+  // Status-branched date logic (Wave52, Pixel 2026-06-04). Shared helper picks
+  // the label intent off (folded) status; countdown + days badge gated to
+  // active only. PROXIMA never shows "Termina en" or a fake "N d" badge.
+  const dateLabel = statusDateLabel(effective);
+  const isActiveLabel = dateLabel === "Termina";
+  const daysBadge = isActiveLabel && hasEndDate ? formatDaysLeft(item.endDate) : null;
+  const resumeDateStr = (() => {
+    const v = (item as { resumeAt?: string | null }).resumeAt;
+    if (!v) return null;
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? null : formatDateMed(d);
+  })();
 
   return (
     <article
@@ -312,35 +324,78 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
               </span>
             )
           )}
-          {hasEndDate && (
+          {/* Status-branched countdown / date line (Wave52, Pixel 2026-06-04).
+              ACTIVE only renders the live countdown. PROXIMA / SUSPENDIDA
+              never render "Termina en"; their status-appropriate date line
+              shows in the row below this strip. */}
+          {dateLabel === "Termina" && hasEndDate && (
             <LiveCountdown target={item.endDate} size="sm" prefix="Termina en" effectiveStatus={effective} />
           )}
         </div>
 
-        {/* Start-date row + documents indicator. Both null-safe — rendered
-            only when projected by the document-archive scraper backfill.
-            Pre-backfill the whole row is omitted (no empty box). */}
-        {(opensLabel || item.hasDocuments) && (
-          <div className="flex items-center justify-between gap-2 text-[11px] text-[--color-ink-tertiary]">
-            {opensLabel ? (
+        {/* Status-branched date row + documents indicator (Wave52).
+            ACTIVE  → optional "Inicio …" caption (uses opensAt when present).
+            PROXIMA → "Próxima apertura: opensAt" or "· Fecha por confirmar".
+                      NEVER renders endsAt/countdown for pre-auctions.
+            SUSPEND → "Fecha prevista de reanudación: resumeAt" or "· Fecha
+                      por confirmar".
+            Terminal / unknown label → only the optional Inicio caption when
+            opensAt is projected.
+            Documents indicator is rendered alongside whichever date line is
+            applicable, never null-collapses the row alone. */}
+        {(() => {
+          let dateNode: React.ReactNode = null;
+          if (dateLabel === "Próxima apertura") {
+            dateNode = (
+              <span className="inline-flex items-center gap-1 tnum">
+                <Calendar className="h-3 w-3" aria-hidden="true" />
+                <span className="text-[--color-ink-secondary]">Próxima apertura</span>
+                {opensLabel ? (
+                  <>: <span className="text-[--color-ink-primary]">{opensLabel}</span></>
+                ) : (
+                  <> · <span className="text-[--color-ink-quiet]">Fecha por confirmar</span></>
+                )}
+              </span>
+            );
+          } else if (dateLabel === "Fecha prevista de reanudación") {
+            dateNode = (
+              <span className="inline-flex items-center gap-1 tnum">
+                <Calendar className="h-3 w-3" aria-hidden="true" />
+                <span className="text-[--color-ink-secondary]">Fecha prevista de reanudación</span>
+                {resumeDateStr ? (
+                  <>: <span className="text-[--color-ink-primary]">{resumeDateStr}</span></>
+                ) : (
+                  <> · <span className="text-[--color-ink-quiet]">Fecha por confirmar</span></>
+                )}
+              </span>
+            );
+          } else if (opensLabel) {
+            // Active / unknown — keep the existing "Inicio …" caption.
+            dateNode = (
               <span className="inline-flex items-center gap-1 tnum">
                 <Calendar className="h-3 w-3" aria-hidden="true" />
                 <span className="text-[--color-ink-quiet]">Inicio </span>
                 <span className="text-[--color-ink-secondary]">{opensLabel}</span>
               </span>
-            ) : <span />}
-            {item.hasDocuments && (
-              <span
-                className="inline-flex items-center gap-1 rounded-full border border-[--color-hairline] bg-[--color-surface-muted] px-1.5 py-0.5 font-medium text-[--color-ink-secondary]"
-                title="Esta subasta tiene documentos oficiales adjuntos"
-                aria-label="Documentos disponibles"
-              >
-                <FileText className="h-3 w-3" aria-hidden="true" />
-                Documentos
-              </span>
-            )}
-          </div>
-        )}
+            );
+          }
+          if (!dateNode && !item.hasDocuments) return null;
+          return (
+            <div className="flex items-center justify-between gap-2 text-[11px] text-[--color-ink-tertiary]">
+              {dateNode ?? <span />}
+              {item.hasDocuments && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full border border-[--color-hairline] bg-[--color-surface-muted] px-1.5 py-0.5 font-medium text-[--color-ink-secondary]"
+                  title="Esta subasta tiene documentos oficiales adjuntos"
+                  aria-label="Documentos disponibles"
+                >
+                  <FileText className="h-3 w-3" aria-hidden="true" />
+                  Documentos
+                </span>
+              )}
+            </div>
+          );
+        })()}
 
         {/* BOE direct link — primary differentiator: lets bidders act
             without entering our detail page. */}

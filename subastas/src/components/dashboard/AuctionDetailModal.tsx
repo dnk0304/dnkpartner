@@ -13,6 +13,8 @@ import { apiFetch } from '@/lib/api-path';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { GatedField } from './GatedField';
+import { resolveCardImage, fallbackImageFor } from '@/lib/resolve-card-image';
+import { statusDateLabel } from '@/lib/auction-status';
 
 // Dynamically import the per-auction location map (Leaflet needs `window`).
 // Use AuctionLocationMap (single-property focus) rather than the Spain-wide
@@ -67,11 +69,19 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
 }) => {
   const [isWatched, setIsWatched] = React.useState(false);
   const [extras, setExtras] = React.useState<DetailExtras | null>(null);
+  // Wave52 (Pixel 2026-06-04): hero-image onError flag for the shared
+  // 3-rung ladder. Declared with the rest of the hooks (before the early
+  // `if (!auction) return null;` below) to satisfy rules-of-hooks.
+  const [modalImgFailed, setModalImgFailed] = React.useState(false);
 
   // Reset watch state when auction changes
   React.useEffect(() => {
     setIsWatched(false);
   }, [auction?.id]);
+
+  // Reset image-failure state when the modal switches to a new auction so
+  // the new auction's rung-1 photo gets a fresh attempt.
+  React.useEffect(() => { setModalImgFailed(false); }, [auction?.id]);
 
   // Lazy-hydrate documents + bien fields from the canonical detail endpoint
   // when the modal opens. We seed extras from the auction prop (covers the
@@ -158,16 +168,57 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
     }
   };
 
+  // Status-branched date label for the modal hero (Wave52, Pixel 2026-06-04).
+  // The "Tiempo Restante" tile is gated to ACTIVE only — a PROXIMA modal
+  // showing "X días" would re-introduce the live-card bug.
+  const modalDateLabel = statusDateLabel(auction.status);
+  const isModalActive = modalDateLabel === 'Termina';
+
   const daysRemaining = () => {
-    if (auction.status === 'finished') return null;
+    if (!isModalActive) return null;
     const diff = auction.endDate.getTime() - new Date().getTime();
     const days = Math.ceil(diff / (24 * 60 * 60 * 1000));
-    
+
     if (days < 0) return 'Finalizada';
     if (days === 0) return 'Hoy';
     if (days === 1) return '1 día';
     return `${days} días`;
   };
+
+  // Imagery — shared 3-rung ladder so the modal matches the card it was
+  // launched from (real photo → Google Static Maps pin → branded placeholder).
+  // Previously raw-rendered `auction.imageUrl`, which on a no-photo coords-only
+  // row pointed at the now-killed OSM tile and 403'd. Wave52 imagery brief.
+  // (modalImgFailed state + reset effect declared above the early-return at
+  // the top of the component to satisfy rules-of-hooks.)
+  const modalResolved = resolveCardImage({
+    imageUrl: auction.imageUrl,
+    hasImage: (auction as { hasImage?: boolean | null }).hasImage ?? undefined,
+    latitude: auction.latitude,
+    longitude: auction.longitude,
+    category: auction.category,
+    title: auction.title,
+    size: 'large',
+  });
+  const modalImageSrc =
+    modalImgFailed && modalResolved.rung !== 'placeholder'
+      ? fallbackImageFor(modalResolved, auction.category)
+      : modalResolved.src;
+
+  // Resume / opens date strings for the status-branched fecha block below.
+  const FMT_LONG: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' };
+  const modalResumeAt = (auction as { resumeAt?: string | null }).resumeAt ?? null;
+  const modalResumeDate = (() => {
+    if (!modalResumeAt) return null;
+    const d = new Date(modalResumeAt);
+    return Number.isNaN(d.getTime()) ? null : d;
+  })();
+  const modalOpensAt = (auction as { opensAt?: string | null }).opensAt ?? null;
+  const modalOpensDate = (() => {
+    if (!modalOpensAt) return null;
+    const d = new Date(modalOpensAt);
+    return Number.isNaN(d.getTime()) ? null : d;
+  })();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -335,13 +386,21 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
             )}
           </div>
 
-          {/* Image */}
+          {/* Hero image — shared 3-rung ladder (real photo → Google Static
+              Maps pin → branded placeholder). Wave52 Pixel 2026-06-04:
+              previously raw-rendered `auction.imageUrl`, which on a no-photo
+              row resolved to an OSM tile that 403'd in production. Now goes
+              through `resolveCardImage` + `fallbackImageFor` so the modal
+              never shows a broken-image icon, and matches every card surface. */}
           <div className="relative h-[32rem] w-full rounded-xl overflow-hidden bg-gray-100">
             <Image
-              src={auction.imageUrl}
-              alt={auction.title}
+              src={modalImageSrc}
+              alt={modalResolved.alt}
               fill
-              className="object-cover"
+              sizes="(max-width: 1024px) 90vw, 80vw"
+              className={modalResolved.isPlaceholder ? 'object-contain p-8 opacity-80' : 'object-cover'}
+              unoptimized={modalResolved.isMap}
+              onError={() => setModalImgFailed(true)}
             />
           </div>
 
@@ -378,7 +437,13 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
               </div>
             )}
 
-            {auction.status !== 'finished' && (
+            {/* Status-branched countdown / date tile (Wave52, Pixel 2026-06-04).
+                ACTIVE   → "Tiempo Restante: X días".
+                PROXIMA  → "Próxima apertura: <opensAt>" or "Fecha por
+                           confirmar". NEVER a days countdown.
+                SUSPEND  → "Reanudación: <resumeAt>" or "Fecha por confirmar".
+                Terminal → tile hidden (status badge in the header is enough). */}
+            {modalDateLabel === 'Termina' && (
               <div className="flex-1 min-w-[240px] p-6 lg:p-8 bg-amber-50 rounded-xl border-2 border-amber-200 hover:shadow-lg transition-shadow">
                 <div className="text-xs lg:text-sm text-amber-600 font-bold uppercase tracking-wider mb-2 lg:mb-3 flex items-center gap-2">
                   <Clock className="h-4 w-4 lg:h-5 lg:w-5" />
@@ -386,6 +451,32 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
                 </div>
                 <div className="text-2xl lg:text-3xl xl:text-4xl font-bold text-amber-700 whitespace-nowrap">
                   {daysRemaining()}
+                </div>
+              </div>
+            )}
+            {modalDateLabel === 'Próxima apertura' && (
+              <div className="flex-1 min-w-[240px] p-6 lg:p-8 bg-amber-50 rounded-xl border-2 border-amber-200">
+                <div className="text-xs lg:text-sm text-amber-600 font-bold uppercase tracking-wider mb-2 lg:mb-3 flex items-center gap-2">
+                  <Calendar className="h-4 w-4 lg:h-5 lg:w-5" />
+                  Próxima apertura
+                </div>
+                <div className="text-2xl lg:text-3xl font-bold text-amber-700">
+                  {modalOpensDate
+                    ? modalOpensDate.toLocaleDateString('es-ES', FMT_LONG)
+                    : <span className="text-amber-500">Fecha por confirmar</span>}
+                </div>
+              </div>
+            )}
+            {modalDateLabel === 'Fecha prevista de reanudación' && (
+              <div className="flex-1 min-w-[240px] p-6 lg:p-8 bg-slate-50 rounded-xl border-2 border-slate-200">
+                <div className="text-xs lg:text-sm text-slate-600 font-bold uppercase tracking-wider mb-2 lg:mb-3 flex items-center gap-2">
+                  <Calendar className="h-4 w-4 lg:h-5 lg:w-5" />
+                  Fecha prevista de reanudación
+                </div>
+                <div className="text-2xl lg:text-3xl font-bold text-slate-700">
+                  {modalResumeDate
+                    ? modalResumeDate.toLocaleDateString('es-ES', FMT_LONG)
+                    : <span className="text-slate-500">Fecha por confirmar</span>}
                 </div>
               </div>
             )}
@@ -482,12 +573,29 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
                   </GatedField>
                 )}
 
+                {/* Status-branched date row (Wave52, Pixel 2026-06-04).
+                    ACTIVE   → "Fecha de Fin: <endDate>".
+                    PROXIMA  → "Próxima apertura: <opensAt> / Fecha por
+                               confirmar". NEVER endDate (placeholder leak).
+                    SUSPEND  → "Fecha prevista de reanudación: <resumeAt> /
+                               Fecha por confirmar".
+                    Terminal → "Fecha de Fin: <endDate>" (informational). */}
                 <div className="p-5 bg-gray-50 rounded-lg">
                   <span className="font-semibold text-gray-700 flex items-center gap-2 mb-2">
                     <Calendar className="h-6 w-6" />
-                    Fecha de Fin:
+                    {modalDateLabel === 'Próxima apertura'
+                      ? 'Próxima apertura:'
+                      : modalDateLabel === 'Fecha prevista de reanudación'
+                        ? 'Fecha prevista de reanudación:'
+                        : 'Fecha de Fin:'}
                   </span>
-                  <p className="text-gray-900">{formatDate(auction.endDate)}</p>
+                  <p className="text-gray-900">
+                    {modalDateLabel === 'Próxima apertura'
+                      ? (modalOpensDate ? formatDate(modalOpensDate) : 'Fecha por confirmar')
+                      : modalDateLabel === 'Fecha prevista de reanudación'
+                        ? (modalResumeDate ? formatDate(modalResumeDate) : 'Fecha por confirmar')
+                        : formatDate(auction.endDate)}
+                  </p>
                 </div>
 
 

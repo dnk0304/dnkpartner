@@ -26,6 +26,7 @@ import { formatPrice, capitalize, titleCase, displayTitle, formatDateMed, pretti
 import { getStatusMeta, effectiveStatus } from "./status";
 import { cn } from "@/lib/utils";
 import { resolveCardImage, fallbackImageFor, isVariosLotesTitle } from "@/lib/resolve-card-image";
+import { statusDateLabel } from "@/lib/auction-status";
 
 export type AuctionListRowProps = {
   item: AuctionItem & { hasImage?: boolean | null };
@@ -82,6 +83,16 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
     opensDate && !Number.isNaN(opensDate.getTime())
       ? formatDateMed(opensDate)
       : null;
+  // Status-branched date intent (Wave52, Pixel 2026-06-04). The "termina en"
+  // column is gated to active rows; PROXIMA and SUSPENDIDA show the static
+  // labelled date instead — no countdown, no fake end date.
+  const dateLabel = statusDateLabel(effective);
+  const resumeDateStr = (() => {
+    const v = (item as { resumeAt?: string | null }).resumeAt;
+    if (!v) return null;
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? null : formatDateMed(d);
+  })();
 
   return (
     <tr
@@ -188,10 +199,13 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
           <span title={typeLabel}>{typeLabel}</span>
         )}
         {/* Stacked meta: opensAt + documents — only when projected so the
-            cell stays one-line on pre-backfill rows. */}
-        {(opensLabel || item.hasDocuments) && (
+            cell stays one-line on pre-backfill rows. The "Inicio …" caption
+            is suppressed when the dedicated date column already shows the
+            opensAt as "Próx. apertura" (PROXIMA rows) — avoids printing the
+            same date twice in one row. */}
+        {((opensLabel && dateLabel !== "Próxima apertura") || item.hasDocuments) && (
           <div className="mt-0.5 flex items-center gap-2 text-[10px] text-[--color-ink-tertiary] font-normal tnum">
-            {opensLabel && (
+            {opensLabel && dateLabel !== "Próxima apertura" && (
               <span className="inline-flex items-center gap-1">
                 <Calendar className="h-2.5 w-2.5" aria-hidden="true" />
                 Inicio {opensLabel}
@@ -264,8 +278,35 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
         )}
       </td>
 
-      <td className="hidden md:table-cell align-top py-3 pr-3 text-right whitespace-nowrap">
-        <LiveCountdown target={item.endDate} size="sm" effectiveStatus={effective} />
+      <td className="hidden md:table-cell align-top py-3 pr-3 text-right whitespace-nowrap text-xs">
+        {/* Status-branched date column (Wave52, Pixel 2026-06-04).
+            ACTIVE   → ticking countdown.
+            PROXIMA  → "Próx. apertura · opensAt / Fecha por confirmar".
+            SUSPEND  → "Reanudación · resumeAt / Fecha por confirmar".
+            Terminal → em-dash (status badge handles the label). */}
+        {dateLabel === "Termina" ? (
+          <LiveCountdown target={item.endDate} size="sm" effectiveStatus={effective} />
+        ) : dateLabel === "Próxima apertura" ? (
+          <span className="tnum">
+            <span className="block text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+              Próx. apertura
+            </span>
+            <span className="text-[--color-ink-primary]">
+              {opensLabel ?? <span className="text-[--color-ink-quiet]">Fecha por confirmar</span>}
+            </span>
+          </span>
+        ) : dateLabel === "Fecha prevista de reanudación" ? (
+          <span className="tnum">
+            <span className="block text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+              Reanudación
+            </span>
+            <span className="text-[--color-ink-primary]">
+              {resumeDateStr ?? <span className="text-[--color-ink-quiet]">Fecha por confirmar</span>}
+            </span>
+          </span>
+        ) : (
+          <span className="tnum text-[--color-ink-quiet]">—</span>
+        )}
       </td>
 
       <td className="align-top py-3 pr-4 whitespace-nowrap">

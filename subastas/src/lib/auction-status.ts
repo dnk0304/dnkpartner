@@ -300,6 +300,11 @@ export function statusHumanLabel(dbStatus: string | null | undefined): string {
  *   - CANCELADA / CONCLUIDA_PORTAL / FINISHED / FINALIZADA_AUTORIDAD
  *       → null (defensively never render a date line for terminal states)
  *
+ * Accepts BOTH the raw DB status (used by the email — CELEBRANDOSE,
+ * PROXIMA_APERTURA, SUSPENDIDA, …) AND the folded frontend status (used by
+ * the site cards — 'celebrandose', 'proxima-apertura', 'suspendida', …) so a
+ * single helper covers every render site. Pixel 2026-06-04 (wave52 cards).
+ *
  * The CALLER picks which auction column to feed in (endsAt for CELEBRANDOSE,
  * opensAt for PROXIMA_APERTURA, resumeAt for SUSPENDIDA). This helper does
  * NOT pick the column — that decision lives at the call site so it can
@@ -308,18 +313,25 @@ export function statusHumanLabel(dbStatus: string | null | undefined): string {
  * Returns null when the status is terminal / unknown / null.
  */
 export function statusDateLabel(
-  dbStatus: string | null | undefined,
+  status: string | null | undefined,
 ): 'Termina' | 'Próxima apertura' | 'Fecha prevista de reanudación' | null {
-  if (!dbStatus) return null;
-  switch (dbStatus) {
+  if (!status) return null;
+  switch (status) {
+    // DB form
     case 'CELEBRANDOSE':
     case 'ACTIVE':
+    // Frontend folded form
+    case 'celebrandose':
+    case 'active':
       return 'Termina';
     case 'PROXIMA_APERTURA':
     case 'PRE_AUCTION':
+    case 'proxima-apertura':
+    case 'pre-auction':
       return 'Próxima apertura';
     case 'SUSPENDIDA':
     case 'SUSPENDED':
+    case 'suspendida':
       return 'Fecha prevista de reanudación';
     default:
       // CANCELADA / CONCLUIDA_PORTAL / FINISHED / FINALIZADA_AUTORIDAD /

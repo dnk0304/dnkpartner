@@ -52,6 +52,7 @@ import { ChevronLeft, ChevronRight, ArrowRight, Loader2, MapPin, FileText } from
 import { apiFetch } from "@/lib/api-path";
 import { StatusBadge } from "./StatusBadge";
 import { resolveCardImage, fallbackImageFor, isVariosLotesTitle } from "@/lib/resolve-card-image";
+import { statusDateLabel } from "@/lib/auction-status";
 import {
   formatPrice,
   formatDaysLeft,
@@ -89,6 +90,9 @@ export type FeedAuction = {
   /** Official start date ("Fecha de inicio"). Server-projected ISO string;
    *  null until the doc-archive scraper backfill populates it. */
   opensAt?: string | null;
+  /** Suspended-scraper "fecha prevista de reanudación" (Wave52). Drives the
+   *  SUSPENDIDA card date line. Null on every non-SUSPENDIDA row. */
+  resumeAt?: string | null;
   lotNumber: string | null;
   imageUrl: string | null;
   boeLink: string | null;
@@ -665,10 +669,18 @@ function ExpandedCard({
    *  a drag-release doesn't accidentally open the modal. */
   isDragging?: boolean;
 }) {
-  const endsAt = auction.endsAt ?? auction.endDateTime;
-  const ended = isEffectivelyEnded(endsAt);
-  const dl = daysLeft(endsAt);
-  const urgent = !ended && dl != null && dl <= 1;
+  // Status-branched date intent (Wave52, Pixel 2026-06-04). The carousel was
+  // the surface in Dennis's screenshot showing "Termina en 6d 13h" + a
+  // floating "6 d" badge on a PROXIMA card — both fake (pre-auctions have no
+  // real endsAt; the column carries a placeholder). The shared helper picks
+  // the label intent off status; we then gate every endsAt-derived value
+  // (countdown, days badge, end-date trailer) to ACTIVE only.
+  const dateLabel = statusDateLabel(auction.status);
+  const isActiveLabel = dateLabel === "Termina";
+  const endsAt = isActiveLabel ? (auction.endsAt ?? auction.endDateTime) : null;
+  const ended = isActiveLabel && isEffectivelyEnded(endsAt);
+  const dl = isActiveLabel ? daysLeft(endsAt) : null;
+  const urgent = isActiveLabel && !ended && dl != null && dl <= 1;
 
   // Headline = auction TYPE (propertyType → category → generic).
   // The BOE ref (boeId, or the upstream title when it's a SUB-… ref) becomes
@@ -676,10 +688,27 @@ function ExpandedCard({
   const typeHeadline = prettifyAuctionType(
     auction.propertyType ?? auction.category ?? null,
   );
-  // Compact "Termina en Nd Nh" string — short variant for the card footer.
-  // Distinct from the floating top-right badge which shows just days.
-  const terminaEn = formatEndsInCompact(endsAt);
-  const endDateLabel = formatDateMed(endsAt);
+  // Compact "Termina en Nd Nh" string — short variant for the ACTIVE card
+  // footer only. NEVER computed for PROXIMA / SUSPENDIDA (those rows render
+  // their own status-branched date line below). Distinct from the floating
+  // top-right badge which shows just days.
+  const terminaEn = isActiveLabel ? formatEndsInCompact(endsAt) : null;
+  const endDateLabel = isActiveLabel ? formatDateMed(endsAt) : "—";
+  // Pre-parsed PROXIMA / SUSPENDIDA date strings used below.
+  const opensLabel = (() => {
+    if (!auction.opensAt) return null;
+    const d = new Date(auction.opensAt);
+    return Number.isNaN(d.getTime())
+      ? null
+      : d.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+  })();
+  const resumeLabel = (() => {
+    if (!auction.resumeAt) return null;
+    const d = new Date(auction.resumeAt);
+    return Number.isNaN(d.getTime())
+      ? null
+      : d.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+  })();
 
   // Prefer the explicit boeId when projected; fall back to the upstream
   // `title` if it itself is a SUB- ref (legacy projection where boeId hasn't
@@ -787,17 +816,25 @@ function ExpandedCard({
         <span className="absolute top-1.5 left-1.5">
           <StatusBadge status={effectiveStatus} size="sm" />
         </span>
-        <span
-          className={cn(
-            "absolute top-1.5 right-1.5 tnum rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
-            "text-[--color-ink-primary] border",
-            urgent
-              ? "bg-[--color-warn-critical-soft] border-[--color-warn-critical]/40"
-              : "bg-[--color-surface] border-[--color-hairline]",
-          )}
-        >
-          {ended ? "Finalizada" : formatDaysLeft(endsAt)}
-        </span>
+        {/* Days-left badge — ACTIVE only (Wave52, Pixel 2026-06-04). On a
+            PROXIMA / SUSPENDIDA / terminal row this badge is suppressed
+            entirely: rendering "6 d" for a pre-auction (which has no real
+            end date) was the exact bug Dennis screenshotted. The status
+            badge on the left already labels Próxima / Suspendida; the days
+            count belongs to the live "Termina en …" reading. */}
+        {isActiveLabel && (
+          <span
+            className={cn(
+              "absolute top-1.5 right-1.5 tnum rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+              "text-[--color-ink-primary] border",
+              urgent
+                ? "bg-[--color-warn-critical-soft] border-[--color-warn-critical]/40"
+                : "bg-[--color-surface] border-[--color-hairline]",
+            )}
+          >
+            {ended ? "Finalizada" : formatDaysLeft(endsAt)}
+          </span>
+        )}
       </div>
 
       <div className="p-2.5 flex flex-col gap-1 min-w-0">
@@ -814,18 +851,51 @@ function ExpandedCard({
             {where}
           </div>
         )}
-        {/* Start date (opensAt) + "Termina en …" countdown + end date.
-            opensAt was added to the recent feed by the doc-archive wave
-            (2026-06-03). Reads e.g. "Inicio 1 jun · Termina en 5d 8h · 8 jun".
-            All three are null-safe — any missing slot collapses cleanly. */}
+        {/* Status-branched date line (Wave52, Pixel 2026-06-04).
+            ACTIVE   → "Inicio <opensAt> · Termina en <Nd Nh> · <endDate>"
+                       (the existing Bloomberg-style row).
+            PROXIMA  → "Próxima apertura · <opensAt>" or "· Fecha por
+                       confirmar". NEVER "Termina en …" — pre-auctions have
+                       no real end date and we must not surface a placeholder.
+            SUSPEND  → "Fecha prevista de reanudación · <resumeAt>" or
+                       "· Fecha por confirmar".
+            Terminal → render nothing (the StatusBadge already says
+                       Finalizada / Concluida; no live date is meaningful). */}
         {(() => {
-          const opens = auction.opensAt ? new Date(auction.opensAt) : null;
-          const opensValid = !!opens && !Number.isNaN(opens.getTime());
-          const opensLabel = opensValid
-            ? opens!.toLocaleDateString("es-ES", { day: "numeric", month: "short" })
-            : null;
-          if (ended || (!opensLabel && !terminaEn && endDateLabel === "—")) return null;
-          // Bullet separator: only between pieces that are actually present.
+          // Terminal / ended → suppress the whole date line.
+          if (ended || dateLabel == null) return null;
+          // PROXIMA: single "Próxima apertura …" line, NO countdown, NO end.
+          if (dateLabel === "Próxima apertura") {
+            return (
+              <div className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[10.5px] text-[--color-ink-secondary]">
+                <span className="tnum">
+                  <span className="text-[--color-ink-tertiary]">Próxima apertura</span>
+                  {opensLabel ? (
+                    <> · <span className="text-[--color-ink-primary]">{opensLabel}</span></>
+                  ) : (
+                    <> · <span className="text-[--color-ink-quiet]">Fecha por confirmar</span></>
+                  )}
+                </span>
+              </div>
+            );
+          }
+          // SUSPENDIDA: single "Reanudación …" line.
+          if (dateLabel === "Fecha prevista de reanudación") {
+            return (
+              <div className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[10.5px] text-[--color-ink-secondary]">
+                <span className="tnum">
+                  <span className="text-[--color-ink-tertiary]">Reanudación</span>
+                  {resumeLabel ? (
+                    <> · <span className="text-[--color-ink-primary]">{resumeLabel}</span></>
+                  ) : (
+                    <> · <span className="text-[--color-ink-quiet]">Fecha por confirmar</span></>
+                  )}
+                </span>
+              </div>
+            );
+          }
+          // ACTIVE — preserve the existing three-piece row.
+          if (!opensLabel && !terminaEn && endDateLabel === "—") return null;
           const parts: React.ReactNode[] = [];
           if (opensLabel) {
             parts.push(

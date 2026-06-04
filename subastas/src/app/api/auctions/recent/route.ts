@@ -115,6 +115,9 @@ type FeedAuctionProjection = {
   // 2026-06-03 (Pixel cards): start date for PROXIMA_APERTURA cards.
   // Nullable; null = not yet scheduled / not scraped.
   opensAt: string | null;
+  // Wave52 (Pixel 2026-06-04): suspended-scraper "fecha prevista de
+  // reanudación". Drives the SUSPENDIDA card date line.
+  resumeAt: string | null;
   endDateTime: string | null;
   lotNumber: string | null;
   imageUrl: string | null;
@@ -237,6 +240,7 @@ function projectAuction(a: {
   depositAmount: number | null;
   endsAt: Date | null;
   opensAt: Date | null;
+  resumeAt: Date | null;
   endDateTime: Date | null;
   lotNumber: string | null;
   imageUrl: string | null;
@@ -266,6 +270,7 @@ function projectAuction(a: {
     depositAmount: a.depositAmount ?? null,
     endsAt: a.endsAt?.toISOString() ?? null,
     opensAt: a.opensAt?.toISOString() ?? null,
+    resumeAt: a.resumeAt?.toISOString() ?? null,
     endDateTime: a.endDateTime?.toISOString() ?? null,
     lotNumber: a.lotNumber ?? null,
     imageUrl: a.imageUrl ?? null,
@@ -364,6 +369,9 @@ const AUCTION_CARD_SELECT = {
   endsAt: true,
   // 2026-06-03 (Pixel cards): start date projection for PROXIMA_APERTURA cards.
   opensAt: true,
+  // Wave52 (Pixel 2026-06-04): suspended-scraper reanudación date for the
+  // SUSPENDIDA card date line.
+  resumeAt: true,
   endDateTime: true,
   lotNumber: true,
   imageUrl: true,

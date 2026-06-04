@@ -134,6 +134,17 @@ export interface AuctionItem {
    */
   opensAt?: string | null;
   /**
+   * Suspended-auction resume date — populated by the suspended-scraper
+   * (`SuspendedScraper` writes `Auction.resumeAt` when the courts publish
+   * a "fecha prevista de reanudación"). Null on every non-SUSPENDIDA row
+   * and on suspended rows where the date is unknown ("Fecha por confirmar").
+   *
+   * Wave52 status-DATES wiring (Pixel 2026-06-04): the card date line for
+   * a SUSPENDIDA row renders "Fecha prevista de reanudación: <resumeAt>"
+   * or "· Fecha por confirmar" when null — NEVER endsAt / a fake countdown.
+   */
+  resumeAt?: string | null;
+  /**
    * Accurate BOE bien-heading type (e.g. "Vivienda", "Garaje", "Trastero",
    * "Inmueble (Trastero)"). When present it drives the card type headline
    * via `prettifyAuctionType()`. Falls back to `category` when null — most

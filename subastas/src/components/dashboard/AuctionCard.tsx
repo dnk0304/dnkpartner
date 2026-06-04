@@ -9,6 +9,7 @@ import { Clock, MapPin, Gavel, Building2, Pause, CircleDollarSign, Banknote, Che
 import Image from 'next/image';
 import { capitalizeLocation } from '@/lib/utils';
 import { resolveCardImage, fallbackImageFor, isVariosLotesTitle } from '@/lib/resolve-card-image';
+import { statusDateLabel } from '@/lib/auction-status';
 
 interface AuctionCardProps {
   item: AuctionItem;
@@ -17,9 +18,15 @@ interface AuctionCardProps {
 }
 
 export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClick }) => {
+  // Status-branched date intent (Wave52, Pixel 2026-06-04). Drives both the
+  // "Termina Pronto" urgency badge AND the footer date line — both are gated
+  // to ACTIVE rows, so a pre-auction can never paint a fake countdown.
+  const dateLabel = statusDateLabel(item.status);
+  const isActiveLabel = dateLabel === 'Termina';
   const isUrgent = () => {
-    const finishedStatuses = ['finished', 'concluida-portal', 'finalizada-autoridad', 'cancelada'];
-    if (finishedStatuses.includes(item.status)) return false;
+    // Only active rows can be "urgent" — a pre-auction has no real end date,
+    // and a suspended row's end is the reanudación, which isn't a deadline.
+    if (!isActiveLabel) return false;
     const diff = item.endDate.getTime() - new Date().getTime();
     return diff > 0 && diff < 48 * 60 * 60 * 1000;
   };
@@ -397,32 +404,75 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
               </div>
             )}
 
-            {/* Footer Metadata — start date (opensAt) + end date.
-                "Inicio …" only renders when opensAt is projected and parses
-                to a finite date; otherwise the row hides cleanly (graceful
-                empty pre-backfill). Documents indicator is a compact chip
-                with file icon — links live on the detail page, not here. */}
+            {/* Footer Metadata — status-branched date line (Wave52, Pixel
+                2026-06-04). ACTIVE shows "Termina: <endDate>". PROXIMA shows
+                "Próxima apertura: <opensAt>" or "Fecha por confirmar" — NEVER
+                endDate (a pre-auction's endDate is a placeholder we must not
+                surface). SUSPENDIDA shows "Reanudación: <resumeAt>" or
+                "Fecha por confirmar". Terminal status falls back to the
+                stored endDate as a "fecha" label (the badge already says
+                Finalizada/Concluida — this is just an informational date).
+                Documents chip stays on the right column unchanged. */}
             <div className="flex items-center justify-between pt-3 border-t border-gray-100 text-sm mt-2">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-gray-500">
                 {(() => {
+                  const FMT_MED: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
                   const opens = item.opensAt ? new Date(item.opensAt) : null;
-                  if (!opens || Number.isNaN(opens.getTime())) return null;
-                  return (
-                    <span className="inline-flex items-center gap-1.5">
-                      <Calendar className="w-4 h-4" aria-hidden="true" />
-                      <span className="tnum">
-                        <span className="text-gray-400">Inicio </span>
-                        {opens.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                  const opensValid = !!opens && !Number.isNaN(opens.getTime());
+                  const resumeRaw = (item as { resumeAt?: string | null }).resumeAt;
+                  const resume = resumeRaw ? new Date(resumeRaw) : null;
+                  const resumeValid = !!resume && !Number.isNaN(resume.getTime());
+                  if (dateLabel === 'Próxima apertura') {
+                    return (
+                      <span className="inline-flex items-center gap-1.5">
+                        <Calendar className="w-4 h-4" aria-hidden="true" />
+                        <span className="tnum">
+                          <span className="text-gray-400">Próxima apertura </span>
+                          {opensValid
+                            ? opens!.toLocaleDateString('es-ES', FMT_MED)
+                            : <span className="text-gray-400">· Fecha por confirmar</span>}
+                        </span>
                       </span>
-                    </span>
+                    );
+                  }
+                  if (dateLabel === 'Fecha prevista de reanudación') {
+                    return (
+                      <span className="inline-flex items-center gap-1.5">
+                        <Calendar className="w-4 h-4" aria-hidden="true" />
+                        <span className="tnum">
+                          <span className="text-gray-400">Reanudación </span>
+                          {resumeValid
+                            ? resume!.toLocaleDateString('es-ES', FMT_MED)
+                            : <span className="text-gray-400">· Fecha por confirmar</span>}
+                        </span>
+                      </span>
+                    );
+                  }
+                  // ACTIVE (or terminal/unknown): keep the established
+                  // "Inicio … · Termina <endDate>" pair.
+                  return (
+                    <>
+                      {opensValid && (
+                        <span className="inline-flex items-center gap-1.5">
+                          <Calendar className="w-4 h-4" aria-hidden="true" />
+                          <span className="tnum">
+                            <span className="text-gray-400">Inicio </span>
+                            {opens!.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                          </span>
+                        </span>
+                      )}
+                      <span className="inline-flex items-center gap-1.5">
+                        <Clock className="w-4 h-4" aria-hidden="true" />
+                        <span className="tnum">
+                          {dateLabel === 'Termina' && (
+                            <span className="text-gray-400">Termina </span>
+                          )}
+                          {item.endDate.toLocaleDateString('es-ES', FMT_MED)}
+                        </span>
+                      </span>
+                    </>
                   );
                 })()}
-                <span className="inline-flex items-center gap-1.5">
-                  <Clock className="w-4 h-4" aria-hidden="true" />
-                  <span className="tnum">
-                    {item.endDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </span>
-                </span>
               </div>
 
               <div className="flex items-center gap-2">
