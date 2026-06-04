@@ -3,25 +3,21 @@
 /**
  * PreciosClient — /precios.
  *
- * P4 conversion redesign (2026-06-04, Pixel). Clean alertasubastas-style
- * tier cards, winter-green accent on the recommended plan (cta-gradient
- * matches the landing hero), prominent "30 días gratis · sin tarjeta"
- * eyebrow, and a risk-reversal trio between pricing and checkout.
+ * Single-offer redesign (2026-06-04, Pixel). One centered Acceso card,
+ * 30-day free access trial, then 5,99 €/mes. No free permanent plan,
+ * no card mention anywhere on the page or FAQ. Winter-green accent stays.
  *
  * What did NOT change:
  *   - The Whop checkout embed (`WhopCheckoutEmbed`) — the `metadata[userId]`
  *     webhook contract is critical and stays exactly as-is.
  *   - Tier-aware CTA behavior (already-paid → "Suscripción activa";
  *     signed-out → /login?callbackUrl=/precios#checkout).
- *   - i18n namespace `pricing` (added a few new keys; preserved every
- *     existing key).
  *
  * Layout (top → bottom):
- *   1. Hero eyebrow + headline + lead + "30 días gratis · sin tarjeta" pill
- *   2. Two pricing cards — Gratis (quiet) + Acceso (featured, gradient CTA)
- *   3. Risk-reversal trio — cancel anytime · no card · PCI-DSS Whop
- *   4. Embedded Whop checkout (#checkout anchor)
- *   5. FAQ
+ *   1. Hero eyebrow + headline + lead + "30 días de acceso gratis" pill
+ *   2. ONE centered pricing card — Acceso (featured, gradient CTA)
+ *   3. Embedded Whop checkout (#checkout anchor)
+ *   4. FAQ
  *
  * Palette discipline: max two greens (`--color-action` + `--color-brand`,
  * carried by `--gradient-accent`) + white + one ink-gray. Gradient is an
@@ -33,13 +29,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
-import {
-  Check,
-  ArrowRight,
-  ShieldCheck,
-  CreditCard,
-  Sparkles,
-} from "lucide-react";
+import { Check, ArrowRight, Sparkles } from "lucide-react";
 import { WhopCheckoutEmbed } from "@/components/pricing/WhopCheckoutEmbed";
 import { cn } from "@/lib/utils";
 
@@ -78,7 +68,7 @@ export default function PreciosClient() {
             {t("heroLead")}
           </p>
 
-          {/* "30 días gratis · sin tarjeta" pill — winter-green soft tint,
+          {/* "30 días de acceso gratis" pill — winter-green soft tint,
               flag-icon prefix, deliberate visual weight so it reads as the
               core value prop, not decoration. */}
           <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-[--color-action-soft] px-3.5 py-2">
@@ -96,38 +86,12 @@ export default function PreciosClient() {
         </section>
 
         {/* ──────────────────────────────────────────────────────────────
-            Pricing — two cards, Acceso featured with gradient CTA.
+            Pricing — ONE centered Acceso card with gradient CTA.
             ────────────────────────────────────────────────────────────── */}
         <section
-          className="mt-10 grid grid-cols-1 gap-5 md:mt-12 md:grid-cols-2 md:gap-6"
+          className="mx-auto mt-10 max-w-md md:mt-12"
           aria-label={t("heroTitle")}
         >
-          {/* GRATIS */}
-          <PricingCard
-            name={t("freeName")}
-            price={t("freePrice")}
-            priceSuffix={null}
-            priceMeta={t("freeForever")}
-            tagline={t("freeTagline")}
-            features={[
-              t("freeFeature1"),
-              t("freeFeature2"),
-              t("freeFeature3"),
-              t("freeFeature4"),
-            ]}
-            cta={
-              isAuthed ? (
-                <CtaButton variant="ghost" disabled>
-                  {t("freeCtaSignedIn")}
-                </CtaButton>
-              ) : (
-                <CtaButton variant="ghost" href="/register">
-                  {t("freeCta")}
-                </CtaButton>
-              )
-            }
-          />
-
           {/* ACCESO */}
           <PricingCard
             featured
@@ -164,46 +128,6 @@ export default function PreciosClient() {
               )
             }
           />
-        </section>
-
-        {/* ──────────────────────────────────────────────────────────────
-            Risk-reversal trio — 3 columns of trust signals immediately
-            below pricing, above the embedded checkout. Plain inline icons,
-            no surface, no gradient — reads as quiet confidence.
-            ────────────────────────────────────────────────────────────── */}
-        <section
-          aria-labelledby="reassurance-heading"
-          className="mt-12 md:mt-14"
-        >
-          <h2
-            id="reassurance-heading"
-            className="font-display text-xl font-semibold text-[--color-ink-primary] md:text-2xl"
-          >
-            {t("reassuranceTitle")}
-          </h2>
-          <ul className="mt-5 grid grid-cols-1 gap-5 md:mt-6 md:grid-cols-3 md:gap-6">
-            <ReassuranceItem
-              icon={
-                <ShieldCheck className="h-5 w-5" aria-hidden="true" />
-              }
-              title={t("reassurance1Title")}
-              body={t("reassurance1Body")}
-            />
-            <ReassuranceItem
-              icon={
-                <CreditCard className="h-5 w-5" aria-hidden="true" />
-              }
-              title={t("reassurance2Title")}
-              body={t("reassurance2Body")}
-            />
-            <ReassuranceItem
-              icon={
-                <Sparkles className="h-5 w-5" aria-hidden="true" />
-              }
-              title={t("reassurance3Title")}
-              body={t("reassurance3Body")}
-            />
-          </ul>
         </section>
 
         {/* ──────────────────────────────────────────────────────────────
@@ -257,7 +181,7 @@ export default function PreciosClient() {
 
         {/* ──────────────────────────────────────────────────────────────
             FAQ — 4 questions. Unchanged structure; quiet surface so it
-            doesn't compete with the pricing cards or checkout.
+            doesn't compete with the pricing card or checkout.
             ────────────────────────────────────────────────────────────── */}
         <section className="mt-16 max-w-readable">
           <h2 className="font-display text-2xl font-semibold">
@@ -427,31 +351,6 @@ function CtaButton({ children, href, variant, disabled }: CtaButtonProps) {
     <Link href={href} className={classes}>
       {children}
     </Link>
-  );
-}
-
-type ReassuranceItemProps = {
-  icon: React.ReactNode;
-  title: string;
-  body: string;
-};
-
-function ReassuranceItem({ icon, title, body }: ReassuranceItemProps) {
-  return (
-    <li className="flex flex-col gap-2">
-      <span
-        className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[--color-action-soft] text-[--color-action]"
-        aria-hidden="true"
-      >
-        {icon}
-      </span>
-      <p className="text-sm font-semibold text-[--color-ink-primary]">
-        {title}
-      </p>
-      <p className="text-sm leading-relaxed text-[--color-ink-secondary]">
-        {body}
-      </p>
-    </li>
   );
 }
 
