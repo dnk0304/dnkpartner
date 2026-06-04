@@ -11,6 +11,10 @@ declare module "next-auth" {
     user: {
       id: string;
       tier?: UserTier;
+      // Freemium gate (2026-06-04): trial-end ISO string so the client can
+      // derive trial-active without an extra fetch. Logged-in users only;
+      // NULL when no trial was provisioned for the row.
+      trialEndDate?: string | null;
     } & DefaultSession["user"];
   }
 }

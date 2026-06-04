@@ -98,7 +98,21 @@ const DB_TO_FRONTEND_STATUS: Record<string, string> = {
   CANCELLED: "cancelada",
 };
 
-export default function AuctionDetailClient({ id }: { id: string }) {
+export default function AuctionDetailClient({
+  id,
+  hideHeader = false,
+}: {
+  id: string;
+  /**
+   * When true, the component does NOT render its own breadcrumb + title +
+   * meta-row + the wrapping `<main>` / `<div min-h-screen>`. Used by the
+   * freemium-gate path on /subastas/subasta/[slug] where the SSR teaser
+   * already painted those elements server-side (so Google sees them).
+   * Default is false to preserve every other call site (legacy /auction/[id]
+   * fallback, internal navigation) — they keep the standalone hero.
+   */
+  hideHeader?: boolean;
+}) {
   const [data, setData] = React.useState<DetailResponse["data"] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -132,56 +146,64 @@ export default function AuctionDetailClient({ id }: { id: string }) {
     };
   }, [id]);
 
-  if (loading) {
-    return (
+  // Status-block shell that adapts to hideHeader. When the SSR teaser has
+  // already painted the page chrome (freemium-gate path), we render a bare
+  // panel; otherwise we paint the standalone min-h-screen + main wrapper.
+  const StatusShell = ({ children, dense }: { children: React.ReactNode; dense?: boolean }) =>
+    hideHeader ? (
+      <div className={dense ? 'py-6' : 'py-16 text-center'}>{children}</div>
+    ) : (
       <div className="min-h-screen bg-[--color-page]">
-        <main className="mx-auto max-w-editorial px-4 md:px-6 py-8 space-y-6">
-          <div className="h-7 w-1/3 bg-[--color-surface-muted] rounded animate-pulse" />
-          <div className="h-12 w-2/3 bg-[--color-surface-muted] rounded animate-pulse" />
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_360px] gap-6">
-            <div className="space-y-3">
-              <div className="h-64 bg-[--color-surface-muted] rounded animate-pulse" />
-              <div className="h-32 bg-[--color-surface-muted] rounded animate-pulse" />
-            </div>
-            <div className="h-96 bg-[--color-surface-muted] rounded animate-pulse" />
-          </div>
+        <main className={`mx-auto max-w-editorial px-4 md:px-6 ${dense ? 'py-8 space-y-6' : 'py-16 text-center'}`}>
+          {children}
         </main>
       </div>
+    );
+
+  if (loading) {
+    return (
+      <StatusShell dense>
+        <div className="h-7 w-1/3 bg-[--color-surface-muted] rounded animate-pulse" />
+        <div className="h-12 w-2/3 bg-[--color-surface-muted] rounded animate-pulse" />
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_360px] gap-6">
+          <div className="space-y-3">
+            <div className="h-64 bg-[--color-surface-muted] rounded animate-pulse" />
+            <div className="h-32 bg-[--color-surface-muted] rounded animate-pulse" />
+          </div>
+          <div className="h-96 bg-[--color-surface-muted] rounded animate-pulse" />
+        </div>
+      </StatusShell>
     );
   }
 
   if (error === "not_found") {
     return (
-      <div className="min-h-screen bg-[--color-page]">
-        <main className="mx-auto max-w-editorial px-4 md:px-6 py-16 text-center">
-          <h1 className="font-serif text-2xl text-[--color-ink-primary]">Subasta no encontrada</h1>
-          <p className="mt-2 text-sm text-[--color-ink-tertiary]">
-            La subasta solicitada no existe o ha sido retirada del Portal del BOE.
-          </p>
-          <Link
-            href="/subastas"
-            className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-[--color-brand] hover:underline"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Ver todas las subastas
-          </Link>
-        </main>
-      </div>
+      <StatusShell>
+        <h1 className="font-serif text-2xl text-[--color-ink-primary]">Subasta no encontrada</h1>
+        <p className="mt-2 text-sm text-[--color-ink-tertiary]">
+          La subasta solicitada no existe o ha sido retirada del Portal del BOE.
+        </p>
+        <Link
+          href="/subastas"
+          className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-[--color-brand] hover:underline"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Ver todas las subastas
+        </Link>
+      </StatusShell>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-[--color-page]">
-        <main className="mx-auto max-w-editorial px-4 md:px-6 py-16 text-center">
-          <h1 className="font-serif text-xl text-[--color-ink-primary]">
-            No pudimos cargar esta subasta.
-          </h1>
-          <p className="mt-2 text-sm text-[--color-ink-tertiary]">
-            Reintenta en unos segundos o vuelve a la lista.
-          </p>
-        </main>
-      </div>
+      <StatusShell>
+        <h1 className="font-serif text-xl text-[--color-ink-primary]">
+          No pudimos cargar esta subasta.
+        </h1>
+        <p className="mt-2 text-sm text-[--color-ink-tertiary]">
+          Reintenta en unos segundos o vuelve a la lista.
+        </p>
+      </StatusShell>
     );
   }
 
@@ -286,9 +308,30 @@ export default function AuctionDetailClient({ id }: { id: string }) {
       ? raw.imageUrl
       : null;
 
+  // When `hideHeader` is set, the outer page chrome + breadcrumb + h1 + meta
+  // line are owned by the SSR teaser (see /subastas/subasta/[slug]/page.tsx).
+  // Use a Fragment so we don't re-paint them.
+  // OuterShell — when hideHeader=false (legacy /auction/[id] / internal nav),
+  // wrap in <div min-h-screen><main max-w-editorial>...</main></div>. When
+  // hideHeader=true (freemium-gate page on /subastas/subasta/[slug]), the
+  // parent page owns those wrappers, so OuterShell is a Fragment.
+  const OuterShell = hideHeader
+    ? ({ children }: { children: React.ReactNode }) => <>{children}</>
+    : ({ children }: { children: React.ReactNode }) => (
+        <div className="min-h-screen bg-[--color-page] pb-24 md:pb-12">
+          <main className="mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8">
+            {children}
+          </main>
+        </div>
+      );
+  // Inner content has a two-col layout that previously closed with
+  // `</main></div>`. We now close with </InnerMain> below — a paired Fragment
+  // tag so the JSX tree stays balanced regardless of hideHeader.
+
   return (
-    <div className="min-h-screen bg-[--color-page] pb-24 md:pb-12">
-      <main className="mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8">
+    <OuterShell>
+        {!hideHeader && (
+        <>
         {/* Breadcrumb */}
         <nav className="text-xs text-[--color-ink-tertiary] tnum" aria-label="Migas de pan">
           <Link href="/" className="hover:text-[--color-brand]">
@@ -361,6 +404,8 @@ export default function AuctionDetailClient({ id }: { id: string }) {
             )}
           </div>
         </header>
+        </>
+        )}
 
         {/* Two-column layout */}
         <div className="grid grid-cols-1 md:grid-cols-[1fr_360px] gap-6 md:gap-8 items-start">
@@ -746,9 +791,8 @@ export default function AuctionDetailClient({ id }: { id: string }) {
             </div>
           </div>
         </div>
-      </main>
 
-      {/* Mobile bottom action bar */}
+      {/* Mobile bottom action bar (position:fixed — escapes any ancestor) */}
       <div className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-[--color-surface] hairline-t p-3 flex gap-2">
         <FollowButton
           auctionId={auctionItem.id}
@@ -765,7 +809,7 @@ export default function AuctionDetailClient({ id }: { id: string }) {
           <ExternalLink className="h-4 w-4" aria-hidden="true" />
         </a>
       </div>
-    </div>
+    </OuterShell>
   );
 }
 

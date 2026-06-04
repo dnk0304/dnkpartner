@@ -45,8 +45,12 @@ async function ensureUserForOAuth(email: string, name?: string | null, image?: s
     return existingUser.id;
   }
 
+  // 30-day trial window (Dennis 2026-06-04, freemium gate). Constant lives in
+  // src/lib/access.ts (TRIAL_DAYS). Dynamic import to avoid circular-import
+  // risk: auth.ts is imported by access.ts.
+  const { TRIAL_DAYS } = await import('@/lib/access');
   const now = new Date();
-  const trialEnd = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
+  const trialEnd = new Date(now.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
   const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 
   await execute(
@@ -184,22 +188,30 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.name = token.name as string | null;
         session.user.image = token.picture as string | null;
         
-        // Add tier to session - wrap in try/catch to prevent session failures
+        // Add tier + trialEndDate to session - wrap in try/catch to prevent
+        // session failures. Freemium gate (2026-06-04): the client derives
+        // "trial-active" from trialEndDate so it doesn't need an extra fetch.
         try {
-          const userWithTier = await queryOne<{ tier: string }>('SELECT tier FROM User WHERE id = ?', [
-            token.id as string
-          ]);
-          
+          const userWithTier = await queryOne<{ tier: string; trialEndDate: string | Date | null }>(
+            'SELECT tier, "trialEndDate" FROM "User" WHERE id = ?',
+            [token.id as string]
+          );
+
           if (userWithTier) {
             session.user.tier = userWithTier.tier as 'FREE' | 'ACCESO' | 'GOLD' | 'DIAMOND';
+            session.user.trialEndDate = userWithTier.trialEndDate
+              ? new Date(userWithTier.trialEndDate).toISOString()
+              : null;
           } else {
             // Default tier if user not found
             session.user.tier = 'FREE';
+            session.user.trialEndDate = null;
           }
         } catch (error) {
           console.error("Error fetching user tier:", error);
-          // Set default tier on error to prevent session failure
+          // Set defaults on error to prevent session failure
           session.user.tier = 'FREE';
+          session.user.trialEndDate = null;
         }
       }
       return session;

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { query, queryOne, execute } from '@/lib/db';
 import { randomUUID } from 'crypto';
+import { getAccessState } from '@/lib/access';
 
 // GET /api/alerts - Fetch the authenticated user's alerts
 export async function GET() {
@@ -36,7 +37,12 @@ export async function GET() {
   }
 }
 
-// POST /api/alerts - Create new alert for the authenticated user
+// POST /api/alerts - Create new alert for the authenticated user.
+//
+// Freemium gate (Dennis 2026-06-04): alerts are a GATED capability. Caller
+// must be trial-active OR paid-active. Non-qualifying → 402 Payment Required
+// with a clean machine-readable code the UI can convert to the FullInfoWall /
+// UpgradeModal.
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
@@ -45,6 +51,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
+      );
+    }
+
+    const access = await getAccessState();
+    if (!access.hasFullAccess) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'gate.full_access_required',
+          message:
+            access.state === 'trial-expired'
+              ? 'Tu periodo de prueba ha terminado. Activa el plan Acceso para crear alertas.'
+              : 'Las alertas requieren una cuenta con prueba activa o plan Acceso.',
+          access: { state: access.state },
+        },
+        { status: 402 }
       );
     }
 
