@@ -97,7 +97,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const data = await loadTown(slug, municipio);
   if (!data) return { title: 'Página no encontrada' };
   const muniLabel = capitalizeLocation(data.municipalityName);
-  const title = `${data.count.toLocaleString('es-ES')} subastas en ${muniLabel} (${data.provinceLabel}) · estado en vivo | dnksubastas`;
+  const title = `${data.count.toLocaleString('es-ES')} subastas en ${muniLabel} (${data.provinceLabel}) · estado en vivo | SubastasActivas`;
   const description = `${data.count.toLocaleString('es-ES')} subastas públicas activas en ${muniLabel} (${data.provinceLabel}) con estado en vivo, precio de salida y enlace al BOE. Actualizado a diario.`.slice(0, 158);
   return {
     title,

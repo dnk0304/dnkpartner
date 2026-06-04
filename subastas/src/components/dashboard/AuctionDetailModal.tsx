@@ -661,9 +661,18 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
                 // gated. The locality badge above gives the public,
                 // SEO-indexable geo signal; this exposes a building-level pin
                 // and is reserved for registered users.
+                //
+                // Container note (carousel-modal map overlap fix, 2026-06-04):
+                // `relative + isolate` on the immediate map wrapper anchors
+                // Leaflet's internal absolutely-positioned tile/marker panes
+                // to THIS box so they cannot visually drift over the modal's
+                // mid-section price tiles / "Próxima apertura" badge when
+                // the dialog animates open from the home carousel. `h-72` on
+                // mobile / `h-96` on md+ matches the regular /auction/[id]
+                // page convention so the two surfaces render identically.
                 <GatedField level="register" label="Mapa preciso">
                   <div className="space-y-4">
-                    <div className="h-72">
+                    <div className="relative h-72 md:h-96 isolate">
                       <AuctionLocationMap auction={auction} />
                     </div>
                     <div className="text-base text-gray-600 text-center">

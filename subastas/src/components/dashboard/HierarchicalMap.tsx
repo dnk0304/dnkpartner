@@ -487,37 +487,49 @@ export const HierarchicalMap: React.FC<HierarchicalMapProps> = ({ items, onMarke
     };
   }, [provinceData]);
 
-  // Add custom CSS
+  // Inject the hierarchical-map's bespoke Leaflet styles. CRITICAL: every
+  // selector is SCOPED under `[data-hierarchical-map]` (see the wrapper
+  // below) so the rules cannot leak to other Leaflet instances on the same
+  // page — notably the per-auction map rendered inside AuctionDetailModal
+  // when the home carousel opens the popup over THIS section. Pre-scope
+  // the rules were global and applied `.leaflet-container { z-index: 0
+  // !important }` to every Leaflet map, which interacted with the Radix
+  // Dialog's stacking context and caused the modal's per-auction map to
+  // visually overlap the modal's mid-section content (price tiles,
+  // "Próxima apertura" badge). Scoping keeps the visual polish (popup
+  // chrome, zoom buttons, forced 100% sizing) on this map only.
   useEffect(() => {
     const style = document.createElement('style');
     style.textContent = `
-      .leaflet-container {
+      [data-hierarchical-map] .leaflet-container {
         height: 100% !important;
         width: 100% !important;
         z-index: 0 !important;
       }
-      .province-marker, .municipality-marker, .auction-marker {
+      [data-hierarchical-map] .province-marker,
+      [data-hierarchical-map] .municipality-marker,
+      [data-hierarchical-map] .auction-marker {
         background: transparent !important;
         border: none !important;
       }
-      .leaflet-popup-content-wrapper {
+      [data-hierarchical-map] .leaflet-popup-content-wrapper {
         background: #ffffff !important;
         color: #1f2937 !important;
         border-radius: 12px !important;
         box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15) !important;
         border: 1px solid #e5e7eb !important;
       }
-      .leaflet-popup-tip {
+      [data-hierarchical-map] .leaflet-popup-tip {
         background: #ffffff !important;
         border-left: 1px solid #e5e7eb !important;
         border-top: 1px solid #e5e7eb !important;
       }
-      .leaflet-control-zoom a {
+      [data-hierarchical-map] .leaflet-control-zoom a {
         background: #ffffff !important;
         color: #1f2937 !important;
         border-color: #d1d5db !important;
       }
-      .leaflet-control-zoom a:hover {
+      [data-hierarchical-map] .leaflet-control-zoom a:hover {
         background: #f3f4f6 !important;
       }
     `;
@@ -528,7 +540,10 @@ export const HierarchicalMap: React.FC<HierarchicalMapProps> = ({ items, onMarke
   }, []);
 
   return (
-    <div className="h-full w-full relative min-h-[500px] rounded-xl overflow-hidden border border-gray-200 shadow-sm">
+    <div
+      data-hierarchical-map=""
+      className="h-full w-full relative min-h-[500px] rounded-xl overflow-hidden border border-gray-200 shadow-sm"
+    >
       <MapContainer
         center={[40.4168, -3.7038]}
         zoom={6}

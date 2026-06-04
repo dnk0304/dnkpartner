@@ -64,8 +64,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const r = asTipoSlug(tipo);
   if (!r || (typeof r === 'object' && 'redirectTo' in r)) return { title: 'Tipo no encontrado' };
   const { count, label } = await loadTipo(r);
-  const title = `${count.toLocaleString('es-ES')} subastas ${label} en España · en vivo | dnksubastas`;
-  const description = `Todas las subastas ${label} activas en España (${count.toLocaleString('es-ES')}), con estado en vivo, pujas y enlace oficial. Actualizado a diario por dnksubastas.`.slice(0, 158);
+  const title = `${count.toLocaleString('es-ES')} subastas ${label} en España · en vivo | SubastasActivas`;
+  const description = `Todas las subastas ${label} activas en España (${count.toLocaleString('es-ES')}), con estado en vivo, pujas y enlace oficial. Actualizado a diario por SubastasActivas.`.slice(0, 158);
   return {
     title,
     description,

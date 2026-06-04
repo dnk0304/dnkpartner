@@ -33,7 +33,7 @@ export function SeoIntroBlock({ count, noun, location, minPrice, guideHref, guid
   return (
     <section className="prose prose-sm max-w-none text-[--color-text] mb-6">
       <p>
-        En dnksubastas seguimos <strong>{count.toLocaleString('es-ES')} {noun}{where}</strong> y
+        En SubastasActivas seguimos <strong>{count.toLocaleString('es-ES')} {noun}{where}</strong> y
         te mostramos el estado en vivo de cada una: si está abierta,
         celebrándose, suspendida o concluida. {priceLine}{' '}
         Cada ficha enlaza directamente al BOE oficial.

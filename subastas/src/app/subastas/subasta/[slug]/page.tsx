@@ -55,8 +55,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (isLegacyRow(a)) return { title: 'Subasta retirada', robots: 'noindex,follow' };
   const canonicalSlug = buildAuctionSlug(a);
   const where = [a.municipality, a.province].filter(Boolean).join(', ') || 'España';
-  const title = `${a.title || a.category} en ${where} · subasta pública | dnksubastas`;
-  const description = `Subasta pública de ${a.category} en ${where}. Estado en vivo, datos del BOE y enlace oficial. Sigue la subasta y recibe alertas en dnksubastas.`.slice(0, 158);
+  const title = `${a.title || a.category} en ${where} · subasta pública | SubastasActivas`;
+  const description = `Subasta pública de ${a.category} en ${where}. Estado en vivo, datos del BOE y enlace oficial. Sigue la subasta y recibe alertas en SubastasActivas.`.slice(0, 158);
   // Only index ACTIVE / PRE-AUCTION states (07 §1.7 — CONCLUIDA stays noindex).
   const activeStates = ['ACTIVE', 'CELEBRANDOSE', 'PRE_AUCTION', 'PROXIMA_APERTURA', 'SUSPENDIDA', 'SUSPENDED'];
   const indexable = activeStates.includes(a.status as string);

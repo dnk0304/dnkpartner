@@ -59,7 +59,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (r.kind === 'category') {
     const plural = CATEGORY_LABEL_PLURAL[r.slug];
     const count = await countActiveAuctions({ category: r.dbLabel });
-    const title = `${count.toLocaleString('es-ES')} subastas de ${plural} · estado en vivo | dnksubastas`;
+    const title = `${count.toLocaleString('es-ES')} subastas de ${plural} · estado en vivo | SubastasActivas`;
     const description = `${count.toLocaleString('es-ES')} subastas de ${plural} activas en toda España con estado en vivo, precio de salida y enlace al BOE. Encuentra ${plural} embargadas. Actualizado a diario.`.slice(0, 158);
     const indexable = isOfficialCategory(r.dbLabel) && count >= CATEGORY_INDEX_THRESHOLD;
     return {
@@ -72,7 +72,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   // kind === 'province'
   const count = await countActiveAuctions({ province: r.dbKey });
-  const title = `${count.toLocaleString('es-ES')} subastas en ${r.label} · estado en vivo | dnksubastas`;
+  const title = `${count.toLocaleString('es-ES')} subastas en ${r.label} · estado en vivo | SubastasActivas`;
   const description = `${count.toLocaleString('es-ES')} subastas públicas activas en ${r.label}: judiciales, de Hacienda, notariales y más, con su estado en vivo y enlace oficial al BOE. Actualizado a diario.`.slice(0, 158);
   return {
     title,
