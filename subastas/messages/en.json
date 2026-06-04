@@ -44,6 +44,28 @@
     "footerAuctions": "Auctions",
     "footerPricing": "Pricing"
   },
+  "footer": {
+    "aria": "Site footer",
+    "brandAria": "SubastasActivas — home",
+    "navAria": "Footer links",
+    "tagline": "Every public auction in Spain, tracked daily.",
+    "ctaLabel": "Create free alert",
+    "ctaAria": "Create a free alert",
+    "colProvincesTitle": "Auctions by province",
+    "colTiposTitle": "By type",
+    "colProductTitle": "SubastasActivas",
+    "colLegalTitle": "Legal",
+    "allProvinces": "View all provinces",
+    "linkHowItWorks": "How it works",
+    "linkPricing": "Pricing",
+    "linkCreateAlert": "Create alert",
+    "linkRegister": "Sign up",
+    "linkLegalNotice": "Legal notice",
+    "linkPrivacy": "Privacy",
+    "linkCookies": "Cookies",
+    "linkContact": "Contact",
+    "rightsReserved": "All rights reserved"
+  },
   "login": {
     "welcomeTitle": "Welcome back to SubastasActivas",
     "tagline": "The intelligence platform for judicial auctions.",

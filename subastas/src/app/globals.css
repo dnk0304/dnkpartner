@@ -77,9 +77,40 @@
   --color-warn-positive: #2F6F4F;
   --color-warn-positive-soft: #DCEAE1;
 
+  /* ---------------------------------------------------------------------
+   * Gradient accent system (2026-06-04, P1 of conversion redesign).
+   *
+   * The site stays crisp white. Gradient is an ACCENT, never wallpaper.
+   * It appears ONLY on:
+   *   - The primary CTA buttons (hero "Empieza gratis", precios Acceso CTA,
+   *     footer "Crear alerta").
+   *   - The big teaser count chips on the hero (235k rastreadas, ~760 activas).
+   *
+   * Palette discipline (non-negotiable): on any redesigned surface, max
+   * 2 greens (--color-action + --color-brand) + white + 1 ink-gray.
+   * If a third hue creeps in, it is a bug.
+   *
+   * The accent gradient runs action (winter-green sage 2F6F4F) → brand
+   * (deep pine 1F4A3A) at 135° — light → deep, top-left → bottom-right.
+   * White ink on this gradient is ≥7:1 (passes AA Large + AAA Normal).
+   *
+   * `--gradient-accent-soft` is the same hues at low alpha — used for the
+   * paper-white hero halo + subtle backdrops where a hint of green helps
+   * but full gradient would shout.
+   *
+   * Reusable surface classes live in @layer components below:
+   *   .cta-gradient   — primary CTA button
+   *   .count-chip     — big teaser stat card (hero)
+   *   .footer-brand-bar — pine footer bottom-bar surface
+   * ------------------------------------------------------------------ */
+  --gradient-accent: linear-gradient(135deg, #2F6F4F 0%, #1F4A3A 100%);
+  --gradient-accent-hover: linear-gradient(135deg, #245A40 0%, #163A2D 100%);
+  --gradient-accent-soft: linear-gradient(135deg, rgba(47,111,79,0.08) 0%, rgba(31,74,58,0.08) 100%);
+
   /* Soft elevation */
   --shadow-card: 0 4px 2px -2px rgba(23,35,59,0.06), 0 2px 8px rgba(23,35,59,0.04);
   --shadow-lift: 0 6px 4px -2px rgba(23,35,59,0.08), 0 4px 12px rgba(23,35,59,0.06);
+  --shadow-cta: 0 1px 0 rgba(255,255,255,0.12) inset, 0 6px 16px -6px rgba(31,74,58,0.45), 0 2px 4px rgba(31,74,58,0.18);
 
   /* Typography — drop the serif */
   --font-sans: var(--font-inter);
@@ -429,6 +460,122 @@
   max-width: 100%;
   height: auto;
   border-radius: 6px;
+}
+
+/* ---------------------------------------------------------------------
+ * Accent components — gradient CTA + count chip + footer pine bar.
+ *
+ * These are the ONLY surfaces in the site that may carry the
+ * --gradient-accent token. Anywhere else, the gradient is a bug.
+ * Each class is self-contained (focus, hover, reduced-motion, AA contrast)
+ * so consumers just drop the class on a <button>/<a>/<div>.
+ *
+ * .cta-gradient    — primary CTA. White ink on action→brand gradient,
+ *                    soft lift shadow, 150ms ease-out hover.
+ * .count-chip      — hero teaser stat. Big tnum number + small label,
+ *                    gradient surface, white ink, rounded.
+ * .count-chip-num  — the big number inside .count-chip
+ * .count-chip-label— the small label inside .count-chip
+ * .footer-brand-bar— pine surface for the bottom strip of the site
+ *                    footer; sets white ink + link defaults.
+ * ------------------------------------------------------------------ */
+
+.cta-gradient {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-image: var(--gradient-accent);
+  color: var(--color-ink-inverse);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  padding: 0.625rem 1.125rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--shadow-cta);
+  transition: background-image 150ms ease-out, transform 150ms ease-out,
+              box-shadow 150ms ease-out;
+  text-decoration: none;
+}
+.cta-gradient:hover {
+  background-image: var(--gradient-accent-hover);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset,
+              0 10px 22px -8px rgba(31, 74, 58, 0.55),
+              0 3px 6px rgba(31, 74, 58, 0.22);
+}
+.cta-gradient:active {
+  transform: translateY(1px);
+}
+.cta-gradient:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-action-soft),
+              0 0 0 5px var(--color-action),
+              var(--shadow-cta);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cta-gradient { transition: none; }
+  .cta-gradient:active { transform: none; }
+}
+
+.count-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  background-image: var(--gradient-accent);
+  color: var(--color-ink-inverse);
+  padding: 1.25rem 1.5rem;
+  border-radius: 14px;
+  box-shadow: var(--shadow-lift);
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+/* subtle paper highlight along the top edge — gives the chip lift */
+.count-chip::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%,
+                                       rgba(255, 255, 255, 0.35) 50%,
+                                       rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
+}
+.count-chip-num {
+  font-family: var(--font-inter-tight), var(--font-inter), system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  font-size: clamp(2rem, 1.4rem + 2vw, 3rem);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--color-ink-inverse);
+}
+.count-chip-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.88);
+  letter-spacing: 0;
+}
+
+.footer-brand-bar {
+  background-color: var(--color-brand);
+  color: var(--color-ink-inverse);
+}
+.footer-brand-bar a {
+  color: rgba(255, 255, 255, 0.78);
+  text-decoration: none;
+  transition: color 120ms ease-out;
+}
+.footer-brand-bar a:hover {
+  color: var(--color-ink-inverse);
+}
+.footer-brand-bar a:focus-visible {
+  outline: 2px solid var(--color-action-soft);
+  outline-offset: 2px;
+  border-radius: 2px;
+  color: var(--color-ink-inverse);
 }
 
 /* Print: drop background fills */

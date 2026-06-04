@@ -1,22 +1,30 @@
 "use client";
 
 /**
- * SiteFooter — the single, site-wide footer.
+ * SiteFooter — the single, site-wide persistent footer.
  *
- * Extracted from the home page's inline `<footer>` so every route inherits
- * the same footer via the root layout's SiteChrome wrapper. Visual signature
- * matches the home original (hairline top border, centred quiet text, three
- * subordinate nav links).
+ * Mounted ONCE via `SiteChrome` in the root layout, so every public route
+ * (except /admin) inherits this footer. Do NOT remount it per-page.
  *
- * Live "Datos actualizados…" tag: fetched once per mount from
- * `/api/auctions/stats` so the footer carries the same trust-signal the
- * home page used to render inline. The fetch is silent + cancellable; the
- * label degrades to the home page's "syncing" copy if the API hasn't
- * returned yet.
+ * Layout (P1 conversion redesign, 2026-06-04):
+ *   - Brand block (wordmark + short tagline + primary "Crear alerta" CTA
+ *     on the gradient accent — winter-green sage → deep pine).
+ *   - Four link columns: provinces, tipos, SubastasActivas, Legal.
+ *     All internal links use the CLEAN /subastas/{slug} +
+ *     /subastas/tipo/{slug} URLs (SEO-aligned).
+ *   - Pine brand bar at the bottom carries the live "Datos actualizados…"
+ *     trust tag (fetched once from /api/auctions/stats — same contract as
+ *     the previous quiet footer) + © year + legal microcopy.
  *
- * i18n keys are unchanged (`home.footerTagWithUpdate`, `home.footerTagSyncing`,
- * `home.footerGuides`, `home.footerAuctions`, `home.footerPricing`) so the
- * existing translation strings keep working without a messages-file diff.
+ * Palette discipline: white surface + winter-green accent + pine brand bar
+ * + ink-gray text. No third hue. The gradient is reserved for the CTA only.
+ *
+ * i18n: new keys live under `footer.*` (added 2026-06-04). The original
+ * `home.footerTagWithUpdate` / `home.footerTagSyncing` keys are still used
+ * for the live update tag so the existing translation strings keep working.
+ *
+ * a11y: <footer role="contentinfo"> implicitly. Each column has an aria
+ * label heading. Focus states inherit from globals.css.
  */
 
 import * as React from "react";
@@ -25,9 +33,41 @@ import { useTranslations } from "next-intl";
 import { apiFetch } from "@/lib/api-path";
 import { formatUpdatedDayEs } from "./format";
 
+/**
+ * Top provinces — curated by population + auction volume. These are the
+ * clean canonical slugs (07 §2 SEO URL architecture) that resolve to
+ * `/subastas/{slug}` server-side. They never carry a query string.
+ *
+ * NOTE: keep this list short (8 items). The full 52-province grid lives
+ * on /subastas. The footer is a navigation hint, not an index.
+ */
+const TOP_PROVINCES: ReadonlyArray<{ slug: string; label: string }> = [
+  { slug: "madrid", label: "Madrid" },
+  { slug: "barcelona", label: "Barcelona" },
+  { slug: "valencia", label: "Valencia" },
+  { slug: "sevilla", label: "Sevilla" },
+  { slug: "malaga", label: "Málaga" },
+  { slug: "alicante", label: "Alicante" },
+  { slug: "murcia", label: "Murcia" },
+  { slug: "baleares", label: "Baleares" },
+];
+
+/**
+ * Auction-type links — match the canonical /subastas/tipo/{tipo} slugs
+ * in src/lib/seo/slugs.ts (TIPO_SLUG_TO_DB_KEYS). Plain Spanish labels;
+ * we don't say "BOE" anywhere user-facing per Dennis.
+ */
+const TIPOS: ReadonlyArray<{ slug: string; label: string }> = [
+  { slug: "judicial", label: "Judiciales" },
+  { slug: "hacienda", label: "Hacienda (AEAT)" },
+  { slug: "notarial", label: "Notariales" },
+  { slug: "administrativas", label: "Administrativas" },
+];
+
 export function SiteFooter() {
-  const t = useTranslations("home");
+  const t = useTranslations();
   const [lastUpdateTime, setLastUpdateTime] = React.useState<string | null>(null);
+  const year = new Date().getFullYear();
 
   React.useEffect(() => {
     let cancelled = false;
@@ -40,7 +80,7 @@ export function SiteFooter() {
           setLastUpdateTime(body.data.lastUpdateTime as string);
         }
       } catch {
-        /* silent — footer degrades to "syncing" copy */
+        /* silent — trust tag degrades to "syncing" copy */
       }
     })();
     return () => {
@@ -49,25 +89,182 @@ export function SiteFooter() {
   }, []);
 
   return (
-    <footer className="hairline-t mt-12 py-8 text-center text-xs text-[--color-ink-tertiary]">
-      <p className="tnum">
-        {lastUpdateTime
-          ? t("footerTagWithUpdate", { when: formatUpdatedDayEs(lastUpdateTime) })
-          : t("footerTagSyncing")}
-      </p>
-      <nav className="mt-3 flex items-center justify-center gap-4 text-xs">
-        <Link href="/blog" className="hover:text-[--color-ink-primary]">
-          {t("footerGuides")}
-        </Link>
-        <span aria-hidden>·</span>
-        <Link href="/subastas" className="hover:text-[--color-ink-primary]">
-          {t("footerAuctions")}
-        </Link>
-        <span aria-hidden>·</span>
-        <Link href="/precios" className="hover:text-[--color-ink-primary]">
-          {t("footerPricing")}
-        </Link>
-      </nav>
+    <footer
+      className="hairline-t mt-16 bg-[--color-surface] text-[--color-ink-secondary]"
+      aria-label={t("footer.aria")}
+    >
+      <div className="mx-auto max-w-editorial px-4 md:px-6 py-12 md:py-14">
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-12 md:gap-8">
+          {/* Brand block — sits 5 cols on md+, full-width below */}
+          <div className="md:col-span-5 lg:col-span-4 space-y-4">
+            <Link
+              href="/"
+              className="inline-flex items-center text-[--color-ink-primary] font-display text-xl font-semibold tracking-tight"
+              aria-label={t("footer.brandAria")}
+            >
+              SubastasActivas
+            </Link>
+            <p className="max-w-prose text-sm leading-relaxed text-[--color-ink-secondary]">
+              {t("footer.tagline")}
+            </p>
+            <Link
+              href="/alerts"
+              className="cta-gradient text-sm"
+              aria-label={t("footer.ctaAria")}
+            >
+              {t("footer.ctaLabel")}
+              <span aria-hidden="true">→</span>
+            </Link>
+          </div>
+
+          {/* Link columns — 7 cols on md+, 4 columns inside */}
+          <nav
+            className="md:col-span-7 lg:col-span-8 grid grid-cols-2 gap-8 sm:grid-cols-4"
+            aria-label={t("footer.navAria")}
+          >
+            <div>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-[--color-ink-primary]">
+                {t("footer.colProvincesTitle")}
+              </h2>
+              <ul className="mt-4 space-y-2.5 text-sm">
+                {TOP_PROVINCES.map((p) => (
+                  <li key={p.slug}>
+                    <Link
+                      href={`/subastas/${p.slug}`}
+                      className="text-[--color-ink-secondary] hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:underline underline-offset-4"
+                    >
+                      {p.label}
+                    </Link>
+                  </li>
+                ))}
+                <li className="pt-1">
+                  <Link
+                    href="/subastas"
+                    className="inline-flex items-center gap-1 text-[--color-action] hover:text-[--color-action-hover] font-medium focus-visible:outline-none focus-visible:underline underline-offset-4"
+                  >
+                    {t("footer.allProvinces")}
+                    <span aria-hidden="true">→</span>
+                  </Link>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-[--color-ink-primary]">
+                {t("footer.colTiposTitle")}
+              </h2>
+              <ul className="mt-4 space-y-2.5 text-sm">
+                {TIPOS.map((tipo) => (
+                  <li key={tipo.slug}>
+                    <Link
+                      href={`/subastas/tipo/${tipo.slug}`}
+                      className="text-[--color-ink-secondary] hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:underline underline-offset-4"
+                    >
+                      {tipo.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-[--color-ink-primary]">
+                {t("footer.colProductTitle")}
+              </h2>
+              <ul className="mt-4 space-y-2.5 text-sm">
+                <li>
+                  <Link
+                    href="/blog"
+                    className="text-[--color-ink-secondary] hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:underline underline-offset-4"
+                  >
+                    {t("footer.linkHowItWorks")}
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/precios"
+                    className="text-[--color-ink-secondary] hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:underline underline-offset-4"
+                  >
+                    {t("footer.linkPricing")}
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/alerts"
+                    className="text-[--color-ink-secondary] hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:underline underline-offset-4"
+                  >
+                    {t("footer.linkCreateAlert")}
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/register"
+                    className="text-[--color-ink-secondary] hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:underline underline-offset-4"
+                  >
+                    {t("footer.linkRegister")}
+                  </Link>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-[--color-ink-primary]">
+                {t("footer.colLegalTitle")}
+              </h2>
+              <ul className="mt-4 space-y-2.5 text-sm">
+                <li>
+                  <Link
+                    href="/legal/aviso-legal"
+                    className="text-[--color-ink-secondary] hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:underline underline-offset-4"
+                  >
+                    {t("footer.linkLegalNotice")}
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/legal/privacidad"
+                    className="text-[--color-ink-secondary] hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:underline underline-offset-4"
+                  >
+                    {t("footer.linkPrivacy")}
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/legal/cookies"
+                    className="text-[--color-ink-secondary] hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:underline underline-offset-4"
+                  >
+                    {t("footer.linkCookies")}
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/contacto"
+                    className="text-[--color-ink-secondary] hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:underline underline-offset-4"
+                  >
+                    {t("footer.linkContact")}
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          </nav>
+        </div>
+      </div>
+
+      {/* Brand bar — pine surface, trust tag + © year + legal microcopy.
+          Persistent across the site; degrades to "syncing" copy until
+          /api/auctions/stats returns. */}
+      <div className="footer-brand-bar">
+        <div className="mx-auto max-w-editorial px-4 md:px-6 py-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-xs">
+          <p className="tnum">
+            {lastUpdateTime
+              ? t("home.footerTagWithUpdate", { when: formatUpdatedDayEs(lastUpdateTime) })
+              : t("home.footerTagSyncing")}
+          </p>
+          <p className="text-[rgba(255,255,255,0.7)]">
+            © {year} SubastasActivas · {t("footer.rightsReserved")}
+          </p>
+        </div>
+      </div>
     </footer>
   );
 }

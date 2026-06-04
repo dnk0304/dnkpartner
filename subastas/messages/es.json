@@ -44,6 +44,28 @@
     "footerAuctions": "Subastas",
     "footerPricing": "Precios"
   },
+  "footer": {
+    "aria": "Pie del sitio",
+    "brandAria": "SubastasActivas — inicio",
+    "navAria": "Enlaces del pie de página",
+    "tagline": "Todas las subastas públicas de España, rastreadas a diario.",
+    "ctaLabel": "Crear alerta gratis",
+    "ctaAria": "Crear una alerta gratis",
+    "colProvincesTitle": "Subastas por provincia",
+    "colTiposTitle": "Por tipo",
+    "colProductTitle": "SubastasActivas",
+    "colLegalTitle": "Legal",
+    "allProvinces": "Ver todas las provincias",
+    "linkHowItWorks": "Cómo funciona",
+    "linkPricing": "Precios",
+    "linkCreateAlert": "Crear alerta",
+    "linkRegister": "Crear cuenta",
+    "linkLegalNotice": "Aviso legal",
+    "linkPrivacy": "Privacidad",
+    "linkCookies": "Cookies",
+    "linkContact": "Contacto",
+    "rightsReserved": "Todos los derechos reservados"
+  },
   "login": {
     "welcomeTitle": "Bienvenido de nuevo a SubastasActivas",
     "tagline": "La plataforma de inteligencia para subastas judiciales.",
