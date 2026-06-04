@@ -133,10 +133,21 @@ class BOEParallelScraper(BOEScraper):
             page.goto(detail_url, wait_until='domcontentloaded', timeout=30000)
             random_delay(1.0, 2.0)
             info = self._extract_detail_from_page(page, boe_id, detail_url)
-            info['lote_numbers'] = self._enumerate_lote_numbers(page)
+            lote_numbers = self._enumerate_lote_numbers(page)
             # G2/G3 docs + snapshot on the ver=3 DOM, BEFORE the ver=5 pujas
             # navigation destroys it (own-browser path mirrors the shared path).
             self._capture_documents_and_snapshot(page, boe_id, detail_url, info)
+            # UNCONDITIONAL ver=1 "Información general" activation + financial /
+            # date merge — IDENTICAL semantics to the shared-browser path. This
+            # own-browser override is the AEAT / OTRAS_TRIBUTARIAS / judicial-daily
+            # scraper AND the parent of BOEPreAuctionScraper (the PROXIMA_APERTURA
+            # pass). It previously did NOT activate the tab at all, so the ver=1
+            # financial table (Valor subasta etc.) was never read -> judicial
+            # Tasación=0 had no fallback -> the 96 PA-judicial + 13 OTRAS rows
+            # landed with NULL appraisal. ver=3 capture (lote enum + docs/snapshot)
+            # has already run on the pre-click DOM above, so this cannot regress it.
+            self._merge_general_info_fields(page, boe_id, detail_url, info)
+            info['lote_numbers'] = lote_numbers
             # #16 pujas LAST (own-browser path): same page -> ver=5, after the
             # ver=3 DOM read + lote enumeration + docs/snapshot capture.
             self._attach_pujas(page, boe_id, detail_url, info)

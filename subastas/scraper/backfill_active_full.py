@@ -96,17 +96,17 @@ def status_sweep_sql(cur, conn):
     logger.info("  committed status sweep")
 
 
-def _load_ckpt():
+def _load_ckpt(path=CHECKPOINT):
     try:
-        with open(CHECKPOINT) as f:
+        with open(path) as f:
             return set(json.load(f).get("done", []))
     except Exception:
         return set()
 
 
-def _save_ckpt(done):
+def _save_ckpt(done, path=CHECKPOINT):
     try:
-        with open(CHECKPOINT, "w") as f:
+        with open(path, "w") as f:
             json.dump({"done": sorted(done)}, f)
     except Exception as e:
         logger.warning(f"  checkpoint save failed: {e}")
@@ -114,8 +114,11 @@ def _save_ckpt(done):
 
 def rescrape(conn):
     only_null = "--only-null-endsat" in sys.argv
+    only_null_appr = "--only-null-appraisal" in sys.argv
     if only_null:
         logger.info("--- Re-scrape: CELEBRANDOSE rows with NULL endsAt only ---")
+    elif only_null_appr:
+        logger.info("--- Re-scrape: ACTIVE rows with NULL appraisalValue only ---")
     else:
         logger.info("--- Re-scrape: full active pool ---")
     cur = conn.cursor()
@@ -123,6 +126,21 @@ def rescrape(conn):
         cur.execute(f"""
             SELECT "boeId" FROM "Auction"
             WHERE status = 'CELEBRANDOSE' AND "endsAt" IS NULL
+              AND "boeId" IS NOT NULL
+              AND {LEGACY_EXCLUSION_SQL}
+            ORDER BY "boeId" ASC
+        """)
+    elif only_null_appr:
+        # The "sin tasación" set: ACTIVE rows whose appraisalValue is NULL.
+        # After the ver=1 info-general financial-merge fix, re-fetching these
+        # populates valor_subasta -> the per-row Tasación->Valor-subasta resolve
+        # below writes appraisalValue. Genuinely no-price lotes stay NULL
+        # (honest). Covers the 96 PROXIMA_APERTURA/judicial (incl Dennis's 7
+        # refs) + 13 CELEBRANDOSE/OTRAS_TRIBUTARIAS = ~109 rows.
+        cur.execute(f"""
+            SELECT "boeId" FROM "Auction"
+            WHERE status IN {ACTIVE_STATUSES}
+              AND "appraisalValue" IS NULL
               AND "boeId" IS NOT NULL
               AND {LEGACY_EXCLUSION_SQL}
             ORDER BY "boeId" ASC
@@ -137,7 +155,14 @@ def rescrape(conn):
     boe_ids = [r[0] for r in cur.fetchall()]
     logger.info(f"  {len(boe_ids):,} active rows in scope")
 
-    done = _load_ckpt()
+    # Isolate the appraisal re-fetch on its own checkpoint so a prior full /
+    # endsat run's checkpoint never skips a null-appraisal row (and vice versa).
+    # Still env-overridable via BACKFILL_CHECKPOINT for an explicit shared run.
+    ckpt = CHECKPOINT
+    if only_null_appr and "BACKFILL_CHECKPOINT" not in os.environ:
+        ckpt = "/tmp/backfill_null_appraisal.checkpoint.json"
+
+    done = _load_ckpt(ckpt)
     if done:
         logger.info(f"  resuming: {len(done):,} already done per checkpoint")
     queue = [b for b in boe_ids if b not in done]
@@ -226,13 +251,13 @@ def rescrape(conn):
                 touched += 1
             done.add(boe_id)
             if i % 25 == 0:
-                _save_ckpt(done)
+                _save_ckpt(done, ckpt)
                 logger.info(f"  {i}/{len(queue)} touched={touched} enriched={enriched} swept={swept} failed={failed}")
         except Exception as e:
             failed += 1
             logger.warning(f"  re-scrape failed for {boe_id}: {e}")
             done.add(boe_id)  # don't retry forever; honest failure
-    _save_ckpt(done)
+    _save_ckpt(done, ckpt)
     logger.info(f"  Re-scrape complete: touched={touched} enriched={enriched} swept={swept} failed={failed}")
 
 
@@ -245,7 +270,10 @@ def main():
     if "--status-only" in sys.argv:
         status_sweep_sql(cur, conn)
     cur.close()
-    if "--rescrape" in sys.argv:
+    # --only-null-endsat / --only-null-appraisal imply a re-scrape run, so Ken
+    # can fire the targeted backfill without also passing --rescrape.
+    if any(f in sys.argv for f in
+           ("--rescrape", "--only-null-endsat", "--only-null-appraisal")):
         rescrape(conn)
     conn.close()
 

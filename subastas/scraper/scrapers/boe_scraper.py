@@ -1849,11 +1849,9 @@ class BOEScraper(BaseScraper):
             #   1. enumerate lotes on the freshly-loaded DOM,
             #   2. extract the full detail (prices/bienes/warning) on that SAME
             #      pre-click DOM,
-            #   3. ONLY THEN, if the bidding-window dates are still missing
-            #      (the SIN-FECHA case on umbrella multi-lot pages, whose
-            #      schedule lives behind the general-info tab), activate that tab
-            #      and re-extract — merging the recovered dates WITHOUT clobbering
-            #      the prices/bienes already captured.
+            #   3. ALWAYS activate the ver=1 "Información general" tab and
+            #      re-extract — merging the recovered dates AND financial fields
+            #      WITHOUT clobbering the prices/bienes already captured.
             lote_numbers = self._enumerate_lote_numbers(page)
             info = self._extract_detail_from_page(page, boe_id, detail_url)
             # G2/G3 — documents + snapshot capture on the PRE-CLICK ver=3 DOM,
@@ -1861,15 +1859,18 @@ class BOEScraper(BaseScraper):
             # would lose both the ver=3 verDocumento links and a clean snapshot)
             # and BEFORE the ver=5 pujas navigation (which destroys ver=3).
             self._capture_documents_and_snapshot(page, boe_id, detail_url, info)
-            if info.get('ends_at') is None or info.get('start_at') is None:
-                self._activate_general_info_tab(page)
-                dated = self._extract_detail_from_page(page, boe_id, detail_url)
-                # Merge: prefer the now-present dates/status; keep every other
-                # field from the pre-click extraction (prices/bienes/etc.) since
-                # the tab swap may have blanked them in `dated`.
-                for k in ('start_at', 'ends_at', 'detail_status'):
-                    if info.get(k) is None and dated.get(k) is not None:
-                        info[k] = dated[k]
+            # UNCONDITIONAL ver=1 "Información general" activation. The financial
+            # table (Valor subasta / Tasación / Puja mínima / Importe del depósito
+            # / Cantidad reclamada) lives ONLY on the ver=1 panel, NOT on the
+            # pre-click ver=3 Bienes DOM. The old gate fired this ONLY when a date
+            # was missing — but PROXIMA_APERTURA / judicial pages carry their
+            # dates on ver=3, so ver=1 was never opened and `valor_subasta` was
+            # never read -> judicial Tasación=0 had no fallback -> appraisal NULL
+            # (the 109 "sin tasación" rows). ver=3 capture (lote enum + split +
+            # docs/snapshot) has already run above on the pre-click DOM, so
+            # activating now cannot regress it. Activation is best-effort/swallowed
+            # (single-lot pages where the panel is already active are a no-op).
+            self._merge_general_info_fields(page, boe_id, detail_url, info)
             info['lote_numbers'] = lote_numbers
             # #16 pujas LAST: navigates the same page to ver=5, after the ver=3
             # DOM has been read + lotes enumerated + docs/snapshot captured.
@@ -1896,6 +1897,47 @@ class BOEScraper(BaseScraper):
                 random_delay(1.2, 2.2)
         except Exception as e:
             self.log_warning(f"general-info tab activation skipped: {e}")
+
+    # Financial keys recovered from the ver=1 "Información general" panel. These
+    # live ONLY on ver=1, not the pre-click ver=3 Bienes DOM.
+    _GENERAL_INFO_FINANCIAL_KEYS = (
+        'appraisal_value', 'valor_subasta', 'minimum_bid',
+        'deposit_amount', 'claimed_amount',
+    )
+    # Date/status keys recovered from the same panel (the original SIN-FECHA fix).
+    _GENERAL_INFO_DATE_KEYS = ('start_at', 'ends_at', 'detail_status')
+
+    def _merge_general_info_fields(self, page: Any, boe_id: str,
+                                   detail_url: str,
+                                   info: Dict[str, Optional[str]]) -> None:
+        """Activate the ver=1 "Información general" panel, re-extract, and merge
+        the date AND financial fields into `info` WITHOUT clobbering real ver=3
+        values already captured on the pre-click DOM. Shared by the shared-browser
+        (_navigate_and_extract) and own-browser (BOEParallelScraper override)
+        paths so both have identical merge semantics.
+
+        Merge guards (fill-null-only, never regress a real pre-click value):
+        - dates/status: lift from `dated` only when `info`'s value is None.
+        - financials:   lift only when `info`'s value is falsy (None OR 0) AND
+          `dated`'s value is a real non-zero figure. The (None, 0) guard is what
+          recovers the judicial Tasación=0 case: ver=3 reads Tasación=0, ver=1
+          carries the real "Valor subasta", and we lift it. The "info must be
+          empty/zero" guard prevents the tab swap (which can blank ver=3
+          financials in `dated`) from clobbering a single-lot page whose real
+          prices were already on the pre-click DOM.
+
+        The downstream Tasación -> Valor-subasta resolve (parse_listing ~L851 /
+        backfill per-row) then turns the now-populated `valor_subasta` into the
+        final appraisalValue. Honest-NULL is preserved end to end: if neither
+        ver=3 nor ver=1 carries a price, every key stays None (never coerced)."""
+        self._activate_general_info_tab(page)
+        dated = self._extract_detail_from_page(page, boe_id, detail_url)
+        for k in self._GENERAL_INFO_DATE_KEYS:
+            if info.get(k) is None and dated.get(k) is not None:
+                info[k] = dated[k]
+        for k in self._GENERAL_INFO_FINANCIAL_KEYS:
+            if info.get(k) in (None, 0) and dated.get(k) not in (None, 0):
+                info[k] = dated[k]
 
     def _empty_detail_info(self, boe_id: str) -> Dict[str, Optional[str]]:
         return {
