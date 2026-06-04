@@ -871,7 +871,15 @@ class ScraperScheduler:
             self.log("  Alert check skipped: CRON_SECRET not set")
             return
         try:
-            endpoint = f"{APP_BASE_URL}/subastas/api/alerts/check"
+            # Internal container-to-container (same pattern as DISPATCH_ENDPOINT):
+            # the public domain is behind Cloudflare which 403s server-to-server
+            # box egress, and the app basePath was removed 2026-06-02 so there is
+            # no /subastas/api route anymore. Hit the app over the docker network
+            # on the correct (un-prefixed) path. Override via ALERT_CHECK_ENDPOINT.
+            endpoint = os.getenv(
+                "ALERT_CHECK_ENDPOINT",
+                "http://dnksubastas-app:3005/api/alerts/check",
+            )
             request = urllib.request.Request(
                 endpoint,
                 data=b'{}',
