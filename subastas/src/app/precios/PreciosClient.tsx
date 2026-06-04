@@ -1,29 +1,45 @@
 "use client";
 
 /**
- * PreciosClient — interactive shell for /precios.
+ * PreciosClient — /precios.
+ *
+ * P4 conversion redesign (2026-06-04, Pixel). Clean alertasubastas-style
+ * tier cards, winter-green accent on the recommended plan (cta-gradient
+ * matches the landing hero), prominent "30 días gratis · sin tarjeta"
+ * eyebrow, and a risk-reversal trio between pricing and checkout.
+ *
+ * What did NOT change:
+ *   - The Whop checkout embed (`WhopCheckoutEmbed`) — the `metadata[userId]`
+ *     webhook contract is critical and stays exactly as-is.
+ *   - Tier-aware CTA behavior (already-paid → "Suscripción activa";
+ *     signed-out → /login?callbackUrl=/precios#checkout).
+ *   - i18n namespace `pricing` (added a few new keys; preserved every
+ *     existing key).
  *
  * Layout (top → bottom):
- *   1. ObservatoryHeader (consistent persistent nav)
- *   2. Hero strip — eyebrow + title + lead + trial badge
- *   3. Two-column pricing grid — Free vs Acceso (€5.99 with 30-day trial)
- *   4. Embedded Whop checkout — iframe to plan `plan_c4MzcxWSJP7eT` with
- *      the local userId wired into `metadata[userId]` so the live webhook
- *      can auto-upgrade the user on `membership.activated`. Signed-out
- *      users see a sign-in CTA in place of the embed (we need their userId
- *      to attach to the checkout — see WhopCheckoutEmbed for the contract).
- *   5. FAQ — 4 quick answers (cancel, trial, security, expiry)
- *   6. Footer — match the home page footer pattern
+ *   1. Hero eyebrow + headline + lead + "30 días gratis · sin tarjeta" pill
+ *   2. Two pricing cards — Gratis (quiet) + Acceso (featured, gradient CTA)
+ *   3. Risk-reversal trio — cancel anytime · no card · PCI-DSS Whop
+ *   4. Embedded Whop checkout (#checkout anchor)
+ *   5. FAQ
  *
- * Visual signature: light surface, all-black ink, hairline borders,
- * cursor-pointer on actionable elements — matches the rest of the site.
+ * Palette discipline: max two greens (`--color-action` + `--color-brand`,
+ * carried by `--gradient-accent`) + white + one ink-gray. Gradient is an
+ * accent only — appears on the featured card's CTA and the recommended
+ * badge, nowhere else.
  */
 
 import * as React from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
-import { Check, ArrowRight, ShieldCheck } from "lucide-react";
+import {
+  Check,
+  ArrowRight,
+  ShieldCheck,
+  CreditCard,
+  Sparkles,
+} from "lucide-react";
 import { WhopCheckoutEmbed } from "@/components/pricing/WhopCheckoutEmbed";
 import { cn } from "@/lib/utils";
 
@@ -36,10 +52,9 @@ export default function PreciosClient() {
   const isAuthed = status === "authenticated" && !!user?.id;
   const hasAcceso = (user?.tier ?? "FREE") !== "FREE";
 
-  // Anchor for the "Empezar 30 días gratis" CTA — when authed, it jumps the
-  // user down to the embedded checkout iframe. When signed out, it routes
-  // them to login first with a callbackUrl back to /precios so they land
-  // exactly where they need to be after auth.
+  // Anchor for the "Empezar 30 días gratis" CTA — when authed, jump to the
+  // embedded checkout iframe; signed-out, send to /login with a callback
+  // that lands the user back on the checkout anchor after auth.
   const accesoHref = isAuthed
     ? "#checkout"
     : `/login?callbackUrl=${encodeURIComponent("/precios#checkout")}`;
@@ -49,38 +64,50 @@ export default function PreciosClient() {
       {/* Header + footer come from SiteChrome in the root layout. */}
 
       <main className="mx-auto max-w-editorial px-4 py-10 md:px-6 md:py-14">
-        {/* Hero */}
+        {/* ──────────────────────────────────────────────────────────────
+            Hero — eyebrow, headline, lead, trial pill.
+            ────────────────────────────────────────────────────────────── */}
         <section className="max-w-readable">
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-[--color-ink-tertiary]">
+          <p className="text-xs font-medium uppercase tracking-[0.14em] text-[--color-action]">
             {t("heroEyebrow")}
           </p>
-          <h1 className="mt-3 font-display text-3xl font-semibold leading-tight md:text-4xl">
+          <h1 className="mt-3 font-display text-3xl font-semibold leading-tight tracking-tight md:text-[42px] md:leading-[1.1]">
             {t("heroTitle")}
           </h1>
           <p className="mt-4 text-[15px] leading-relaxed text-[--color-ink-secondary] md:text-base">
             {t("heroLead")}
           </p>
-          <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-[--color-hairline] bg-[--color-surface] px-3 py-1.5">
-            <ShieldCheck
-              className="h-3.5 w-3.5 text-[--color-ink-secondary]"
+
+          {/* "30 días gratis · sin tarjeta" pill — winter-green soft tint,
+              flag-icon prefix, deliberate visual weight so it reads as the
+              core value prop, not decoration. */}
+          <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-[--color-action-soft] px-3.5 py-2">
+            <Sparkles
+              className="h-3.5 w-3.5 text-[--color-action]"
               aria-hidden="true"
             />
-            <span className="text-xs font-medium text-[--color-ink-primary]">
+            <span className="text-xs font-semibold text-[--color-brand]">
               {t("trialBadge")}
+            </span>
+            <span className="text-xs text-[--color-ink-secondary]">
+              · {t("trialSub")}
             </span>
           </div>
         </section>
 
-        {/* Pricing grid — two columns */}
+        {/* ──────────────────────────────────────────────────────────────
+            Pricing — two cards, Acceso featured with gradient CTA.
+            ────────────────────────────────────────────────────────────── */}
         <section
           className="mt-10 grid grid-cols-1 gap-5 md:mt-12 md:grid-cols-2 md:gap-6"
           aria-label={t("heroTitle")}
         >
-          {/* FREE */}
+          {/* GRATIS */}
           <PricingCard
             name={t("freeName")}
             price={t("freePrice")}
             priceSuffix={null}
+            priceMeta={t("freeForever")}
             tagline={t("freeTagline")}
             features={[
               t("freeFeature1"),
@@ -108,6 +135,7 @@ export default function PreciosClient() {
             name={t("accesoName")}
             price={t("accesoPrice")}
             priceSuffix={t("monthlySuffix")}
+            priceMeta={t("billedMonthly")}
             tagline={t("accesoTagline")}
             trialNote={t("accesoTrial")}
             features={[
@@ -124,20 +152,64 @@ export default function PreciosClient() {
                   {t("accesoCtaActive")}
                 </CtaButton>
               ) : isAuthed ? (
-                <CtaButton variant="primary" href={accesoHref}>
+                <CtaButton variant="gradient" href={accesoHref}>
                   {t("accesoCta")}
                   <ArrowRight className="ml-1.5 h-4 w-4" aria-hidden="true" />
                 </CtaButton>
               ) : (
-                <CtaButton variant="primary" href={accesoHref}>
+                <CtaButton variant="gradient" href={accesoHref}>
                   {t("accesoCtaSignedOut")}
+                  <ArrowRight className="ml-1.5 h-4 w-4" aria-hidden="true" />
                 </CtaButton>
               )
             }
           />
         </section>
 
-        {/* Embedded checkout */}
+        {/* ──────────────────────────────────────────────────────────────
+            Risk-reversal trio — 3 columns of trust signals immediately
+            below pricing, above the embedded checkout. Plain inline icons,
+            no surface, no gradient — reads as quiet confidence.
+            ────────────────────────────────────────────────────────────── */}
+        <section
+          aria-labelledby="reassurance-heading"
+          className="mt-12 md:mt-14"
+        >
+          <h2
+            id="reassurance-heading"
+            className="font-display text-xl font-semibold text-[--color-ink-primary] md:text-2xl"
+          >
+            {t("reassuranceTitle")}
+          </h2>
+          <ul className="mt-5 grid grid-cols-1 gap-5 md:mt-6 md:grid-cols-3 md:gap-6">
+            <ReassuranceItem
+              icon={
+                <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+              }
+              title={t("reassurance1Title")}
+              body={t("reassurance1Body")}
+            />
+            <ReassuranceItem
+              icon={
+                <CreditCard className="h-5 w-5" aria-hidden="true" />
+              }
+              title={t("reassurance2Title")}
+              body={t("reassurance2Body")}
+            />
+            <ReassuranceItem
+              icon={
+                <Sparkles className="h-5 w-5" aria-hidden="true" />
+              }
+              title={t("reassurance3Title")}
+              body={t("reassurance3Body")}
+            />
+          </ul>
+        </section>
+
+        {/* ──────────────────────────────────────────────────────────────
+            Embedded checkout — Whop. CONTRACT-CRITICAL: do not alter the
+            WhopCheckoutEmbed props or the metadata[userId] linkage.
+            ────────────────────────────────────────────────────────────── */}
         <section id="checkout" className="mt-14 scroll-mt-24">
           <div className="max-w-readable">
             <h2 className="font-display text-2xl font-semibold">
@@ -167,10 +239,7 @@ export default function PreciosClient() {
                 </p>
                 <Link
                   href={`/login?callbackUrl=${encodeURIComponent("/precios#checkout")}`}
-                  className={cn(
-                    "mt-4 inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-[--color-ink-primary] px-4 py-2 text-sm font-medium text-white",
-                    "hover:bg-[--color-ink-primary]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-ink-primary]/30",
-                  )}
+                  className="cta-gradient mt-4 text-sm px-4 py-2 rounded-md"
                 >
                   {t("checkoutSignInCta")}
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -186,12 +255,15 @@ export default function PreciosClient() {
           </div>
         </section>
 
-        {/* FAQ */}
+        {/* ──────────────────────────────────────────────────────────────
+            FAQ — 4 questions. Unchanged structure; quiet surface so it
+            doesn't compete with the pricing cards or checkout.
+            ────────────────────────────────────────────────────────────── */}
         <section className="mt-16 max-w-readable">
           <h2 className="font-display text-2xl font-semibold">
             {t("faqHeading")}
           </h2>
-          <dl className="mt-6 divide-y divide-[--color-hairline] rounded-lg border border-[--color-hairline] bg-[--color-surface]">
+          <dl className="mt-6 divide-y divide-[--color-hairline] rounded-xl border border-[--color-hairline] bg-[--color-surface]">
             <FaqItem q={t("faqQ1")} a={t("faqA1")} />
             <FaqItem q={t("faqQ2")} a={t("faqA2")} />
             <FaqItem q={t("faqQ3")} a={t("faqA3")} />
@@ -211,6 +283,7 @@ type PricingCardProps = {
   name: string;
   price: string;
   priceSuffix: string | null;
+  priceMeta?: string;
   tagline: string;
   features: string[];
   cta: React.ReactNode;
@@ -223,6 +296,7 @@ function PricingCard({
   name,
   price,
   priceSuffix,
+  priceMeta,
   tagline,
   features,
   cta,
@@ -235,12 +309,15 @@ function PricingCard({
       className={cn(
         "relative flex flex-col rounded-2xl border bg-[--color-surface] p-6 md:p-7",
         featured
-          ? "border-[--color-ink-primary] shadow-[var(--shadow-card)]"
-          : "border-[--color-hairline]",
+          ? "border-[--color-action] ring-1 ring-[--color-action]/30 shadow-[var(--shadow-lift)]"
+          : "border-[--color-hairline] shadow-[var(--shadow-card)]",
       )}
     >
       {featured && badge && (
-        <span className="absolute -top-3 left-6 inline-flex items-center rounded-full bg-[--color-ink-primary] px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-white">
+        <span
+          className="cta-gradient absolute -top-3 left-6 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider rounded-full"
+          style={{ boxShadow: "var(--shadow-cta)" }}
+        >
           {badge}
         </span>
       )}
@@ -255,7 +332,7 @@ function PricingCard({
       </header>
 
       <div className="mt-5 flex items-baseline gap-1.5">
-        <span className="font-display text-4xl font-semibold tnum text-[--color-ink-primary]">
+        <span className="font-display text-[40px] font-semibold leading-none tnum text-[--color-ink-primary]">
           {price}
         </span>
         {priceSuffix && (
@@ -264,8 +341,11 @@ function PricingCard({
           </span>
         )}
       </div>
+      {priceMeta && (
+        <p className="mt-1 text-xs text-[--color-ink-tertiary]">{priceMeta}</p>
+      )}
       {trialNote && (
-        <p className="mt-2 text-xs font-medium text-[--color-ink-secondary]">
+        <p className="mt-2 text-xs font-medium text-[--color-action]">
           {trialNote}
         </p>
       )}
@@ -282,8 +362,8 @@ function PricingCard({
               className={cn(
                 "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full",
                 featured
-                  ? "bg-[--color-ink-primary] text-white"
-                  : "bg-[--color-surface-muted] text-[--color-ink-primary]",
+                  ? "bg-[--color-action] text-white"
+                  : "bg-[--color-action-soft] text-[--color-action]",
               )}
               aria-hidden="true"
             >
@@ -300,16 +380,34 @@ function PricingCard({
 type CtaButtonProps = {
   children: React.ReactNode;
   href?: string;
-  variant: "primary" | "ghost";
+  variant: "primary" | "ghost" | "gradient";
   disabled?: boolean;
 };
 
 function CtaButton({ children, href, variant, disabled }: CtaButtonProps) {
+  // Gradient variant uses the .cta-gradient utility from globals.css —
+  // shared with the landing hero so visual signature stays consistent.
+  if (variant === "gradient" && !disabled) {
+    const cls = "cta-gradient w-full text-sm px-4 py-2.5 rounded-md";
+    if (href) {
+      return (
+        <Link href={href} className={cls}>
+          {children}
+        </Link>
+      );
+    }
+    return (
+      <button type="button" className={cls}>
+        {children}
+      </button>
+    );
+  }
+
   const classes = cn(
     "inline-flex w-full items-center justify-center rounded-md px-4 py-2.5 text-sm font-medium transition-colors",
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-ink-primary]/30",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-action]/40",
     variant === "primary" && !disabled
-      ? "cursor-pointer bg-[--color-ink-primary] text-white hover:bg-[--color-ink-primary]/90"
+      ? "cursor-pointer bg-[--color-action] text-white hover:bg-[--color-action-hover]"
       : "",
     variant === "ghost" && !disabled
       ? "cursor-pointer border border-[--color-hairline] bg-transparent text-[--color-ink-primary] hover:bg-[--color-surface-muted]"
@@ -320,7 +418,7 @@ function CtaButton({ children, href, variant, disabled }: CtaButtonProps) {
   );
   if (disabled || !href) {
     return (
-      <button type="button" disabled className={classes}>
+      <button type="button" disabled={disabled} className={classes}>
         {children}
       </button>
     );
@@ -329,6 +427,31 @@ function CtaButton({ children, href, variant, disabled }: CtaButtonProps) {
     <Link href={href} className={classes}>
       {children}
     </Link>
+  );
+}
+
+type ReassuranceItemProps = {
+  icon: React.ReactNode;
+  title: string;
+  body: string;
+};
+
+function ReassuranceItem({ icon, title, body }: ReassuranceItemProps) {
+  return (
+    <li className="flex flex-col gap-2">
+      <span
+        className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[--color-action-soft] text-[--color-action]"
+        aria-hidden="true"
+      >
+        {icon}
+      </span>
+      <p className="text-sm font-semibold text-[--color-ink-primary]">
+        {title}
+      </p>
+      <p className="text-sm leading-relaxed text-[--color-ink-secondary]">
+        {body}
+      </p>
+    </li>
   );
 }
 

@@ -79,10 +79,19 @@ type Stats = {
   activeProperties?: number;
   activeVehicles?: number;
   activeOtros?: number;
-  // P3 teasing-hero chip — auctions whose publishedAt landed on/after the 1st
-  // of the current month. Optional so the hero degrades gracefully if the
-  // stats API hasn't been redeployed with this field yet.
+  // Legacy hero chip — auctions whose publishedAt landed on/after the 1st
+  // of the current month. PRESERVED for back-compat; hero now reads
+  // `newLast30DaysCount` (rolling 30d) so the chip never resets to ~0 at a
+  // month boundary.
   newThisMonthCount?: number;
+  // Wave61 hero chip (rolling) — auctions WE ingested in the last 30 days.
+  // Always-fresh number for the "Nuevas · últimos 30 días" stat card.
+  newLast30DaysCount?: number;
+  // Wave61 honest grand total — COUNT(*) over Auction with NO filters.
+  // The "auctions we've ever tracked" number for the "Rastreadas" chip
+  // (~235.767), distinct from `totalAuctions` (~198k, cleanly-categorized
+  // province-valid subset).
+  totalTrackedAll?: number;
 };
 
 export default function HomeObservatory() {
@@ -211,7 +220,11 @@ export default function HomeObservatory() {
           >
             <li className="count-chip">
               <span className="count-chip-num">
-                {stats ? formatNumber(stats.totalAuctions) : "—"}
+                {typeof stats?.totalTrackedAll === "number"
+                  ? formatNumber(stats.totalTrackedAll)
+                  : stats
+                  ? formatNumber(stats.totalAuctions)
+                  : "—"}
               </span>
               <span className="count-chip-label">
                 {t("heroChipTrackedLabel")}
@@ -235,7 +248,9 @@ export default function HomeObservatory() {
             </li>
             <li className="count-chip">
               <span className="count-chip-num">
-                {typeof stats?.newThisMonthCount === "number"
+                {typeof stats?.newLast30DaysCount === "number"
+                  ? formatNumber(stats.newLast30DaysCount)
+                  : typeof stats?.newThisMonthCount === "number"
                   ? formatNumber(stats.newThisMonthCount)
                   : "—"}
               </span>
