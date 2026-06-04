@@ -37,9 +37,11 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Calculate 15-day trial period
+    // Calculate 30-day trial period (Dennis 2026-06-04, freemium gate).
+    // Constant lives in src/lib/access.ts (TRIAL_DAYS).
+    const { TRIAL_DAYS } = await import('@/lib/access');
     const now = new Date();
-    const trialEnd = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000); // 15 days from now
+    const trialEnd = new Date(now.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
 
     // Generate user ID
     const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -71,7 +73,7 @@ export async function POST(request: NextRequest) {
           tier: 'FREE',
           trialEndDate: trialEnd.toISOString(),
         },
-        message: '🎉 Account created! You have 15 days of free access to active auctions.',
+        message: `Account created. You have ${TRIAL_DAYS} days of free access.`,
       },
       { status: 201 }
     );

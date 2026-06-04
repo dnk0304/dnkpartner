@@ -16,6 +16,7 @@ import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { boeLinkFor } from '@/lib/boe-link';
 import { publicPathForDocId } from '@/lib/auction-docs/storage';
+import { getAccessState } from '@/lib/access';
 
 export async function GET(
   _req: NextRequest,
@@ -70,11 +71,13 @@ export async function GET(
   ]);
 
   let isFollowing = false;
+  let viewerUserId: string | undefined;
   try {
     const session = await auth();
-    if (session?.user?.id) {
+    viewerUserId = session?.user?.id;
+    if (viewerUserId) {
       const f = await prisma.favorite.findUnique({
-        where: { userId_auctionId: { userId: session.user.id, auctionId: id } },
+        where: { userId_auctionId: { userId: viewerUserId, auctionId: id } },
         select: { id: true },
       });
       isFollowing = !!f;
@@ -82,6 +85,17 @@ export async function GET(
   } catch {
     // Session lookup failure shouldn't break the public detail load.
   }
+
+  // Freemium gate (2026-06-04): when the caller is not trial-active or
+  // paid-active, the API projects out the fields that constitute "opening
+  // the auction's full info" (Dennis boundary). Teaser fields (title, type,
+  // province, municipality, status, headline figure, description snippet)
+  // stay in the payload so SSR + the public teaser block can render them.
+  // The detail page page.tsx ALSO already SSRs those teaser fields against
+  // the DB directly — this projection is the API-layer belt-and-braces so
+  // a non-qualifying client cannot scrape sensitive intel via the JSON API.
+  const access = await getAccessState();
+  const fullAccess = access.hasFullAccess;
 
   // Derive the per-auction BOE URL at projection time so the detail page
   // never falls back to the BOE homepage when `boeLink` is NULL (only 630
@@ -140,13 +154,89 @@ export async function GET(
     documents,
   };
 
+  // Freemium projection — strip gated fields when caller lacks full access.
+  // Field set is EXACTLY the brief's GATED list:
+  //   exact address + precise location, full financials beyond the headline,
+  //   documents / edicto / BOE link detail, court/expediente, contact panel.
+  // PUBLIC teaser fields stay: title, category, province, municipality,
+  // status, auctionType, propertyType, publishedAt, opensAt, endsAt,
+  // appraisalValue (the headline tasacion shown on the card),
+  // description snippet.
+  if (!fullAccess) {
+    const teaserDescription = (() => {
+      const src =
+        projectedAuction.propertyDescription ||
+        projectedAuction.lotDescription ||
+        projectedAuction.boeAnnouncement ||
+        '';
+      if (!src) return null;
+      const trimmed = String(src).trim();
+      if (trimmed.length <= 280) return trimmed;
+      return trimmed.slice(0, 277).trimEnd() + '…';
+    })();
+    Object.assign(projectedAuction, {
+      // Location detail — keep province/municipality (teaser), strip the
+      // exact address + map coordinates.
+      address: null,
+      latitude: null,
+      longitude: null,
+      mapUrl: null,
+      streetViewUrl: null,
+      placeUrl: null,
+      directionsUrl: null,
+      // Documents / edicto / BOE detail link — full gating.
+      edictUrl: null,
+      pdfUrl: null,
+      boeLink: null,
+      documents: [],
+      // Bien detail beyond municipality/province.
+      postalCode: null,
+      idufir: null,
+      registryInscription: null,
+      legalTitle: null,
+      bienLocalidad: null,
+      bienProvincia: null,
+      // Court / expediente / contact-panel intel.
+      courtName: null,
+      courtReference: null,
+      procedureNumber: null,
+      registryId: null,
+      registryInfo: null,
+      contactInfo: null,
+      auctionId: null,
+      lotNumber: null,
+      boeAnnouncement: null,
+      cadastralRef: null,
+      cadastralData: null,
+      // Full financials — keep appraisalValue (the headline tasacion shown
+      // on the card) and valorSubasta (already on the card too); strip the
+      // gated breakdown (currentBid, minimum, deposit, increment, claim,
+      // final bid).
+      currentBid: null,
+      minimumBid: null,
+      depositAmount: null,
+      bidIncrement: null,
+      claimedAmount: null,
+      finalBid: null,
+      currentBidAmount: null,
+      // Property description: replace with a clamped snippet (the teaser).
+      propertyDescription: teaserDescription,
+      lotDescription: null,
+    });
+  }
+
   return NextResponse.json({
     success: true,
     data: {
       auction: projectedAuction,
-      history: { statuses: statusHistory, bids: bidHistory },
+      history: fullAccess
+        ? { statuses: statusHistory, bids: bidHistory }
+        : { statuses: [], bids: [] },
       followCount: auction.favoriteCount,
       isFollowing,
+      // Surface the gate state so the client can render the wall without a
+      // second fetch. Never includes user PII.
+      access: { hasFullAccess: fullAccess, state: access.state },
     },
   });
 }
