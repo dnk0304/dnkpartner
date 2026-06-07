@@ -1,20 +1,75 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none">
-  <rect width="800" height="600" fill="#f8fafc"/>
-  <!-- Cargo box -->
-  <rect x="120" y="220" width="380" height="220" rx="10" fill="#cbd5f5"/>
-  <rect x="140" y="240" width="340" height="180" rx="6" fill="#e2e8f0"/>
-  <line x1="310" y1="240" x2="310" y2="420" stroke="#94a3b8" stroke-width="4"/>
-  <!-- Cab -->
-  <path d="M500 440 V300 C500 285 512 270 528 270 H610 L680 350 V440 Z" fill="#94a3b8"/>
-  <rect x="540" y="290" width="120" height="60" rx="6" fill="#e2e8f0"/>
-  <!-- Chassis bar -->
-  <rect x="120" y="440" width="560" height="20" rx="4" fill="#475569"/>
-  <!-- Wheels -->
-  <circle cx="220" cy="470" r="36" fill="#1f2937"/>
-  <circle cx="220" cy="470" r="16" fill="#9ca3af"/>
-  <circle cx="380" cy="470" r="36" fill="#1f2937"/>
-  <circle cx="380" cy="470" r="16" fill="#9ca3af"/>
-  <circle cx="600" cy="470" r="36" fill="#1f2937"/>
-  <circle cx="600" cy="470" r="16" fill="#9ca3af"/>
-  <text x="400" y="540" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" fill="#64748b">Camión</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none" role="img" aria-label="Camión">
+  <defs>
+    <linearGradient id="bgTruck" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#eef7f1"/>
+      <stop offset="100%" stop-color="#dbece2"/>
+    </linearGradient>
+    <linearGradient id="cabTruck" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1f5d3a"/>
+      <stop offset="100%" stop-color="#0f3320"/>
+    </linearGradient>
+    <linearGradient id="boxTruck" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f7fbf8"/>
+      <stop offset="100%" stop-color="#cfddd4"/>
+    </linearGradient>
+    <linearGradient id="glassTruck" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#cfe4d8"/>
+      <stop offset="100%" stop-color="#9fc4b0"/>
+    </linearGradient>
+    <linearGradient id="rimTruck" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e6efe9"/>
+      <stop offset="100%" stop-color="#9fb4a6"/>
+    </linearGradient>
+    <radialGradient id="shadowTruck" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#0f3320" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#0f3320" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#bgTruck)"/>
+  <ellipse cx="400" cy="498" rx="300" ry="22" fill="url(#shadowTruck)"/>
+  <!-- cargo box -->
+  <path d="M80 200
+           H440
+           C448 200 454 206 454 214
+           V450
+           H80
+           Z" fill="url(#boxTruck)"/>
+  <!-- box panel lines -->
+  <line x1="180" y1="210" x2="180" y2="440" stroke="#a8bcaf" stroke-width="2"/>
+  <line x1="280" y1="210" x2="280" y2="440" stroke="#a8bcaf" stroke-width="2"/>
+  <line x1="380" y1="210" x2="380" y2="440" stroke="#a8bcaf" stroke-width="2"/>
+  <!-- box top shadow -->
+  <rect x="80" y="200" width="374" height="16" fill="#0f3320" opacity="0.18"/>
+  <!-- cab -->
+  <path d="M454 268
+           V450
+           H704
+           V370
+           L660 290
+           C652 276 640 268 624 268
+           Z"
+        fill="url(#cabTruck)"/>
+  <!-- windshield -->
+  <path d="M512 296
+           H628
+           L656 348
+           H512 Z"
+        fill="url(#glassTruck)"/>
+  <!-- door -->
+  <rect x="464" y="296" width="38" height="120" rx="4" fill="#0f3320" opacity="0.6"/>
+  <rect x="468" y="370" width="30" height="6" rx="2" fill="#cde0d4" opacity="0.8"/>
+  <!-- headlight -->
+  <rect x="694" y="396" width="14" height="14" rx="2" fill="#fff5c8"/>
+  <!-- chassis bar -->
+  <rect x="64" y="450" width="640" height="14" rx="3" fill="#0a2517"/>
+  <!-- wheels -->
+  <circle cx="160" cy="470" r="44" fill="#0a2517"/>
+  <circle cx="160" cy="470" r="22" fill="url(#rimTruck)"/>
+  <circle cx="160" cy="470" r="7" fill="#475e52"/>
+  <circle cx="360" cy="470" r="44" fill="#0a2517"/>
+  <circle cx="360" cy="470" r="22" fill="url(#rimTruck)"/>
+  <circle cx="360" cy="470" r="7" fill="#475e52"/>
+  <circle cx="600" cy="470" r="44" fill="#0a2517"/>
+  <circle cx="600" cy="470" r="22" fill="url(#rimTruck)"/>
+  <circle cx="600" cy="470" r="7" fill="#475e52"/>
 </svg>

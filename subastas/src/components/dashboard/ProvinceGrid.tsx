@@ -159,12 +159,90 @@ export function ProvinceGrid({ provinceCounts, onProvinceClick, onMunicipalityCl
     }
   };
   
+  // Wave C3b (2026-06-07): aggregate total + per-bucket totals so the
+  // heading can surface a "Total subastas" counter and the badge colors get
+  // an explicit legend. We sum from `provinceCounts` (already passed in by
+  // HomeObservatory) so this stays presentational — no extra fetch.
+  const aggregateTotals = useMemo(() => {
+    let active = 0;
+    let preAuction = 0;
+    let finished = 0;
+    let total = 0;
+    for (const v of Object.values(provinceCounts)) {
+      active += v.active || 0;
+      preAuction += v.preAuction || 0;
+      finished += v.finished || 0;
+      total += v.total || 0;
+    }
+    // `total` may not include `finished` in every payload; fall back to the
+    // sum-of-buckets if the explicit total reads suspiciously low.
+    const bucketSum = active + preAuction + finished;
+    return {
+      active,
+      preAuction,
+      finished,
+      total: Math.max(total, bucketSum),
+    };
+  }, [provinceCounts]);
+
+  const formatNumber = (n: number) => n.toLocaleString('es-ES');
+
   return (
     <div className="bg-white py-8 border-t border-gray-200 mt-12">
       <div className="max-w-7xl mx-auto">
-        <h3 className="text-xl font-bold mb-6 text-gray-900 px-2">
-          Buscar subastas por provincia
-        </h3>
+        {/* Heading row (Wave C3b, 2026-06-07): explicit legend explains the
+            three coloured badges next to each province, and the total counter
+            gives an at-a-glance sense of the tracked dataset size. */}
+        <div className="px-2 mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+          <h3 className="text-xl font-bold text-gray-900">
+            Buscar subastas por provincia
+          </h3>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            {/* Legend — colour-coded dots match the badges below. Each dot is
+                aria-hidden; the label carries the meaning for screen
+                readers. */}
+            <ul
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600"
+              aria-label="Leyenda de estados"
+            >
+              <li className="inline-flex items-center gap-1.5">
+                <span
+                  aria-hidden="true"
+                  className="inline-block h-2 w-2 rounded-full bg-green-500"
+                />
+                Activas
+              </li>
+              <li className="inline-flex items-center gap-1.5">
+                <span
+                  aria-hidden="true"
+                  className="inline-block h-2 w-2 rounded-full bg-amber-500"
+                />
+                Próximas
+              </li>
+              <li className="inline-flex items-center gap-1.5">
+                <span
+                  aria-hidden="true"
+                  className="inline-block h-2 w-2 rounded-full bg-gray-400"
+                />
+                Finalizadas
+              </li>
+            </ul>
+            {/* Total counter — pulled from the same provinceCounts payload
+                so the number always matches the per-row badges. tnum keeps
+                the digits aligned. */}
+            <div
+              className="inline-flex items-baseline gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1"
+              aria-label={`Total de subastas registradas: ${aggregateTotals.total}`}
+            >
+              <span className="text-[10px] uppercase tracking-wide text-gray-500">
+                Total subastas
+              </span>
+              <span className="tnum text-sm font-semibold text-gray-900">
+                {formatNumber(aggregateTotals.total)}
+              </span>
+            </div>
+          </div>
+        </div>
         
         {/* Province list in columns */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-2">

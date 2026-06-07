@@ -1,13 +1,84 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none">
-  <rect width="800" height="600" fill="#f8fafc"/>
-  <rect x="140" y="260" width="420" height="160" rx="12" fill="#94a3b8"/>
-  <rect x="560" y="300" width="100" height="120" rx="12" fill="#cbd5f5"/>
-  <rect x="180" y="290" width="120" height="60" rx="8" fill="#e2e8f0"/>
-  <circle cx="240" cy="450" r="38" fill="#1f2937"/>
-  <circle cx="520" cy="450" r="38" fill="#1f2937"/>
-  <circle cx="620" cy="450" r="28" fill="#1f2937"/>
-  <circle cx="240" cy="450" r="16" fill="#9ca3af"/>
-  <circle cx="520" cy="450" r="16" fill="#9ca3af"/>
-  <circle cx="620" cy="450" r="10" fill="#9ca3af"/>
-  <text x="400" y="520" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" fill="#64748b">Veh�culo Industrial</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none" role="img" aria-label="Vehículo industrial">
+  <defs>
+    <linearGradient id="bgInd" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#eef7f1"/>
+      <stop offset="100%" stop-color="#dbece2"/>
+    </linearGradient>
+    <linearGradient id="armInd" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f0c63a"/>
+      <stop offset="100%" stop-color="#b78a1e"/>
+    </linearGradient>
+    <linearGradient id="bodyInd" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1f5d3a"/>
+      <stop offset="100%" stop-color="#0f3320"/>
+    </linearGradient>
+    <linearGradient id="cabInd" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f0c63a"/>
+      <stop offset="100%" stop-color="#c69a26"/>
+    </linearGradient>
+    <linearGradient id="glassInd" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#cfe4d8"/>
+      <stop offset="100%" stop-color="#9fc4b0"/>
+    </linearGradient>
+    <radialGradient id="shadowInd" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#0f3320" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#0f3320" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#bgInd)"/>
+  <ellipse cx="400" cy="500" rx="290" ry="20" fill="url(#shadowInd)"/>
+  <!-- excavator boom (back arm) -->
+  <path d="M500 250 L640 130 L680 150 L540 280 Z" fill="url(#armInd)" stroke="#7a5f12" stroke-width="2"/>
+  <!-- bucket -->
+  <path d="M620 110
+           L730 90
+           L740 150
+           L700 170
+           L660 158
+           Z"
+        fill="url(#armInd)" stroke="#7a5f12" stroke-width="2"/>
+  <!-- bucket teeth -->
+  <path d="M650 158 L646 178 L660 168 L658 184 L676 170 L678 188 L692 172 L696 188 L710 174" stroke="#7a5f12" stroke-width="3" fill="none"/>
+  <!-- pivot joint -->
+  <circle cx="500" cy="250" r="14" fill="#2a3530"/>
+  <!-- cab -->
+  <path d="M270 230
+           H440
+           C448 230 454 236 454 244
+           V360
+           H262
+           V244
+           C262 236 270 230 270 230 Z"
+        fill="url(#cabInd)"/>
+  <rect x="282" y="246" width="156" height="80" rx="4" fill="url(#glassInd)"/>
+  <line x1="358" y1="246" x2="358" y2="326" stroke="#0f3320" stroke-width="3"/>
+  <!-- body/chassis -->
+  <path d="M150 360 H580 L600 420 H140 Z" fill="url(#bodyInd)"/>
+  <rect x="160" y="372" width="60" height="36" rx="4" fill="#2a7a4d"/>
+  <rect x="240" y="372" width="60" height="36" rx="4" fill="#2a7a4d"/>
+  <!-- tracks -->
+  <rect x="110" y="420" width="540" height="56" rx="14" fill="#0a2517"/>
+  <rect x="120" y="432" width="520" height="32" rx="6" fill="#1a2722"/>
+  <!-- track teeth -->
+  <g fill="#0a2517">
+    <rect x="140" y="432" width="8" height="32"/>
+    <rect x="172" y="432" width="8" height="32"/>
+    <rect x="204" y="432" width="8" height="32"/>
+    <rect x="236" y="432" width="8" height="32"/>
+    <rect x="268" y="432" width="8" height="32"/>
+    <rect x="300" y="432" width="8" height="32"/>
+    <rect x="332" y="432" width="8" height="32"/>
+    <rect x="364" y="432" width="8" height="32"/>
+    <rect x="396" y="432" width="8" height="32"/>
+    <rect x="428" y="432" width="8" height="32"/>
+    <rect x="460" y="432" width="8" height="32"/>
+    <rect x="492" y="432" width="8" height="32"/>
+    <rect x="524" y="432" width="8" height="32"/>
+    <rect x="556" y="432" width="8" height="32"/>
+    <rect x="588" y="432" width="8" height="32"/>
+    <rect x="620" y="432" width="8" height="32"/>
+  </g>
+  <!-- drive wheels -->
+  <circle cx="170" cy="448" r="22" fill="#3a4e44" stroke="#0a2517" stroke-width="3"/>
+  <circle cx="590" cy="448" r="22" fill="#3a4e44" stroke="#0a2517" stroke-width="3"/>
 </svg>

@@ -1,10 +1,74 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none">
-  <rect width="800" height="600" fill="#f8fafc"/>
-  <rect x="200" y="260" width="400" height="140" rx="16" fill="#cbd5f5"/>
-  <rect x="260" y="230" width="280" height="60" rx="12" fill="#94a3b8"/>
-  <circle cx="280" cy="430" r="34" fill="#1f2937"/>
-  <circle cx="520" cy="430" r="34" fill="#1f2937"/>
-  <circle cx="280" cy="430" r="14" fill="#9ca3af"/>
-  <circle cx="520" cy="430" r="14" fill="#9ca3af"/>
-  <text x="400" y="520" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" fill="#64748b">Veh�culo</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none" role="img" aria-label="Vehículo">
+  <defs>
+    <linearGradient id="bgGen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#eef7f1"/>
+      <stop offset="100%" stop-color="#dbece2"/>
+    </linearGradient>
+    <linearGradient id="bodyGen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1f5d3a"/>
+      <stop offset="55%" stop-color="#16472c"/>
+      <stop offset="100%" stop-color="#0f3320"/>
+    </linearGradient>
+    <linearGradient id="glassGen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#cfe4d8"/>
+      <stop offset="100%" stop-color="#9fc4b0"/>
+    </linearGradient>
+    <linearGradient id="hubGen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e6efe9"/>
+      <stop offset="100%" stop-color="#b6c9be"/>
+    </linearGradient>
+    <radialGradient id="shadowGen" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#0f3320" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#0f3320" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#bgGen)"/>
+  <ellipse cx="400" cy="495" rx="290" ry="22" fill="url(#shadowGen)"/>
+  <!-- SUV/crossover silhouette -->
+  <path d="M110 410
+           C110 360 140 340 190 332
+           L240 252
+           C262 226 296 212 332 212
+           H498
+           C534 212 568 226 590 252
+           L640 332
+           C690 340 700 360 705 392
+           L710 432
+           C712 452 696 466 676 466
+           H130
+           C114 466 106 454 106 438 Z"
+        fill="url(#bodyGen)"/>
+  <path d="M126 408 L700 408" stroke="#2a7a4d" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  <!-- windows -->
+  <path d="M270 320
+           C282 286 312 262 348 262
+           H440
+           C476 262 498 282 510 320
+           Z"
+        fill="url(#glassGen)"/>
+  <path d="M520 320
+           L592 320
+           C602 320 608 312 602 302
+           L578 268
+           C570 258 558 252 546 252
+           H516
+           Z"
+        fill="url(#glassGen)" opacity="0.92"/>
+  <rect x="506" y="262" width="6" height="56" rx="2" fill="#0f3320"/>
+  <!-- door handles -->
+  <rect x="350" y="380" width="46" height="6" rx="3" fill="#cde0d4" opacity="0.7"/>
+  <rect x="466" y="380" width="46" height="6" rx="3" fill="#cde0d4" opacity="0.7"/>
+  <!-- lights -->
+  <path d="M114 388 H160 C170 388 174 392 174 400 V408 H110 V398 C110 392 112 388 114 388 Z" fill="#fff5c8"/>
+  <path d="M690 388 H644 C634 388 630 392 630 400 V408 H704 V398 C704 392 700 388 696 388 Z" fill="#e15555"/>
+  <!-- wheel arches -->
+  <path d="M160 466 A72 72 0 0 1 304 466 Z" fill="#0a2517"/>
+  <path d="M504 466 A72 72 0 0 1 648 466 Z" fill="#0a2517"/>
+  <!-- wheels -->
+  <circle cx="232" cy="474" r="52" fill="#0a2517"/>
+  <circle cx="576" cy="474" r="52" fill="#0a2517"/>
+  <circle cx="232" cy="474" r="30" fill="url(#hubGen)"/>
+  <circle cx="576" cy="474" r="30" fill="url(#hubGen)"/>
+  <circle cx="232" cy="474" r="9" fill="#475e52"/>
+  <circle cx="576" cy="474" r="9" fill="#475e52"/>
 </svg>

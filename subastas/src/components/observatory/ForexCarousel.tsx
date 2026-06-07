@@ -1013,10 +1013,11 @@ function ExpandedCard({
         )}
       </div>
 
-      {/* Content padding tightened p-2.5 → p-2 (Wave C1b). Combined with the
-          16:10 image aspect above this yields a ~10% shorter compact card
-          without touching the price-grid font sizes (legibility wins). */}
-      <div className="p-2 flex flex-col gap-1 min-w-0">
+      {/* Wave C3b (2026-06-07): info area halved per Dennis. Padding tightened
+          (p-2 → px-2 py-1.5), gap (gap-1 → gap-0.5), vehicle year + location
+          folded onto a single caption row, price grid replaced with inline
+          rows. The whole block now lands at ~50% of the previous height. */}
+      <div className="px-2 py-1.5 flex flex-col gap-0.5 min-w-0">
         {/* Headline = "{Tipo} en {dirección}" / "{Tipo} en {town}" (address-
             led, Wave C1b 2026-06-07). The vehicle path uses municipality only
             (BOE depot codes aren't user-meaningful). Never the BOE ref. We
@@ -1024,19 +1025,17 @@ function ExpandedCard({
             line-clamp-2 keeps card height stable; truncated tail is shown on
             hover via the native title attribute. */}
         <div
-          className="text-[13px] font-semibold text-[--color-ink-primary] line-clamp-2 leading-snug"
+          className="text-[12.5px] font-semibold text-[--color-ink-primary] line-clamp-2 leading-snug"
           title={cardHeadline}
         >
           {cardHeadline}
         </div>
-        {/* Vehicle subtitle — año from primera matriculación. (Wave C3.) */}
-        {isVehicleRow && auction.vehicleYear && (
-          <div className="text-[10.5px] text-[--color-ink-tertiary] tnum">
-            {auction.vehicleYear}
-          </div>
-        )}
-        {where && (
-          <div className="text-[11px] text-[--color-ink-tertiary] truncate">
+        {/* Vehicle año + location collapse onto one caption row so the
+            post-title meta is a single short line. */}
+        {((isVehicleRow && auction.vehicleYear) || where) && (
+          <div className="text-[10px] text-[--color-ink-tertiary] tnum truncate">
+            {isVehicleRow && auction.vehicleYear ? auction.vehicleYear : null}
+            {isVehicleRow && auction.vehicleYear && where ? " · " : null}
             {where}
           </div>
         )}
@@ -1056,7 +1055,7 @@ function ExpandedCard({
           // PROXIMA: single "Próxima apertura …" line, NO countdown, NO end.
           if (dateLabel === "Próxima apertura") {
             return (
-              <div className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[10.5px] text-[--color-ink-secondary]">
+              <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0 text-[10px] text-[--color-ink-secondary]">
                 <span className="tnum">
                   <span className="text-[--color-ink-tertiary]">Próxima apertura</span>
                   {opensLabel ? (
@@ -1071,7 +1070,7 @@ function ExpandedCard({
           // SUSPENDIDA: single "Reanudación …" line.
           if (dateLabel === "Fecha prevista de reanudación") {
             return (
-              <div className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[10.5px] text-[--color-ink-secondary]">
+              <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0 text-[10px] text-[--color-ink-secondary]">
                 <span className="tnum">
                   <span className="text-[--color-ink-tertiary]">Reanudación</span>
                   {resumeLabel ? (
@@ -1122,65 +1121,51 @@ function ExpandedCard({
             </div>
           );
         })()}
-        <div className="grid grid-cols-2 gap-x-2 gap-y-1 pt-1 border-t border-[--color-hairline]">
+        {/* Wave C3b (2026-06-07): inline price rows replace the 2-col grid
+            so the price block is ~50% the previous height. Each present
+            value reads as a single short row: tiny label left, number right.
+            First line is the prominent number, the rest muted secondary. */}
+        <div className="pt-1 border-t border-[--color-hairline] flex flex-col gap-0.5">
           {noPriceData && (
-            <div className="col-span-2 min-w-0">
-              <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
+            <div className="flex items-baseline justify-between gap-2 min-w-0">
+              <span className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary] truncate">
                 {isVariosLotes ? "Varios lotes" : "Precio"}
-              </div>
-              <div className="text-[12px] font-medium text-[--color-ink-secondary]">
-                Precio no disponible
-              </div>
+              </span>
+              <span className="text-[11px] font-medium text-[--color-ink-secondary] shrink-0">
+                No disponible
+              </span>
             </div>
           )}
-          {/* Three labelled values — Tasación + Valor subasta + Cantidad
-              reclamada. Each cell is OMITTED when its field is null/≤0
-              (honest-NULL). With 1 value it spans the row; with 2 it shares
-              the 2-col grid; with 3 the third drops to a full-width row
-              underneath so labels never wrap. The first present line reads
-              as the prominent number; the rest are slightly muted. */}
           {priceLines.map((line, i) => {
-            // Layout: 1 line → col-span-2; 2 lines → left-aligned / right-
-            // aligned in 2-col grid; 3 lines → first two share row, third
-            // spans the row below.
-            const total = priceLines.length;
-            let cellClass = 'min-w-0';
-            if (total === 1) cellClass += ' col-span-2';
-            else if (total === 2 && i === 1) cellClass += ' text-right';
-            else if (total === 3 && i === 2) cellClass += ' col-span-2';
             const isHeadline = i === 0;
             return (
-              <div key={line.key} className={cellClass}>
-                <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
+              <div key={line.key} className="flex items-baseline justify-between gap-2 min-w-0">
+                <span className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary] truncate">
                   {line.label}
-                </div>
-                <div
+                </span>
+                <span
                   className={cn(
-                    'tnum font-semibold truncate',
+                    "tnum font-semibold shrink-0",
                     isHeadline
-                      ? 'text-[15px] text-[--color-ink-primary]'
-                      : 'text-[13px] text-[--color-ink-secondary]',
+                      ? "text-[13.5px] text-[--color-ink-primary]"
+                      : "text-[11.5px] text-[--color-ink-secondary]",
                   )}
                 >
                   {formatPrice(line.amount)}
-                </div>
+                </span>
               </div>
             );
           })}
           {deposit != null && (
-            <div className="min-w-0 col-span-2">
-              <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
+            <div className="flex items-baseline justify-between gap-2 min-w-0">
+              <span className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
                 Depósito
-              </div>
-              <div className="tnum text-[13px] font-semibold text-[--color-ink-primary] truncate">
+              </span>
+              <span className="tnum text-[12.5px] font-semibold text-[--color-ink-primary] shrink-0">
                 {formatPrice(deposit)}
-              </div>
+              </span>
             </div>
           )}
-          {/* Wave C1b (2026-06-07): the Ref. BOE row + Docs pill were removed
-              from the carousel card. Teaser cards = image + status + headline
-              + location + status-branched date + price grid. Reference codes
-              and document downloads live on the detail page. */}
         </div>
       </div>
     </>
