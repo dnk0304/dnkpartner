@@ -61,7 +61,6 @@
     "mapCategoryOtros": "Other",
     "propertiesHeading": "Latest properties",
     "vehiclesHeading": "Latest vehicles",
-    "provincesHeading": "Browse by province",
     "howItWorksHeading": "How this works",
     "howItWorksP1": "We sync with Spain's BOE Auctions Portal and other official sources (Tax Agency, Social Security, notarial, municipal) to maintain our own registry of every public auction: when it's published, when it opens, what bids it receives, when its status changes and when it ends.",
     "howItWorksP2": "You follow the auctions you care about. We notify you by email or push notification whenever something changes. Bidding always happens on the official BOE portal — we never intermediate.",
