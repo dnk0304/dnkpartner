@@ -199,6 +199,17 @@ export type ObservatoryFilters = {
   endsBefore: string | null;
   /** When true, restrict to rows that have a real photo. */
   hasImage: boolean;
+  /**
+   * Curated MAP_CATEGORY_KEY (Wave81 — map-categories rail) or "otros". Empty
+   * string = no map-category filter. Travels on `?mapCategory=<key>` and is
+   * forwarded to BOTH `/api/auctions` (the list under the map) AND
+   * `/api/auctions/map` (the pins themselves) so the rail count, the pin set
+   * and the list set reconcile against the same predicate. Independent of the
+   * raw `categories[]` advanced selection — the two are AND-combined server-
+   * side, which is what we want: a user can still narrow within a curated
+   * bucket via the advanced sheet if they need to.
+   */
+  mapCategory: string;
 };
 
 export const DEFAULT_FILTERS: ObservatoryFilters = {
@@ -220,6 +231,7 @@ export const DEFAULT_FILTERS: ObservatoryFilters = {
   pctTasacionMax: null,
   endsBefore: null,
   hasImage: false,
+  mapCategory: "",
 };
 
 const VALID_SORTS: SortValue[] = ["category_rank", "endsAt_asc", "published_desc", "price_asc", "price_desc"];
@@ -267,6 +279,7 @@ export function filtersFromParams(p: URLSearchParams): ObservatoryFilters {
     pctTasacionMax: num(p.get("pctTasacionMax")),
     endsBefore: p.get("endsBefore") || null,
     hasImage: p.get("hasImage") === "true",
+    mapCategory: p.get("mapCategory") ?? "",
   };
 }
 
@@ -292,6 +305,7 @@ export function paramsFromFilters(f: ObservatoryFilters): URLSearchParams {
   if (f.pctTasacionMax != null) p.set("pctTasacionMax", String(f.pctTasacionMax));
   if (f.endsBefore) p.set("endsBefore", f.endsBefore);
   if (f.hasImage) p.set("hasImage", "true");
+  if (f.mapCategory) p.set("mapCategory", f.mapCategory);
   return p;
 }
 
@@ -401,6 +415,12 @@ export function filtersToApiParams(f: ObservatoryFilters): URLSearchParams {
   if (f.pctTasacionMax != null) p.set("pctTasacionMax", String(f.pctTasacionMax));
   if (f.endsBefore) p.set("endsBefore", f.endsBefore);
   if (f.hasImage) p.set("hasImage", "true");
+
+  // Wave81 — curated map-sidebar key. The API expands this to the underlying
+  // DB labels via the single source of truth in `@/lib/map-category` so the
+  // pin set, the rail count and the list count reconcile against the same
+  // predicate. AND-combined with `category`/`categories` if both are set.
+  if (f.mapCategory) p.set("mapCategory", f.mapCategory);
 
   // Free-text search (FORGE 2026-06-03). The API filters on the FULL pool
   // across every card-visible text column (title, municipality,

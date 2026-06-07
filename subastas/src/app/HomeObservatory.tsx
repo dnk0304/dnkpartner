@@ -36,6 +36,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { HomeCarouselSection } from "@/components/observatory/HomeCarouselSection";
+import { MapCategorySidebar } from "@/components/observatory/MapCategorySidebar";
 import { ProvinceDropdown } from "@/components/observatory/ProvinceDropdown";
 import { apiFetch } from "@/lib/api-path";
 import { AuctionItem } from "@/types";
@@ -156,6 +157,23 @@ export default function HomeObservatory() {
     router.push(FULL_MAP_HREF);
   }, [router]);
 
+  /**
+   * Click on a category row in the compact landing rail. We don't filter the
+   * landing map in-place (it's a preview card, not the working surface) —
+   * we navigate to the full map view with the category locked in via
+   * `?mapCategory=<key>`. Empty key (the "Todas" row) lands on the unfiltered
+   * map. The map's own click is wired separately and still routes to the
+   * unfiltered full view.
+   */
+  const openFullMapWithCategory = React.useCallback(
+    (key: string) => {
+      const qs = new URLSearchParams({ view: "map" });
+      if (key) qs.set("mapCategory", key);
+      router.push(`/subastas?${qs.toString()}`);
+    },
+    [router],
+  );
+
   return (
     <div className="min-h-screen bg-[--color-page]">
       {/* Header + footer are rendered site-wide by SiteChrome in the root layout. */}
@@ -170,7 +188,7 @@ export default function HomeObservatory() {
             ─────────────────────────────────────────────────────────────── */}
         <section
           aria-labelledby="hero-headline"
-          className="pt-2 grid gap-6 lg:gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] lg:items-start"
+          className="pt-2 grid gap-6 lg:gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,560px)] lg:items-start"
         >
           <div className="min-w-0">
             {/* Headline + subhead. Simple Spanish — Dennis explicit: no "en
@@ -221,68 +239,76 @@ export default function HomeObservatory() {
             </div>
           </div>
 
-          {/* ── Compact map (right column / stacks on mobile) ──────────────
-              Sized so it visually balances the headline block on lg+ without
-              dominating. The whole card is one big keyboard-accessible
-              "open the full map" button — pointer-events on the inner
-              Leaflet map are disabled so a click anywhere is interpreted as
-              "expand", never as a drag/zoom. A small overlay button mirrors
-              the explicit "Abrir mapa completo" affordance so the action is
-              also discoverable without hovering. */}
+          {/* ── Compact map card (right column / stacks on mobile) ─────────
+              Wave81 split: the card is now a 2-column rail + map. The rail
+              owns its own clicks (each category row routes to the full map
+              with `?mapCategory=<key>` locked in). The map portion is the
+              click-to-expand affordance — clicking anywhere on the map (or
+              the explicit "Abrir mapa completo" pill) navigates to the
+              unfiltered full map view. Stacking on mobile: rail first
+              (compact, horizontally narrow), map underneath. */}
           <div
-            role="button"
-            tabIndex={0}
-            aria-label={t("compactMapAria")}
-            onClick={openFullMap}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                openFullMap();
-              }
-            }}
             className={[
-              "group relative w-full",
-              // ~280px tall on mobile, 320px on lg (fits the hero block height
-              // without forcing extra vertical scroll).
-              "h-[260px] sm:h-[300px] lg:h-[320px]",
-              "rounded-xl overflow-hidden border border-[--color-hairline]",
+              "w-full rounded-xl overflow-hidden border border-[--color-hairline]",
               "bg-white shadow-[var(--shadow-card)]",
-              "cursor-pointer transition-shadow hover:shadow-lg",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-action]/50",
+              "grid grid-cols-1 sm:grid-cols-[160px_1fr]",
             ].join(" ")}
-            title={t("compactMapAria")}
           >
-            {/* Leaflet map — visual only; pointer events killed so the outer
-                div captures the click. The inner map still renders markers
-                so the preview is honest. */}
-            <div className="absolute inset-0 pointer-events-none select-none">
-              <HierarchicalMap
-                items={mapItems}
-                onMarkerClick={() => {}}
-                onProvinceClick={() => {}}
-                onBackToProvinces={() => {}}
-                onBackToMunicipalities={() => {}}
-              />
-            </div>
+            {/* Category rail — counts come from /api/auctions/counts so users
+                see live inventory at a glance before deciding to drill in.
+                We pass no apiSearchParams (landing surface = unfiltered
+                baseline). */}
+            <MapCategorySidebar
+              selected=""
+              onChange={openFullMapWithCategory}
+              variant="compact"
+              heading={t("mapHeading")}
+              className="border-0 sm:border-r sm:border-[--color-hairline] rounded-none"
+            />
 
-            {/* Soft top label so users know what they're looking at. */}
-            <div className="absolute top-2 left-2 z-10 pointer-events-none">
-              <span className="inline-flex items-center rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-[--color-ink-primary] shadow-sm">
-                {t("mapHeading")}
-              </span>
-            </div>
+            {/* Map preview — pointer events killed so any click is the
+                "expand" affordance, not a drag/zoom. Keyboard parity via
+                role=button on the wrapper. */}
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label={t("compactMapAria")}
+              onClick={openFullMap}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  openFullMap();
+                }
+              }}
+              className={[
+                "group relative",
+                "h-[260px] sm:h-[300px] lg:h-[320px]",
+                "cursor-pointer transition-shadow hover:shadow-lg",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-action]/50",
+              ].join(" ")}
+              title={t("compactMapAria")}
+            >
+              <div className="absolute inset-0 pointer-events-none select-none">
+                <HierarchicalMap
+                  items={mapItems}
+                  onMarkerClick={() => {}}
+                  onProvinceClick={() => {}}
+                  onBackToProvinces={() => {}}
+                  onBackToMunicipalities={() => {}}
+                />
+              </div>
 
-            {/* Expand affordance — bottom-right. Pointer events left on so
-                the inner pill is still a visible "button" for users who
-                instinctively look for one. Its click bubbles up to the outer
-                role=button so behavior is identical. */}
-            <div className="absolute bottom-2 right-2 z-10">
-              <span
-                className="inline-flex items-center gap-1 rounded-full bg-[--color-ink-primary] px-3 py-1.5 text-[11px] font-semibold text-white shadow-md group-hover:bg-[--color-action] transition-colors"
-                aria-hidden="true"
-              >
-                {t("openFullMap")}
-              </span>
+              {/* Expand affordance — bottom-right. Pointer events left on so
+                  it stays a visible "button" for users who look for one;
+                  the click bubbles to the wrapper so behavior is identical. */}
+              <div className="absolute bottom-2 right-2 z-10">
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-[--color-ink-primary] px-3 py-1.5 text-[11px] font-semibold text-white shadow-md group-hover:bg-[--color-action] transition-colors"
+                  aria-hidden="true"
+                >
+                  {t("openFullMap")}
+                </span>
+              </div>
             </div>
           </div>
         </section>

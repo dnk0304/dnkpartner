@@ -46,6 +46,7 @@ import { AuctionResultRow } from "@/components/observatory/AuctionResultRow";
 import { AuctionListCard } from "@/components/observatory/AuctionListCard";
 import { RegistroTable } from "@/components/observatory/RegistroTable";
 import { FiltersSidebar, SortTabs, StatusTabs, LockedFilter } from "@/components/observatory/FiltersSidebar";
+import { MapCategorySidebar } from "@/components/observatory/MapCategorySidebar";
 import { AlertsModal } from "@/components/dashboard/AlertsModal";
 import {
   ObservatoryFilters,
@@ -489,14 +490,28 @@ export default function SubastasListClient({
 
             {/* Body */}
             {viewMode === "map" ? (
-              <div className="h-[70vh] rounded-lg overflow-hidden border border-[var(--color-hairline)] bg-white">
-                <HierarchicalMap
-                  items={filtered}
-                  onMarkerClick={(a: AuctionItem) => router.push(`/auction/${encodeURIComponent(a.id)}`)}
-                  onProvinceClick={(province: string) => updateFilters({ province })}
-                  onBackToProvinces={() => updateFilters({ province: "", municipality: "" })}
-                  onBackToMunicipalities={() => updateFilters({ municipality: "" })}
-                />
+              // Map view: category rail (left) + Leaflet map (right). On
+              // mobile the rail stacks ABOVE the map at horizontally-scrollable
+              // pill width — the vertical rail would eat half the viewport on
+              // a 390px screen. The map's bounds adapt to the container's
+              // aspect ratio via fitBounds so both layouts get a clean frame.
+              <div className="grid gap-3 md:grid-cols-[220px_1fr] md:items-start">
+                <div className="md:sticky md:top-24">
+                  <MapCategorySidebar
+                    selected={filters.mapCategory}
+                    onChange={(next) => updateFilters({ mapCategory: next })}
+                    apiSearchParams={filtersToApiParams(filters)}
+                  />
+                </div>
+                <div className="h-[70vh] rounded-lg overflow-hidden border border-[var(--color-hairline)] bg-white">
+                  <HierarchicalMap
+                    items={filtered}
+                    onMarkerClick={(a: AuctionItem) => router.push(`/auction/${encodeURIComponent(a.id)}`)}
+                    onProvinceClick={(province: string) => updateFilters({ province })}
+                    onBackToProvinces={() => updateFilters({ province: "", municipality: "" })}
+                    onBackToMunicipalities={() => updateFilters({ municipality: "" })}
+                  />
+                </div>
               </div>
             ) : loading ? (
               <LoadingBody />

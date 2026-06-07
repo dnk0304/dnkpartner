@@ -94,7 +94,41 @@ const PROVINCE_COORDS: Record<string, [number, number]> = {
 };
 
 const CANARY_PROVINCES = new Set(['Las Palmas', 'Santa Cruz de Tenerife']);
+// Wave81 (2026-06-07): Baleares now sits inside the default main-map view
+// (peninsula + Illes Balears framed by DEFAULT_SPAIN_BOUNDS). The dedicated
+// Baleares inset card is gone — only Canarias remains as an inset since the
+// archipelago is ~1,000 km off the southwest coast and would force the main
+// map to zoom out past country-level detail to include it. Keep the keep-set
+// here so the inset's data-collection path (province markers, click handler)
+// stays untouched if we ever re-enable an inset for it.
 const BALEARIC_PROVINCES = new Set(['Illes Balears']);
+
+/**
+ * Default viewport for the main map — frames mainland Spain + Illes Balears.
+ *
+ * SW corner: 36.0°N, -9.5°W (Cádiz / Cabo São Vicente).
+ * NE corner: 43.8°N,  4.4°E (north of Asturias / east of Menorca).
+ *
+ * Excludes Canarias by design — they live in the corner inset. fitBounds is
+ * preferred over center+zoom because it adapts to the container's aspect
+ * ratio (compact landing card vs. full /subastas?view=map page) without
+ * cutting off the north or the Baleares. The bounds are intentionally a
+ * tight country-hull (no padding inside the literal) because fitBounds is
+ * called with explicit `padding` and `maxZoom` below.
+ */
+const DEFAULT_SPAIN_BOUNDS: L.LatLngBoundsLiteral = [
+  [36.0, -9.5],
+  [43.8, 4.4],
+];
+
+/**
+ * Fallback static center/zoom — used by the initial <MapContainer> before
+ * react-leaflet mounts and the controller's fitBounds runs. Tuned so the
+ * pre-fit paint already shows roughly the right region; the actual frame is
+ * locked in by `MapViewController`'s useEffect on mount.
+ */
+const DEFAULT_SPAIN_CENTER: [number, number] = [40.1, -2.5];
+const DEFAULT_SPAIN_ZOOM = 6;
 
 const normalizeText = (value: string) => {
   return value
@@ -286,8 +320,18 @@ const MapViewController: React.FC<{
 
   useEffect(() => {
   if (viewLevel === 'province') {
-      // Zoom out to show all Spain
-      map.setView([40.4168, -3.7038], 6, { animate: true });
+      // Wave81: frame mainland Spain + Illes Balears via fitBounds so the
+      // aspect ratio of the container (compact landing card vs full
+      // /subastas?view=map page) drives the actual zoom level. Padding
+      // gives a comfortable margin around peninsula + Baleares without
+      // cutting off the north/east. maxZoom guard keeps a half-empty
+      // container from zooming past country-level detail. Canarias lives
+      // in the corner inset, so we deliberately don't include them.
+      map.fitBounds(DEFAULT_SPAIN_BOUNDS, {
+        padding: [20, 20],
+        maxZoom: 6.5,
+        animate: true,
+      });
     } else if (viewLevel === 'municipality' && selectedProvince) {
       // Zoom into selected province
       const province = provinceData.find(p => p.name === selectedProvince);
@@ -545,8 +589,8 @@ export const HierarchicalMap: React.FC<HierarchicalMapProps> = ({ items, onMarke
       className="h-full w-full relative min-h-[500px] rounded-xl overflow-hidden border border-gray-200 shadow-sm"
     >
       <MapContainer
-        center={[40.4168, -3.7038]}
-        zoom={6}
+        center={DEFAULT_SPAIN_CENTER}
+        zoom={DEFAULT_SPAIN_ZOOM}
         className="h-full w-full z-0"
         style={{ background: '#f8f9fa', height: '100%', width: '100%' }}
         zoomControl={true}
@@ -818,20 +862,18 @@ export const HierarchicalMap: React.FC<HierarchicalMapProps> = ({ items, onMarke
         </div>
       )}
 
-      {/* Island Insets */}
+      {/* Island Inset — Canarias only.
+          Wave81 (2026-06-07): Illes Balears is now framed inside the main
+          map's DEFAULT_SPAIN_BOUNDS so the inset card was removed. Canarias
+          stays as a corner inset because including the archipelago in the
+          main frame would force the zoom out past country-level detail
+          (the islands are ~1,000 km off the Iberian Peninsula). */}
       <div className="absolute bottom-4 right-4 z-[1000] flex flex-col gap-3">
         <InsetMap
           title="Islas Canarias"
           center={[28.45, -16.25]}
           zoom={6}
           provinces={islandProvinceData.canary}
-          onProvinceClick={handleProvinceClick}
-        />
-        <InsetMap
-          title="Illes Balears"
-          center={[39.6, 2.95]}
-          zoom={7}
-          provinces={islandProvinceData.balearic}
           onProvinceClick={handleProvinceClick}
         />
       </div>
