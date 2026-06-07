@@ -39,7 +39,9 @@ import { DetailStatusPanel } from "@/components/observatory/DetailStatusPanel";
 import { DetailTimeline } from "@/components/observatory/DetailTimeline";
 import { PROVINCE_DB_KEY_TO_SLUG } from "@/lib/seo/slugs";
 import { auctionDisplayTitle } from "@/lib/seo/display-title";
+import { getSourceLabel } from "@/lib/source-labels";
 import { FollowButton } from "@/components/notifications/FollowButton";
+import { StatusBadge } from "@/components/observatory/StatusBadge";
 // GatedField import dropped 2026-06-07 (wave-B): the detail page is fully
 // public now — map, address, expediente, and edicto no longer wrap in
 // <GatedField>. The component still ships in the tree for other surfaces.
@@ -401,81 +403,61 @@ export default function AuctionDetailClient({
             CTA. These sit immediately under the title so the user sees the
             urgency lever AND the conversion path within the first viewport.
             */}
-        <header className="mt-3 mb-6 md:mb-8 space-y-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div className="min-w-0 flex-1 space-y-1.5">
-              <h1 className="font-serif text-2xl md:text-3xl lg:text-4xl leading-tight text-[--color-ink-primary]">
-                {auctionDisplayTitle({
-                  address: raw.address,
-                  propertyType: raw.propertyType,
-                  auctionType: raw.auctionType,
-                  category: raw.category,
-                  municipality: raw.municipality,
-                  province: raw.province,
-                  title: raw.title,
-                })}
-              </h1>
-              {where && (
-                <p className="text-sm text-[--color-ink-secondary]">{where}</p>
+        <header className="mt-3 mb-7 md:mb-9 space-y-4">
+          <div className="min-w-0 space-y-2">
+            <h1 className="font-serif text-2xl md:text-3xl lg:text-4xl leading-tight text-[--color-ink-primary]">
+              {auctionDisplayTitle({
+                address: raw.address,
+                propertyType: raw.propertyType,
+                auctionType: raw.auctionType,
+                category: raw.category,
+                municipality: raw.municipality,
+                province: raw.province,
+                title: raw.title,
+              })}
+            </h1>
+            {where && (
+              <p className="text-sm text-[--color-ink-secondary]">{where}</p>
+            )}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[--color-ink-tertiary] tnum">
+              <span className="font-mono">{raw.boeId}</span>
+              {/* propertyType (doc-archive backfill) — BOE bien-heading type.
+                  Preferred over auctionType when both are present. */}
+              {raw.propertyType ? (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>{capitalize(raw.propertyType)}</span>
+                </>
+              ) : raw.auctionType && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>{capitalize(raw.auctionType.toLowerCase())}</span>
+                </>
               )}
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[--color-ink-tertiary] tnum">
-                <span className="font-mono">{raw.boeId}</span>
-                {/* propertyType (doc-archive backfill) — BOE bien-heading type.
-                    Preferred over auctionType when both are present. */}
-                {raw.propertyType ? (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <span>{capitalize(raw.propertyType)}</span>
-                  </>
-                ) : raw.auctionType && (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <span>{capitalize(raw.auctionType.toLowerCase())}</span>
-                  </>
-                )}
-                {raw.courtName && (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <span>{raw.courtName}</span>
-                  </>
-                )}
-                {/* "Inicio …" — official start date (opensAt). Null-safe; the
-                    row hides cleanly when the doc-archive backfill hasn't
-                    reached this auction yet. */}
-                {raw.opensAt && (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <span className="inline-flex items-center gap-1">
-                      <Calendar className="h-3 w-3" aria-hidden="true" />
-                      Inicio {formatDateLong(raw.opensAt)}
-                    </span>
-                  </>
-                )}
-              </div>
-            </div>
-            {/* Hero soft-ladder: primary alert CTA + heart sit alongside the
-                title so the conversion path is visible above the fold. The
-                CTA is also repeated below the financial table (M8). */}
-            <div className="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center md:flex-col md:items-stretch md:max-w-[220px]">
-              <CrearAlertaCTA auction={raw} hideHelper />
-              <div className="flex items-center gap-2">
-                <FollowButton
-                  auctionId={raw.id}
-                  initialFollowing={data.isFollowing}
-                  variant="compact"
-                />
-                <CrearAlertaCTA
-                  auction={raw}
-                  variant="ghost"
-                  label="Envíame similares"
-                  hideHelper
-                />
-              </div>
+              {raw.courtName && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>{raw.courtName}</span>
+                </>
+              )}
+              {/* "Inicio …" — official start date (opensAt). Null-safe; the
+                  row hides cleanly when the doc-archive backfill hasn't
+                  reached this auction yet. */}
+              {raw.opensAt && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span className="inline-flex items-center gap-1">
+                    <Calendar className="h-3 w-3" aria-hidden="true" />
+                    Inicio {formatDateLong(raw.opensAt)}
+                  </span>
+                </>
+              )}
             </div>
           </div>
-          {/* Countdown + bid-status row — the urgency block. Renders even
-              when endDate is null (the badge shows "Fecha por confirmar" so
-              the slot never collapses). */}
+          {/* Countdown + bid-status row — the urgency block. PLABI rows
+              (CELEBRÁNDOSE without endDate) hide gracefully — the badge
+              suppresses itself when there's no endDate AND no bidStatus
+              (QC fix, Pixel 2026-06-07). */}
           <AuctionCountdownBadge
             endDate={raw.endDate ?? raw.endsAt ?? null}
             bidStatus={raw.bidStatus ?? null}
@@ -500,7 +482,7 @@ export default function AuctionDetailClient({
               <>
                 <section aria-labelledby="photo-heading">
                   <h2 id="photo-heading" className="sr-only">Foto del bien</h2>
-                  <div className="relative aspect-[16/9] w-full overflow-hidden rounded-lg border border-[--color-hairline] bg-[--color-surface-muted]">
+                  <div className="hero-frame">
                     <Image
                       src={photoUrl}
                       alt={`Foto de ${raw.title}`}
@@ -510,8 +492,20 @@ export default function AuctionDetailClient({
                       priority
                       onError={() => setPhotoFailed(true)}
                     />
+                    {/* Status chip overlay top-left (subastasia move 3). */}
+                    <div className="absolute left-3 top-3 z-10">
+                      <DetailHeroStatusBadge status={status} />
+                    </div>
+                    {/* Heart top-right. */}
+                    <div className="absolute right-3 top-3 z-10">
+                      <FollowButton
+                        auctionId={raw.id}
+                        initialFollowing={data.isFollowing}
+                        variant="compact"
+                      />
+                    </div>
                   </div>
-                  <p className="mt-1.5 text-[11px] text-[--color-ink-tertiary]">
+                  <p className="mt-2 text-[11px] text-[--color-ink-tertiary]">
                     Foto generada a partir de la referencia catastral o Street View. Puede no reflejar el estado actual.
                   </p>
                 </section>
@@ -530,12 +524,31 @@ export default function AuctionDetailClient({
                 )}
               </>
             ) : hasCoords ? (
-              // M7 — map-as-hero for photo-less auctions. Same component,
-              // hero variant => 16/9 aspect ratio so the lead visual reads
-              // as intentional rather than fallback.
-              <section aria-labelledby="map-heading">
+              // Map-as-hero for photo-less auctions. The map panel keeps its
+              // own affordance row (Google Maps / Street View) below; we
+              // overlay the status chip + heart on the map frame above using
+              // a sibling positioned container.
+              <section aria-labelledby="map-heading" className="relative">
                 <h2 id="map-heading" className="sr-only">Localización del bien</h2>
                 <AuctionMapPanel auction={auctionItem} variant="hero" />
+                {/* Chip + heart overlay — sit on top of the 16:9 map frame
+                    (AuctionMapPanel's hero variant). Absolute coords match
+                    the map panel's container. pointer-events isolation so
+                    they don't block map drag. */}
+                <div className="pointer-events-none absolute inset-x-0 top-0 z-10">
+                  <div className="flex items-start justify-between p-3">
+                    <span className="pointer-events-auto">
+                      <DetailHeroStatusBadge status={status} />
+                    </span>
+                    <span className="pointer-events-auto">
+                      <FollowButton
+                        auctionId={raw.id}
+                        initialFollowing={data.isFollowing}
+                        variant="compact"
+                      />
+                    </span>
+                  </div>
+                </div>
               </section>
             ) : (
               // Rung 3 — neither photo nor coords. Neutral placeholder so the
@@ -547,7 +560,7 @@ export default function AuctionDetailClient({
                 <h2 id="hero-fallback-heading" className="sr-only">
                   {isVehicleCategory(raw.category) ? "Imagen de la categoría" : "Ubicación pendiente"}
                 </h2>
-                <div className="relative aspect-[16/9] w-full overflow-hidden rounded-lg border border-[--color-hairline] bg-[--color-surface-muted] flex items-center justify-center">
+                <div className="hero-frame flex items-center justify-center">
                   <Image
                     src={
                       resolveCardImage({
@@ -566,8 +579,18 @@ export default function AuctionDetailClient({
                     className="object-contain p-10 opacity-80"
                     priority
                   />
+                  <div className="absolute left-3 top-3 z-10">
+                    <DetailHeroStatusBadge status={status} />
+                  </div>
+                  <div className="absolute right-3 top-3 z-10">
+                    <FollowButton
+                      auctionId={raw.id}
+                      initialFollowing={data.isFollowing}
+                      variant="compact"
+                    />
+                  </div>
                 </div>
-                <p className="mt-1.5 text-[11px] text-[--color-ink-tertiary] flex items-center gap-1.5">
+                <p className="mt-2 text-[11px] text-[--color-ink-tertiary] flex items-center gap-1.5">
                   <ImageOff className="h-3 w-3" aria-hidden="true" />
                   Aún no disponemos de foto ni ubicación geocodificada para esta subasta.
                 </p>
@@ -592,16 +615,19 @@ export default function AuctionDetailClient({
                   <AuctionFinancialsTable financials={raw.financials} />
                 </div>
                 {/* M8 — repeat the alert CTA at the high-intent moment, right
-                    after the user has absorbed the money figures. */}
-                <div className="mt-4 rounded-lg border border-[--color-brand]/20 bg-[--color-brand]/5 p-4">
+                    after the user has absorbed the money figures. The CTA is
+                    now PAID-gated (wave-B1) — the API returns 402 for free
+                    logged-in users; CrearAlertaCTA itself handles the
+                    register/upgrade flow client-side. */}
+                <div className="mt-5 accent-band p-5">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0 flex-1">
                       <p className="font-serif text-base text-[--color-ink-primary]">
                         ¿Te interesan subastas como esta?
                       </p>
                       <p className="mt-0.5 text-xs text-[--color-ink-secondary]">
-                        Te avisamos por email cuando se publiquen subastas similares
-                        en {raw.province ? capitalize(raw.province) : "tu zona"}.
+                        Activa el plan Acceso y te avisamos por email cuando se publiquen
+                        subastas similares en {raw.province ? capitalize(raw.province) : "tu zona"}.
                       </p>
                     </div>
                     <div className="shrink-0">
@@ -970,7 +996,13 @@ export default function AuctionDetailClient({
               <dl className="mt-2 grid grid-cols-1 gap-y-1 text-xs text-[--color-ink-secondary]">
                 <div className="flex gap-2">
                   <dt>Origen:</dt>
-                  <dd className="text-[--color-ink-primary]">{raw.source ?? "BOE"}</dd>
+                  {/* QC P1 (2026-06-07): always render through SOURCE_LABEL_MAP
+                      so a row whose `source='PLABI'` displays as "PLABI", not
+                      raw-source-stringified-then-titlecased "Plabi" elsewhere
+                      and "PLABI" in the badge. Single label source = no dup. */}
+                  <dd className="text-[--color-ink-primary]">
+                    {getSourceLabel(raw.source) ?? "BOE"}
+                  </dd>
                 </div>
                 <div className="flex gap-2 tnum">
                   <dt>Publicada:</dt>
@@ -1016,24 +1048,54 @@ export default function AuctionDetailClient({
           />
         </div>
 
-      {/* Mobile bottom action bar (position:fixed — escapes any ancestor) */}
-      <div className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-[--color-surface] hairline-t p-3 flex gap-2">
-        <FollowButton
-          auctionId={auctionItem.id}
-          initialFollowing={data.isFollowing}
-          className="flex-1 justify-center"
-        />
-        <a
-          href={auctionItem.boeLink ?? "https://subastas.boe.es"}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex-1 inline-flex items-center justify-center gap-2 rounded-md bg-[--color-action-soft] border border-[--color-action] text-[--color-ink-primary] px-4 py-2 text-sm font-semibold hover:bg-[--color-action-soft]/80"
-        >
-          Ir al BOE
-          <ExternalLink className="h-4 w-4" aria-hidden="true" />
-        </a>
-      </div>
+      {/* Mobile bottom action bar (position:fixed — escapes any ancestor).
+          Source-aware CTA (QC P1 fix, 2026-06-07): PLABI / SEGSOCIAL rows
+          route to their own portal; only BOE-family rows say "Ir al BOE". */}
+      {(() => {
+        const upper = (raw.source ?? "").trim().toUpperCase();
+        const isBoeFamily = upper === "BOE" || upper === "TEJU" || upper === "";
+        const href = isBoeFamily
+          ? (auctionItem.boeLink ?? "https://subastas.boe.es")
+          : (raw.originalSource ?? auctionItem.boeLink ?? null);
+        const label = isBoeFamily
+          ? "Ir al BOE"
+          : `Ir a ${getSourceLabel(raw.source) ?? "la fuente"}`;
+        return (
+          <div className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-[--color-surface] hairline-t p-3 flex gap-2">
+            <FollowButton
+              auctionId={auctionItem.id}
+              initialFollowing={data.isFollowing}
+              className="flex-1 justify-center"
+            />
+            {href && (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-md bg-[--color-action-soft] border border-[--color-action] text-[--color-ink-primary] px-4 py-2 text-sm font-semibold hover:bg-[--color-action-soft]/80"
+              >
+                {label}
+                <ExternalLink className="h-4 w-4" aria-hidden="true" />
+              </a>
+            )}
+          </div>
+        );
+      })()}
     </OuterShell>
+  );
+}
+
+/**
+ * DetailHeroStatusBadge — the status chip overlaid on the hero photo / map.
+ * Wraps the StatusBadge with a subtle white-tint scrim so the chip stays
+ * legible on any underlying image (dark photo, busy map). Same colour-coded
+ * soft tints as everywhere else (subastasia move 4).
+ */
+function DetailHeroStatusBadge({ status }: { status: string }) {
+  return (
+    <span className="inline-flex rounded-full bg-white/85 backdrop-blur-sm p-0.5 shadow-sm">
+      <StatusBadge status={status} size="lg" />
+    </span>
   );
 }
 

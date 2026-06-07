@@ -57,18 +57,60 @@ const cleanString = (v: unknown): string | null => {
 };
 
 /**
+ * Source-name / placeholder garbage we MUST NEVER surface as a title token.
+ *
+ * Some scrapers (notably PLABI and SEGSOCIAL) write a stub like "Plabi" /
+ * "Segsocial" / "No Consta" / "Sin Descripcion" into `Auction.title` when
+ * the source page doesn't expose a clean property descriptor. The wave-A
+ * helper then echoed that stub as the H1 / <title> last-resort fallback
+ * ("Plabi", "Subasta de Plabi"). QC P2 flagged the result — these are now
+ * normalised to NULL so the helper falls through to the "Subasta de {tipo}
+ * en {muni}" branch, which always produces a sensible title.
+ *
+ * Match is case-insensitive on a trimmed copy. Extend the list if a future
+ * scraper introduces a new garbage stub; do NOT remove entries — they're
+ * each backed by a concrete row Dennis flagged.
+ */
+const TITLE_GARBAGE = new Set<string>([
+  'plabi',
+  'segsocial',
+  'seg social',
+  'seg-social',
+  'seguridad social',
+  'tgss',
+  'boe',
+  'no consta',
+  'sin descripcion',
+  'sin descripción',
+  'desconocido',
+  'desconocida',
+  'sin titulo',
+  'sin título',
+]);
+
+function isTitleGarbage(raw: string | null | undefined): boolean {
+  if (!raw) return true;
+  const norm = raw.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!norm) return true;
+  return TITLE_GARBAGE.has(norm);
+}
+
+/**
  * Resolve the "tipo" token shown after "Subasta de ". Order of preference:
  *   propertyType (specific bien type from BOE) → auctionType (enum) → category.
  * Falls back to "Inmueble" — the safest generic that mirrors the competitor
  * phrasing and never appears as "Subasta de  en …".
+ *
+ * Garbage stubs ("Plabi", "Segsocial", "No Consta") are normalised to NULL
+ * at each rung so they never get titlecased and rendered as the type label.
  */
 export function resolveTipo(input: DisplayTitleInput): string {
   const propertyType = cleanString(input.propertyType);
-  if (propertyType) return titleCase(propertyType);
+  if (propertyType && !isTitleGarbage(propertyType)) return titleCase(propertyType);
   const auctionType = cleanString(input.auctionType);
-  if (auctionType) return titleCase(auctionType);
+  if (auctionType && !isTitleGarbage(auctionType)) return titleCase(auctionType);
   const category = cleanString(input.category);
-  if (category) return titleCase(category);
+  if (category && !isTitleGarbage(category)) return titleCase(category);
   return 'Inmueble';
 }
 
@@ -117,9 +159,14 @@ export function auctionDisplayTitle(input: DisplayTitleInput): string {
   }
 
   // 3. Last resort — original scraped title (a reference code is ugly but
-  //    stable). Never return empty string; if even title is missing, surface
-  //    a generic "Subasta" so the H1 / <title> never collapse.
-  return cleanString(input.title) ?? `Subasta de ${tipo}`;
+  //    stable). Skip garbage stubs ("Plabi", "Segsocial", "No Consta", …)
+  //    that some scrapers write when the source row lacks a descriptor —
+  //    those are NEVER acceptable as the public H1 / <title>. Falls through
+  //    to the generic "Subasta de {tipo}" so the headline never collapses
+  //    or surfaces the source-name as if it were a property descriptor.
+  const rawTitle = cleanString(input.title);
+  if (rawTitle && !isTitleGarbage(rawTitle)) return rawTitle;
+  return `Subasta de ${tipo}`;
 }
 
 /**
@@ -183,6 +230,11 @@ export function auctionCardTitle(input: CardTitleInput): string {
   const address = cleanString(input.address);
   const municipality = cleanString(input.municipality);
   const province = cleanString(input.province);
+
+  // Garbage-title guard — when the row carries a stub like "Plabi" /
+  // "Segsocial" / "No Consta", we must NOT surface it on cards either.
+  // The municipality/province path below catches it; if neither exists,
+  // fall through to the bare tipo (never the stub) below.
 
   // VEHICLES (movable) — Dennis-locked 2026-06-07: always "{Tipo} en {town}".
   // Skip the street address even when present (BOE depot codes / yard refs

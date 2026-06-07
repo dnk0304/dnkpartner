@@ -39,6 +39,13 @@ export type AuctionCountdownBadgeProps = {
    * the past-text behavior agrees with the StatusBadge alongside.
    */
   effectiveStatus?: string | null;
+  /**
+   * When true (default), the badge hides itself gracefully when both
+   * endDate is null AND no bidStatus is available — instead of rendering
+   * an empty "Fecha por confirmar" pill. Used by PLABI rows that are
+   * CELEBRÁNDOSE without any end date (QC fix, Pixel 2026-06-07).
+   */
+  hideWhenEmpty?: boolean;
   className?: string;
 };
 
@@ -64,6 +71,7 @@ export function AuctionCountdownBadge({
   endDate,
   bidStatus,
   effectiveStatus,
+  hideWhenEmpty = true,
   className,
 }: AuctionCountdownBadgeProps) {
   // Re-tier every minute so the surface escalates on its own. Cheaper than
@@ -75,6 +83,13 @@ export function AuctionCountdownBadge({
     const id = window.setInterval(() => setTier(tierFor(endDate)), 60 * 1000);
     return () => window.clearInterval(id);
   }, [endDate]);
+
+  // QC fix (Pixel 2026-06-07): PLABI rows are CELEBRÁNDOSE with NO end date.
+  // We previously rendered an empty "Tiempo restante / Fecha por confirmar"
+  // pill that read as broken. Hide gracefully when there's no end date AND
+  // no bid status to anchor the row. The status badge above already conveys
+  // "Celebrándose" — the countdown row is purely additive urgency.
+  if (hideWhenEmpty && tier === "missing" && !bidStatus) return null;
 
   const isPast = tier === "past";
   const tone =

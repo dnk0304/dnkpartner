@@ -26,13 +26,15 @@
    * Winter-green = cool, muted evergreen/pine/sage. NOT lime/mint/teal.
    * ------------------------------------------------------------------ */
 
-  /* Foundation — crisp white surfaces on a paper-white green-axis page */
-  --color-page: #F7FAF8;            /* page frame, very faint green wash */
+  /* Foundation — MORE WHITE (2026-06-07 lighter-cold refresh).
+   * Page nudged to nearly pure white; surface stays full white. The
+   * surface-muted gets a touch frostier than the prior winter-green wash. */
+  --color-page: #FBFCFD;            /* page frame, near-white with a frost hint */
   --color-surface: #FFFFFF;         /* cards/panels — pure clinical white */
-  --color-surface-muted: #ECF3EE;   /* secondary block fill — winter-green wash */
-  --color-surface-alt: #ECF3EE;
-  --color-hairline: #D2DED6;        /* defined card edges, faint green-grey */
-  --color-hairline-soft: #E4EDE7;   /* table dividers */
+  --color-surface-muted: #EEF4F2;   /* secondary block fill — cool mint-frost wash */
+  --color-surface-alt: #EEF4F2;
+  --color-hairline: #E5EAEC;        /* defined card edges, cool grey */
+  --color-hairline-soft: #EEF2F4;   /* table dividers */
 
   /* Ink — ALL TEXT BLACK (unchanged) */
   --color-ink-primary: #0A0F1A;     /* near-black */
@@ -41,12 +43,15 @@
   --color-ink-quiet: #6B7280;       /* meta only, ≥14pt */
   --color-ink-inverse: #FFFFFF;
 
-  /* Brand — winter-green is the new signature */
+  /* Brand — winter-green is the signature; ACTION now slightly cooler.
+   * --color-action stays SATURATED so CTAs read strong even after we tone
+   * the gradient down. live-dot is a separate, more-saturated token. */
   --color-brand: #1F4A3A;           /* deep pine — header/footer surface */
   --color-brand-hover: #163A2D;
-  --color-action: #2F6F4F;          /* winter-green sage — primary CTA (5.9:1 on white) */
-  --color-action-hover: #245A40;
-  --color-action-soft: #DCEAE1;     /* hover/active tint, black on this = 11:1 */
+  --color-action: #17926D;          /* cooler winter-green CTA (4.78:1 on white) */
+  --color-action-hover: #127A5B;
+  --color-action-soft: #DCF1EA;     /* hover/active tint, AA on black */
+  --color-action-green: #17926D;    /* alias for direct callers (Pixel 2026-06-07) */
   --color-brand-soft: var(--color-action);          /* back-compat */
   --color-brand-soft-hover: var(--color-action-hover);
 
@@ -54,15 +59,21 @@
   --color-gold: #8C7339;
   --color-gold-hover: #6F5A2C;
 
-  /* Status semantic colours — re-tuned so live = winter-green family */
-  --color-status-live: #2F6F4F;     /* same hue family as action — cohesive */
-  --color-status-live-soft: #DCEAE1;
-  --color-status-upcoming: #B45309;
-  --color-status-upcoming-soft: #FEF0CC;
+  /* Status semantic colours — re-tuned so live = cool winter-green family.
+   * live-dot stays SATURATED (#1FA37A) — separate from the gradient so the
+   * pulse reads as confidently alive on every surface. */
+  --color-status-live: #1FA37A;     /* live dot — confident saturated mint */
+  --color-status-live-soft: #DCF1EA; /* live chip background — pale frost mint */
+  --color-status-upcoming: #C68A1E;
+  --color-status-upcoming-soft: #FBF1DC;
   --color-status-suspended: #92400E;
   --color-status-suspended-soft: #FDE7CF;
   --color-status-cancelled: #B91C1C;
   --color-status-cancelled-soft: #FEE2E2;
+  /* "finished" softened to a warm sandstone — distinct from cancelled but
+   * still reads as terminal. Used on the detail hero + cards consistently. */
+  --color-status-finished: #7A2727;
+  --color-status-finished-soft: #F6E7E7;
   --color-status-concluded: #475569;
   --color-status-concluded-soft: #E2E8F0;
   --color-info-soft: var(--color-action-soft);  /* back-compat */
@@ -103,14 +114,25 @@
    *   .count-chip     — big teaser stat card (hero)
    *   .footer-brand-bar — pine footer bottom-bar surface
    * ------------------------------------------------------------------ */
-  --gradient-accent: linear-gradient(135deg, #2F6F4F 0%, #1F4A3A 100%);
-  --gradient-accent-hover: linear-gradient(135deg, #245A40 0%, #163A2D 100%);
-  --gradient-accent-soft: linear-gradient(135deg, rgba(47,111,79,0.08) 0%, rgba(31,74,58,0.08) 100%);
+  /* 2026-06-07 — pale cold mint→frost. The gradient is now a BREATH, not a
+   * background. Painted ONLY behind: summary card / detail hero band /
+   * CTA-zone halo. NEVER on body / table / map. CTAs use --color-action
+   * directly (the saturated mint), NOT this gradient. */
+  --gradient-accent: linear-gradient(135deg, #E6F4EF 0%, #E2F1F4 100%);
+  --gradient-accent-hover: linear-gradient(135deg, #DCEEE8 0%, #D8EBEF 100%);
+  /* Even softer alpha-form for a stack-on-white halo. */
+  --gradient-accent-soft: linear-gradient(135deg, rgba(31,163,122,0.05) 0%, rgba(70,160,180,0.05) 100%);
+  /* Legacy strong gradient — kept for count chips + footer brand bar that
+   * still rely on white-on-deep-green. NOT used by CTAs anymore. */
+  --gradient-brand-strong: linear-gradient(135deg, #2F6F4F 0%, #1F4A3A 100%);
+  --gradient-brand-strong-hover: linear-gradient(135deg, #245A40 0%, #163A2D 100%);
 
-  /* Soft elevation */
+  /* Soft elevation — summary card gets its own deliberate soft shadow */
   --shadow-card: 0 4px 2px -2px rgba(23,35,59,0.06), 0 2px 8px rgba(23,35,59,0.04);
   --shadow-lift: 0 6px 4px -2px rgba(23,35,59,0.08), 0 4px 12px rgba(23,35,59,0.06);
-  --shadow-cta: 0 1px 0 rgba(255,255,255,0.12) inset, 0 6px 16px -6px rgba(31,74,58,0.45), 0 2px 4px rgba(31,74,58,0.18);
+  --shadow-cta: 0 1px 0 rgba(255,255,255,0.12) inset, 0 6px 16px -6px rgba(23,146,109,0.42), 0 2px 4px rgba(23,146,109,0.16);
+  /* Summary-card-shadow — the ONE deliberate exception to the flat rule. */
+  --shadow-summary: 0 4px 16px rgba(20,40,35,0.07), 0 1px 2px rgba(20,40,35,0.04);
 
   /* Typography — drop the serif */
   --font-sans: var(--font-inter);
@@ -485,7 +507,12 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  background-image: var(--gradient-accent);
+  /* 2026-06-07 — primary CTA uses the SOLID saturated action-green so the
+   * gradient palette toning does NOT weaken the call to action. Hover deepens
+   * to action-hover; the gentle inset highlight on the top edge keeps the
+   * button reading as "lifted". */
+  background-color: var(--color-action);
+  background-image: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(0,0,0,0.04) 100%);
   color: var(--color-ink-inverse);
   font-weight: 600;
   letter-spacing: -0.005em;
@@ -493,15 +520,15 @@
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: var(--shadow-cta);
-  transition: background-image 150ms ease-out, transform 150ms ease-out,
+  transition: background-color 150ms ease-out, transform 150ms ease-out,
               box-shadow 150ms ease-out;
   text-decoration: none;
 }
 .cta-gradient:hover {
-  background-image: var(--gradient-accent-hover);
+  background-color: var(--color-action-hover);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset,
-              0 10px 22px -8px rgba(31, 74, 58, 0.55),
-              0 3px 6px rgba(31, 74, 58, 0.22);
+              0 10px 22px -8px rgba(23, 146, 109, 0.5),
+              0 3px 6px rgba(23, 146, 109, 0.2);
 }
 .cta-gradient:active {
   transform: translateY(1px);
@@ -522,7 +549,10 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 0.25rem;
-  background-image: var(--gradient-accent);
+  /* Count chips stay on the strong deep-green gradient — white ink on a
+   * pale mint background fails contrast. Strong gradient stays scoped to
+   * count chips + footer bar. */
+  background-image: var(--gradient-brand-strong);
   color: var(--color-ink-inverse);
   padding: 1.25rem 1.5rem;
   border-radius: 14px;
@@ -557,6 +587,53 @@
   font-weight: 500;
   color: rgba(255, 255, 255, 0.88);
   letter-spacing: 0;
+}
+
+/* ---------------------------------------------------------------------
+ * Detail-page surfaces (2026-06-07, subastasia-inspired redesign).
+ *
+ * .summary-card — the consolidated sticky right-rail card on the detail
+ *                 page. White surface, soft rounded, ONE soft shadow.
+ *                 Pale cold mint→frost gradient as a faint top halo.
+ *                 The single deliberate exception to the flat/hairline rule.
+ *
+ * .hero-frame   — 4:3 framed hero photo / map. Rounded-2xl, hairline border.
+ *                 Used by both AuctionTeaser (logged-out) and the full
+ *                 AuctionDetailClient (logged-in).
+ *
+ * .accent-band  — the pale gradient "breath" band. Used as a section
+ *                 background for the CTA zone (e.g. the "Crear alerta"
+ *                 block) and OPTIONALLY behind the summary card. Never on
+ *                 body / table / map.
+ * ------------------------------------------------------------------ */
+
+.summary-card {
+  position: relative;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-hairline);
+  border-radius: 16px;
+  box-shadow: var(--shadow-summary);
+  /* The pale gradient is layered as a top halo so the card has a hint of
+   * the brand without becoming a colour field. Pure white card below. */
+  background-image: linear-gradient(180deg, rgba(31,163,122,0.04) 0%, rgba(255,255,255,0) 60%);
+  overflow: hidden;
+}
+
+.hero-frame {
+  position: relative;
+  width: 100%;
+  /* 4:3 framed hero (subastasia move 3). */
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid var(--color-hairline);
+  background-color: var(--color-surface-muted);
+}
+
+.accent-band {
+  background-image: var(--gradient-accent);
+  border: 1px solid var(--color-hairline);
+  border-radius: 16px;
 }
 
 .footer-brand-bar {

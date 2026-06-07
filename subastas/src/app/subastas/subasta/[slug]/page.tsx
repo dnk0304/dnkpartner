@@ -13,34 +13,32 @@
  * /subastas/subasta/{slug}. CONCLUIDA / FINALIZADA → noindex (don't index
  * expired auctions).
  *
- * GATE REVERSAL (Dennis 2026-06-07, wave-A):
- *   The detail page is now FULLY PUBLIC. Every viewer — logged-out,
- *   trial-expired, paid — sees the full info: real H1 + street address,
- *   exact map pin, financials, documents, edicto, BOE/SEGSOCIAL source
- *   links. NO noindex, NO login redirect, NO teaser-vs-full split.
+ * GATE BOUNDARY (Dennis 2026-06-07, wave-B1 RE-FLIP):
+ *   PUBLIC (logged-out): SSR teaser ONLY. Address-led H1 + type + province +
+ *     municipality + status badge + headline figure + safe-by-construction
+ *     description snippet. Below the teaser, the <FullInfoWall> renders the
+ *     "Regístrate gratis para ver el expediente completo" CTA. The page stays
+ *     200 + indexable (NO noindex, NO login redirect) so Google sees the
+ *     teaser. Address-as-title is PUBLIC per Dennis directive.
  *
- *   The only gate boundary left is the alert action (POST /api/alerts)
- *   which requires a logged-in (free) account. See
- *   `src/app/api/alerts/route.ts` for the single ALERT_GATE flip point.
+ *   REGISTER (any logged-in user): the SSR teaser is REPLACED by the full
+ *     <AuctionDetailClient> hero (its own title + meta row + content
+ *     ladder). The client fetches /api/auctions/[id], which returns the
+ *     full payload for authenticated callers.
  *
- * Dead-code flag (do not delete yet — flagged for the cleanup wave):
- *   - <FullInfoWall> (components/access/FullInfoWall.tsx) is no longer
- *     rendered by this page.
- *   - <AuctionTeaser> (components/auction/AuctionTeaser.tsx) is no longer
- *     rendered by this page either, since AuctionDetailClient renders the
- *     full hero/title/where. AuctionTeaser is still used in list contexts
- *     (snippet builder shared with /api/auctions list cards) — verify
- *     before removing.
- *   - hasFullAccessServer / getAccessState are still consumed by the
- *     account/alerts/favourites surfaces. Keep them.
+ *   PAID (Whop active): same UI as REGISTER. The only paid-only surface
+ *     left in the app is alert creation — see /api/alerts/route.ts.
  */
 
 import { notFound, redirect } from 'next/navigation';
 import type { Metadata } from 'next';
 import { prisma } from '@/lib/prisma';
+import { auth } from '@/lib/auth';
 import { buildAuctionSlug, resolveAuctionIdFromSlug } from '@/lib/seo/auction-slug';
 import { isLegacyRow } from '@/lib/seo/legacy-rows';
 import AuctionDetailClient from '@/app/auction/[id]/AuctionDetailClient';
+import { AuctionTeaser } from '@/components/auction/AuctionTeaser';
+import { FullInfoWall } from '@/components/access/FullInfoWall';
 import { auctionMetaTitle, auctionDisplayTitle } from '@/lib/seo/display-title';
 import { buildAuctionJsonLd } from '@/lib/seo/json-ld';
 
@@ -200,9 +198,15 @@ export default async function SubastaDetailPage({ params }: PageProps) {
       appraisalValue: true,
       valorSubasta: true,
       endsAt: true,
+      opensAt: true,
       publishedAt: true,
       propertyDescription: true,
       lotDescription: true,
+      source: true,
+      // Wave-B2 (Pixel 2026-06-07): surface imageUrl so the SSR teaser can
+      // paint the same 3-rung imagery ladder (photo → map → neutral
+      // placeholder) the cards already use. Public information; no PII.
+      imageUrl: true,
     },
   });
   const jsonLd = seo ? buildAuctionJsonLd(seo) : null;
@@ -216,12 +220,36 @@ export default async function SubastaDetailPage({ params }: PageProps) {
   // NOTE: passed to AuctionDetailClient via a new optional prop so existing
   // call sites (legacy /auction/[id]) keep working unchanged.
 
-  // GATE REVERSAL (wave-A, 2026-06-07): the detail page is fully public.
-  // No teaser-vs-wall split. Every viewer gets the full client which fetches
-  // /api/auctions/[id] (now returning the full payload to everyone) and
-  // renders the H1 (address-led), exact map pin, financials, documents,
-  // edicto, source links. The only gate boundary left in the app is the
-  // alert POST — see /api/alerts/route.ts (ALERT_GATE constant).
+  // Wave-B1 (2026-06-07) gate: logged-out viewers get the SSR teaser +
+  // FullInfoWall (page still 200 + indexable for SEO). Logged-in viewers get
+  // the full AuctionDetailClient (its own title/hero + content ladder).
+  let isLoggedIn = false;
+  try {
+    const session = await auth();
+    isLoggedIn = !!session?.user?.id;
+  } catch {
+    isLoggedIn = false;
+  }
+
+  // Teaser data — pulled inline from the same `seo` row already fetched
+  // above (no extra round-trip). The teaser component is SSR-only — its
+  // markup lands in the initial HTML stream so Google sees the public
+  // intel regardless of session state.
+  // Coerce BigInt → number so the component (and JSON.stringify in the
+  // RSC payload) never throw. Honest-NULL when missing.
+  const teaserAppraisal = (() => {
+    const v = seo?.appraisalValue;
+    if (v == null) return null;
+    const n = typeof v === 'bigint' ? Number(v) : Number(v);
+    return Number.isFinite(n) ? n : null;
+  })();
+  const teaserValorSubasta = (() => {
+    const v = seo?.valorSubasta;
+    if (v == null) return null;
+    const n = typeof v === 'bigint' ? Number(v) : Number(v);
+    return Number.isFinite(n) ? n : null;
+  })();
+
   return (
     <div className="min-h-screen bg-[--color-page] pb-12">
       {jsonLd && (
@@ -233,7 +261,55 @@ export default async function SubastaDetailPage({ params }: PageProps) {
         />
       )}
       <main className="mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8">
-        <AuctionDetailClient id={a.id} />
+        {isLoggedIn ? (
+          // REGISTER+ → full detail client (fetches the full payload).
+          <AuctionDetailClient id={a.id} />
+        ) : (
+          // PUBLIC → SSR teaser (Google + crawlers see this) + FullInfoWall.
+          // The detail client is NOT mounted; the teaser carries the
+          // address-led H1, type, province/municipality, status badge,
+          // headline figure, and a safe-by-construction description
+          // snippet. PII (raw address, cadastral, IDUFIR, edicto, docs,
+          // financials breakdown) stays behind the wall.
+          <>
+            <AuctionTeaser
+              data={{
+                id: a.id,
+                boeId: a.boeId,
+                // Address-led title (Dennis-locked PUBLIC): the helper
+                // sanitises addr + builds "Subasta de {tipo} en {addr},
+                // {muni}" / falls back to muni+province for vehicle/land.
+                title: auctionDisplayTitle({
+                  address: seo?.address ?? null,
+                  propertyType: a.propertyType,
+                  auctionType: a.auctionType,
+                  category: a.category,
+                  municipality: a.municipality,
+                  province: a.province,
+                  title: a.title,
+                }),
+                category: a.category,
+                province: a.province,
+                municipality: a.municipality,
+                status: a.status,
+                auctionType: a.auctionType,
+                propertyType: a.propertyType,
+                source: seo?.source ?? null,
+                appraisalValue: teaserAppraisal,
+                valorSubasta: teaserValorSubasta,
+                publishedAt: seo?.publishedAt ?? new Date(),
+                opensAt: seo?.opensAt ?? null,
+                endsAt: seo?.endsAt ?? null,
+                // Image ladder inputs — public; the teaser uses
+                // resolveCardImage to walk photo → map → neutral placeholder.
+                imageUrl: seo?.imageUrl ?? null,
+                latitude: typeof seo?.latitude === 'number' ? seo.latitude : null,
+                longitude: typeof seo?.longitude === 'number' ? seo.longitude : null,
+              }}
+            />
+            <FullInfoWall />
+          </>
+        )}
       </main>
     </div>
   );

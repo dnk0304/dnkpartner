@@ -1,15 +1,33 @@
 /**
- * GET /api/auctions/[id] — auction detail loader for Pixel Wave 2c/Wave 3
- * detail page.
+ * GET /api/auctions/[id] — auction detail loader.
  *
- * Public (no auth required) — the auction list at /api/auctions is already
- * public and this route returns the same shape per-row. Locked tiers / masking
- * remain a list-page concern; the detail page either shows the auction or 404.
+ * Wave-B1 gate (Dennis 2026-06-07, re-flip):
+ *   PUBLIC (logged-out)            → TEASER ONLY (`meta.gated:true,requires:'auth'`).
+ *   REGISTER (any logged-in user)  → FULL payload (unchanged).
  *
- * Response shape mirrors what /api/auctions returns per item, plus:
- *   - history: latest 50 AuctionStatusHistory + AuctionBidHistory rows.
- *   - isFollowing: true if the requesting session has a Favorite for this auction (else false).
- *   - followCount: number of followers (favoriteCount column).
+ * The PUBLIC teaser is the SSR-safe set of fields Google + non-registered
+ * viewers see: id/boeId, address-led title, type, source, province,
+ * municipality, status, headline figure (appraisal OR valor subasta),
+ * published/opens/ends timestamps, plus a sanitised description snippet
+ * constructed from structured fields via `pickTeaserSnippet` (never raw
+ * propertyDescription / lotDescription).
+ *
+ * The PII rule (locked from wave66 PII-grep audit) — the public payload MUST
+ * NOT contain: street address (raw), latitude, longitude, cadastralRef,
+ * postalCode, idufir, registryInfo, edictUrl, pdfUrl, documents[], courtName,
+ * procedureNumber, raw propertyDescription / lotDescription / boeAnnouncement.
+ * The address-led title is the ONE exception — Dennis-locked: the address may
+ * appear as the title surface (SEO), and the address-as-title helper
+ * (`auctionDisplayTitle`) does the address cleansing.
+ *
+ * Response shape:
+ *   - public teaser:  { success:true, data:{ auction, history:{statuses:[],bids:[]},
+ *                                            followCount, isFollowing:false },
+ *                       meta:{ gated:true, requires:'auth' } }
+ *   - full payload :  { success:true, data:{ auction, history, followCount, isFollowing } }
+ *
+ * History (status + bid) is gated too — logged-out viewers get empty arrays.
+ * Follow state is always false for logged-out viewers.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -18,12 +36,22 @@ import { boeLinkFor } from '@/lib/boe-link';
 import { publicPathForDocId } from '@/lib/auction-docs/storage';
 import { buildSourceLinks } from '@/lib/source-links';
 import { buildFinancials } from '@/lib/financials';
-// NOTE (wave-A gate reversal, 2026-06-07): `getAccessState` /
-// `pickTeaserSnippet` / `mapStatus` / `effectiveStatus` were used by the
-// previous `!fullAccess` payload-stripping block. The detail page is now
-// fully public — the strip block is removed below and these imports drop
-// with it. `pickTeaserSnippet` itself stays in the tree (still used by
-// AuctionTeaser.tsx for the list-card snippet — see grep in dispatch notes).
+import { pickTeaserSnippet } from '@/lib/teaser-snippet';
+import { auctionDisplayTitle } from '@/lib/seo/display-title';
+
+const DB_TO_FRONTEND_STATUS: Record<string, string> = {
+  PROXIMA_APERTURA: 'proxima-apertura',
+  CELEBRANDOSE: 'celebrandose',
+  SUSPENDIDA: 'suspendida',
+  CANCELADA: 'cancelada',
+  CONCLUIDA_PORTAL: 'concluida-portal',
+  FINALIZADA_AUTORIDAD: 'finalizada-autoridad',
+  PRE_AUCTION: 'proxima-apertura',
+  ACTIVE: 'celebrandose',
+  FINISHED: 'concluida-portal',
+  SUSPENDED: 'suspendida',
+  CANCELLED: 'cancelada',
+};
 
 export async function GET(
   _req: NextRequest,
@@ -34,11 +62,8 @@ export async function GET(
     return NextResponse.json({ success: false, error: 'id_required' }, { status: 400 });
   }
 
-  // Include the AuctionDocument relation (document-archive wave, 2026-06-03).
-  // `include` instead of `select` so we keep the existing "every scalar" shape
-  // the detail page consumes (avoids enumerating ~60 columns + re-breaking on
-  // every additive migration). The BigInt-coercion below already guards
-  // `loteNumber` + `currentBidAmount`; AuctionDocument has no BigInt cols.
+  // Include AuctionDocument so the full payload can project docs[]. The
+  // teaser path never reads `documents` — it just discards them.
   const auction = await prisma.auction.findUnique({
     where: { id },
     include: {
@@ -51,9 +76,6 @@ export async function GET(
           kind: true,
           storedPath: true,
         },
-        // Snapshots last so the visible BOE downloads (nota simple, edicto…)
-        // surface first on the detail page. createdAt asc within each kind
-        // preserves scrape order.
         orderBy: [{ kind: 'asc' }, { createdAt: 'asc' }],
       },
     },
@@ -62,6 +84,109 @@ export async function GET(
     return NextResponse.json({ success: false, error: 'not_found' }, { status: 404 });
   }
 
+  // Resolve session up-front — drives the gate. Session lookup failure is
+  // treated as logged-out (fail-closed: we never accidentally hand out the
+  // full payload on a session-store blip).
+  let viewerUserId: string | undefined;
+  try {
+    const session = await auth();
+    viewerUserId = session?.user?.id;
+  } catch {
+    viewerUserId = undefined;
+  }
+  const isLoggedIn = !!viewerUserId;
+
+  // BigInt coercion — needed even in the teaser branch because the teaser
+  // headline figure pulls valorSubasta / appraisalValue which can be bigint
+  // on freshly-migrated columns.
+  const loteNumberSafe =
+    auction.loteNumber == null ? null : Number(auction.loteNumber);
+  const currentBidAmountSafe = (() => {
+    const raw = auction.currentBidAmount;
+    if (raw == null) return null;
+    const cents = typeof raw === 'bigint' ? Number(raw) : Number(raw);
+    if (!Number.isFinite(cents) || cents <= 0) return null;
+    return cents / 100;
+  })();
+
+  // ----------------------------------------------------------------------
+  // LOGGED-OUT → TEASER ONLY (no history, no follow, no PII).
+  // ----------------------------------------------------------------------
+  if (!isLoggedIn) {
+    const frontendStatus = DB_TO_FRONTEND_STATUS[auction.status] ?? 'celebrandose';
+    const tipoBien =
+      auction.propertyType ??
+      (auction.auctionType ? auction.auctionType.toLowerCase() : null) ??
+      auction.category ??
+      null;
+    const snippet = pickTeaserSnippet({
+      tipoBien,
+      municipio: auction.municipality,
+      provincia: auction.province,
+      frontendStatus,
+    });
+    // Address-led title — Dennis-locked: the address may surface AS the
+    // title for SEO. The helper sanitises the address (no postal/IDUFIR
+    // inline tokens) and falls back to muni/province for vehicle/land rows.
+    const teaserTitle = auctionDisplayTitle({
+      address: auction.address,
+      propertyType: auction.propertyType,
+      auctionType: auction.auctionType,
+      category: auction.category,
+      municipality: auction.municipality,
+      province: auction.province,
+      title: auction.title,
+    });
+    const appraisal =
+      auction.appraisalValue != null && Number.isFinite(Number(auction.appraisalValue))
+        ? Number(auction.appraisalValue)
+        : null;
+    const valorSub =
+      auction.valorSubasta != null && Number.isFinite(Number(auction.valorSubasta))
+        ? Number(auction.valorSubasta)
+        : null;
+
+    const teaserAuction = {
+      id: auction.id,
+      boeId: auction.boeId,
+      // Public title — sanitised display title; raw scraped title NEVER
+      // surfaces here when it would leak Key\tValue garbage.
+      title: teaserTitle,
+      category: auction.category,
+      province: auction.province ?? null,
+      municipality: auction.municipality ?? null,
+      status: auction.status,
+      auctionType: auction.auctionType ?? null,
+      propertyType: auction.propertyType ?? null,
+      source: auction.source ?? null,
+      appraisalValue: appraisal,
+      valorSubasta: valorSub,
+      publishedAt: auction.publishedAt,
+      opensAt: auction.opensAt ?? null,
+      endsAt: auction.endsAt ?? null,
+      // Public, safe-by-construction description snippet (NEVER raw
+      // propertyDescription/lotDescription — see lib/teaser-snippet.ts).
+      teaserSnippet: snippet,
+      // All PII fields explicitly omitted. The client must NOT branch on
+      // their presence — `meta.gated` is the contract.
+    };
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        auction: teaserAuction,
+        history: { statuses: [], bids: [] },
+        followCount: auction.favoriteCount,
+        isFollowing: false,
+      },
+      meta: { gated: true, requires: 'auth' },
+    });
+  }
+
+  // ----------------------------------------------------------------------
+  // LOGGED-IN → FULL payload (history, documents, financials, source links,
+  // every column the row carries).
+  // ----------------------------------------------------------------------
   const [statusHistory, bidHistory] = await Promise.all([
     prisma.auctionStatusHistory.findMany({
       where: { auctionId: id },
@@ -77,61 +202,20 @@ export async function GET(
     }),
   ]);
 
+  // viewerUserId is guaranteed defined here — the `!isLoggedIn` branch above
+  // already returned. Narrow for the type checker.
+  const userId = viewerUserId as string;
   let isFollowing = false;
-  let viewerUserId: string | undefined;
   try {
-    const session = await auth();
-    viewerUserId = session?.user?.id;
-    if (viewerUserId) {
-      const f = await prisma.favorite.findUnique({
-        where: { userId_auctionId: { userId: viewerUserId, auctionId: id } },
-        select: { id: true },
-      });
-      isFollowing = !!f;
-    }
+    const f = await prisma.favorite.findUnique({
+      where: { userId_auctionId: { userId, auctionId: id } },
+      select: { id: true },
+    });
+    isFollowing = !!f;
   } catch {
-    // Session lookup failure shouldn't break the public detail load.
+    // Favourite lookup failure shouldn't break detail load.
   }
 
-  // GATE REVERSAL (wave-A, 2026-06-07): the auction detail page is now FULLY
-  // PUBLIC. The previous freemium projection block (which nulled address,
-  // latitude/longitude, edictUrl, pdfUrl, boeLink, documents, postalCode,
-  // idufir, court fields, financials breakdown, and replaced
-  // propertyDescription with a teaser snippet for non-qualifying callers) is
-  // REMOVED. Per Dennis: "allow free access to the page, but with no access
-  // to notifications." The only gate boundary left is the alert POST — see
-  // `src/app/api/alerts/route.ts` for the single flip point.
-  //
-  // The `access` field is still surfaced in the response so any client that
-  // wants to render an "upgrade" CTA contextually can still do so without a
-  // second fetch — but it no longer changes the payload shape.
-
-  // Derive the per-auction BOE URL at projection time so the detail page
-  // never falls back to the BOE homepage when `boeLink` is NULL (only 630
-  // of 1,699 active rows carry a stored value — see lib/boe-link.ts).
-  //
-  // BigInt coercion (P0 fix — 2026-06-02): the two BigInt columns on
-  // `Auction` (`loteNumber`, `currentBidAmount`) cannot be serialized by
-  // `JSON.stringify` and the bare `findUnique` above pulls every column,
-  // so `NextResponse.json` would throw `TypeError: Do not know how to
-  // serialize a BigInt` → 500. Mirror the cents→euros / Number coercion
-  // the list APIs (`/api/auctions`, `/api/auctions/recent`) already do
-  // for the same two columns so the detail payload matches the card
-  // payload. Null-safe: null/undefined stay null. Non-finite or
-  // non-positive bid amounts collapse to null to match the card layer.
-  const loteNumberSafe =
-    auction.loteNumber == null ? null : Number(auction.loteNumber);
-  const currentBidAmountSafe = (() => {
-    const raw = auction.currentBidAmount;
-    if (raw == null) return null;
-    const cents = typeof raw === 'bigint' ? Number(raw) : Number(raw);
-    if (!Number.isFinite(cents) || cents <= 0) return null;
-    return cents / 100; // cents → euros (matches /api/auctions card projection)
-  })();
-  // Project documents: expose a download URL (`/api/auction-doc/<id>`) for
-  // rows that have a cached file on disk; otherwise the caller falls back to
-  // `officialUrl` (the BOE link). The raw `storedPath` is NOT sent to the
-  // client — it's an internal storage detail.
   const { documents: rawDocuments, ...auctionScalars } = auction;
   const documents = rawDocuments.map((d) => ({
     id: d.id,
@@ -139,47 +223,9 @@ export async function GET(
     title: d.title,
     kind: d.kind,
     officialUrl: d.officialUrl,
-    // null when nothing has been cached locally yet — Pixel falls back to
-    // officialUrl in that case (same as the image route's fallback contract).
     downloadUrl: d.storedPath ? publicPathForDocId(d.id) : null,
   }));
 
-  // Detail payload contract (Pixel doc-UI, 2026-06-03):
-  //   `...auctionScalars` projects EVERY Auction scalar column verbatim. That
-  //   means the new bien fields introduced by the document-archive wave
-  //   (e8c83a1) — postalCode, idufir, registryInscription, legalTitle,
-  //   bienLocalidad, bienProvincia, viviendaHabitual — flow through
-  //   automatically, as do opensAt (start date), propertyType, and address.
-  //   No per-field listing here — the `findUnique` (no `select`) is the
-  //   contract: any additive scalar migration surfaces on detail without a
-  //   code change. The two BigInt columns (loteNumber, currentBidAmount) are
-  //   overridden below because JSON.stringify cannot serialize BigInt; every
-  //   other scalar passes through untouched and null-safe.
-  // Wave-B (2026-06-07) — additive payload fields. Every entry below is a
-  // RENDER-TIME derivation or a verbatim projection of an existing scalar;
-  // no migration. Honest-NULL throughout.
-  //
-  //   sourceLinks  : labelled set Pixel renders as "Ver subasta original",
-  //                  "Ver lote original", "Ver pujas", "Ver edicto",
-  //                  "Anuncio del BOE (PDF)" — see lib/source-links.ts.
-  //   financials   : ordered 7-entry breakdown (valor de subasta, tasación,
-  //                  depósito, importe reclamado, puja mínima, tramo,
-  //                  valor de adjudicación). depósito is DERIVED 5% when
-  //                  no stored deposit column value exists.
-  //   endDate      : ISO string mirror of endsAt — Pixel's countdown reads
-  //                  this directly (the raw column is also still present).
-  //   bidStatus    : "Sin pujas" / "{N} pujas" / null. Resolved from
-  //                  pujaStatus + bidHistory count (no live BOE scrape in
-  //                  the request path).
-  //   lastUpdated  : ISO string mirror of updatedAt — Pixel's "Actualizado
-  //                  el {fecha}" trust line.
-  //   seller       : { name, contact } projected from existing columns
-  //                  (courtName / contactInfo); null when both absent.
-  //   cadastral    : { ref, classification, use, area, charges, possession,
-  //                    ownershipPct } — NULL-safe projection of what's
-  //                    already stored. classification / use / area /
-  //                    ownershipPct are NOT in the schema today; see the
-  //                    CADASTRAL VERDICT in the wave-B résumé.
   const sourceLinks = buildSourceLinks({
     boeId: auction.boeId,
     boeLink: auction.boeLink,
@@ -199,12 +245,6 @@ export async function GET(
     finalBid: auction.finalBid,
   });
 
-  // bidStatus — resolved from the stored pujaStatus enum + a head-count of
-  // AuctionBidHistory rows. We DO NOT call BOE live in the request path;
-  // when pujaStatus is null the field stays null + Pixel renders "—".
-  //   - "SIN_PUJA"  → "Sin pujas"
-  //   - "CON_PUJA"  → "{N} pujas" when N>0 else "Con pujas"
-  //   - null/other  → null
   const bidCount = bidHistory.length;
   const bidStatus: string | null = (() => {
     const ps = (auction.pujaStatus ?? '').toUpperCase();
@@ -213,27 +253,17 @@ export async function GET(
     return null;
   })();
 
-  // seller / contact — courtName + contactInfo are the only contact-shaped
-  // columns the schema carries. organismo / agency / acreedor do NOT exist
-  // as Auction columns today (schema audit, wave-B). NULL when both absent.
   const sellerName = (auction.courtName ?? '').trim() || null;
   const sellerContact = (auction.contactInfo ?? '').trim() || null;
   const seller = sellerName || sellerContact
     ? { name: sellerName, contact: sellerContact }
     : null;
 
-  // cadastral — schema audit (wave-B): the four fields BELOW exist on Auction
-  // today and are projected verbatim. The FOUR fields commented out at the
-  // end (classification, use, area, ownershipPct) DO NOT exist as columns
-  // today and would need either (a) a new column + Ghost parse, or (b) an
-  // external Catastro fetch. FLAGGED — see CADASTRAL VERDICT.
   const cadastral = {
     ref: auction.cadastralRef ?? null,
     charges: auction.charges ?? null,
     chargesDetail: auction.chargesDetail ?? null,
     possession: auction.possessionStatus ?? null,
-    // The following four are NOT yet stored. Returning null honestly keeps
-    // the API shape stable for the day they DO get backfilled.
     classification: null,
     use: null,
     area: null,
@@ -246,7 +276,6 @@ export async function GET(
     loteNumber: Number.isFinite(loteNumberSafe as number) ? loteNumberSafe : null,
     currentBidAmount: currentBidAmountSafe,
     documents,
-    // Wave-B additive surface — every field below is render-time / no migration.
     sourceLinks,
     financials,
     endDate: auction.endsAt ? auction.endsAt.toISOString() : null,
@@ -256,13 +285,6 @@ export async function GET(
     cadastral,
   };
 
-  // GATE REVERSAL (wave-A, 2026-06-07): the `!fullAccess` strip block that
-  // previously lived here has been REMOVED. The detail API now returns the
-  // FULL auction payload to every caller (logged-out, trial-expired, paid).
-  // History (status + bid) is also returned in full for everyone now —
-  // previously it was nulled-out for non-qualifying callers. The only gate
-  // boundary that remains is the alert POST (see /api/alerts/route.ts).
-
   return NextResponse.json({
     success: true,
     data: {
@@ -270,10 +292,6 @@ export async function GET(
       history: { statuses: statusHistory, bids: bidHistory },
       followCount: auction.favoriteCount,
       isFollowing,
-      // `access` field intentionally omitted — the detail payload no longer
-      // varies on it, so consumers should not branch on it. Components that
-      // need the viewer's gate state for OTHER reasons (e.g. the alert CTA)
-      // can fetch /api/account or read it from session client-side.
     },
   });
 }

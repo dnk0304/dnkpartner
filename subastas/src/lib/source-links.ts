@@ -23,8 +23,60 @@
  */
 
 import { boeLinkFor } from "./boe-link";
+import { getSourceLabel } from "./source-labels";
 
 const BOE_DETAIL_BASE = "https://subastas.boe.es/detalleSubasta.php";
+
+/**
+ * Build a source-aware "go to the official source" label.
+ *
+ * QC P1 (2026-06-07): a PLABI row was rendering "Anuncio del BOE (PDF)" on a
+ * link that pointed at plabi.justicia.es — the static "BOE" label leaked
+ * through for non-BOE rows. Per-source label resolution per resource type
+ * keeps labels honest. Examples:
+ *
+ *   BOE       → "Ver subasta original", "Anuncio del BOE (PDF)"
+ *   PLABI     → "Ver en PLABI",          "Anuncio de PLABI (PDF)"
+ *   SEGSOCIAL → "Ver subasta original",  "Anuncio de Seguridad Social (PDF)"
+ *
+ * Falls back to a generic "Documento oficial (PDF)" / "Ver fuente original"
+ * when the source label can't be resolved (so we NEVER emit a misleading
+ * "del BOE" suffix for an unknown source).
+ */
+function sourceAwareLabel(
+  resource: "subasta" | "lote" | "pujas" | "edicto" | "pdf",
+  source: string | null | undefined,
+): string {
+  const upper = (source ?? "").trim().toUpperCase();
+  const label = getSourceLabel(source);
+  // BOE / TEJU collapse to the same family — keep the historical BOE-leaning
+  // copy ("Ver subasta original" / "Anuncio del BOE (PDF)") so the labels
+  // don't churn for the 95% case.
+  const isBoeFamily = upper === "BOE" || upper === "TEJU" || upper === "";
+  switch (resource) {
+    case "subasta":
+      if (isBoeFamily) return "Ver subasta original";
+      // PLABI: "Ver en PLABI" reads more naturally than "Ver subasta
+      // original" on a portal that calls them "liquidaciones".
+      if (upper === "PLABI") return "Ver en PLABI";
+      return "Ver subasta original";
+    case "lote":
+      return "Ver lote original";
+    case "pujas":
+      return "Ver pujas";
+    case "edicto":
+      return "Ver edicto";
+    case "pdf":
+      // PDF anuncio — the label MUST name the right source. Falling back to
+      // a generic "Anuncio oficial (PDF)" when we can't resolve the source
+      // is much better than mislabelling a PLABI doc as "del BOE".
+      if (isBoeFamily) return "Anuncio del BOE (PDF)";
+      if (label) return `Anuncio de ${label} (PDF)`;
+      return "Anuncio oficial (PDF)";
+    default:
+      return "Ver fuente";
+  }
+}
 
 export type SourceLink = {
   /** Stable key Pixel can switch on for icons / sort order. */
@@ -78,13 +130,29 @@ export function buildSourceLinks(auction: AuctionLike): SourceLink[] {
         ? Number(loteRaw)
         : Number(loteRaw);
 
+  const src = auction.source ?? null;
+
   if (isSegSocial(auction)) {
     // SEGSOCIAL: no deterministic BOE deep-link. Route via originalSource.
     const upstream = (auction.originalSource ?? "").trim();
     if (upstream) {
       out.push({
         key: "subasta",
-        label: "Ver subasta original",
+        label: sourceAwareLabel("subasta", src),
+        href: upstream,
+      });
+    }
+  } else if ((src ?? "").trim().toUpperCase() === "PLABI") {
+    // PLABI: no deterministic BOE deep-link either. Route via the upstream
+    // URL stored on `originalSource` (PLABI scraper writes it on every row).
+    // QC P1 (2026-06-07) — the previous code path fell into the BOE branch
+    // and emitted "Anuncio del BOE (PDF)" / "Ver subasta original" pointing
+    // at plabi.justicia.es. Now the PLABI row gets PLABI-flavoured copy.
+    const upstream = (auction.originalSource ?? "").trim();
+    if (upstream) {
+      out.push({
+        key: "subasta",
+        label: sourceAwareLabel("subasta", src),
         href: upstream,
       });
     }
@@ -92,7 +160,11 @@ export function buildSourceLinks(auction: AuctionLike): SourceLink[] {
     // BOE / judicial / notarial / AEAT — deterministic from boeId.
     const subasta = boeLinkFor(auction.boeId, auction.boeLink);
     if (subasta) {
-      out.push({ key: "subasta", label: "Ver subasta original", href: subasta });
+      out.push({
+        key: "subasta",
+        label: sourceAwareLabel("subasta", src),
+        href: subasta,
+      });
     }
 
     // Lote deep-link only when this row is a split-lote child (loteNumber is
@@ -101,7 +173,7 @@ export function buildSourceLinks(auction: AuctionLike): SourceLink[] {
     if (trimmedBoeId && lote != null && Number.isFinite(lote)) {
       out.push({
         key: "lote",
-        label: "Ver lote original",
+        label: sourceAwareLabel("lote", src),
         href: buildBoeSubastaHref(trimmedBoeId, lote),
       });
     }
@@ -114,22 +186,23 @@ export function buildSourceLinks(auction: AuctionLike): SourceLink[] {
     if (trimmedBoeId) {
       out.push({
         key: "pujas",
-        label: "Ver pujas",
+        label: sourceAwareLabel("pujas", src),
         href: `${buildBoeSubastaHref(trimmedBoeId, lote)}#pujas`,
       });
     }
   }
 
-  // Edicto / PDF live on the row regardless of source (the scraper stores
-  // both for BOE and SegSocial rows when present).
+  // Edicto / PDF live on the row regardless of source. The label is
+  // source-aware so a PLABI row's PDF is "Anuncio de PLABI (PDF)" — not
+  // "Anuncio del BOE (PDF)" (QC P1 fix, 2026-06-07).
   const edicto = (auction.edictUrl ?? "").trim();
   if (edicto) {
-    out.push({ key: "edicto", label: "Ver edicto", href: edicto });
+    out.push({ key: "edicto", label: sourceAwareLabel("edicto", src), href: edicto });
   }
 
   const pdf = (auction.pdfUrl ?? "").trim();
   if (pdf) {
-    out.push({ key: "pdf", label: "Anuncio del BOE (PDF)", href: pdf });
+    out.push({ key: "pdf", label: sourceAwareLabel("pdf", src), href: pdf });
   }
 
   return out;

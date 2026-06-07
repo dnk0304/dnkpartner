@@ -1,19 +1,23 @@
 "use client";
 
 /**
- * DetailStatusPanel — the sticky right-rail "state" panel on the detail page.
+ * DetailStatusPanel — the consolidated sticky right-rail "summary card" on
+ * the detail page.
  *
- * The single most important block in the product. It must answer in one
- * glance:
- *   - What's the auction doing right now?
- *   - When does it open / close?
- *   - What's the current bid?
- *   - How do I act (follow / configure alerts / go to BOE to bid)?
+ * 2026-06-07 redesign (subastasia move 1): ONE rounded, soft-shadowed white
+ * panel holding the entire summary intel. Big bold starting bid (valor
+ * subasta) at the top; muted tasación directly beneath; dates + live
+ * countdown; the source-aware CTA. Soft shadow is the ONE deliberate
+ * exception to our flat/hairline rule on this page.
  *
  * The panel docks sticky-top once the user scrolls past the hero so the live
  * countdown and "Ir al Portal del BOE" CTA never leave the viewport on
  * desktop. On mobile it lives above the description (not sticky — the mobile
  * action bar handles the persistent CTAs).
+ *
+ * PLABI rows have NO end date (CELEBRÁNDOSE without endsAt). The countdown
+ * block hides gracefully in that case — never an empty "Tiempo restante /
+ * Fecha por confirmar" pill (QC fix, Pixel 2026-06-07).
  */
 
 import * as React from "react";
@@ -23,9 +27,11 @@ import { StatusBadge } from "./StatusBadge";
 import { LiveCountdown } from "./LiveCountdown";
 import { FollowButton } from "@/components/notifications/FollowButton";
 import { NotifyPrefsPopover } from "@/components/notifications/NotifyPrefsPopover";
+import { CrearAlertaCTA } from "@/components/auction/CrearAlertaCTA";
 import { formatPrice, formatDateLong } from "./format";
 import { getStatusMeta, isLive, isUpcoming, effectiveStatus } from "./status";
 import { statusDateLabel } from "@/lib/auction-status";
+import { getSourceLabel } from "@/lib/source-labels";
 import { cn } from "@/lib/utils";
 
 export type DetailStatusPanelProps = {
@@ -71,38 +77,86 @@ export function DetailStatusPanel({
     : upcoming
       ? (auction.startedAt ?? null)
       : null;
-  const countdownPrefix = live ? "Termina en" : upcoming ? "Abre en" : undefined;
 
   const [following, setFollowing] = React.useState(initialFollowing);
+
+  // Price hierarchy (subastasia move 2): BIG BOLD starting bid (valorSubasta)
+  // on top; MUTED tasación under as the valuation. Honest-NULL: when one is
+  // missing, the other becomes the headline figure.
+  const hasValorSubasta = auction.valorSubasta != null && auction.valorSubasta > 0;
+  const hasAppraisal = auction.appraisalValue != null && auction.appraisalValue > 0;
+  const headlinePrice = hasValorSubasta
+    ? auction.valorSubasta
+    : hasAppraisal
+      ? auction.appraisalValue
+      : null;
+  const headlineLabel = hasValorSubasta ? "Valor subasta" : "Tasación";
+  // Show the secondary line ONLY when the headline is the bid (valorSubasta)
+  // and the appraisal is ALSO present — so the comparison reads as the
+  // "good deal" story.
+  const secondaryAppraisal = hasValorSubasta && hasAppraisal ? auction.appraisalValue : null;
 
   return (
     <aside
       className={cn(
-        "rounded-lg border border-[--color-hairline] bg-[--color-surface] p-5 md:p-6 space-y-5",
+        "summary-card p-5 md:p-6 space-y-5",
         className,
       )}
       aria-labelledby="detail-state-heading"
     >
-      <header>
+      <header className="flex items-start justify-between gap-3">
         <h2 id="detail-state-heading" className="sr-only">
-          Estado actual de la subasta
+          Resumen y estado de la subasta
         </h2>
-        <StatusBadge status={resolvedStatus} size="lg" />
-        <p className="mt-2 text-xs text-[--color-ink-tertiary]">{meta.helper}</p>
+        <div>
+          <StatusBadge status={resolvedStatus} size="lg" />
+          <p className="mt-2 text-xs text-[--color-ink-tertiary]">{meta.helper}</p>
+        </div>
       </header>
+
+      {/* Price hierarchy — BIG BOLD bid, muted tasación under. */}
+      {headlinePrice != null && (
+        <div>
+          <div className="text-[11px] uppercase tracking-wide text-[--color-ink-tertiary]">
+            {headlineLabel}
+          </div>
+          <div className="mt-1 font-serif text-[2.25rem] md:text-[2.5rem] font-semibold leading-none tracking-tight tnum text-[--color-ink-primary]">
+            {formatPrice(headlinePrice)}
+          </div>
+          {secondaryAppraisal != null && (
+            <div className="mt-1.5 text-xs text-[--color-ink-tertiary] tnum">
+              Tasación {formatPrice(secondaryAppraisal)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Current bid — only when truly distinct (and present). */}
+      {auction.currentBid != null && auction.currentBid > 0 && (
+        <div className="hairline-t pt-4">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-[--color-ink-tertiary]">
+            Puja actual
+          </div>
+          <div className="mt-1 tnum text-2xl font-semibold text-[--color-ink-primary]">
+            {formatPrice(auction.currentBid)}
+          </div>
+        </div>
+      )}
 
       {/* Status-branched date / countdown block (Wave52, Pixel 2026-06-04).
           LIVE     → ticking countdown to endsAt.
-          UPCOMING → ticking countdown to opensAt when set, otherwise a
-                     static "Próxima apertura · Fecha por confirmar" line.
-                     We deliberately do NOT fall back to endsAt for upcoming
-                     — pre-auctions' endsAt is a placeholder and surfacing
-                     it as "Termina en …" is the bug Dennis flagged.
+          UPCOMING → ticking countdown to opensAt when set; otherwise hide
+                     gracefully (PLABI-style rows have no opens/endsAt).
           SUSPEND  → static "Fecha prevista de reanudación: <resumeAt>" or
                      "Fecha por confirmar". NEVER a live countdown.
-          TERMINAL → nothing. */}
+          TERMINAL → nothing.
+
+          QC fix (Pixel 2026-06-07): PLABI rows are CELEBRÁNDOSE with NO
+          endsAt — previously rendered an empty "Tiempo restante" pill. Now
+          the entire block is suppressed when countdownTarget is null AND
+          the row is live (no resumeAt either). */}
       {countdownTarget ? (
-        <div className="rounded-md bg-[--color-surface-muted] px-4 py-3">
+        <div className="rounded-lg bg-[--color-surface-muted] px-4 py-3">
           <div className="text-[10px] font-semibold uppercase tracking-wider text-[--color-ink-tertiary]">
             {live ? "Tiempo restante" : "Abre en"}
           </div>
@@ -122,20 +176,10 @@ export function DetailStatusPanel({
                 : null}
           </div>
         </div>
-      ) : upcoming ? (
-        // PROXIMA without a real opensAt — static, NO countdown, NO fake end.
-        <div className="rounded-md bg-[--color-surface-muted] px-4 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-[--color-ink-tertiary]">
-            Próxima apertura
-          </div>
-          <div className="mt-1 text-base text-[--color-ink-quiet]">
-            Fecha por confirmar
-          </div>
-        </div>
       ) : suspended ? (
         // SUSPENDIDA — render resumeAt (or "Fecha por confirmar"), never a
         // countdown to endsAt.
-        <div className="rounded-md bg-[--color-surface-muted] px-4 py-3">
+        <div className="rounded-lg bg-[--color-surface-muted] px-4 py-3">
           <div className="text-[10px] font-semibold uppercase tracking-wider text-[--color-ink-tertiary]">
             Fecha prevista de reanudación
           </div>
@@ -149,64 +193,67 @@ export function DetailStatusPanel({
         </div>
       ) : null}
 
-      {/* Current bid */}
-      <div>
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-[--color-ink-tertiary]">
-          Puja actual
-        </div>
-        <div className="mt-1 tnum font-serif text-2xl md:text-3xl text-[--color-ink-primary]">
-          {formatPrice(auction.currentBid)}
-        </div>
-      </div>
-
-      {/* Values — Tasación + Valor subasta + Cantidad reclamada are the
-          three Dennis-canonical figures (locked 2026-06-04, brief
-          `three-values-card-display`). Each is rendered ONLY when present
-          (honest-NULL); a value of 0 is treated as absent on the user-visible
-          columns since the scraper writes honest-NULL there too. Tasación is
-          kept first for continuity with the old layout; Valor subasta sits
-          immediately under it so the two BOE-distinct figures read side-by-
-          side. Puja mínima, Depósito and Tramo stay below as secondary
-          contractual fields. */}
-      <dl className="space-y-2 hairline-t pt-4 text-sm">
-        {auction.appraisalValue != null && auction.appraisalValue > 0 && (
-          <ValueRow label="Tasación" value={formatPrice(auction.appraisalValue)} />
-        )}
-        {auction.valorSubasta != null && auction.valorSubasta > 0 && (
-          <ValueRow label="Valor subasta" value={formatPrice(auction.valorSubasta)} />
-        )}
-        {auction.claimedAmount != null && auction.claimedAmount > 0 && (
-          <ValueRow label="Cantidad reclamada" value={formatPrice(auction.claimedAmount)} />
-        )}
-        {auction.minimumBid != null && (
-          <ValueRow label="Puja mínima" value={formatPrice(auction.minimumBid)} />
-        )}
-        {auction.depositAmount != null && (
-          <ValueRow label="Depósito" value={formatPrice(auction.depositAmount)} />
-        )}
-        {auction.bidIncrement != null && (
-          <ValueRow label="Tramo entre pujas" value={formatPrice(auction.bidIncrement)} />
-        )}
-      </dl>
-
-      {/* Action cluster */}
-      <div className="space-y-3 hairline-t pt-4">
-        <a
-          href={auction.boeLink ?? "https://subastas.boe.es"}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={cn(
-            "flex w-full items-center justify-center gap-2 rounded-md px-4 py-3 text-sm font-semibold transition-colors",
-            "bg-[--color-action-soft] border border-[--color-action] text-[--color-ink-primary] hover:bg-[--color-action-soft]/80",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40 focus-visible:ring-offset-2",
+      {/* Secondary contractual figures — Puja mín., Depósito, Tramo,
+          Cantidad reclamada. Keep them as a quiet stack under the headline
+          price (honest-NULL: each row is gated on its own value). */}
+      {(auction.claimedAmount || auction.minimumBid || auction.depositAmount || auction.bidIncrement) && (
+        <dl className="space-y-2 hairline-t pt-4 text-sm">
+          {auction.claimedAmount != null && auction.claimedAmount > 0 && (
+            <ValueRow label="Cantidad reclamada" value={formatPrice(auction.claimedAmount)} />
           )}
-        >
-          Ir al Portal del BOE
-          <ExternalLink className="h-4 w-4" aria-hidden="true" />
-        </a>
+          {auction.minimumBid != null && auction.minimumBid > 0 && (
+            <ValueRow label="Puja mínima" value={formatPrice(auction.minimumBid)} />
+          )}
+          {auction.depositAmount != null && auction.depositAmount > 0 && (
+            <ValueRow label="Depósito" value={formatPrice(auction.depositAmount)} />
+          )}
+          {auction.bidIncrement != null && auction.bidIncrement > 0 && (
+            <ValueRow label="Tramo entre pujas" value={formatPrice(auction.bidIncrement)} />
+          )}
+        </dl>
+      )}
+
+      {/* Action cluster — source-aware official-source CTA (QC P1 fix,
+          2026-06-07). A PLABI row used to render "Ir al Portal del BOE"
+          pointing at plabi.justicia.es; we now resolve the label and href
+          per source. Falls back to BOE for BOE/legacy rows. */}
+      <div className="space-y-3 hairline-t pt-4">
+        {(() => {
+          const upper = (auction.source ?? "").trim().toUpperCase();
+          const isBoeFamily = upper === "BOE" || upper === "TEJU" || upper === "";
+          // PLABI / SEGSOCIAL — use the row's originalSource when present,
+          // never the BOE homepage. BOE family keeps the legacy fallback.
+          const href = isBoeFamily
+            ? (auction.boeLink ?? "https://subastas.boe.es")
+            : ((auction as { originalSource?: string | null }).originalSource ?? auction.boeLink ?? null);
+          const label = isBoeFamily
+            ? "Ir al Portal del BOE"
+            : `Ir al portal de ${getSourceLabel(auction.source) ?? "la fuente"}`;
+          if (!href) return null;
+          return (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(
+                "flex w-full items-center justify-center gap-2 rounded-md px-4 py-3 text-sm font-semibold transition-colors",
+                "bg-[--color-action] text-white hover:bg-[--color-action-hover]",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-action]/40 focus-visible:ring-offset-2",
+              )}
+            >
+              {label}
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            </a>
+          );
+        })()}
         <p className="text-[11px] text-[--color-ink-tertiary] text-center">
           Las pujas se realizan únicamente en el portal oficial.
         </p>
+
+        {/* Alert CTA — now PAID-gated (wave-B1). Logged-out → /register;
+            free logged-in → upgrade prompt; trial/paid → opens AlertsModal.
+            CrearAlertaCTA handles all three paths. */}
+        <CrearAlertaCTA auction={auction as unknown as Parameters<typeof CrearAlertaCTA>[0]["auction"]} hideHelper className="[&_button]:w-full" />
 
         <div className="flex items-stretch gap-2">
           <FollowButton

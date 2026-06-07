@@ -30,7 +30,9 @@ import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Bell, Loader2 } from "lucide-react";
 import { AlertsModal } from "@/components/dashboard/AlertsModal";
+import { UpgradeModal } from "@/components/dashboard/UpgradeModal";
 import { buildAlertPrefill, type AlertPrefill } from "@/lib/alert-prefill";
+import { useAccess } from "@/lib/access-client";
 import { cn } from "@/lib/utils";
 
 type AuctionLike = Parameters<typeof buildAlertPrefill>[0];
@@ -62,9 +64,11 @@ export function CrearAlertaCTA({
   className,
 }: CrearAlertaCTAProps) {
   const { status } = useSession();
+  const access = useAccess();
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
+  const [upgradeOpen, setUpgradeOpen] = React.useState(false);
   const [navigating, setNavigating] = React.useState(false);
 
   const prefill: AlertPrefill = React.useMemo(
@@ -74,19 +78,42 @@ export function CrearAlertaCTA({
 
   const isPrimary = variant === "primary";
   const buttonLabel = label ?? "Crear alerta";
+  // The button label changes based on access tier — logged-out users see
+  // the original "Crear alerta" framing; free logged-in users see the
+  // paid-prompt framing inline so they know what's behind the click.
+  // The API (wave-B1) returns 402 for free logged-in callers; we short-
+  // circuit on the client to avoid the round-trip.
+  const isLoggedOut = status === "unauthenticated";
+  const isFreeLoggedIn = !isLoggedOut && status === "authenticated" && !access.hasFullAccess && !access.loading;
+  const effectiveLabel = label
+    ? buttonLabel
+    : isFreeLoggedIn
+      ? "Activa el plan Acceso para alertas"
+      : buttonLabel;
   const supportCopy =
     helper ??
-    "Te avisamos cuando se publiquen subastas similares a esta.";
+    (isFreeLoggedIn
+      ? "Las alertas requieren el plan Acceso. Sigue navegando gratis."
+      : "Te avisamos cuando se publiquen subastas similares a esta.");
 
   const handleClick = React.useCallback(() => {
-    if (status === "unauthenticated") {
+    if (isLoggedOut) {
       setNavigating(true);
       const back = pathname || "/";
-      router.push(`/register?callbackUrl=${encodeURIComponent(back)}`);
+      // Brief asks for `?next=` — but the rest of the app uses `callbackUrl`.
+      // Send BOTH so /register can read either.
+      router.push(`/register?callbackUrl=${encodeURIComponent(back)}&next=${encodeURIComponent(back)}`);
+      return;
+    }
+    if (isFreeLoggedIn) {
+      // Paid surface — show the upgrade modal directly. The API would 402
+      // on submit anyway; this surfaces the boundary up-front instead of
+      // letting the user fill the form and hit a wall.
+      setUpgradeOpen(true);
       return;
     }
     setOpen(true);
-  }, [pathname, router, status]);
+  }, [isLoggedOut, isFreeLoggedIn, pathname, router]);
 
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
@@ -98,16 +125,20 @@ export function CrearAlertaCTA({
           "inline-flex items-center justify-center gap-2 rounded-md font-semibold transition-colors",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40 focus-visible:ring-offset-2",
           isPrimary
-            ? // Primary — winter-green brand gradient feel via solid brand colour
-              "bg-[--color-brand] px-4 py-2.5 text-sm text-white shadow-sm hover:opacity-95"
+            ? // Primary — solid action-green CTA (saturated; the gradient
+              // is intentionally absent here so the call to action stays
+              // strong after the site-wide gradient was toned down).
+              "bg-[--color-action] px-4 py-2.5 text-sm text-white shadow-sm hover:bg-[--color-action-hover] focus-visible:ring-[--color-action]/40"
             : // Ghost — quieter pill for the soft ladder
-              "border border-[--color-brand]/30 bg-[--color-brand]/5 px-3 py-2 text-xs text-[--color-ink-primary] hover:bg-[--color-brand]/10",
+              "border border-[--color-action]/30 bg-[--color-action]/5 px-3 py-2 text-xs text-[--color-ink-primary] hover:bg-[--color-action]/10 focus-visible:ring-[--color-action]/40",
           navigating && "opacity-70 cursor-progress",
         )}
         aria-label={
-          status === "unauthenticated"
-            ? `${buttonLabel} — crea tu cuenta para activar`
-            : buttonLabel
+          isLoggedOut
+            ? `${effectiveLabel} — crea tu cuenta para activar`
+            : isFreeLoggedIn
+              ? `${effectiveLabel} — activa el plan Acceso`
+              : effectiveLabel
         }
       >
         {navigating ? (
@@ -115,16 +146,16 @@ export function CrearAlertaCTA({
         ) : (
           <Bell className={isPrimary ? "h-4 w-4" : "h-3.5 w-3.5"} aria-hidden="true" />
         )}
-        <span>{buttonLabel}</span>
+        <span>{effectiveLabel}</span>
       </button>
       {!hideHelper && isPrimary && (
         <p className="text-[11px] text-[--color-ink-tertiary]">
-          {status === "unauthenticated"
-            ? "Crea tu cuenta gratis para recibir avisos por email."
+          {isLoggedOut
+            ? "Crea tu cuenta gratis para gestionar tus alertas (plan Acceso)."
             : supportCopy}
         </p>
       )}
-      {status === "authenticated" && (
+      {status === "authenticated" && access.hasFullAccess && (
         <AlertsModal
           open={open}
           onOpenChange={setOpen}
@@ -136,6 +167,9 @@ export function CrearAlertaCTA({
           initialMinPrice={prefill.initialMinPrice}
           initialMaxPrice={prefill.initialMaxPrice}
         />
+      )}
+      {isFreeLoggedIn && (
+        <UpgradeModal open={upgradeOpen} onOpenChange={setUpgradeOpen} />
       )}
     </div>
   );
