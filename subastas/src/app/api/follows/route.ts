@@ -117,6 +117,17 @@ export async function POST(req: NextRequest) {
   const prefs = pickPrefs(body);
   const notes = typeof body.notes === 'string' ? body.notes : null;
 
+  // Pre-check whether a Favorite row already exists so the favoriteCount
+  // increment below only fires on a TRUE create (not a re-follow update).
+  // This was the drift: the upsert always ran but the counter was never
+  // incremented (the previous `increment: 0` was a no-op touch), so every
+  // /api/follows POST left favoriteCount stuck at its pre-follow value
+  // while the legacy /api/favorites POST did +1 properly. Fixed wave-B.
+  const existed = await prisma.favorite.findUnique({
+    where: { userId_auctionId: { userId: session.userId, auctionId } },
+    select: { id: true },
+  });
+
   const follow = await prisma.favorite.upsert({
     where: { userId_auctionId: { userId: session.userId, auctionId } },
     create: {
@@ -147,12 +158,15 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // Mirror favoriteCount update done by /api/favorites. Best-effort — count
-  // drift is non-critical.
-  await prisma.auction.update({
-    where: { id: auctionId },
-    data: { favoriteCount: { increment: 0 } }, // touch (count is materialized; we don't double-count on upsert).
-  }).catch(() => undefined);
+  // Counter-drift fix (wave-B 2026-06-07): only +1 when this was a real
+  // create. Mirrors legacy /api/favorites POST behaviour so followCount on
+  // /api/auctions/[id] stays consistent across both write paths.
+  if (!existed) {
+    await prisma.auction.update({
+      where: { id: auctionId },
+      data: { favoriteCount: { increment: 1 } },
+    }).catch(() => undefined);
+  }
 
   return NextResponse.json({ success: true, data: follow });
 }

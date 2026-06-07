@@ -16,6 +16,8 @@ import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { boeLinkFor } from '@/lib/boe-link';
 import { publicPathForDocId } from '@/lib/auction-docs/storage';
+import { buildSourceLinks } from '@/lib/source-links';
+import { buildFinancials } from '@/lib/financials';
 // NOTE (wave-A gate reversal, 2026-06-07): `getAccessState` /
 // `pickTeaserSnippet` / `mapStatus` / `effectiveStatus` were used by the
 // previous `!fullAccess` payload-stripping block. The detail page is now
@@ -153,12 +155,105 @@ export async function GET(
   //   code change. The two BigInt columns (loteNumber, currentBidAmount) are
   //   overridden below because JSON.stringify cannot serialize BigInt; every
   //   other scalar passes through untouched and null-safe.
+  // Wave-B (2026-06-07) — additive payload fields. Every entry below is a
+  // RENDER-TIME derivation or a verbatim projection of an existing scalar;
+  // no migration. Honest-NULL throughout.
+  //
+  //   sourceLinks  : labelled set Pixel renders as "Ver subasta original",
+  //                  "Ver lote original", "Ver pujas", "Ver edicto",
+  //                  "Anuncio del BOE (PDF)" — see lib/source-links.ts.
+  //   financials   : ordered 7-entry breakdown (valor de subasta, tasación,
+  //                  depósito, importe reclamado, puja mínima, tramo,
+  //                  valor de adjudicación). depósito is DERIVED 5% when
+  //                  no stored deposit column value exists.
+  //   endDate      : ISO string mirror of endsAt — Pixel's countdown reads
+  //                  this directly (the raw column is also still present).
+  //   bidStatus    : "Sin pujas" / "{N} pujas" / null. Resolved from
+  //                  pujaStatus + bidHistory count (no live BOE scrape in
+  //                  the request path).
+  //   lastUpdated  : ISO string mirror of updatedAt — Pixel's "Actualizado
+  //                  el {fecha}" trust line.
+  //   seller       : { name, contact } projected from existing columns
+  //                  (courtName / contactInfo); null when both absent.
+  //   cadastral    : { ref, classification, use, area, charges, possession,
+  //                    ownershipPct } — NULL-safe projection of what's
+  //                    already stored. classification / use / area /
+  //                    ownershipPct are NOT in the schema today; see the
+  //                    CADASTRAL VERDICT in the wave-B résumé.
+  const sourceLinks = buildSourceLinks({
+    boeId: auction.boeId,
+    boeLink: auction.boeLink,
+    loteNumber: loteNumberSafe,
+    edictUrl: auction.edictUrl,
+    pdfUrl: auction.pdfUrl,
+    source: auction.source,
+    originalSource: auction.originalSource,
+  });
+  const financials = buildFinancials({
+    valorSubasta: auction.valorSubasta,
+    appraisalValue: auction.appraisalValue,
+    depositAmount: auction.depositAmount,
+    claimedAmount: auction.claimedAmount,
+    minimumBid: auction.minimumBid,
+    bidIncrement: auction.bidIncrement,
+    finalBid: auction.finalBid,
+  });
+
+  // bidStatus — resolved from the stored pujaStatus enum + a head-count of
+  // AuctionBidHistory rows. We DO NOT call BOE live in the request path;
+  // when pujaStatus is null the field stays null + Pixel renders "—".
+  //   - "SIN_PUJA"  → "Sin pujas"
+  //   - "CON_PUJA"  → "{N} pujas" when N>0 else "Con pujas"
+  //   - null/other  → null
+  const bidCount = bidHistory.length;
+  const bidStatus: string | null = (() => {
+    const ps = (auction.pujaStatus ?? '').toUpperCase();
+    if (ps === 'SIN_PUJA') return 'Sin pujas';
+    if (ps === 'CON_PUJA') return bidCount > 0 ? `${bidCount} ${bidCount === 1 ? 'puja' : 'pujas'}` : 'Con pujas';
+    return null;
+  })();
+
+  // seller / contact — courtName + contactInfo are the only contact-shaped
+  // columns the schema carries. organismo / agency / acreedor do NOT exist
+  // as Auction columns today (schema audit, wave-B). NULL when both absent.
+  const sellerName = (auction.courtName ?? '').trim() || null;
+  const sellerContact = (auction.contactInfo ?? '').trim() || null;
+  const seller = sellerName || sellerContact
+    ? { name: sellerName, contact: sellerContact }
+    : null;
+
+  // cadastral — schema audit (wave-B): the four fields BELOW exist on Auction
+  // today and are projected verbatim. The FOUR fields commented out at the
+  // end (classification, use, area, ownershipPct) DO NOT exist as columns
+  // today and would need either (a) a new column + Ghost parse, or (b) an
+  // external Catastro fetch. FLAGGED — see CADASTRAL VERDICT.
+  const cadastral = {
+    ref: auction.cadastralRef ?? null,
+    charges: auction.charges ?? null,
+    chargesDetail: auction.chargesDetail ?? null,
+    possession: auction.possessionStatus ?? null,
+    // The following four are NOT yet stored. Returning null honestly keeps
+    // the API shape stable for the day they DO get backfilled.
+    classification: null,
+    use: null,
+    area: null,
+    ownershipPct: null,
+  };
+
   const projectedAuction = {
     ...auctionScalars,
     boeLink: boeLinkFor(auction.boeId, auction.boeLink),
     loteNumber: Number.isFinite(loteNumberSafe as number) ? loteNumberSafe : null,
     currentBidAmount: currentBidAmountSafe,
     documents,
+    // Wave-B additive surface — every field below is render-time / no migration.
+    sourceLinks,
+    financials,
+    endDate: auction.endsAt ? auction.endsAt.toISOString() : null,
+    bidStatus,
+    lastUpdated: auction.updatedAt ? auction.updatedAt.toISOString() : null,
+    seller,
+    cadastral,
   };
 
   // GATE REVERSAL (wave-A, 2026-06-07): the `!fullAccess` strip block that

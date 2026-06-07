@@ -42,7 +42,9 @@ import { PROVINCE_DB_KEY_TO_SLUG } from "@/lib/seo/slugs";
 import { auctionDisplayTitle } from "@/lib/seo/display-title";
 import { StatusBadge } from "@/components/observatory/StatusBadge";
 import { FollowButton } from "@/components/notifications/FollowButton";
-import { GatedField } from "@/components/dashboard/GatedField";
+// GatedField import dropped 2026-06-07 (wave-B): the detail page is fully
+// public now — map, address, expediente, and edicto no longer wrap in
+// <GatedField>. The component still ships in the tree for other surfaces.
 import {
   formatDateLong,
   formatRelativeEs,
@@ -452,23 +454,19 @@ export default function AuctionDetailClient({
             {hasCoords ? (
               <section aria-labelledby="map-heading">
                 <h2 id="map-heading" className="sr-only">Ubicación</h2>
-                {/* Item H: precise map pin + exact street address are
-                    registration-gated. Province/municipality stay visible in
-                    the hero (SEO-public). Signed-out viewers see the frosted
-                    blur tease with a "Regístrate para ver" CTA; any signed-in
-                    user (incl. FREE) sees the real pin and address. */}
-                <GatedField level="register" label="Ubicación precisa">
-                  <div className="rounded-lg overflow-hidden border border-[--color-hairline]">
-                    <div className="h-72 md:h-96 relative">
-                      <AuctionLocationMap auction={auctionItem} />
-                    </div>
+                {/* Wave-B (2026-06-07): the detail page is fully public —
+                    map + exact street address are now visible to everyone.
+                    The previous <GatedField level="register"> wrap is gone. */}
+                <div className="rounded-lg overflow-hidden border border-[--color-hairline]">
+                  <div className="h-72 md:h-96 relative">
+                    <AuctionLocationMap auction={auctionItem} />
                   </div>
-                  {raw.address && (
-                    <p className="mt-2 text-xs text-[--color-ink-tertiary] flex items-center gap-1.5">
-                      <MapPin className="h-3.5 w-3.5" aria-hidden="true" /> {raw.address}
-                    </p>
-                  )}
-                </GatedField>
+                </div>
+                {raw.address && (
+                  <p className="mt-2 text-xs text-[--color-ink-tertiary] flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5" aria-hidden="true" /> {raw.address}
+                  </p>
+                )}
               </section>
             ) : (!photoUrl || photoFailed) ? (
               // Rung 3 — neither photo nor coords. The detail page must NEVER be
@@ -567,14 +565,7 @@ export default function AuctionDetailClient({
                   </h2>
                   <dl className="mt-3 grid grid-cols-1 sm:grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
                     {raw.address && (
-                      <KV
-                        label="Dirección"
-                        value={
-                          <GatedField level="register" label="Dirección exacta">
-                            <span>{raw.address}</span>
-                          </GatedField>
-                        }
-                      />
+                      <KV label="Dirección" value={<span>{raw.address}</span>} />
                     )}
                     {raw.postalCode && <KV label="Código postal" value={raw.postalCode} mono />}
                     {localidad && <KV label="Localidad" value={capitalize(localidad)} />}
@@ -644,16 +635,10 @@ export default function AuctionDetailClient({
                 )}
                 {raw.visitable && <KV label="Visitable" value={raw.visitable} />}
                 {raw.procedureNumber && (
-                  // Item H: procedure number is part of juzgado detail —
-                  // registration-gated. Wrapping the value (not the KV pair)
-                  // keeps the <dl>/<dt>/<dd> semantics intact.
+                  // Wave-B (2026-06-07): expediente is public now.
                   <KV
                     label="Expediente"
-                    value={
-                      <GatedField level="register" label="Expediente">
-                        <span className="font-mono">{raw.procedureNumber}</span>
-                      </GatedField>
-                    }
+                    value={<span className="font-mono">{raw.procedureNumber}</span>}
                   />
                 )}
               </dl>
@@ -740,26 +725,21 @@ export default function AuctionDetailClient({
                   })}
                   {/* SEO-public: BOE anuncio PDF + portal ficha. NEVER gated. */}
                   {raw.pdfUrl && <DocLink href={raw.pdfUrl} label="Anuncio del BOE (PDF)" />}
-                  {/* Item H: edicto del juzgado is registration-gated.
-                      Signed-out viewers see the row blurred + a "Regístrate
-                      para ver" tease; any signed-in user sees the live link.
-                      Rendered as a bare <li> wrapping a <GatedField> around
-                      the inline link content (not a nested DocLink), so the
-                      <ul>/<li> nesting stays valid. */}
+                  {/* Wave-B (2026-06-07): edicto del juzgado is public now —
+                      the previous <GatedField> wrap is gone. The inline <li>
+                      shape stays so the <ul>/<li> nesting is valid. */}
                   {raw.edictUrl && (
                     <li>
-                      <GatedField level="register" label="Edicto del juzgado">
-                        <a
-                          href={raw.edictUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 text-[--color-brand] hover:underline focus-visible:outline-none focus-visible:underline cursor-pointer"
-                        >
-                          <FileText className="h-4 w-4" aria-hidden="true" />
-                          Edicto del juzgado (PDF)
-                          <ExternalLink className="h-3.5 w-3.5 opacity-60" aria-hidden="true" />
-                        </a>
-                      </GatedField>
+                      <a
+                        href={raw.edictUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-[--color-brand] hover:underline focus-visible:outline-none focus-visible:underline cursor-pointer"
+                      >
+                        <FileText className="h-4 w-4" aria-hidden="true" />
+                        Edicto del juzgado (PDF)
+                        <ExternalLink className="h-3.5 w-3.5 opacity-60" aria-hidden="true" />
+                      </a>
                     </li>
                   )}
                   {raw.boeLink && (

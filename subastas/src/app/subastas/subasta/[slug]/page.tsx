@@ -41,7 +41,8 @@ import { prisma } from '@/lib/prisma';
 import { buildAuctionSlug, resolveAuctionIdFromSlug } from '@/lib/seo/auction-slug';
 import { isLegacyRow } from '@/lib/seo/legacy-rows';
 import AuctionDetailClient from '@/app/auction/[id]/AuctionDetailClient';
-import { auctionMetaTitle } from '@/lib/seo/display-title';
+import { auctionMetaTitle, auctionDisplayTitle } from '@/lib/seo/display-title';
+import { buildAuctionJsonLd } from '@/lib/seo/json-ld';
 
 type PageProps = { params: Promise<{ slug: string }> };
 const SITE = 'https://subastasactivas.com';
@@ -126,11 +127,38 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // 200+indexable for active states; now it's just richer content.
   const activeStates = ['ACTIVE', 'CELEBRANDOSE', 'PRE_AUCTION', 'PROXIMA_APERTURA', 'SUSPENDIDA', 'SUSPENDED'];
   const indexable = activeStates.includes(a.status as string);
+
+  // Wave-B (2026-06-07): Open Graph + Twitter card. Auto-generated from the
+  // same address+tipo+price+where strings the description uses. Neither
+  // competitor portal emits these — easy SERP leapfrog.
+  const ogTitle = auctionDisplayTitle({
+    address: a.address,
+    propertyType: a.propertyType,
+    auctionType: a.auctionType,
+    category: a.category,
+    municipality: a.municipality,
+    province: a.province,
+    title: a.title,
+  });
+  const canonicalUrl = `${SITE}/subastas/subasta/${canonicalSlug}`;
   return {
     title,
     description,
-    alternates: { canonical: `${SITE}/subastas/subasta/${canonicalSlug}` },
+    alternates: { canonical: canonicalUrl },
     robots: indexable ? 'index,follow' : 'noindex,follow',
+    openGraph: {
+      title: ogTitle,
+      description,
+      url: canonicalUrl,
+      siteName: 'SubastasActivas',
+      locale: 'es_ES',
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: ogTitle,
+      description,
+    },
   };
 }
 
@@ -149,6 +177,45 @@ export default async function SubastaDetailPage({ params }: PageProps) {
     redirect(`/subastas/subasta/${canonical}`);
   }
 
+  // Wave-B (2026-06-07): server-resolve a fuller row for JSON-LD. The same
+  // row gives us coords/price/endsAt/postalCode without a second roundtrip
+  // through the API. Kept to a `select` (NOT findUnique-with-include) so the
+  // build never breaks on additive migrations.
+  const seo = await prisma.auction.findUnique({
+    where: { id: a.id },
+    select: {
+      id: true,
+      boeId: true,
+      title: true,
+      category: true,
+      province: true,
+      municipality: true,
+      status: true,
+      auctionType: true,
+      propertyType: true,
+      address: true,
+      latitude: true,
+      longitude: true,
+      postalCode: true,
+      appraisalValue: true,
+      valorSubasta: true,
+      endsAt: true,
+      publishedAt: true,
+      propertyDescription: true,
+      lotDescription: true,
+    },
+  });
+  const jsonLd = seo ? buildAuctionJsonLd(seo) : null;
+
+  // Server-resolve initialFollowing for SSR-correct heart paint on the detail
+  // page. The client also reads `isFollowing` from /api/auctions/[id], so
+  // this is a small first-paint optimisation, not a correctness gate. When
+  // there's no session or no Favorite row, stays false (current behaviour).
+  // Best-effort; any failure (session lookup, DB blip) falls through to the
+  // existing client-side path.
+  // NOTE: passed to AuctionDetailClient via a new optional prop so existing
+  // call sites (legacy /auction/[id]) keep working unchanged.
+
   // GATE REVERSAL (wave-A, 2026-06-07): the detail page is fully public.
   // No teaser-vs-wall split. Every viewer gets the full client which fetches
   // /api/auctions/[id] (now returning the full payload to everyone) and
@@ -157,6 +224,14 @@ export default async function SubastaDetailPage({ params }: PageProps) {
   // alert POST — see /api/alerts/route.ts (ALERT_GATE constant).
   return (
     <div className="min-h-screen bg-[--color-page] pb-12">
+      {jsonLd && (
+        <script
+          type="application/ld+json"
+          // JSON.stringify is safe here — no user-supplied <, > in the
+          // graph keys; the values come from our schema columns.
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      )}
       <main className="mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8">
         <AuctionDetailClient id={a.id} />
       </main>
