@@ -133,6 +133,13 @@ type FeedAuctionProjection = {
   currentBidAmount: number | null;
   occupancy: "OCUPADO" | "NO_OCUPADO" | "NO_CONSTA" | null;
   hasDocuments: boolean;
+  // Wave E2 (2026-06-07) — vehicle make/model/year. Honest-NULL on non-
+  // VEHICLE rows and on VEHICLE rows pre-backfill. Drives the carousel-
+  // card headline upgrade via `auctionCardTitle` ("Turismo - SEAT León en
+  // Murcia" when both make+model are present).
+  vehicleMake: string | null;
+  vehicleModel: string | null;
+  vehicleYear: number | null;
 };
 
 type FeedItem = {
@@ -224,6 +231,10 @@ const AUCTION_CARD_SELECT = {
   pujaStatus: true,
   currentBidAmount: true,
   occupancy: true,
+  // Wave E2 (2026-06-07) — vehicle make/model/year for the headline upgrade.
+  vehicleMake: true,
+  vehicleModel: true,
+  vehicleYear: true,
   _count: { select: { documents: true } },
 } as const;
 
@@ -258,6 +269,10 @@ type AuctionRow = {
   pujaStatus?: string | null;
   currentBidAmount?: bigint | number | string | null;
   occupancy?: string | null;
+  // Wave E2 (2026-06-07) — vehicle fields, honest-NULL on non-VEHICLE rows.
+  vehicleMake?: string | null;
+  vehicleModel?: string | null;
+  vehicleYear?: number | null;
   _count?: { documents: number } | null;
 };
 
@@ -336,6 +351,11 @@ function projectAuction(a: AuctionRow): FeedAuctionProjection {
         ? a.occupancy
         : null,
     hasDocuments: (a._count?.documents ?? 0) > 0,
+    // Wave E2 (2026-06-07) — vehicle fields passthrough. The client card
+    // forwards these to `auctionCardTitle` for the headline upgrade.
+    vehicleMake: a.vehicleMake ?? null,
+    vehicleModel: a.vehicleModel ?? null,
+    vehicleYear: a.vehicleYear ?? null,
   };
 }
 

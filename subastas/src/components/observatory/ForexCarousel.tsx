@@ -151,6 +151,14 @@ export type FeedAuction = {
   /** True when the auction has at least one AuctionDocument row. Drives a
    *  compact "documentos" indicator on the carousel card. */
   hasDocuments?: boolean | null;
+  /** Wave E2 (2026-06-07) — vehicle make/model/year. Server-projected by
+   *  /api/auctions/carousel-mix + /api/auctions/recent. Null on non-VEHICLE
+   *  rows and on VEHICLE rows pre-backfill. When both make+model are present
+   *  on a vehicle row the card headline upgrades from "Turismo en Murcia" to
+   *  "Turismo - SEAT León en Murcia" via `auctionCardTitle`. */
+  vehicleMake?: string | null;
+  vehicleModel?: string | null;
+  vehicleYear?: number | null;
 };
 
 type FeedItem = {
@@ -818,6 +826,11 @@ function ExpandedCard({
     province: auction.province,
     title: auction.title,
     categoryGroup,
+    // Wave E2 (2026-06-07) — vehicle fields forwarded so the headline reads
+    // "Turismo - SEAT León en Murcia" when make+model are present.
+    vehicleMake: auction.vehicleMake,
+    vehicleModel: auction.vehicleModel,
+    vehicleYear: auction.vehicleYear,
   });
   // Compact "Termina en Nd Nh" string — short variant for the ACTIVE card
   // footer only. NEVER computed for PROXIMA / SUSPENDIDA (those rows render

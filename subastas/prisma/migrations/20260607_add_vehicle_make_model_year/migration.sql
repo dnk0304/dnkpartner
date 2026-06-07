@@ -1,0 +1,49 @@
+-- Vehicle make/model/year — store make/model/year separately for VEHICLE-category
+-- auctions (wave E2, 2026-06-07) so the card title can render "Turismo - SEAT
+-- León en Murcia" / "Motocicleta - Honda CBR en Calahorra" instead of the
+-- bare "Turismo en Murcia" today. Source: BOE/SEGSOCIAL/PLABI vehicle ficha
+-- pages (Ghost E1 extracts and writes via the same information_schema-guarded
+-- upsert path used by suspensionMotive + valorSubasta).
+--
+-- Additive ONLY. THREE new nullable columns on "Auction":
+--   "vehicleMake"  TEXT     — make/manufacturer (e.g. "SEAT", "Honda")
+--   "vehicleModel" TEXT     — model (e.g. "León", "CBR 600")
+--   "vehicleYear"  INTEGER  — 4-digit year (e.g. 2018). INTEGER, not BIGINT —
+--                             a year fits trivially in int4; loteNumber lesson
+--                             does not apply here.
+--
+-- CREATED, NOT APPLIED — Ken applies on the box via `prisma migrate deploy`
+-- FIRST (before the app rebuild). This is the same pattern as wave52
+-- (suspensionMotive) and wave55 (valorSubasta) — additive nullable adds are
+-- zero-downtime and zero-row-loss.
+--
+-- WHY: today the BOE vehicle detail pages expose make/model/year inside the
+-- bien-description blob, but the scraper does not extract them. Dennis wants
+-- the vehicle-category cards to lead with the actual vehicle ("Turismo -
+-- SEAT León en Murcia") instead of the generic category label. Ghost E1
+-- extracts; this migration + the API projection + the auctionCardTitle helper
+-- lands the storage + read path so Pixel E3 has data to render.
+--
+-- Idempotent (IF NOT EXISTS) so a partial prior apply or local re-run is a
+-- no-op. Follows the convention set by:
+--   20260602_add_pujas_occupancy
+--   20260603_add_auction_documents
+--   20260604_add_suspension_motive
+--   20260605_add_valor_subasta
+--
+-- Sequencing (Ken applies): AFTER 20260605_add_valor_subasta. Independent of
+-- every prior wave's columns. Existing rows get NULL until Ghost E1 backfills
+-- via the per-source vehicle extractor (BOE/SEGSOCIAL/PLABI). The adapter's
+-- information_schema guard makes the write safe pre/post migration.
+--
+-- HONEST-NULL semantics — same convention as suspensionMotive / valorSubasta:
+--   non-VEHICLE rows: always NULL on all three (real-estate has no make/model).
+--   VEHICLE rows pre-backfill: NULL on all three until Ghost extracts.
+--   VEHICLE rows post-backfill where the ficha lacks a field: NULL on that
+--     specific field (e.g. an unparseable year stays NULL; make+model survive).
+-- The card-title helper falls back to "{Tipo} en {town}" when make/model are
+-- both missing — never renders an empty dash or stub.
+
+ALTER TABLE "Auction" ADD COLUMN IF NOT EXISTS "vehicleMake"  TEXT;
+ALTER TABLE "Auction" ADD COLUMN IF NOT EXISTS "vehicleModel" TEXT;
+ALTER TABLE "Auction" ADD COLUMN IF NOT EXISTS "vehicleYear"  INTEGER;

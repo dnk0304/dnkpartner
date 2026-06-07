@@ -183,6 +183,15 @@ export interface AuctionItem {
   bienLocalidad?: string | null;
   bienProvincia?: string | null;
   viviendaHabitual?: boolean | null;
+  // ── Vehicle fields (wave E2, 2026-06-07) — null on non-VEHICLE rows and
+  // on VEHICLE rows pre-backfill. The card-title helper renders
+  // "{Tipo} - {make} {model} en {town}" when make+model are present and
+  // falls back to "{Tipo} en {town}" otherwise (graceful empty — never an
+  // orphan dash). vehicleYear is a 4-digit Int (e.g. 2018), never a 2-digit
+  // shorthand; the detail page may render it alongside make/model. ────────
+  vehicleMake?: string | null;
+  vehicleModel?: string | null;
+  vehicleYear?: number | null;
 }
 
 /**

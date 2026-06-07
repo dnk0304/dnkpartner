@@ -207,6 +207,13 @@ export default async function SubastaDetailPage({ params }: PageProps) {
       // paint the same 3-rung imagery ladder (photo → map → neutral
       // placeholder) the cards already use. Public information; no PII.
       imageUrl: true,
+      // Wave E2 (2026-06-07) — vehicle fields surfaced for the SSR teaser
+      // so the address-led title resolution upstream can use them too,
+      // and so JSON-LD (future enhancement) can describe the vehicle.
+      // Honest-NULL on non-VEHICLE rows.
+      vehicleMake: true,
+      vehicleModel: true,
+      vehicleYear: true,
     },
   });
   const jsonLd = seo ? buildAuctionJsonLd(seo) : null;

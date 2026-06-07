@@ -79,6 +79,10 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
     municipality: item.municipality,
     province: item.province,
     title: item.title,
+    // Wave E2 (2026-06-07) — vehicle make/model/year for the row title.
+    vehicleMake: item.vehicleMake,
+    vehicleModel: item.vehicleModel,
+    vehicleYear: item.vehicleYear,
   });
 
   // 3-rung imagery ladder. `card` size feeds rung-2 a static-map URL sized for

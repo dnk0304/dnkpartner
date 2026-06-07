@@ -231,6 +231,13 @@ interface AuctionFromDB {
   // subquery in the SELECT so the list query stays single-shot. pg returns
   // PG booleans as JS booleans through node-postgres.
   hasDocuments: boolean | null;
+  // Wave E2 (2026-06-07) — vehicle make/model/year, additive nullable cols.
+  // Already in the row via `SELECT Auction.*`. Surfaced on the card payload
+  // so cards can render "Turismo - SEAT León en Murcia". Honest-NULL on
+  // non-VEHICLE rows and on VEHICLE rows pre-backfill.
+  vehicleMake: string | null;
+  vehicleModel: string | null;
+  vehicleYear: number | null;
 }
 
 // Map DB status to frontend status. Delegates to the shared
@@ -498,6 +505,13 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
       // boolean — the BOE document set is public information; locking it
       // would be misleading without unlocking anything genuinely premium.
       hasDocuments,
+      // Wave E2 (2026-06-07) — vehicle make/model/year are PUBLIC (Dennis-
+      // locked: same posture as the address-as-title — public auction
+      // information). Locked-tier teasers project them honestly so cards
+      // render the vehicle headline even when other prices are masked.
+      vehicleMake: item.vehicleMake ?? null,
+      vehicleModel: item.vehicleModel ?? null,
+      vehicleYear: item.vehicleYear ?? null,
     };
   }
 
@@ -571,6 +585,10 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
     occupancy,
     // Document-archive wave (2026-06-03).
     hasDocuments,
+    // Wave E2 (2026-06-07) — vehicle make/model/year (honest-NULL).
+    vehicleMake: item.vehicleMake ?? null,
+    vehicleModel: item.vehicleModel ?? null,
+    vehicleYear: item.vehicleYear ?? null,
   };
 }
 

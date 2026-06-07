@@ -167,6 +167,14 @@ export async function GET(
       // Public, safe-by-construction description snippet (NEVER raw
       // propertyDescription/lotDescription — see lib/teaser-snippet.ts).
       teaserSnippet: snippet,
+      // Wave E2 (2026-06-07) — vehicle make/model/year are PUBLIC (Dennis-
+      // locked: same posture as address-as-title; a vehicle's make/model
+      // is part of the auction's public identity, not PII). Drives the
+      // teaser headline + the "Datos del vehículo" block on the detail
+      // page. Honest-NULL on non-VEHICLE rows.
+      vehicleMake: auction.vehicleMake ?? null,
+      vehicleModel: auction.vehicleModel ?? null,
+      vehicleYear: auction.vehicleYear ?? null,
       // All PII fields explicitly omitted. The client must NOT branch on
       // their presence — `meta.gated` is the contract.
     };

@@ -159,6 +159,24 @@ model Auction {
   bienProvincia       String?
   viviendaHabitual    Boolean?
 
+  // Vehicle fields (wave E2, 2026-06-07) — make/model/year for VEHICLE-category
+  // auctions (Turismos, Motocicletas, Camiones, …). Source: BOE/SEGSOCIAL/PLABI
+  // vehicle ficha pages (Ghost E1 extracts; this column set lands the storage).
+  // All additive + nullable:
+  //   - non-VEHICLE rows are always NULL on all three (real-estate has no
+  //     make/model — same posture as bienLocalidad on a vehicle row).
+  //   - VEHICLE rows pre-backfill are NULL until Ghost extracts.
+  //   - VEHICLE rows where the ficha lacks a field stay NULL on that specific
+  //     field (honest-NULL — never coerce to "Desconocido" / "—").
+  // The auctionCardTitle helper consumes these so a vehicle card reads
+  // "Turismo - SEAT León en Murcia" when make+model are present, falling
+  // through to the existing "{Tipo} en {town}" phrasing otherwise.
+  // vehicleYear is INTEGER (Int) — a 4-digit year fits trivially in int4;
+  // the wave13 BIGINT lesson (loteNumber) does not apply here.
+  vehicleMake         String?
+  vehicleModel        String?
+  vehicleYear         Int?
+
   // Media
   pdfUrl   String?
   imageUrl String?

@@ -52,6 +52,11 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
     municipality: item.municipality,
     province: item.province,
     title: item.title,
+    // Wave E2 (2026-06-07) — vehicle make/model/year forwarded so vehicle
+    // rows can read "Turismo - SEAT León en Murcia" when present.
+    vehicleMake: item.vehicleMake,
+    vehicleModel: item.vehicleModel,
+    vehicleYear: item.vehicleYear,
   });
   const [imgFailed, setImgFailed] = React.useState(false);
   // Tiny row thumbnail: 64×48. Use 'thumbnail' size on rung 2 so the static

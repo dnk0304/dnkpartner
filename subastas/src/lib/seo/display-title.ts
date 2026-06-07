@@ -195,11 +195,31 @@ export function auctionDisplayTitle(input: DisplayTitleInput): string {
  *   auctionCardTitle({ category: 'Motocicletas', municipality: 'Calahorra',
  *                     province: 'La Rioja', categoryGroup: 'movable' })
  *   // → "Motocicleta en Calahorra"
+ *
+ *   // Wave E2 (2026-06-07) — vehicle make+model present:
+ *   auctionCardTitle({ propertyType: 'Turismo', municipality: 'Murcia',
+ *                     vehicleMake: 'SEAT', vehicleModel: 'León',
+ *                     categoryGroup: 'movable' })
+ *   // → "Turismo - SEAT León en Murcia"
+ *
+ *   auctionCardTitle({ category: 'Motocicletas', municipality: 'Calahorra',
+ *                     vehicleMake: 'Honda', vehicleModel: 'CBR 600',
+ *                     categoryGroup: 'movable' })
+ *   // → "Motocicleta - Honda CBR 600 en Calahorra"
  */
 export type CardCategoryGroup = 'real_estate' | 'movable';
 
 export interface CardTitleInput extends DisplayTitleInput {
   categoryGroup?: CardCategoryGroup | null;
+  /** Wave E2 (2026-06-07) — vehicle fields. When categoryGroup is 'movable'
+   *  and BOTH make and model are present, the card title becomes
+   *  "{Tipo} - {make} {model} en {town}". Either field missing → fall
+   *  through to the existing "{Tipo} en {town}" phrasing. Year is accepted
+   *  but NOT included in the card-title surface (cards are tight; the year
+   *  surfaces on the detail page's "Datos del vehículo" block instead). */
+  vehicleMake?: string | null;
+  vehicleModel?: string | null;
+  vehicleYear?: number | null;
 }
 
 /** Tiny category-group predicate kept local so this module has no constants.ts
@@ -236,14 +256,30 @@ export function auctionCardTitle(input: CardTitleInput): string {
   // The municipality/province path below catches it; if neither exists,
   // fall through to the bare tipo (never the stub) below.
 
-  // VEHICLES (movable) — Dennis-locked 2026-06-07: always "{Tipo} en {town}".
-  // Skip the street address even when present (BOE depot codes / yard refs
-  // aren't user-meaningful). Wave-E will add make/model/year as the real
-  // headline; until then town is the right second token.
+  // VEHICLES (movable) — Dennis-locked 2026-06-07: address is skipped (BOE
+  // depot codes / yard refs aren't user-meaningful). When wave-E vehicle
+  // make+model are BOTH present, render the richer "{Tipo} - {make} {model}
+  // en {town}" phrasing (e.g. "Turismo - SEAT León en Murcia"). Either
+  // field missing → fall through to the bare "{Tipo} en {town}" so we never
+  // surface an orphan dash like "Turismo -  en Murcia".
   if (group === 'movable') {
-    if (municipality) return `${tipo} en ${titleCase(municipality)}`;
-    if (province) return `${tipo} en ${titleCase(province)}`;
-    return tipo;
+    const make = cleanString(input.vehicleMake);
+    const model = cleanString(input.vehicleModel);
+    // titleCase the user-facing tokens; raw scraped make/model come from BOE
+    // as either ALL-CAPS ("SEAT LEON") or freeform — normalise so a single
+    // carousel doesn't mix "SEAT LEON" + "Seat León" rows.
+    const vehicleToken = make && model ? `${titleCase(make)} ${titleCase(model)}` : null;
+    if (municipality) {
+      return vehicleToken
+        ? `${tipo} - ${vehicleToken} en ${titleCase(municipality)}`
+        : `${tipo} en ${titleCase(municipality)}`;
+    }
+    if (province) {
+      return vehicleToken
+        ? `${tipo} - ${vehicleToken} en ${titleCase(province)}`
+        : `${tipo} en ${titleCase(province)}`;
+    }
+    return vehicleToken ? `${tipo} - ${vehicleToken}` : tipo;
   }
 
   // REAL ESTATE (or unknown group — default to property phrasing).

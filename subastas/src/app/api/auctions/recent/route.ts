@@ -137,6 +137,12 @@ type FeedAuctionProjection = {
   // Prisma `_count` on the AuctionDocument relation — no full doc array on
   // the list/feed payload so the card query stays lean.
   hasDocuments: boolean;
+  // Wave E2 (2026-06-07) — vehicle make/model/year. Drives the
+  // "Turismo - SEAT León en Murcia" card title upgrade. Honest-NULL on
+  // non-VEHICLE rows and on VEHICLE rows pre-backfill.
+  vehicleMake: string | null;
+  vehicleModel: string | null;
+  vehicleYear: number | null;
 };
 
 type FeedItem = {
@@ -260,6 +266,10 @@ function projectAuction(a: {
   pujaStatus?: string | null;
   currentBidAmount?: bigint | number | string | null;
   occupancy?: string | null;
+  // Wave E2 (2026-06-07) — vehicle fields, honest-NULL.
+  vehicleMake?: string | null;
+  vehicleModel?: string | null;
+  vehicleYear?: number | null;
   _count?: { documents: number } | null;
 }): FeedAuctionProjection {
   return {
@@ -306,6 +316,10 @@ function projectAuction(a: {
     // "documentos" indicator off this boolean; the full list ships via the
     // detail endpoint.
     hasDocuments: (a._count?.documents ?? 0) > 0,
+    // Wave E2 (2026-06-07) — vehicle fields passthrough.
+    vehicleMake: a.vehicleMake ?? null,
+    vehicleModel: a.vehicleModel ?? null,
+    vehicleYear: a.vehicleYear ?? null,
   };
 }
 
@@ -404,6 +418,10 @@ const AUCTION_CARD_SELECT = {
   pujaStatus: true,
   currentBidAmount: true,
   occupancy: true,
+  // Wave E2 (2026-06-07) — vehicle make/model/year for the headline upgrade.
+  vehicleMake: true,
+  vehicleModel: true,
+  vehicleYear: true,
   // Document-archive wave (2026-06-03). `_count` produces `hasDocuments` on
   // cards WITHOUT inlining the full doc array (keeps the list query lean).
   _count: { select: { documents: true } },

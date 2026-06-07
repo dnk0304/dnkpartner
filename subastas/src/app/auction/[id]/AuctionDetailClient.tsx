@@ -693,6 +693,34 @@ export default function AuctionDetailClient({
               </section>
             )}
 
+            {/* Datos del vehículo — wave E2 (2026-06-07).
+                Rendered only when at least one of make/model/year is
+                present, so non-VEHICLE rows and pre-backfill rows omit the
+                block entirely (graceful empty). Make + model are titleCased
+                at display time so a row stored as "SEAT LEON" doesn't read
+                louder than its neighbours. Year is rendered verbatim
+                (already a 4-digit int from the scraper contract). */}
+            {(() => {
+              const make = (raw.vehicleMake ?? '').trim() || null;
+              const model = (raw.vehicleModel ?? '').trim() || null;
+              const year = typeof raw.vehicleYear === 'number' && Number.isFinite(raw.vehicleYear)
+                ? raw.vehicleYear
+                : null;
+              if (!make && !model && year == null) return null;
+              return (
+                <section aria-labelledby="vehiculo-heading">
+                  <h2 id="vehiculo-heading" className="font-serif text-xl text-[--color-ink-primary]">
+                    Datos del vehículo
+                  </h2>
+                  <dl className="mt-3 grid grid-cols-1 sm:grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
+                    {make && <KV label="Marca" value={titleCase(make)} />}
+                    {model && <KV label="Modelo" value={titleCase(model)} />}
+                    {year != null && <KV label="Año" value={String(year)} />}
+                  </dl>
+                </section>
+              );
+            })()}
+
             {/* Datos del bien — document-archive wave (2026-06-03).
                 Each row is rendered only when its field is non-null, so
                 pre-backfill the whole section is omitted (graceful empty,

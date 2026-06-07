@@ -58,6 +58,12 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
     municipality: item.municipality,
     province: item.province,
     title: item.title,
+    // Wave E2 (2026-06-07) — vehicle make/model/year. When make+model are
+    // present on a VEHICLE card the title becomes "{Tipo} - {make} {model}
+    // en {town}"; otherwise falls back to the existing "{Tipo} en {town}".
+    vehicleMake: item.vehicleMake,
+    vehicleModel: item.vehicleModel,
+    vehicleYear: item.vehicleYear,
   });
 
   // Imagery resolves through the 3-rung ladder: real photo → static map pin
