@@ -123,6 +123,98 @@ export function auctionDisplayTitle(input: DisplayTitleInput): string {
 }
 
 /**
+ * Card-headline variant — compact "{Tipo} en {dirección}" / "{Tipo} en {town}"
+ * for the carousel + listing card surfaces. Drops the "Subasta de " prefix the
+ * detail H1 uses (cards are tight, the prefix is redundant in context) and
+ * forces the vehicle path through municipality only (a vehicle "address" from
+ * BOE is usually a yard/depot code Dennis doesn't want surfaced; the wave-E
+ * vehicleMake/Model/Year fields will replace this once shipped).
+ *
+ * Inputs are the same as `auctionDisplayTitle` plus a `categoryGroup` hint so
+ * the helper can pick the right path without re-running the REAL_ESTATE /
+ * MOVABLE category match per call. When `categoryGroup` is omitted we infer
+ * from `category` against OFFICIAL_CATEGORIES.MOVABLE — same predicate the
+ * carousel uses client-side.
+ *
+ * @example
+ *   auctionCardTitle({ propertyType: 'Vivienda', address: 'Calle Tollo, 19',
+ *                     municipality: 'Ontur', categoryGroup: 'real_estate' })
+ *   // → "Vivienda en Calle Tollo, 19, Ontur"
+ *
+ *   auctionCardTitle({ propertyType: 'Turismo', municipality: 'Murcia',
+ *                     categoryGroup: 'movable' })
+ *   // → "Turismo en Murcia"
+ *
+ *   auctionCardTitle({ category: 'Motocicletas', municipality: 'Calahorra',
+ *                     province: 'La Rioja', categoryGroup: 'movable' })
+ *   // → "Motocicleta en Calahorra"
+ */
+export type CardCategoryGroup = 'real_estate' | 'movable';
+
+export interface CardTitleInput extends DisplayTitleInput {
+  categoryGroup?: CardCategoryGroup | null;
+}
+
+/** Tiny category-group predicate kept local so this module has no constants.ts
+ *  dependency (display-title is consumed by server projections that load early
+ *  in the bundle). Mirrors `OFFICIAL_CATEGORIES.MOVABLE` exactly. */
+const MOVABLE_LABELS = new Set<string>([
+  'Turismos',
+  'Motocicletas',
+  'Vehículos Industriales',
+  'Camiones',
+  'Barcos',
+  'Embarcaciones',
+  'Otros vehículos',
+  'Maquinaria',
+  'Joyas',
+  'Arte',
+]);
+
+function inferCategoryGroup(category: string | null | undefined): CardCategoryGroup | null {
+  const c = cleanString(category);
+  if (!c) return null;
+  return MOVABLE_LABELS.has(c) ? 'movable' : 'real_estate';
+}
+
+export function auctionCardTitle(input: CardTitleInput): string {
+  const tipo = resolveTipo(input);
+  const group = input.categoryGroup ?? inferCategoryGroup(input.category);
+  const address = cleanString(input.address);
+  const municipality = cleanString(input.municipality);
+  const province = cleanString(input.province);
+
+  // VEHICLES (movable) — Dennis-locked 2026-06-07: always "{Tipo} en {town}".
+  // Skip the street address even when present (BOE depot codes / yard refs
+  // aren't user-meaningful). Wave-E will add make/model/year as the real
+  // headline; until then town is the right second token.
+  if (group === 'movable') {
+    if (municipality) return `${tipo} en ${titleCase(municipality)}`;
+    if (province) return `${tipo} en ${titleCase(province)}`;
+    return tipo;
+  }
+
+  // REAL ESTATE (or unknown group — default to property phrasing).
+  if (address) {
+    const lowerAddr = address.toLowerCase();
+    const muniSuffix =
+      municipality && !lowerAddr.includes(municipality.toLowerCase())
+        ? `, ${titleCase(municipality)}`
+        : '';
+    return `${tipo} en ${titleCase(address)}${muniSuffix}`;
+  }
+  if (municipality) {
+    const provSuffix = province ? `, ${titleCase(province)}` : '';
+    return `${tipo} en ${titleCase(municipality)}${provSuffix}`;
+  }
+  if (province) {
+    return `${tipo} en ${titleCase(province)}`;
+  }
+  // No location at all — fall back to tipo alone (never the BOE ref).
+  return tipo;
+}
+
+/**
  * <title>-tag variant. Same body, with a short site suffix and a hard 70-char
  * clamp so the SERP-displayed title never gets truncated by Google mid-word.
  */
