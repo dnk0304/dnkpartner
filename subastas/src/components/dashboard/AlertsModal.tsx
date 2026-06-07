@@ -19,6 +19,13 @@ interface AlertsModalProps {
   initialProvince?: string;
   initialMunicipality?: string;
   initialCategory?: string;
+  // Wave-B (2026-06-07): when the modal is opened from an auction detail
+  // page we pre-fill source / type / price band as well so the user lands on
+  // a form that already matches the auction's shape. All optional + null-safe.
+  initialSource?: string;
+  initialAuctionType?: string;
+  initialMinPrice?: number;
+  initialMaxPrice?: number;
 }
 
 interface AlertRule {
@@ -43,7 +50,11 @@ export const AlertsModal: React.FC<AlertsModalProps> = ({
   onOpenChange,
   initialProvince,
   initialMunicipality,
-  initialCategory
+  initialCategory,
+  initialSource,
+  initialAuctionType,
+  initialMinPrice,
+  initialMaxPrice,
 }) => {
   const [alerts, setAlerts] = useState<AlertRule[]>([]);
   const [loading, setLoading] = useState(false);
@@ -56,11 +67,15 @@ export const AlertsModal: React.FC<AlertsModalProps> = ({
   const [selectedProvince, setSelectedProvince] = useState<string>(initialProvince || '');
   const [selectedMunicipality, setSelectedMunicipality] = useState<string>(initialMunicipality || '');
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || 'all');
-  const [selectedSource, setSelectedSource] = useState<string>('all');
-  const [selectedAuctionType, setSelectedAuctionType] = useState<string>('all');
+  const [selectedSource, setSelectedSource] = useState<string>(initialSource || 'all');
+  const [selectedAuctionType, setSelectedAuctionType] = useState<string>(initialAuctionType || 'all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  const [minPrice, setMinPrice] = useState<string>('');
-  const [maxPrice, setMaxPrice] = useState<string>('');
+  const [minPrice, setMinPrice] = useState<string>(
+    initialMinPrice != null ? String(initialMinPrice) : '',
+  );
+  const [maxPrice, setMaxPrice] = useState<string>(
+    initialMaxPrice != null ? String(initialMaxPrice) : '',
+  );
   const [keywords, setKeywords] = useState<string>('');
   const [emailEnabled, setEmailEnabled] = useState(true);
   const [notificationType, setNotificationType] = useState<'individual' | 'grouped'>('grouped');
@@ -71,9 +86,22 @@ export const AlertsModal: React.FC<AlertsModalProps> = ({
       if (initialProvince) setSelectedProvince(initialProvince);
       if (initialMunicipality) setSelectedMunicipality(initialMunicipality);
       if (initialCategory) setSelectedCategory(initialCategory);
+      if (initialSource) setSelectedSource(initialSource);
+      if (initialAuctionType) setSelectedAuctionType(initialAuctionType);
+      if (initialMinPrice != null) setMinPrice(String(initialMinPrice));
+      if (initialMaxPrice != null) setMaxPrice(String(initialMaxPrice));
       fetchAlerts();
     }
-  }, [open, initialProvince, initialMunicipality, initialCategory]);
+  }, [
+    open,
+    initialProvince,
+    initialMunicipality,
+    initialCategory,
+    initialSource,
+    initialAuctionType,
+    initialMinPrice,
+    initialMaxPrice,
+  ]);
 
   const fetchAlerts = async () => {
     setFetching(true);
