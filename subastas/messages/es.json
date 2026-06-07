@@ -10,7 +10,12 @@
     "searchPlaceholder": "ID, ref. catastral, ciudad…",
     "myPanel": "Mi panel",
     "signIn": "Entrar",
-    "languageSwitcherAria": "Cambiar idioma"
+    "languageSwitcherAria": "Cambiar idioma",
+    "accountMenuAria": "Menú de cuenta",
+    "accountFavorites": "Mis favoritas",
+    "accountAlerts": "Mis alertas",
+    "accountSettings": "Mi cuenta",
+    "accountSignOut": "Cerrar sesión"
   },
   "home": {
     "happeningNow": "celebrándose",
@@ -115,7 +120,9 @@
     "signUp": "Regístrate",
     "errorBadCredentials": "Correo o contraseña incorrectos. Inténtalo de nuevo.",
     "errorUnexpected": "Se ha producido un error inesperado. Inténtalo de nuevo.",
-    "errorGoogle": "No se pudo iniciar sesión con Google. Inténtalo de nuevo."
+    "errorGoogle": "No se pudo iniciar sesión con Google. Inténtalo de nuevo.",
+    "registeredBannerTitle": "Cuenta creada",
+    "registeredBannerBody": "Inicia sesión para acceder a tu panel."
   },
   "register": {
     "welcomeTitle": "Únete a SubastasActivas",

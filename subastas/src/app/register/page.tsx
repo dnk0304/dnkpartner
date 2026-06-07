@@ -98,10 +98,16 @@ export default function RegisterPage() {
         setError(data.error || t('errorCreate'));
       } else {
         setIsSuccess(true);
-        // Automatically redirect to login after 2 seconds
+        // Redirect to /login with a `registered=1` query param so the login
+        // page can render a confirmation banner. Without this signal the user
+        // landed on a stock login form with no indication their registration
+        // succeeded (QC P1 finding). 1.6s gives the success card on this page
+        // long enough to register visually but not so long it feels stuck.
         setTimeout(() => {
-          router.push('/login');
-        }, 2000);
+          router.push(
+            `/login?registered=1&email=${encodeURIComponent(email)}`,
+          );
+        }, 1600);
       }
     } catch (err) {
       setError(t('errorUnexpected'));

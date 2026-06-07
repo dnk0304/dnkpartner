@@ -5,10 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
 /**
@@ -46,8 +46,15 @@ function GoogleIcon({ className }: { className?: string }) {
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const t = useTranslations('login');
-  const [email, setEmail] = useState('');
+  // `registered=1` is passed by the register page on successful sign-up so we
+  // can render an explicit confirmation here. Pre-fix the user was bounced to
+  // a stock login form with no signal anything had happened (QC P1 finding).
+  // We also pre-fill the email so they can just type their password.
+  const justRegistered = searchParams?.get('registered') === '1';
+  const prefilledEmail = searchParams?.get('email') ?? '';
+  const [email, setEmail] = useState(prefilledEmail);
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'google' | null>(null);
@@ -116,6 +123,19 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {justRegistered && (
+              <div
+                role="status"
+                aria-live="polite"
+                className="flex items-start gap-3 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-900"
+              >
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" aria-hidden="true" />
+                <div>
+                  <p className="font-medium">{t('registeredBannerTitle')}</p>
+                  <p className="text-green-800">{t('registeredBannerBody')}</p>
+                </div>
+              </div>
+            )}
             <Button
               type="button"
               variant="outline"

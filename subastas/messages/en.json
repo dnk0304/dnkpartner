@@ -10,7 +10,12 @@
     "searchPlaceholder": "ID, cadastral ref., city…",
     "myPanel": "My dashboard",
     "signIn": "Sign in",
-    "languageSwitcherAria": "Change language"
+    "languageSwitcherAria": "Change language",
+    "accountMenuAria": "Account menu",
+    "accountFavorites": "My favourites",
+    "accountAlerts": "My alerts",
+    "accountSettings": "My account",
+    "accountSignOut": "Sign out"
   },
   "home": {
     "happeningNow": "live now",
@@ -115,7 +120,9 @@
     "signUp": "Sign up",
     "errorBadCredentials": "Wrong email or password. Please try again.",
     "errorUnexpected": "An unexpected error occurred. Please try again.",
-    "errorGoogle": "Could not sign in with Google. Please try again."
+    "errorGoogle": "Could not sign in with Google. Please try again.",
+    "registeredBannerTitle": "Account created",
+    "registeredBannerBody": "Sign in to access your dashboard."
   },
   "register": {
     "welcomeTitle": "Join SubastasActivas",

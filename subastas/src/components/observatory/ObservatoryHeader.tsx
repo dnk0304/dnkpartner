@@ -16,9 +16,26 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
-import { useTranslations } from "next-intl";
-import { Check, Search, User } from "lucide-react";
+import { useSession, signOut } from "next-auth/react";
+import { useLocale, useTranslations } from "next-intl";
+import {
+  Bell,
+  Check,
+  ChevronDown,
+  Heart,
+  LogOut,
+  Search,
+  User,
+  UserCircle2,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { apiFetch } from "@/lib/api-path";
@@ -35,6 +52,19 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
   const router = useRouter();
   const { data: session } = useSession();
   const t = useTranslations("header");
+  const locale = useLocale();
+  // Routes are locale-aware: Spanish uses `/favoritos`, English uses `/en/favorites`.
+  // Alerts + account don't have an EN-prefix today, so under EN they still resolve
+  // because the middleware strips `/en` and serves the same component. Keeping a
+  // single source of truth here avoids drift if EN gets its own routes later.
+  const accountRoutes = React.useMemo(() => {
+    const prefix = locale === "en" ? "/en" : "";
+    return {
+      favorites: locale === "en" ? `${prefix}/favorites` : "/favoritos",
+      alerts: `${prefix}/alerts`,
+      account: `${prefix}/subscription`,
+    };
+  }, [locale]);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [lastUpdate, setLastUpdate] = React.useState<string | null>(null);
 
@@ -150,13 +180,60 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
           <LanguageSwitcher />
           <NotificationBell />
           {session?.user ? (
-            <Link
-              href="/favorites"
-              className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-[--color-ink-secondary] hover:text-[--color-brand] hover:bg-[--color-brand]/5 transition-colors"
-            >
-              <User className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">{t("myPanel")}</span>
-            </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                aria-label={t("accountMenuAria")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm cursor-pointer",
+                  "text-[--color-ink-secondary] hover:text-[--color-brand] hover:bg-[--color-brand]/5",
+                  "transition-colors focus:outline-none focus:ring-2 focus:ring-[--color-brand]/30",
+                )}
+              >
+                <User className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden sm:inline">{t("myPanel")}</span>
+                <ChevronDown className="h-3.5 w-3.5 text-[--color-ink-tertiary]" aria-hidden="true" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" sideOffset={6} className="min-w-[14rem]">
+                {session.user.email && (
+                  <>
+                    <DropdownMenuLabel className="text-xs font-normal text-[--color-ink-tertiary]">
+                      <span className="block truncate" title={session.user.email}>
+                        {session.user.email}
+                      </span>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link href={accountRoutes.favorites} className="flex items-center gap-2">
+                    <Heart className="h-4 w-4 text-[--color-ink-tertiary]" aria-hidden="true" />
+                    <span>{t("accountFavorites")}</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link href={accountRoutes.alerts} className="flex items-center gap-2">
+                    <Bell className="h-4 w-4 text-[--color-ink-tertiary]" aria-hidden="true" />
+                    <span>{t("accountAlerts")}</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link href={accountRoutes.account} className="flex items-center gap-2">
+                    <UserCircle2 className="h-4 w-4 text-[--color-ink-tertiary]" aria-hidden="true" />
+                    <span>{t("accountSettings")}</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => {
+                    void signOut({ callbackUrl: "/" });
+                  }}
+                  className="cursor-pointer text-[--color-warn-critical] focus:text-[--color-warn-critical] focus:bg-[--color-warn-critical-soft]/40"
+                >
+                  <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
+                  <span>{t("accountSignOut")}</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : (
             <Link
               href="/login"
