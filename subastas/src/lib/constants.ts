@@ -14,11 +14,25 @@ export const OFFICIAL_CATEGORIES: {
     'Naves industriales',
     'Otros inmuebles'
   ],
+  // Wave C1a (2026-06-07). Widened to include the actual DB category labels
+  // for "vehicle-shaped" auctions that Ghost surfaces from upstream feeds.
+  // The live DB carries `Camiones` (truck) and `Otros vehículos` (catch-all
+  // for buses, aeronaves, machinery on wheels) and `Embarcaciones` (Ghost's
+  // newer label for `Barcos`); none of these were previously in MOVABLE so
+  // the home "Últimos vehículos" carousel filtered them out and the row sat
+  // half-empty. `Vehículos Industriales` is kept as the legacy fold for
+  // older `Camiones` rows that haven't been renormalised yet. Movable
+  // non-vehicles (`Maquinaria`, `Joyas`, `Arte`) remain in the set so the
+  // carousel-mix `categoryGroup=movable` filter remains a single source of
+  // truth across surfaces (home + listing chips + map filter).
   MOVABLE: [
     'Turismos',
     'Motocicletas',
     'Vehículos Industriales',
+    'Camiones',
     'Barcos',
+    'Embarcaciones',
+    'Otros vehículos',
     'Maquinaria',
     'Joyas',
     'Arte'

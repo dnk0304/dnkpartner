@@ -15,14 +15,15 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { MapPin, FileText, Calendar } from "lucide-react";
+import { MapPin, Calendar } from "lucide-react";
 import { AuctionItem, type AuctionStatus } from "@/types";
 import { StatusDot } from "./StatusBadge";
 import { AuctionTypeBadge } from "./AuctionTypeBadge";
 import { PujaBadge, OccupancyBadge } from "./PujaOccupancyBadges";
 import { LiveCountdown } from "./LiveCountdown";
 import { FollowButton } from "@/components/notifications/FollowButton";
-import { formatPrice, capitalize, titleCase, displayTitle, formatDateMed, prettifyAuctionType } from "./format";
+import { formatPrice, capitalize, titleCase, formatDateMed, prettifyAuctionType } from "./format";
+import { auctionCardTitle } from "@/lib/seo/display-title";
 import { getStatusMeta, effectiveStatus } from "./status";
 import { cn } from "@/lib/utils";
 import { resolveCardImage, fallbackImageFor, isVariosLotesTitle } from "@/lib/resolve-card-image";
@@ -41,11 +42,16 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
   const where = [item.municipality && titleCase(item.municipality), item.province && capitalize(item.province)]
     .filter(Boolean)
     .join(" · ");
-  // Never render the literal "Unknown" — synthesize from location.
-  const title = displayTitle({
-    title: item.title,
+  // Address-led row title (Wave C1b, 2026-06-07). "{Tipo} en {dirección}"
+  // for properties, "{Tipo} en {town}" for vehicles. Never the BOE ref.
+  const title = auctionCardTitle({
+    address: item.address,
+    propertyType: item.propertyType,
+    auctionType: item.auctionType,
+    category: item.category,
     municipality: item.municipality,
     province: item.province,
+    title: item.title,
   });
   const [imgFailed, setImgFailed] = React.useState(false);
   // Tiny row thumbnail: 64×48. Use 'thumbnail' size on rung 2 so the static
@@ -220,28 +226,17 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
         ) : (
           <span title={typeLabel}>{typeLabel}</span>
         )}
-        {/* Stacked meta: opensAt + documents — only when projected so the
-            cell stays one-line on pre-backfill rows. The "Inicio …" caption
-            is suppressed when the dedicated date column already shows the
-            opensAt as "Próx. apertura" (PROXIMA rows) — avoids printing the
-            same date twice in one row. */}
-        {((opensLabel && dateLabel !== "Próxima apertura") || item.hasDocuments) && (
+        {/* Stacked meta: opensAt only (Wave C1b 2026-06-07: the "Docs"
+            indicator was removed — documents live on the detail page, not the
+            row). The "Inicio …" caption is suppressed when the dedicated
+            date column already shows the opensAt as "Próx. apertura"
+            (PROXIMA rows) — avoids printing the same date twice in one row. */}
+        {opensLabel && dateLabel !== "Próxima apertura" && (
           <div className="mt-0.5 flex items-center gap-2 text-[10px] text-[--color-ink-tertiary] font-normal tnum">
-            {opensLabel && dateLabel !== "Próxima apertura" && (
-              <span className="inline-flex items-center gap-1">
-                <Calendar className="h-2.5 w-2.5" aria-hidden="true" />
-                Inicio {opensLabel}
-              </span>
-            )}
-            {item.hasDocuments && (
-              <span
-                className="inline-flex items-center gap-1"
-                title="Esta subasta tiene documentos oficiales adjuntos"
-              >
-                <FileText className="h-2.5 w-2.5" aria-hidden="true" />
-                Docs
-              </span>
-            )}
+            <span className="inline-flex items-center gap-1">
+              <Calendar className="h-2.5 w-2.5" aria-hidden="true" />
+              Inicio {opensLabel}
+            </span>
           </div>
         )}
       </td>

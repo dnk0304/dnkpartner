@@ -70,11 +70,20 @@ const PROPERTY_CATEGORIES = new Set([
   'Otros inmuebles',
 ]);
 
+// Wave C1a (2026-06-07). Widened to the full DB-emitted vehicle label set so
+// `Camiones` (truck — fold into Industriales), `Embarcaciones` (Ghost's newer
+// label for Barcos) and `Otros vehículos` (buses/aeronaves/catch-all) all
+// resolve to a vehicle SVG instead of the neutral map placeholder when they
+// reach rung-3. Keeps the home `Últimos vehículos` row visually coherent for
+// the same set the constants `OFFICIAL_CATEGORIES.MOVABLE` widening enables.
 const VEHICLE_CATEGORIES = new Set([
   'Turismos',
   'Motocicletas',
   'Vehículos Industriales',
+  'Camiones',
   'Barcos',
+  'Embarcaciones',
+  'Otros vehículos',
 ]);
 
 /**

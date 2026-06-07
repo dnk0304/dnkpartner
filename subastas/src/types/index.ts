@@ -50,13 +50,20 @@ export type AuctionCategory =
   | 'Fincas rústicas' 
   | 'Naves industriales' 
   | 'Otros inmuebles'
-  // Movable Assets
-  | 'Turismos' 
-  | 'Motocicletas' 
-  | 'Vehículos Industriales' 
-  | 'Barcos' 
-  | 'Maquinaria' 
-  | 'Joyas' 
+  // Movable Assets — Wave C1a (2026-06-07) widened to include real DB labels
+  // for vehicles that Ghost produces (`Camiones`, `Embarcaciones`,
+  // `Otros vehículos`). These were missing so the "Últimos vehículos" row
+  // dropped Camiones (9 active) + Otros vehículos (16) + Embarcaciones
+  // rows entirely.
+  | 'Turismos'
+  | 'Motocicletas'
+  | 'Vehículos Industriales'
+  | 'Camiones'
+  | 'Barcos'
+  | 'Embarcaciones'
+  | 'Otros vehículos'
+  | 'Maquinaria'
+  | 'Joyas'
   | 'Arte';
 
 export interface AuctionItem {

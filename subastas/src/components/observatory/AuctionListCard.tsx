@@ -15,7 +15,7 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ImageOff, MapPin, FileText, Calendar } from "lucide-react";
+import { ImageOff, MapPin, Calendar } from "lucide-react";
 import { AuctionItem, type AuctionStatus } from "@/types";
 import { StatusBadge } from "./StatusBadge";
 import { AuctionTypeBadge } from "./AuctionTypeBadge";
@@ -23,7 +23,8 @@ import { SourceBadge } from "./SourceBadge";
 import { PujaBadge, OccupancyBadge } from "./PujaOccupancyBadges";
 import { LiveCountdown } from "./LiveCountdown";
 import { FollowButton } from "@/components/notifications/FollowButton";
-import { formatPrice, capitalize, titleCase, displayTitle, formatDaysLeft, formatDateMed, prettifyAuctionType } from "./format";
+import { formatPrice, capitalize, titleCase, formatDaysLeft, formatDateMed, prettifyAuctionType } from "./format";
+import { auctionCardTitle } from "@/lib/seo/display-title";
 import { effectiveStatus } from "./status";
 import { cn } from "@/lib/utils";
 import { resolveCardImage, fallbackImageFor, isVariosLotesTitle } from "@/lib/resolve-card-image";
@@ -42,12 +43,21 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
     .filter(Boolean)
     .join(" · ");
 
-  // Synthesize a readable title — never render the literal "Unknown" the
-  // upstream scraper emits for ~40% of active rows.
-  const title = displayTitle({
-    title: item.title,
+  // Address-led card title (Wave C1b, 2026-06-07). The card title now reads
+  // "{Tipo} en {dirección/town}" — matching the carousel + the detail page
+  // (which adds a "Subasta de " prefix on its H1). The reference code is
+  // never surfaced as a card title; `displayTitle` (the muni/province
+  // fallback) is implicit in `auctionCardTitle`'s ladder when address is
+  // missing. Vehicle category cards use municipality only (BOE depot codes
+  // aren't user-meaningful).
+  const title = auctionCardTitle({
+    address: item.address,
+    propertyType: item.propertyType,
+    auctionType: item.auctionType,
+    category: item.category,
     municipality: item.municipality,
     province: item.province,
+    title: item.title,
   });
 
   // Imagery resolves through the 3-rung ladder: real photo → static map pin
@@ -397,20 +407,14 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
               </span>
             );
           }
-          if (!dateNode && !item.hasDocuments) return null;
+          // Wave C1b (2026-06-07): the "Documentos" pill has been removed
+          // from the listing cards (Dennis: ref + docs belong on the detail
+          // page, not the card). Only the date line remains in this row;
+          // when the date line is null the whole row collapses.
+          if (!dateNode) return null;
           return (
-            <div className="flex items-center justify-between gap-2 text-[11px] text-[--color-ink-tertiary]">
-              {dateNode ?? <span />}
-              {item.hasDocuments && (
-                <span
-                  className="inline-flex items-center gap-1 rounded-full border border-[--color-hairline] bg-[--color-surface-muted] px-1.5 py-0.5 font-medium text-[--color-ink-secondary]"
-                  title="Esta subasta tiene documentos oficiales adjuntos"
-                  aria-label="Documentos disponibles"
-                >
-                  <FileText className="h-3 w-3" aria-hidden="true" />
-                  Documentos
-                </span>
-              )}
+            <div className="flex items-center gap-2 text-[11px] text-[--color-ink-tertiary]">
+              {dateNode}
             </div>
           );
         })()}

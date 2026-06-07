@@ -59,6 +59,8 @@ import {
   getAppropriateImageUrl,
   isRealAuctionImage,
 } from "@/lib/auction-image-projection";
+import { OFFICIAL_CATEGORIES } from "@/lib/constants";
+import { auctionDisplayTitle } from "@/lib/seo/display-title";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +83,17 @@ type FeedAuctionProjection = {
   id: string;
   boeId: string;
   title: string;
+  /**
+   * Wave C1a (2026-06-07). Server-derived address-led display title — same
+   * derivation the detail page H1 / <title> uses (`auctionDisplayTitle` in
+   * `lib/seo/display-title.ts`). Cards can render this verbatim instead of
+   * re-implementing the tipo+address fallback ladder per surface. Examples:
+   *   - "Subasta de Vivienda en Calle Tollo, 19, Ontur"
+   *   - "Subasta de Turismos en Madrid, Madrid"
+   * Never null/blank — the ladder always resolves (worst case: "Subasta de
+   * Inmueble").
+   */
+  displayTitle: string;
   category: string;
   province: string | null;
   municipality: string | null;
@@ -268,6 +281,20 @@ function projectAuction(a: AuctionRow): FeedAuctionProjection {
     id: a.id,
     boeId: a.boeId,
     title: synthTitle(a.title, a.municipality, a.province),
+    // Wave C1a (2026-06-07). Address-led title computed server-side via the
+    // same helper the detail page H1 uses, so a vehicle card reads "Turismos
+    // en Madrid" and a property card reads "Vivienda en Calle Tollo, 19,
+    // Ontur" — matching `auctionDisplayTitle`'s ladder (address → muni/prov
+    // → raw title). Honest-fallback: never blank.
+    displayTitle: auctionDisplayTitle({
+      address: a.address,
+      propertyType: a.propertyType,
+      auctionType: a.auctionType,
+      category: a.category,
+      municipality: a.municipality,
+      province: a.province,
+      title: a.title,
+    }),
     category: a.category,
     province: a.province ?? null,
     municipality: a.municipality ?? null,
@@ -417,6 +444,7 @@ async function fetchBucket(
   count: number,
   provinceFilter: string | null,
   categoryFilter: string | null,
+  categoryGroupFilter: "movable" | "real_estate" | null,
 ): Promise<AuctionRow[]> {
   if (count <= 0) return [];
 
@@ -437,7 +465,22 @@ async function fetchBucket(
     Object.assign(where, provinceValidWhere());
   }
   if (categoryFilter) {
+    // Exact category pin (legacy pre-categoryGroup callers) wins over the
+    // group filter — they pinned a single label deliberately.
     where.category = categoryFilter;
+  } else if (categoryGroupFilter === "movable") {
+    // Wave C1a (2026-06-07). Move the home `Últimos vehículos` filtering
+    // server-side so the per-bucket 30-card cap is filled with MOVABLE rows
+    // (the previous client-side post-filter on an unfiltered 50/30/20 mix
+    // dropped Camiones/Otros vehículos/Embarcaciones AND was always
+    // properties-dominant, leaving the vehicle row at ~4 cards). The
+    // widened `OFFICIAL_CATEGORIES.MOVABLE` set carries the full set of
+    // DB-emitted vehicle labels (Turismos/Motocicletas/Camiones/Barcos/
+    // Embarcaciones/Otros vehículos/Vehículos Industriales) + the
+    // non-vehicle movables Maquinaria/Joyas/Arte.
+    where.category = { in: OFFICIAL_CATEGORIES.MOVABLE };
+  } else if (categoryGroupFilter === "real_estate") {
+    where.category = { in: OFFICIAL_CATEGORIES.REAL_ESTATE };
   }
 
   const rows = await prisma.auction.findMany({
@@ -565,6 +608,13 @@ export async function GET(req: NextRequest) {
     const provinceFilter = rawProvince.length > 0 ? rawProvince : null;
     const rawCategory = (url.searchParams.get("category") ?? "").trim();
     const categoryFilter = rawCategory.length > 0 ? rawCategory : null;
+    // Wave C1a (2026-06-07). `categoryGroup` widens server-side filtering to
+    // ALL movable OR ALL real-estate categories at once — used by the home
+    // "Últimos inmuebles" / "Últimos vehículos" rows. Ignored when an exact
+    // `category` is pinned. Only two values are valid; anything else is null.
+    const rawGroup = (url.searchParams.get("categoryGroup") ?? "").trim().toLowerCase();
+    const categoryGroupFilter: "movable" | "real_estate" | null =
+      rawGroup === "movable" || rawGroup === "real_estate" ? rawGroup : null;
 
     // 50 / 30 / 20 split. Round on the first two; remainder absorbs
     // rounding so the three counts always sum to `limit` exactly.
@@ -574,11 +624,11 @@ export async function GET(req: NextRequest) {
 
     // Fetch all three buckets in parallel.
     const [activeRows, proximaRows, suspRows] = await Promise.all([
-      fetchBucket(CELEBRANDOSE_DB, true, nActive, provinceFilter, categoryFilter),
+      fetchBucket(CELEBRANDOSE_DB, true, nActive, provinceFilter, categoryFilter, categoryGroupFilter),
       // PROXIMA has NO clock guard — pre-auction has no "has it ended"
       // question to ask. Brief explicitly calls this out.
-      fetchBucket(PROXIMA_DB, false, nProxima, provinceFilter, categoryFilter),
-      fetchBucket(SUSPENDIDA_DB, true, nSusp, provinceFilter, categoryFilter),
+      fetchBucket(PROXIMA_DB, false, nProxima, provinceFilter, categoryFilter, categoryGroupFilter),
+      fetchBucket(SUSPENDIDA_DB, true, nSusp, provinceFilter, categoryFilter, categoryGroupFilter),
     ]);
 
     // Weighted interleave so the marquee reads as a real mix, not 3 blocks.

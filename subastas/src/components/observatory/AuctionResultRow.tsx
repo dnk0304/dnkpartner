@@ -40,10 +40,10 @@ import {
   formatPrice,
   capitalize,
   titleCase,
-  displayTitle,
   formatDaysLeft,
   formatDateMed,
 } from "./format";
+import { auctionCardTitle } from "@/lib/seo/display-title";
 import { effectiveStatus } from "./status";
 import { cn } from "@/lib/utils";
 import {
@@ -67,10 +67,18 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
     .filter(Boolean)
     .join(" · ");
 
-  const title = displayTitle({
-    title: item.title,
+  // Address-led row title (Wave C1b, 2026-06-07). Same helper the carousel
+  // + AuctionListCard use — "{Tipo} en {dirección}" for properties,
+  // "{Tipo} en {town}" for vehicles. No "Subasta de " prefix on the row
+  // (it's implied by the listing context), no BOE ref title.
+  const title = auctionCardTitle({
+    address: item.address,
+    propertyType: item.propertyType,
+    auctionType: item.auctionType,
+    category: item.category,
     municipality: item.municipality,
     province: item.province,
+    title: item.title,
   });
 
   // 3-rung imagery ladder. `card` size feeds rung-2 a static-map URL sized for

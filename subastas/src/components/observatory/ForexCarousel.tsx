@@ -48,13 +48,14 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, ArrowRight, Loader2, MapPin, FileText } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowRight, Loader2, MapPin } from "lucide-react";
 import { apiFetch } from "@/lib/api-path";
 import { StatusBadge } from "./StatusBadge";
 import { resolveCardImage, fallbackImageFor, isVariosLotesTitle } from "@/lib/resolve-card-image";
 import { statusDateLabel } from "@/lib/auction-status";
 import { OFFICIAL_CATEGORIES } from "@/lib/constants";
 import { buildAuctionSlug } from "@/lib/seo/auction-slug";
+import { auctionCardTitle } from "@/lib/seo/display-title";
 import {
   formatPrice,
   formatDaysLeft,
@@ -88,6 +89,16 @@ export type FeedAuction = {
    *  the small secondary line on the card — never the headline. */
   boeId?: string | null;
   title: string;
+  /**
+   * Wave C1a (2026-06-07). Server-derived address-led title from the
+   * carousel-mix endpoint — same body the detail page H1 renders
+   * (`auctionDisplayTitle` in `lib/seo/display-title.ts`). Cards can
+   * surface this as the headline ("Subasta de Vivienda en Calle Tollo, 19,
+   * Ontur") without re-running the tipo/address fallback ladder per
+   * component. Optional + nullable for older cached fetches; the resolver
+   * UI falls back to the existing `prettifyAuctionType` path when absent.
+   */
+  displayTitle?: string | null;
   category: string;
   province: string | null;
   municipality: string | null;
@@ -210,13 +221,9 @@ function cleanLoc(value: string | null | undefined): string {
   return t;
 }
 
-/** True when `raw` looks like a BOE auction reference (SUB-…), not a real
- *  human title. Used to decide whether to hide the upstream `title` from the
- *  card — refs go in the small secondary line, never in the headline. */
-function isBoeRefLike(raw: string | null | undefined): boolean {
-  if (!raw) return false;
-  return /^SUB[-A-Z0-9]+/i.test(raw.trim());
-}
+// (Wave C1b) `isBoeRefLike` was used to decide whether to surface the BOE
+// ref label on the card. The ref label has been removed from the carousel
+// card (teaser-only); the helper is dropped along with it.
 
 export type ForexCarouselProps = {
   /** Max auctions to fetch. Default 30. */
@@ -304,29 +311,29 @@ export function ForexCarousel({
   const load = React.useCallback(async () => {
     try {
       const params = new URLSearchParams();
-      // When a category-GROUP filter is active (home page properties vs
-      // vehicles split), over-fetch so the post-filter row still hits the
-      // visible limit. The carousel-mix endpoint caps at 60 internally.
-      const fetchLimit = categoryGroup ? Math.min(60, limit * 2) : limit;
-      params.set("limit", String(fetchLimit));
+      params.set("limit", String(limit));
       // /api/auctions/carousel-mix returns the 50/30/20 composed feed
-      // (active / próxima-apertura / suspendida, interleaved). It only
-      // accepts `limit`, `province`, `category` — `when` and the old
-      // recent-route knobs (`types`, `activeOnly`) are not used.
+      // (active / próxima-apertura / suspendida, interleaved). Wave C1a
+      // (2026-06-07): the endpoint now also accepts `categoryGroup`
+      // (`movable` | `real_estate`) so the per-bucket cap is filled with
+      // the group's rows server-side — no more over-fetch + client-side
+      // post-filter (the old path biased properties-dominant and shipped a
+      // ~4-card vehicle row on a 30-card limit).
       if (category) params.set("category", category);
       if (province) params.set("province", province);
+      if (categoryGroup) params.set("categoryGroup", categoryGroup);
       const res = await apiFetch(`/api/auctions/carousel-mix?${params.toString()}`);
       if (!res.ok) return;
       const body = await res.json();
       if (body?.success && Array.isArray(body.data)) {
-        // The server is authoritative — `CAROUSEL_STATUSES` is a safety net,
-        // never a re-strip of the mix. Critically, `suspendida` MUST pass
-        // through (it's part of the composed feed by design).
+        // The server is authoritative for both status mix and category
+        // group. `CAROUSEL_STATUSES` + `matchesCategoryGroup` remain as
+        // a defence-in-depth safety net (catches a hypothetical stray
+        // status / category leak) but they should be no-ops on every
+        // happy-path response after the route change.
         let rows = (body.data as FeedItem[])
           .map((it) => it.auction)
           .filter((a) => CAROUSEL_STATUSES.has(a.status));
-        // Category-group split (home properties vs vehicles). When unset,
-        // every row passes through unchanged.
         if (categoryGroup) {
           rows = rows.filter((a) => matchesCategoryGroup(a.category, categoryGroup));
         }
@@ -365,6 +372,15 @@ export function ForexCarousel({
     onItemsCountChange?.(items.length);
   }, [items.length, onItemsCountChange]);
 
+  // Endless-loop guardrail (Wave C1b, 2026-06-07). When the source set is
+  // small (<6 cards), TWO-copy duplication leaves a visible cadence — the
+  // same card returns ~every 13s/card. Rendering a THIRD copy smooths the
+  // visual rhythm without changing the wrap maths (the modulo loop still
+  // wraps after ONE copy of the list — the extra copy just delays the
+  // visual "I've seen this before" moment). The track always has at least
+  // 2 copies so the wrap point is always backed by visible cards.
+  const trackCopies = items.length > 0 && items.length < 6 ? 3 : 2;
+
   // Measure the unduplicated track width so the rAF loop knows where to wrap.
   // ResizeObserver re-fires on layout shifts and when the chip filter mutates
   // the row set.
@@ -372,15 +388,17 @@ export function ForexCarousel({
     const el = trackRef.current;
     if (!el) return;
     const measure = () => {
-      // The track contains TWO copies of the list. Halve to get one copy.
-      const w = el.scrollWidth / 2;
+      // The track contains `trackCopies` copies of the list. Divide to get
+      // one copy. The rAF loop wraps every `trackWidth` px so a single copy
+      // worth of width is what we want here.
+      const w = el.scrollWidth / trackCopies;
       if (Number.isFinite(w) && w > 0) setTrackWidth(w);
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [items.length]);
+  }, [items.length, trackCopies]);
 
   // Manual scroll (used in reduced-motion fallback). Falls back gracefully if
   // the scroller ref isn't mounted yet.
@@ -644,7 +662,13 @@ export function ForexCarousel({
           )}
         >
           {items.map((a) => (
-            <ExpandedCard key={a.id} auction={a} onCardClick={onCardClick} compact={compact} />
+            <ExpandedCard
+              key={a.id}
+              auction={a}
+              onCardClick={onCardClick}
+              compact={compact}
+              categoryGroup={categoryGroup}
+            />
           ))}
         </div>
       ) : (
@@ -695,6 +719,7 @@ export function ForexCarousel({
                 onCardClick={onCardClick}
                 isDragging={dragging}
                 compact={compact}
+                categoryGroup={categoryGroup}
               />
             ))}
             {/* Second copy — `duplicate` flag makes each card aria-hidden and
@@ -709,6 +734,22 @@ export function ForexCarousel({
                 duplicate
                 isDragging={dragging}
                 compact={compact}
+                categoryGroup={categoryGroup}
+              />
+            ))}
+            {/* Third copy (small-set guardrail) — only rendered when the
+                source list is <6 cards. The rAF loop still wraps after ONE
+                copy worth of width; the extra copy just makes the loop point
+                visually quieter on a thin vehicle row. */}
+            {trackCopies === 3 && items.map((a) => (
+              <ExpandedCard
+                key={`c-${a.id}`}
+                auction={a}
+                onCardClick={onCardClick}
+                duplicate
+                isDragging={dragging}
+                compact={compact}
+                categoryGroup={categoryGroup}
               />
             ))}
           </div>
@@ -726,6 +767,7 @@ function ExpandedCard({
   duplicate = false,
   isDragging = false,
   compact = false,
+  categoryGroup = null,
 }: {
   auction: FeedAuction;
   onCardClick?: (auction: FeedAuction) => void;
@@ -736,6 +778,11 @@ function ExpandedCard({
   /** Compact mode: ~25 % smaller card width + tighter typography for the
    *  home page two-row layout. */
   compact?: boolean;
+  /** Category-group hint — drives the address-led title path. `'movable'`
+   *  cards use "{Tipo} en {town}" (vehicle "address" from BOE is a depot
+   *  code, not user-meaningful); `'real_estate'` cards use the full street
+   *  address + municipality phrasing. Null → infer from category. */
+  categoryGroup?: CategoryGroup | null;
 }) {
   // Status-branched date intent (Wave52, Pixel 2026-06-04). The carousel was
   // the surface in Dennis's screenshot showing "Termina en 6d 13h" + a
@@ -750,12 +797,28 @@ function ExpandedCard({
   const dl = isActiveLabel ? daysLeft(endsAt) : null;
   const urgent = isActiveLabel && !ended && dl != null && dl <= 1;
 
-  // Headline = auction TYPE (propertyType → category → generic).
-  // The BOE ref (boeId, or the upstream title when it's a SUB-… ref) becomes
-  // the small secondary line — never the headline.
-  const typeHeadline = prettifyAuctionType(
+  // Headline = address-led title (Wave C1b, 2026-06-07). Dennis wants the
+  // card to read "{Tipo} en {dirección}" / "{Tipo} en {town}" — the same
+  // address-first phrasing the detail H1 uses but WITHOUT the "Subasta de "
+  // prefix (cards are tight; the prefix is implied by the surrounding row
+  // header "Últimos inmuebles / vehículos"). `auctionCardTitle` resolves
+  // tipo + address/municipality/province with a vehicle branch that skips
+  // the BOE depot-code "address" (wave-E will replace this with make/model).
+  // Fallback chain still routes through propertyType → auctionType →
+  // category → "Inmueble", so the headline is NEVER the BOE ref.
+  const typeOnly = prettifyAuctionType(
     auction.propertyType ?? auction.category ?? null,
   );
+  const cardHeadline = auctionCardTitle({
+    address: auction.address,
+    propertyType: auction.propertyType,
+    auctionType: auction.auctionType,
+    category: auction.category,
+    municipality: auction.municipality,
+    province: auction.province,
+    title: auction.title,
+    categoryGroup,
+  });
   // Compact "Termina en Nd Nh" string — short variant for the ACTIVE card
   // footer only. NEVER computed for PROXIMA / SUSPENDIDA (those rows render
   // their own status-branched date line below). Distinct from the floating
@@ -778,15 +841,11 @@ function ExpandedCard({
       : d.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
   })();
 
-  // Prefer the explicit boeId when projected; fall back to the upstream
-  // `title` if it itself is a SUB- ref (legacy projection where boeId hasn't
-  // made it to the client yet). Never surface a non-ref title here — the
-  // headline already covers that.
-  const refLabel = (() => {
-    if (auction.boeId && auction.boeId.trim()) return auction.boeId.trim();
-    if (isBoeRefLike(auction.title)) return auction.title.trim();
-    return null;
-  })();
+  // Wave C1b (2026-06-07): the Ref. BOE + Docs pill have been removed from
+  // the carousel card (teaser cards = image + quick info only — those details
+  // live on the detail page). The previous `refLabel` derivation has been
+  // dropped along with the JSX block; `boeId` / `isBoeRefLike` are no longer
+  // surfaced here.
 
   const muni = cleanLoc(auction.municipality);
   const prov = cleanLoc(auction.province);
@@ -827,7 +886,7 @@ function ExpandedCard({
     latitude: auction.latitude,
     longitude: auction.longitude,
     category: auction.category,
-    title: typeHeadline,
+    title: typeOnly,
     size: "thumbnail",
   });
   // On error (most often the OSM map tile being throttled), use the shared
@@ -857,7 +916,11 @@ function ExpandedCard({
 
   const innerBody = (
     <>
-      <div className="relative aspect-[16/9] bg-[--color-surface-muted]">
+      {/* Image aspect trimmed from 16:9 → 16:10 (Wave C1b, 2026-06-07).
+          Combined with the tighter content padding below this lands the
+          rendered card at ~90% of the previous compact height — the −10%
+          Dennis asked for, without shrinking type into illegibility. */}
+      <div className="relative aspect-[16/10] bg-[--color-surface-muted]">
         <Image
           src={imageSrc}
           alt={resolved.alt}
@@ -920,14 +983,21 @@ function ExpandedCard({
         )}
       </div>
 
-      <div className="p-2.5 flex flex-col gap-1 min-w-0">
-        {/* Headline = TYPE (Vivienda / Trastero / …). Falls back to category
-            then "Subasta" — never to the BOE ref. */}
+      {/* Content padding tightened p-2.5 → p-2 (Wave C1b). Combined with the
+          16:10 image aspect above this yields a ~10% shorter compact card
+          without touching the price-grid font sizes (legibility wins). */}
+      <div className="p-2 flex flex-col gap-1 min-w-0">
+        {/* Headline = "{Tipo} en {dirección}" / "{Tipo} en {town}" (address-
+            led, Wave C1b 2026-06-07). The vehicle path uses municipality only
+            (BOE depot codes aren't user-meaningful). Never the BOE ref. We
+            allow 2 lines now since the address can wrap on a 195px card —
+            line-clamp-2 keeps card height stable; truncated tail is shown on
+            hover via the native title attribute. */}
         <div
-          className="text-[13px] font-semibold text-[--color-ink-primary] line-clamp-1 leading-snug"
-          title={typeHeadline}
+          className="text-[13px] font-semibold text-[--color-ink-primary] line-clamp-2 leading-snug"
+          title={cardHeadline}
         >
-          {typeHeadline}
+          {cardHeadline}
         </div>
         {where && (
           <div className="text-[11px] text-[--color-ink-tertiary] truncate">
@@ -1016,7 +1086,7 @@ function ExpandedCard({
             </div>
           );
         })()}
-        <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 pt-1.5 border-t border-[--color-hairline]">
+        <div className="grid grid-cols-2 gap-x-2 gap-y-1 pt-1 border-t border-[--color-hairline]">
           {noPriceData && (
             <div className="col-span-2 min-w-0">
               <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
@@ -1071,37 +1141,10 @@ function ExpandedCard({
               </div>
             </div>
           )}
-          {/* BOE ref + documents indicator — small + muted; bottom row stays
-              clean. The "Docs" pill sits inline with Ref. BOE so the card
-              keeps a single bottom strip; full download links live on the
-              detail modal/page, never here (Dennis's "keep cards clean" rule). */}
-          {(refLabel || auction.hasDocuments) && (
-            <div className="col-span-2 min-w-0 pt-1 flex items-end justify-between gap-2">
-              {refLabel ? (
-                <div className="min-w-0 flex-1">
-                  <div className="text-[9px] uppercase tracking-wide text-[--color-ink-quiet]">
-                    Ref. BOE
-                  </div>
-                  <div
-                    className="text-[10px] font-mono text-[--color-ink-tertiary] truncate select-text"
-                    title={refLabel}
-                  >
-                    {refLabel}
-                  </div>
-                </div>
-              ) : <span />}
-              {auction.hasDocuments && (
-                <span
-                  className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[--color-hairline] bg-[--color-surface-muted] px-1.5 py-0.5 text-[9px] font-medium text-[--color-ink-secondary]"
-                  title="Esta subasta tiene documentos oficiales"
-                  aria-label="Documentos disponibles"
-                >
-                  <FileText className="h-2.5 w-2.5" aria-hidden="true" />
-                  Docs
-                </span>
-              )}
-            </div>
-          )}
+          {/* Wave C1b (2026-06-07): the Ref. BOE row + Docs pill were removed
+              from the carousel card. Teaser cards = image + status + headline
+              + location + status-branched date + price grid. Reference codes
+              and document downloads live on the detail page. */}
         </div>
       </div>
     </>
@@ -1132,8 +1175,8 @@ function ExpandedCard({
         aria-hidden={duplicate || undefined}
         tabIndex={duplicate ? -1 : 0}
         className={cardClass}
-        title={typeHeadline}
-        aria-label={`Ver detalles: ${typeHeadline}${refLabel ? ` (ref. ${refLabel})` : ""}`}
+        title={cardHeadline}
+        aria-label={`Ver detalles: ${cardHeadline}`}
       >
         {innerBody}
       </button>
@@ -1159,7 +1202,7 @@ function ExpandedCard({
       aria-hidden={duplicate || undefined}
       tabIndex={duplicate ? -1 : 0}
       className={cardClass}
-      title={typeHeadline}
+      title={cardHeadline}
     >
       {innerBody}
     </Link>
