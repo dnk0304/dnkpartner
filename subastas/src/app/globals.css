@@ -1,6 +1,13 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "leaflet/dist/leaflet.css";
+/* Pixel C4b (2026-06-07): bring in the cluster-plugin spider/animation
+   stylesheet so MarkerClusterGroup expands smoothly on zoom. Our own
+   brand-green bubble is rendered via a divIcon and styled in
+   HierarchicalMap.tsx — these imports only contribute the spider-leg
+   transitions and the cluster-pin DOM scaffolding. */
+@import "react-leaflet-cluster/dist/assets/MarkerCluster.css";
+@import "react-leaflet-cluster/dist/assets/MarkerCluster.Default.css";
 
 @custom-variant dark (&:is(.dark *));
 
