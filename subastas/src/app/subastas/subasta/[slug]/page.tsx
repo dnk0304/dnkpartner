@@ -203,6 +203,10 @@ export default async function SubastaDetailPage({ params }: PageProps) {
       propertyDescription: true,
       lotDescription: true,
       source: true,
+      // Wave-B2 (Pixel 2026-06-07): surface imageUrl so the SSR teaser can
+      // paint the same 3-rung imagery ladder (photo → map → neutral
+      // placeholder) the cards already use. Public information; no PII.
+      imageUrl: true,
     },
   });
   const jsonLd = seo ? buildAuctionJsonLd(seo) : null;
@@ -296,6 +300,11 @@ export default async function SubastaDetailPage({ params }: PageProps) {
                 publishedAt: seo?.publishedAt ?? new Date(),
                 opensAt: seo?.opensAt ?? null,
                 endsAt: seo?.endsAt ?? null,
+                // Image ladder inputs — public; the teaser uses
+                // resolveCardImage to walk photo → map → neutral placeholder.
+                imageUrl: seo?.imageUrl ?? null,
+                latitude: typeof seo?.latitude === 'number' ? seo.latitude : null,
+                longitude: typeof seo?.longitude === 'number' ? seo.longitude : null,
               }}
             />
             <FullInfoWall />

@@ -5,29 +5,36 @@
  * regardless of session state.
  *
  * Fields (Dennis 2026-06-04 boundary, locked):
- *   - Title
+ *   - Title (address-led for property; muni+province for vehicles/land)
  *   - Type (propertyType OR auctionType)
  *   - Province + municipality
  *   - Status (badge)
  *   - Headline figure (appraisalValue / valor subasta — whichever is present)
  *   - Description snippet (≤280 chars)
+ *   - Hero image (photo / map / neutral placeholder ladder)
  *
  * Everything ELSE (exact address, edicto, contact, full financial breakdown,
  * documents) is rendered by the GATED block — only for full-access viewers.
+ *
+ * 2026-06-07 redesign (subastasia-inspired): hero frame at 4:3 aspect with
+ * status chip overlaid top-left; address-led H1 below; consolidated summary
+ * panel (NO sticky — the wall sits beneath the teaser on logged-out pages).
  *
  * IMPORTANT: this component MUST stay synchronous + SSR-only. No `use client`,
  * no `dynamic({ ssr: false })`, no client-side data fetching. Google's
  * crawler must find these fields in the initial HTML.
  */
 
+import Image from 'next/image';
 import Link from 'next/link';
-import { Calendar } from 'lucide-react';
+import { Calendar, MapPin } from 'lucide-react';
 import { PROVINCE_DB_KEY_TO_SLUG } from '@/lib/seo/slugs';
 import { capitalize, titleCase, formatDateLong } from '@/components/observatory/format';
 import { StatusBadge } from '@/components/observatory/StatusBadge';
 import { SourceBadge } from '@/components/observatory/SourceBadge';
 import { effectiveStatus } from '@/components/observatory/status';
 import { pickTeaserSnippet } from '@/lib/teaser-snippet';
+import { resolveCardImage } from '@/lib/resolve-card-image';
 
 export interface AuctionTeaserData {
   id: string;
@@ -39,11 +46,13 @@ export interface AuctionTeaserData {
   status: string;
   auctionType: string | null;
   propertyType: string | null;
-  // Source (`Auction.source`) — public, NON-PII identifier of which portal
-  // we scraped the row from (BOE / Seguridad Social / …). Safe to surface
-  // in the SSR teaser; renders as a small SourceBadge alongside the type
-  // label. NEVER fed into pickTeaserSnippet (which only consumes the
-  // structured-safe fields).
+  /**
+   * Source (`Auction.source`) — public, NON-PII identifier of which portal
+   * we scraped the row from (BOE / Seguridad Social / …). Safe to surface
+   * in the SSR teaser; renders as a small SourceBadge alongside the type
+   * label. NEVER fed into pickTeaserSnippet (which only consumes the
+   * structured-safe fields).
+   */
   source: string | null;
   appraisalValue: number | null;
   valorSubasta: number | null;
@@ -58,6 +67,11 @@ export interface AuctionTeaserData {
   publishedAt: Date | string;
   opensAt: Date | string | null;
   endsAt: Date | string | null;
+  /** Resolver-served photo URL (public — Catastro / Street View) or null. */
+  imageUrl?: string | null;
+  /** Geocoded coordinates — used by the rung-2 map fallback. Public. */
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 const DB_TO_FRONTEND_STATUS: Record<string, string> = {
@@ -129,22 +143,29 @@ export function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
     ? capitalize(data.category)
     : null;
 
-  // Headline figure — prefer Tasación (appraisalValue), fall back to valor
-  // subasta. The card layer follows the same ordering so the teaser figure
-  // matches what the user saw on the card before clicking through.
-  const headlineFigure =
-    formatEuro(data.appraisalValue) ?? formatEuro(data.valorSubasta);
-  const headlineLabel =
-    data.appraisalValue != null
-      ? 'Tasación'
-      : data.valorSubasta != null
-      ? 'Valor subasta'
-      : null;
+  // Headline price hierarchy (subastasia move 2):
+  //   BIG BOLD bid (valorSubasta — the "starting bid") on top.
+  //   MUTED tasación (appraisalValue) directly beneath as the valuation.
+  // Honest-NULL: render only the figures we have. The label adapts.
+  const startingBid = formatEuro(data.valorSubasta);
+  const valuation = formatEuro(data.appraisalValue);
 
   const snippet = teaserSnippet(data, status);
 
+  // Imagery — same 3-rung ladder as the cards (photo → map → neutral
+  // placeholder). resolveCardImage takes only the public fields we already
+  // have; no PII (the lat/lng are coarse-grained centroids).
+  const hero = resolveCardImage({
+    imageUrl: data.imageUrl ?? null,
+    latitude: typeof data.latitude === 'number' ? data.latitude : null,
+    longitude: typeof data.longitude === 'number' ? data.longitude : null,
+    category: data.category,
+    title: data.title,
+    size: 'large',
+  });
+
   return (
-    <section aria-labelledby="auction-teaser-heading" className="space-y-4">
+    <section aria-labelledby="auction-teaser-heading" className="space-y-6">
       {/* Breadcrumb */}
       <nav className="text-xs text-[--color-ink-tertiary] tnum" aria-label="Migas de pan">
         <Link href="/" className="hover:text-[--color-brand]">
@@ -171,61 +192,117 @@ export function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
         )}
       </nav>
 
-      {/* Title */}
-      <header>
-        <h1
-          id="auction-teaser-heading"
-          className="font-serif text-2xl md:text-3xl lg:text-4xl leading-tight text-[--color-ink-primary]"
-        >
-          {data.title || data.category}
-        </h1>
-        {where && (
-          <p className="mt-1.5 text-sm text-[--color-ink-secondary]">{where}</p>
-        )}
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[--color-ink-tertiary] tnum">
-          <span className="font-mono">{data.boeId}</span>
-          {typeLabel && (
-            <>
-              <span aria-hidden="true">·</span>
-              <span>{typeLabel}</span>
-            </>
-          )}
-          {/* SourceBadge — public identifier of scraper origin. Null-safe;
-              SSR-only. Inline in the meta row so it sits next to the type. */}
-          {data.source && <SourceBadge source={data.source} size="sm" />}
-          {data.opensAt && (
-            <>
-              <span aria-hidden="true">·</span>
-              <span className="inline-flex items-center gap-1">
-                <Calendar className="h-3 w-3" aria-hidden="true" />
-                Inicio {formatDateLong(data.opensAt)}
-              </span>
-            </>
-          )}
-        </div>
-      </header>
-
-      {/* Status + headline figure (the teaser intel) */}
-      <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 rounded-lg border border-[--color-hairline] bg-[--color-surface-muted] p-4">
-        <div>
-          <dt className="text-[11px] uppercase tracking-wide text-[--color-ink-tertiary]">
-            Estado
-          </dt>
-          <dd className="mt-1">
-            <StatusBadge status={status} />
-          </dd>
-        </div>
-        {headlineFigure && (
-          <div>
-            <dt className="text-[11px] uppercase tracking-wide text-[--color-ink-tertiary]">
-              {headlineLabel}
-            </dt>
-            <dd className="mt-1 text-lg font-semibold text-[--color-ink-primary] tnum">
-              {headlineFigure}
-            </dd>
+      {/* Two-column hero layout: LEFT 4:3 framed image, RIGHT title + summary. */}
+      <div className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr] gap-6 md:gap-8 items-start">
+        {/* LEFT — 4:3 hero with status chip overlay (subastasia move 3). */}
+        <div className="space-y-3">
+          <div className="hero-frame">
+            <Image
+              src={hero.src}
+              alt={hero.alt}
+              fill
+              sizes="(max-width: 768px) 100vw, 60vw"
+              className={hero.isPlaceholder ? 'object-contain p-10 opacity-80' : 'object-cover'}
+              priority
+            />
+            {/* Status chip overlaid top-left. The chip carries its own
+                tint+border so it reads on any image. */}
+            <div className="absolute left-3 top-3 z-10">
+              <StatusBadge status={status} size="lg" />
+            </div>
           </div>
-        )}
-      </dl>
+          {hero.rung === 'map' && (
+            <p className="text-[11px] text-[--color-ink-tertiary] flex items-center gap-1.5">
+              <MapPin className="h-3 w-3" aria-hidden="true" />
+              Ubicación aproximada. La dirección exacta requiere cuenta.
+            </p>
+          )}
+        </div>
+
+        {/* RIGHT — title + meta + summary panel. */}
+        <div className="space-y-4">
+          <header>
+            <h1
+              id="auction-teaser-heading"
+              className="font-serif text-2xl md:text-3xl lg:text-[2rem] leading-tight text-[--color-ink-primary]"
+            >
+              {data.title || data.category}
+            </h1>
+            {where && (
+              <p className="mt-2 text-sm text-[--color-ink-secondary]">{where}</p>
+            )}
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[--color-ink-tertiary] tnum">
+              <span className="font-mono">{data.boeId}</span>
+              {typeLabel && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>{typeLabel}</span>
+                </>
+              )}
+              {data.source && <SourceBadge source={data.source} size="sm" />}
+            </div>
+          </header>
+
+          {/* Summary panel (subastasia move 1, teaser version) — single
+              rounded soft-shadowed card holding the consolidated public
+              intel. The price hierarchy: BIG BOLD starting bid; MUTED
+              tasación below. Dates render only when present (PLABI rows
+              have no endsAt — we hide the row gracefully). */}
+          <div className="summary-card p-5 space-y-4">
+            {(startingBid || valuation) && (
+              <div>
+                {startingBid ? (
+                  <>
+                    <div className="text-[11px] uppercase tracking-wide text-[--color-ink-tertiary]">
+                      Valor subasta
+                    </div>
+                    <div className="mt-1 font-serif text-3xl md:text-[2.25rem] font-semibold leading-none tracking-tight text-[--color-ink-primary] tnum">
+                      {startingBid}
+                    </div>
+                    {valuation && (
+                      <div className="mt-1.5 text-xs text-[--color-ink-tertiary] tnum">
+                        Tasación {valuation}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  // No bid — just valuation
+                  <>
+                    <div className="text-[11px] uppercase tracking-wide text-[--color-ink-tertiary]">
+                      Tasación
+                    </div>
+                    <div className="mt-1 font-serif text-3xl md:text-[2.25rem] font-semibold leading-none tracking-tight text-[--color-ink-primary] tnum">
+                      {valuation}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Date rows — only render the ones we have. PLABI rows with
+                no endsAt hide gracefully. */}
+            {(data.opensAt || data.endsAt) && (
+              <dl className="space-y-1.5 hairline-t pt-3 text-xs tnum">
+                {data.opensAt && (
+                  <div className="flex items-baseline justify-between gap-3">
+                    <dt className="text-[--color-ink-tertiary]">
+                      <Calendar className="inline h-3 w-3 mr-1 align-[-0.05em]" aria-hidden="true" />
+                      Inicio
+                    </dt>
+                    <dd className="text-[--color-ink-primary]">{formatDateLong(data.opensAt)}</dd>
+                  </div>
+                )}
+                {data.endsAt && (
+                  <div className="flex items-baseline justify-between gap-3">
+                    <dt className="text-[--color-ink-tertiary]">Fin</dt>
+                    <dd className="text-[--color-ink-primary]">{formatDateLong(data.endsAt)}</dd>
+                  </div>
+                )}
+              </dl>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Description snippet (teaser) */}
       {snippet && (
