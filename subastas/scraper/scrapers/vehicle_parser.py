@@ -1,5 +1,24 @@
 """
-Vehicle make / model / year parser (wave E2, 2026-06-07).
+Vehicle make / model / year parser (wave E2 -> v2, 2026-06-07).
+
+v2 (wave66) — coverage lift over v1 (v1 enriched only 371/6218 = 6%):
+  1. TITLE-FIRST make/model: most BOE/TGSS/PLABI vehicle titles read
+     "MARCA MODELO 1.9 TDI (1234ABC)" — the make/model live in the card TITLE,
+     not the description. v1 blended title+description into one blob and the
+     first make token won, so a description make token could shadow the real
+     title make. v2 searches the TITLE ALONE with the make dictionary first
+     (and takes the model from the title run after the make); only if the title
+     yields no known make do we fall back to the combined-text search.
+  2. WIDENED make dictionary (~40 added): more car brands (Lexus, Infiniti,
+     Cupra, Tata, Mahindra, Maxus, MG, etc.), more vans/trucks (Pegaso, Ebro,
+     Avia, Nissan/Renault/Ford commercial via the base brand), more motos
+     (Benelli, Royal Enfield, Sherco, Beta, Keeway, etc.), and boat / outboard
+     brands (Zodiac, Quicksilver, Bayliner, Sea-Doo, Mercury, Mariner, Yanmar,
+     Volvo Penta, etc.). Multi-word entries stay ordered longest-first.
+  3. "PRIMERA MATRICULACIÓN" priority year: a dedicated higher-priority regex
+     captures "Primera matriculación" / "1ª matriculación" / "Fecha de primera
+     matriculación" and wins over the generic año / matriculación label. Order:
+     primera-matriculación -> generic año/matriculación label -> bare year.
 
 Single source of truth for extracting a vehicle's MAKE, MODEL and YEAR from the
 free text BOE / SEGSOCIAL / PLABI publish for a vehicle bien (the listing title
@@ -70,33 +89,66 @@ def is_vehicle_category(category: Optional[str]) -> bool:
 # match wins. Case-preserving canonical spelling is the dict VALUE.
 # ---------------------------------------------------------------------------
 _MAKES_CANONICAL = [
-    # multi-word / hyphenated first
+    # --- multi-word / hyphenated FIRST (longest match wins) -----------------
     ("mercedes benz", "Mercedes-Benz"), ("mercedes-benz", "Mercedes-Benz"),
-    ("land rover", "Land Rover"), ("alfa romeo", "Alfa Romeo"),
+    ("land rover", "Land Rover"), ("range rover", "Land Rover"),
+    ("alfa romeo", "Alfa Romeo"),
     ("aston martin", "Aston Martin"), ("rolls royce", "Rolls-Royce"),
+    ("rolls-royce", "Rolls-Royce"),
     ("harley davidson", "Harley-Davidson"), ("harley-davidson", "Harley-Davidson"),
-    ("gas gas", "Gas Gas"),
-    # single-word cars
+    ("gas gas", "Gas Gas"), ("royal enfield", "Royal Enfield"),
+    ("moto guzzi", "Moto Guzzi"), ("can am", "Can-Am"), ("can-am", "Can-Am"),
+    ("sea doo", "Sea-Doo"), ("sea-doo", "Sea-Doo"),
+    ("volvo penta", "Volvo Penta"), ("renault trucks", "Renault Trucks"),
+    ("great wall", "Great Wall"),
+    # --- single-word CARS ---------------------------------------------------
     ("mercedes", "Mercedes-Benz"), ("volkswagen", "Volkswagen"), ("vw", "Volkswagen"),
-    ("seat", "SEAT"), ("audi", "Audi"), ("bmw", "BMW"), ("ford", "Ford"),
-    ("renault", "Renault"), ("peugeot", "Peugeot"), ("citroen", "Citroën"),
-    ("citroën", "Citroën"), ("opel", "Opel"), ("toyota", "Toyota"),
-    ("nissan", "Nissan"), ("honda", "Honda"), ("hyundai", "Hyundai"),
-    ("kia", "Kia"), ("fiat", "Fiat"), ("volvo", "Volvo"), ("mazda", "Mazda"),
-    ("mitsubishi", "Mitsubishi"), ("suzuki", "Suzuki"), ("dacia", "Dacia"),
-    ("skoda", "Škoda"), ("škoda", "Škoda"), ("chevrolet", "Chevrolet"),
-    ("jeep", "Jeep"), ("lexus", "Lexus"), ("porsche", "Porsche"),
-    ("jaguar", "Jaguar"), ("mini", "Mini"), ("smart", "Smart"),
-    ("subaru", "Subaru"), ("chrysler", "Chrysler"), ("dodge", "Dodge"),
-    ("tesla", "Tesla"), ("daihatsu", "Daihatsu"), ("ssangyong", "SsangYong"),
-    ("isuzu", "Isuzu"), ("iveco", "Iveco"), ("man", "MAN"), ("daf", "DAF"),
-    ("scania", "Scania"), ("renault trucks", "Renault Trucks"),
-    # motorcycles
+    ("seat", "SEAT"), ("cupra", "Cupra"), ("audi", "Audi"), ("bmw", "BMW"),
+    ("ford", "Ford"), ("renault", "Renault"), ("peugeot", "Peugeot"),
+    ("citroen", "Citroën"), ("citroën", "Citroën"), ("ds", "DS"),
+    ("opel", "Opel"), ("toyota", "Toyota"), ("nissan", "Nissan"),
+    ("honda", "Honda"), ("hyundai", "Hyundai"), ("kia", "Kia"),
+    ("fiat", "Fiat"), ("lancia", "Lancia"), ("volvo", "Volvo"),
+    ("mazda", "Mazda"), ("mitsubishi", "Mitsubishi"), ("suzuki", "Suzuki"),
+    ("dacia", "Dacia"), ("skoda", "Škoda"), ("škoda", "Škoda"),
+    ("chevrolet", "Chevrolet"), ("jeep", "Jeep"), ("lexus", "Lexus"),
+    ("infiniti", "Infiniti"), ("porsche", "Porsche"), ("jaguar", "Jaguar"),
+    ("mini", "Mini"), ("smart", "Smart"), ("subaru", "Subaru"),
+    ("chrysler", "Chrysler"), ("dodge", "Dodge"), ("tesla", "Tesla"),
+    ("daihatsu", "Daihatsu"), ("ssangyong", "SsangYong"), ("isuzu", "Isuzu"),
+    ("saab", "Saab"), ("rover", "Rover"), ("mg", "MG"), ("byd", "BYD"),
+    ("tata", "Tata"), ("mahindra", "Mahindra"), ("maxus", "Maxus"),
+    ("ldv", "Maxus"), ("aixam", "Aixam"), ("microcar", "Microcar"),
+    ("bentley", "Bentley"), ("maserati", "Maserati"), ("ferrari", "Ferrari"),
+    ("lamborghini", "Lamborghini"), ("cadillac", "Cadillac"),
+    ("hummer", "Hummer"), ("acura", "Acura"),
+    # --- vans / trucks / industrial ----------------------------------------
+    ("iveco", "Iveco"), ("man", "MAN"), ("daf", "DAF"), ("scania", "Scania"),
+    ("pegaso", "Pegaso"), ("ebro", "Ebro"), ("avia", "Avia"),
+    ("nissan trade", "Nissan"), ("santana", "Santana"),
+    ("hino", "Hino"), ("kenworth", "Kenworth"), ("mack", "Mack"),
+    ("freightliner", "Freightliner"), ("volkswagen comercial", "Volkswagen"),
+    # --- motorcycles --------------------------------------------------------
     ("yamaha", "Yamaha"), ("kawasaki", "Kawasaki"), ("ducati", "Ducati"),
     ("ktm", "KTM"), ("aprilia", "Aprilia"), ("piaggio", "Piaggio"),
     ("vespa", "Vespa"), ("derbi", "Derbi"), ("gilera", "Gilera"),
-    ("husqvarna", "Husqvarna"), ("triumph", "Triumph"), ("bultaco", "Bultaco"),
-    ("montesa", "Montesa"), ("rieju", "Rieju"), ("sym", "SYM"), ("kymco", "Kymco"),
+    ("husqvarna", "Husqvarna"), ("husaberg", "Husaberg"),
+    ("triumph", "Triumph"), ("bultaco", "Bultaco"), ("montesa", "Montesa"),
+    ("rieju", "Rieju"), ("sym", "SYM"), ("kymco", "Kymco"),
+    ("benelli", "Benelli"), ("sherco", "Sherco"), ("beta", "Beta"),
+    ("keeway", "Keeway"), ("daelim", "Daelim"), ("hyosung", "Hyosung"),
+    ("indian", "Indian"), ("buell", "Buell"), ("mv agusta", "MV Agusta"),
+    ("zontes", "Zontes"), ("voge", "Voge"), ("macbor", "Macbor"),
+    ("ossa", "Ossa"), ("scott", "Scott"), ("lambretta", "Lambretta"),
+    # --- boats / outboards / marine ----------------------------------------
+    ("zodiac", "Zodiac"), ("quicksilver", "Quicksilver"), ("bayliner", "Bayliner"),
+    ("beneteau", "Beneteau"), ("jeanneau", "Jeanneau"), ("sessa", "Sessa"),
+    ("sea ray", "Sea Ray"), ("sea-ray", "Sea Ray"), ("searay", "Sea Ray"),
+    ("mercury", "Mercury"), ("mariner", "Mariner"), ("yanmar", "Yanmar"),
+    ("johnson", "Johnson"), ("evinrude", "Evinrude"), ("selva", "Selva"),
+    ("yamarin", "Yamarin"), ("rodman", "Rodman"), ("astondoa", "Astondoa"),
+    ("fairline", "Fairline"), ("sunseeker", "Sunseeker"), ("azimut", "Azimut"),
+    ("waverunner", "Yamaha"), ("jet ski", "Kawasaki"),
 ]
 
 # Build a single alternation regex (longest-first) for the make fallback.
@@ -106,11 +158,17 @@ _MAKE_CANON_LOOKUP = {k: v for k, v in _MAKES_CANONICAL}
 
 # Explicit "Marca: <value>" capture (value runs to the next tab / newline /
 # the start of a "Modelo" label / comma). Accent-insensitive on the label.
+# Negative lookbehind rejects negations like "sin marca", "no consta marca" so
+# "sin marca legible" never yields make="legible".
 _MARCA_RE = re.compile(
-    r"\bMarca\b\s*[:\t]?\s*([^\t\n,;]+?)"
+    r"(?<!sin )(?<!no consta )\bMarca\b\s*[:\t]?\s*([^\t\n,;]+?)"
     r"(?=\s*(?:\t|\n|,|;|Modelo|Matr[ií]cula|Bastidor|A[ñn]o|$))",
     re.IGNORECASE,
 )
+# Negation tokens that invalidate a "Marca <value>" capture even past lookbehind.
+_MARCA_NEG_RE = re.compile(r"\bsin\s+marca\b|\bmarca\s+(?:no\s+consta|ilegible|"
+                           r"desconocida|sin\s+identificar|no\s+legible|legible)\b",
+                           re.IGNORECASE)
 # "Modelo: <value>" capture.
 _MODELO_RE = re.compile(
     r"\bModelo\b\s*[:\t]?\s*([^\t\n,;]+?)"
@@ -118,11 +176,23 @@ _MODELO_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Year: prefer an explicit año / matriculación / fecha de matriculación label.
+# Year — HIGHEST priority: "primera matriculación" (Dennis's clarification: the
+# year we should specifically target). Variants: "Primera matriculación",
+# "1ª/1a/1.ª matriculación", "Fecha de (la) primera matriculación". Optional
+# leading dd/mm before the 4-digit year ("Primera matriculación: 12/03/2008").
+_PRIMERA_MATR_RE = re.compile(
+    r"(?:(?:Fecha\s+de\s+(?:la\s+)?)?Primera\s+matriculaci[óo]n|"
+    r"1[.ªa]?\s*[ªa]?\s*matriculaci[óo]n)"
+    r"\s*[:\t]?\s*(?:\d{1,2}[/.\-]\s?)?(?:\d{1,2}[/.\-]\s?)?(\d{4})\b",
+    re.IGNORECASE,
+)
+# Year — second priority: generic año / matriculación / fecha de matriculación
+# label. ("fecha matriculación" with no "de", per Dennis's fallback note.)
 _YEAR_LABEL_RE = re.compile(
     r"(?:A[ñn]o(?:\s+de)?(?:\s+(?:fabricaci[óo]n|matriculaci[óo]n))?|"
-    r"Fecha\s+de\s+matriculaci[óo]n|Matriculaci[óo]n|Matriculado)"
-    r"\s*[:\t]?\s*(?:\d{1,2}[/-])?(?:\d{1,2}[/-])?(\d{4})\b",
+    r"Fecha\s+(?:de\s+)?matriculaci[óo]n|Matriculaci[óo]n|Matriculado|"
+    r"Fabricaci[óo]n)"
+    r"\s*[:\t]?\s*(?:\d{1,2}[/.\-]\s?)?(?:\d{1,2}[/.\-]\s?)?(\d{4})\b",
     re.IGNORECASE,
 )
 # Fallback bare 4-digit year token (only used when no labelled year found).
@@ -212,6 +282,7 @@ def parse_vehicle_fields(title: Optional[str],
     'year' (int|None). Partial results are expected and fine.
     Caller is responsible for only invoking this on VEHICLE-category rows.
     """
+    title_text = (title or "").strip()
     parts = [p for p in (title, description) if p]
     text = "\n".join(parts)
     if not text.strip():
@@ -222,7 +293,7 @@ def parse_vehicle_fields(title: Optional[str],
 
     # --- 1. explicit labels (most reliable) -------------------------------
     mm = _MARCA_RE.search(text)
-    if mm:
+    if mm and not _MARCA_NEG_RE.search(text):
         cand = _clean(mm.group(1))
         if cand:
             # canonicalise if it's a known make, else keep the raw label value.
@@ -233,7 +304,19 @@ def parse_vehicle_fields(title: Optional[str],
         if model:
             model = model[:120]
 
-    # --- 2. fallback to make dictionary when no "Marca:" label ------------
+    # --- 2. TITLE-FIRST make/model dictionary fallback --------------------
+    # v2: most vehicle TITLES read "MARCA MODELO 1.9 TDI (1234ABC)" — the make
+    # and model live in the card title, not the description. Search the title
+    # ALONE first so a description make token never shadows the title's. Only
+    # if the title yields no known make do we fall back to the combined text.
+    if not make and title_text:
+        fb_make, fb_end = _make_from_fallback(title_text)
+        if fb_make:
+            make = fb_make
+            if not model and fb_end is not None:
+                model = _model_after_make(title_text, fb_end)
+
+    # --- 2b. combined-text make dictionary (no make in the title) ---------
     if not make:
         fb_make, fb_end = _make_from_fallback(text)
         if fb_make:
@@ -241,11 +324,15 @@ def parse_vehicle_fields(title: Optional[str],
             if not model and fb_end is not None:
                 model = _model_after_make(text, fb_end)
 
-    # --- 3. year ----------------------------------------------------------
+    # --- 3. year (priority: primera matriculación -> label -> bare) -------
     year = None
-    ym = _YEAR_LABEL_RE.search(text)
-    if ym:
-        year = _valid_year(ym.group(1))
+    pm = _PRIMERA_MATR_RE.search(text)
+    if pm:
+        year = _valid_year(pm.group(1))
+    if year is None:
+        ym = _YEAR_LABEL_RE.search(text)
+        if ym:
+            year = _valid_year(ym.group(1))
     if year is None:
         # bare year fallback — only trust it if we already identified a make
         # (avoids grabbing a postcode / amount from unrelated text).
