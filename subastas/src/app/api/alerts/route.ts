@@ -4,21 +4,23 @@ import { query, queryOne, execute } from '@/lib/db';
 import { randomUUID } from 'crypto';
 
 // ---------------------------------------------------------------------------
-// SINGLE GATE BOUNDARY (Dennis 2026-06-07, wave-A): alerts require
-// AUTHENTICATION ONLY (a free logged-in account). Not paid. Not trial-active.
-// Just signed-in.
+// SINGLE GATE BOUNDARY (Dennis 2026-06-07, wave-B1 RE-FLIP): notifications /
+// alerts are now PAID-ONLY. The model is:
+//   PUBLIC                     → teasers everywhere (cards + SSR detail teaser)
+//   REGISTER (free logged-in)  → full auction detail
+//   PAID (Whop active)         → notifications + alerts
 //
-// To OPEN this capability fully (no account required), change
-// `ALERT_GATE` from `'auth'` to `'none'` and the POST handler will fall
-// through without the auth check. To TIGHTEN it back to paid/trial-active,
-// flip to `'paid'` and the handler will re-check `getAccessState()`.
+// `getAccessState()` returns `hasFullAccess=true` for paid-active OR
+// trial-active sessions; the alert path piggybacks on that since the trial
+// is "paid-equivalent for the trial window" by design.
 //
-// This is intentionally one knob, one file, one comment — Dennis: "we will
-// strip it away eventually." When that day comes, flip the constant; no
-// other code needs to change.
+// To OPEN this capability fully (no account required), change `ALERT_GATE`
+// to `'none'`. To loosen back to "any logged-in account", flip to `'auth'`.
+// One knob, one file. When the freemium experiment ends, flip the constant;
+// no other code needs to change.
 // ---------------------------------------------------------------------------
 type AlertGate = 'none' | 'auth' | 'paid';
-const ALERT_GATE: AlertGate = 'auth';
+const ALERT_GATE: AlertGate = 'paid';
 
 // GET /api/alerts - Fetch the authenticated user's alerts
 export async function GET() {
@@ -79,7 +81,13 @@ export async function POST(request: NextRequest) {
     }
 
     // ALERT_GATE = 'paid' additionally checks tier/trial. ALERT_GATE = 'auth'
-    // (the default since wave-A) and 'none' skip the paid check entirely.
+    // and 'none' skip the paid check entirely.
+    //
+    // Wave-B1 (2026-06-07): the gate is `'paid'` again. The detail page is
+    // freely accessible to any registered (logged-in) user; alerts and
+    // notifications are the new paid surface. `getAccessState()` returns
+    // `hasFullAccess=true` for either paid-active or trial-active sessions
+    // — both pass; only `logged-out` and `trial-expired` get 402.
     if (ALERT_GATE === 'paid') {
       const { getAccessState } = await import('@/lib/access');
       const access = await getAccessState();
@@ -90,8 +98,8 @@ export async function POST(request: NextRequest) {
             error: 'gate.full_access_required',
             message:
               access.state === 'trial-expired'
-                ? 'Tu periodo de prueba ha terminado. Activa el plan Acceso para crear alertas.'
-                : 'Las alertas requieren una cuenta con prueba activa o plan Acceso.',
+                ? 'Tu periodo de prueba ha terminado. Activa el plan Acceso para recibir alertas.'
+                : 'Activa el plan Acceso para recibir alertas.',
             access: { state: access.state },
           },
           { status: 402 }

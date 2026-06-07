@@ -39,6 +39,7 @@ import { DetailStatusPanel } from "@/components/observatory/DetailStatusPanel";
 import { DetailTimeline } from "@/components/observatory/DetailTimeline";
 import { PROVINCE_DB_KEY_TO_SLUG } from "@/lib/seo/slugs";
 import { auctionDisplayTitle } from "@/lib/seo/display-title";
+import { getSourceLabel } from "@/lib/source-labels";
 import { FollowButton } from "@/components/notifications/FollowButton";
 // GatedField import dropped 2026-06-07 (wave-B): the detail page is fully
 // public now — map, address, expediente, and edicto no longer wrap in
@@ -970,7 +971,13 @@ export default function AuctionDetailClient({
               <dl className="mt-2 grid grid-cols-1 gap-y-1 text-xs text-[--color-ink-secondary]">
                 <div className="flex gap-2">
                   <dt>Origen:</dt>
-                  <dd className="text-[--color-ink-primary]">{raw.source ?? "BOE"}</dd>
+                  {/* QC P1 (2026-06-07): always render through SOURCE_LABEL_MAP
+                      so a row whose `source='PLABI'` displays as "PLABI", not
+                      raw-source-stringified-then-titlecased "Plabi" elsewhere
+                      and "PLABI" in the badge. Single label source = no dup. */}
+                  <dd className="text-[--color-ink-primary]">
+                    {getSourceLabel(raw.source) ?? "BOE"}
+                  </dd>
                 </div>
                 <div className="flex gap-2 tnum">
                   <dt>Publicada:</dt>
@@ -1016,23 +1023,39 @@ export default function AuctionDetailClient({
           />
         </div>
 
-      {/* Mobile bottom action bar (position:fixed — escapes any ancestor) */}
-      <div className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-[--color-surface] hairline-t p-3 flex gap-2">
-        <FollowButton
-          auctionId={auctionItem.id}
-          initialFollowing={data.isFollowing}
-          className="flex-1 justify-center"
-        />
-        <a
-          href={auctionItem.boeLink ?? "https://subastas.boe.es"}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex-1 inline-flex items-center justify-center gap-2 rounded-md bg-[--color-action-soft] border border-[--color-action] text-[--color-ink-primary] px-4 py-2 text-sm font-semibold hover:bg-[--color-action-soft]/80"
-        >
-          Ir al BOE
-          <ExternalLink className="h-4 w-4" aria-hidden="true" />
-        </a>
-      </div>
+      {/* Mobile bottom action bar (position:fixed — escapes any ancestor).
+          Source-aware CTA (QC P1 fix, 2026-06-07): PLABI / SEGSOCIAL rows
+          route to their own portal; only BOE-family rows say "Ir al BOE". */}
+      {(() => {
+        const upper = (raw.source ?? "").trim().toUpperCase();
+        const isBoeFamily = upper === "BOE" || upper === "TEJU" || upper === "";
+        const href = isBoeFamily
+          ? (auctionItem.boeLink ?? "https://subastas.boe.es")
+          : (raw.originalSource ?? auctionItem.boeLink ?? null);
+        const label = isBoeFamily
+          ? "Ir al BOE"
+          : `Ir a ${getSourceLabel(raw.source) ?? "la fuente"}`;
+        return (
+          <div className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-[--color-surface] hairline-t p-3 flex gap-2">
+            <FollowButton
+              auctionId={auctionItem.id}
+              initialFollowing={data.isFollowing}
+              className="flex-1 justify-center"
+            />
+            {href && (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-md bg-[--color-action-soft] border border-[--color-action] text-[--color-ink-primary] px-4 py-2 text-sm font-semibold hover:bg-[--color-action-soft]/80"
+              >
+                {label}
+                <ExternalLink className="h-4 w-4" aria-hidden="true" />
+              </a>
+            )}
+          </div>
+        );
+      })()}
     </OuterShell>
   );
 }

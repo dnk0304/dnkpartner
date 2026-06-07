@@ -26,6 +26,7 @@ import { NotifyPrefsPopover } from "@/components/notifications/NotifyPrefsPopove
 import { formatPrice, formatDateLong } from "./format";
 import { getStatusMeta, isLive, isUpcoming, effectiveStatus } from "./status";
 import { statusDateLabel } from "@/lib/auction-status";
+import { getSourceLabel } from "@/lib/source-labels";
 import { cn } from "@/lib/utils";
 
 export type DetailStatusPanelProps = {
@@ -189,21 +190,39 @@ export function DetailStatusPanel({
         )}
       </dl>
 
-      {/* Action cluster */}
+      {/* Action cluster — source-aware official-source CTA (QC P1 fix,
+          2026-06-07). A PLABI row used to render "Ir al Portal del BOE"
+          pointing at plabi.justicia.es; we now resolve the label and href
+          per source. Falls back to BOE for BOE/legacy rows. */}
       <div className="space-y-3 hairline-t pt-4">
-        <a
-          href={auction.boeLink ?? "https://subastas.boe.es"}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={cn(
-            "flex w-full items-center justify-center gap-2 rounded-md px-4 py-3 text-sm font-semibold transition-colors",
-            "bg-[--color-action-soft] border border-[--color-action] text-[--color-ink-primary] hover:bg-[--color-action-soft]/80",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40 focus-visible:ring-offset-2",
-          )}
-        >
-          Ir al Portal del BOE
-          <ExternalLink className="h-4 w-4" aria-hidden="true" />
-        </a>
+        {(() => {
+          const upper = (auction.source ?? "").trim().toUpperCase();
+          const isBoeFamily = upper === "BOE" || upper === "TEJU" || upper === "";
+          // PLABI / SEGSOCIAL — use the row's originalSource when present,
+          // never the BOE homepage. BOE family keeps the legacy fallback.
+          const href = isBoeFamily
+            ? (auction.boeLink ?? "https://subastas.boe.es")
+            : ((auction as { originalSource?: string | null }).originalSource ?? auction.boeLink ?? null);
+          const label = isBoeFamily
+            ? "Ir al Portal del BOE"
+            : `Ir al portal de ${getSourceLabel(auction.source) ?? "la fuente"}`;
+          if (!href) return null;
+          return (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(
+                "flex w-full items-center justify-center gap-2 rounded-md px-4 py-3 text-sm font-semibold transition-colors",
+                "bg-[--color-action-soft] border border-[--color-action] text-[--color-ink-primary] hover:bg-[--color-action-soft]/80",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40 focus-visible:ring-offset-2",
+              )}
+            >
+              {label}
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            </a>
+          );
+        })()}
         <p className="text-[11px] text-[--color-ink-tertiary] text-center">
           Las pujas se realizan únicamente en el portal oficial.
         </p>
