@@ -14,6 +14,44 @@ import { normalizeText } from '@/lib/normalize';
 import { toCanonicalProvince } from '@/lib/spain-provinces';
 import { getSourceLabel } from '@/lib/source-labels';
 
+// FORGE 2026-06-07 (multi-town-api / Feature F1) — array-param caps + parser.
+// Mirrors the listing route. Keep these in sync.
+const MAX_MUNICIPIOS = 25;
+const MAX_PROVINCIAS = 10;
+function parseCsvParam(raw: string | null, cap: number): string[] | null {
+  if (!raw) return null;
+  const list = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && s.length <= 80);
+  if (list.length === 0) return null;
+  const unique = [...new Set(list)];
+  return unique.slice(0, cap);
+}
+
+// Local 5-min global municipality fold cache for the counts route. Mirrors the
+// listing route's getCachedDistinctMunicipalitiesGlobal() but scoped here so
+// the two routes don't have to share module state.
+let _muniGlobalCache: { byFolded: Map<string, string[]>; expiresAt: number } | null = null;
+async function getCountsMuniGlobalCache(): Promise<Map<string, string[]>> {
+  if (_muniGlobalCache && _muniGlobalCache.expiresAt > Date.now()) return _muniGlobalCache.byFolded;
+  const rows = await query<{ municipality: string }>(
+    'SELECT DISTINCT municipality FROM Auction WHERE municipality IS NOT NULL',
+    [],
+  );
+  const byFolded = new Map<string, string[]>();
+  for (const r of rows) {
+    if (!r.municipality) continue;
+    const folded = normalizeText(r.municipality);
+    if (!folded) continue;
+    const bucket = byFolded.get(folded);
+    if (bucket) bucket.push(r.municipality);
+    else byFolded.set(folded, [r.municipality]);
+  }
+  _muniGlobalCache = { byFolded, expiresAt: Date.now() + 5 * 60 * 1000 };
+  return byFolded;
+}
+
 // Sentinel municipality strings the scraper writes for unknown / blank rows.
 // We bucket them all into a single "Otros / Sin municipio" group so the
 // province total still reconciles to \u03a3(municipality buckets) instead of
@@ -67,6 +105,14 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const groupBy = searchParams.get('groupBy'); // 'category' or 'province' or 'municipality'
     const province = searchParams.get('province'); // Filter by province
+    // FORGE 2026-06-07 (multi-town-api / Feature F1): province-agnostic
+    // multi-select. Same param shape as /api/auctions; UNION semantics
+    // (municipality IN (...) OR province IN (...)). Singletons still apply
+    // (AND) so the SEO locked-filter path is unaffected.
+    const municipiosRaw = searchParams.get('municipios');
+    const provinciasRaw = searchParams.get('provincias');
+    const municipiosList = parseCsvParam(municipiosRaw, MAX_MUNICIPIOS);
+    const provinciasList = parseCsvParam(provinciasRaw, MAX_PROVINCIAS);
     const category = searchParams.get('category'); // Filter by category
     const status = searchParams.get('status'); // Filter by status
     
@@ -82,6 +128,8 @@ export async function GET(request: NextRequest) {
       type: 'counts',
       groupBy,
       province: province || 'all',
+      municipios: municipiosList ? [...municipiosList].map((s) => normalizeText(s)).sort().join('|') : 'none',
+      provincias: provinciasList ? [...provinciasList].map((s) => normalizeText(s)).sort().join('|') : 'none',
       category: category || 'all',
       status: status || 'all'
     };
@@ -132,6 +180,64 @@ export async function GET(request: NextRequest) {
         params.push(province);
       }
     }
+
+    // FORGE 2026-06-07 (multi-town-api / Feature F1): UNION-semantics
+    // multi-select predicate. Identical shape to /api/auctions so the badge
+    // count and the list count reconcile against the SAME row set under a
+    // multi-town selection (count=list invariant).
+    if ((municipiosList && municipiosList.length > 0) || (provinciasList && provinciasList.length > 0)) {
+      const orParts: string[] = [];
+
+      if (municipiosList && municipiosList.length > 0) {
+        const globalMuniMap = await getCountsMuniGlobalCache();
+        const muniDbCasings = new Set<string>();
+        for (const slug of municipiosList) {
+          const folded = normalizeText(slug);
+          const variants = globalMuniMap.get(folded);
+          if (variants) for (const v of variants) muniDbCasings.add(v);
+        }
+        if (muniDbCasings.size > 0) {
+          const arr = Array.from(muniDbCasings);
+          orParts.push(`municipality IN (${arr.map(() => '?').join(', ')})`);
+          params.push(...arr);
+        }
+      }
+
+      if (provinciasList && provinciasList.length > 0) {
+        // Reuse a distinct-province fetch. Cheap (52 provinces).
+        const dbProvinceRows = await query<{ province: string }>(
+          'SELECT DISTINCT province FROM Auction WHERE province IS NOT NULL',
+          [],
+        );
+        const dbProvinces = dbProvinceRows.map((r) => r.province);
+        const provDbCasings = new Set<string>();
+        for (const slug of provinciasList) {
+          const folded = normalizeText(slug);
+          const canonical = toCanonicalProvince(slug);
+          for (const v of dbProvinces) {
+            const vFolded = normalizeText(v);
+            if (vFolded === folded) provDbCasings.add(v);
+            if (canonical) {
+              if (vFolded === normalizeText(canonical.key)) provDbCasings.add(v);
+              if (vFolded === normalizeText(canonical.label)) provDbCasings.add(v);
+            }
+          }
+        }
+        if (provDbCasings.size > 0) {
+          const arr = Array.from(provDbCasings);
+          orParts.push(`province IN (${arr.map(() => '?').join(', ')})`);
+          params.push(...arr);
+        }
+      }
+
+      if (orParts.length > 0) {
+        sql += ` AND (${orParts.join(' OR ')})`;
+      } else {
+        // Both params supplied but neither resolved — deterministic empty.
+        sql += ' AND 1=0';
+      }
+    }
+
     if (category) {
       sql += ' AND category = ?';
       params.push(category);
