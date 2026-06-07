@@ -140,6 +140,24 @@ export type ObservatoryFilters = {
   province: string;
   /** Municipality (depends on province). */
   municipality: string;
+  /**
+   * Multi-province selection (wave69 — Dennis Feature F1). CSV of canonical
+   * province slugs (PROVINCE_DB_KEY_TO_SLUG values). Used on the UNLOCKED
+   * /subastas surface to pick whole provinces alongside individual towns.
+   * Empty array = no province narrowing. The single `province` field above
+   * stays for the lockedFilter SEO-route path and is untouched here — the
+   * two never collide (locked routes set `province`, the multi-select sets
+   * `provincias[]`).
+   */
+  provincias: string[];
+  /**
+   * Multi-municipality selection — CSV of folded municipality slugs that may
+   * span DIFFERENT provinces (e.g. `calldetenes,getafe`). The API resolves
+   * each slug against the GLOBAL distinct-muni cache so a row from any
+   * province matches. Empty array = no town narrowing. Same separation
+   * principle as `provincias` above vs the single `municipality` field.
+   */
+  municipios: string[];
   /** Simple when-bucket id. */
   when: "activas" | "proximas" | "finalizadas";
   /** Min/max price (puja actual). */
@@ -176,6 +194,8 @@ export const DEFAULT_FILTERS: ObservatoryFilters = {
   kind: "todo",
   province: "",
   municipality: "",
+  provincias: [],
+  municipios: [],
   when: "activas",
   priceMin: null,
   priceMax: null,
@@ -192,6 +212,19 @@ export const DEFAULT_FILTERS: ObservatoryFilters = {
 
 const VALID_SORTS: SortValue[] = ["category_rank", "endsAt_asc", "published_desc", "price_asc", "price_desc"];
 
+/** Drop duplicates while preserving first-seen order — used by the multi-select arrays. */
+function dedupe(arr: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const v of arr) {
+    if (!seen.has(v)) {
+      seen.add(v);
+      out.push(v);
+    }
+  }
+  return out;
+}
+
 /** Read an ObservatoryFilters from URLSearchParams. */
 export function filtersFromParams(p: URLSearchParams): ObservatoryFilters {
   const num = (v: string | null): number | null => {
@@ -204,6 +237,9 @@ export function filtersFromParams(p: URLSearchParams): ObservatoryFilters {
     kind: (p.get("kind") as ObservatoryFilters["kind"]) || "todo",
     province: p.get("province") ?? "",
     municipality: p.get("municipality") ?? "",
+    // wave69 — multi-select arrays. CSV→string[], drop blanks, dedupe.
+    provincias: dedupe(p.get("provincias")?.split(",").filter(Boolean) ?? []),
+    municipios: dedupe(p.get("municipios")?.split(",").filter(Boolean) ?? []),
     when: (p.get("when") as ObservatoryFilters["when"]) || "activas",
     priceMin: num(p.get("priceMin")),
     priceMax: num(p.get("priceMax")),
@@ -229,6 +265,9 @@ export function paramsFromFilters(f: ObservatoryFilters): URLSearchParams {
   if (f.kind !== "todo") p.set("kind", f.kind);
   if (f.province) p.set("province", f.province);
   if (f.municipality) p.set("municipality", f.municipality);
+  // wave69 — multi-select arrays. Omit when empty so default URLs stay clean.
+  if (f.provincias.length) p.set("provincias", f.provincias.join(","));
+  if (f.municipios.length) p.set("municipios", f.municipios.join(","));
   if (f.when !== "activas") p.set("when", f.when);
   if (f.priceMin != null) p.set("priceMin", String(f.priceMin));
   if (f.priceMax != null) p.set("priceMax", String(f.priceMax));
@@ -279,8 +318,23 @@ export function filtersToApiParams(f: ObservatoryFilters): URLSearchParams {
     }
   }
 
-  // Province
+  // Province (single — lockedFilter SEO path).
   if (f.province) p.set("province", f.province);
+
+  // wave69 — multi-select town/province arrays. The API accepts
+  // `?municipios=<csv>` (folded slugs, GLOBAL distinct-muni resolve, cross-
+  // province UNION) and `?provincias=<csv>` (canonical province slugs). When
+  // a row matches any selected town OR any selected province it appears in
+  // the combined list (count=list invariant honoured server-side). These
+  // params travel ON TOP of the single `province` field above so a locked
+  // SEO route can never accidentally widen out via the array — the API
+  // intersects single-province with the array set per its own precedence.
+  if (f.municipios.length > 0) {
+    p.set("municipios", f.municipios.join(","));
+  }
+  if (f.provincias.length > 0) {
+    p.set("provincias", f.provincias.join(","));
+  }
 
   // Statuses precedence.
   //
@@ -348,6 +402,8 @@ export function isDefaultFilters(f: ObservatoryFilters): boolean {
     f.kind === "todo" &&
     !f.province &&
     !f.municipality &&
+    f.provincias.length === 0 &&
+    f.municipios.length === 0 &&
     f.when === "activas" &&
     f.priceMin == null &&
     f.priceMax == null &&
@@ -405,6 +461,8 @@ export function presetFilters(id: PresetId, opts?: { province?: string; now?: Da
     kind: "todo",
     province: "",
     municipality: "",
+    provincias: [],
+    municipios: [],
     when: "activas",
     priceMin: null,
     priceMax: null,
