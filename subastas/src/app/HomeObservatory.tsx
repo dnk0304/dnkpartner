@@ -3,18 +3,31 @@
 /**
  * HomeObservatory — the rebuilt home page.
  *
- * Sections (top to bottom):
- *   1. ObservatoryHeader (site-wide chrome)
- *   2. Hero: headline + subhead + source bullets + CTA row
- *   3. HomeCarouselSection (live marquee — proof we track in real time)
- *   4. HierarchicalMap (judicial-framed map)
- *   5. ProvinceGrid (province → town tree)
- *   6. "Cómo funciona" plain-spoken explainer block
+ * Layout (2026-06-07, Pixel — "compact hero map" pass):
+ *   1. ObservatoryHeader (site-wide chrome).
+ *   2. Hero: a 2-column grid on lg+ screens.
+ *        - LEFT  → headline + subhead + source bullets + CTA row.
+ *        - RIGHT → a COMPACT map card filling the space previously empty
+ *                  beside the headline. Clicking the card navigates to the
+ *                  full-map view (the existing "Abrir mapa completo"
+ *                  destination — `/subastas?view=map`). On mobile the card
+ *                  stacks underneath the hero copy as a full-width card.
+ *   3. HomeCarouselSection — now two stacked rows:
+ *        - "Últimos inmuebles" (REAL_ESTATE-only feed).
+ *        - "Últimos vehículos" (MOVABLE-only feed).
+ *   4. ProvinceGrid (province → town tree).
+ *   5. "Cómo funciona" plain-spoken explainer block.
  *
- * The live marquee + map carry the credibility signal that we track
- * auctions in real time — the single biggest lever this site has
- * against alertasubastas and subastasia.io which both show stale
- * directory pages.
+ * What changed vs. the previous layout:
+ *   - The big bottom-of-page full-width map block is REMOVED. The compact
+ *     hero-right map is now the only map surface on the home page; clicking
+ *     it routes the user to the dedicated map view. The bottom block ate a
+ *     full viewport at the cost of one extra scroll and Dennis flagged the
+ *     duplication.
+ *   - The carousel detail-popup is OFF (Item G modal removed for now). Cards
+ *     are plain `<Link>`s to `/subastas/subasta/{slug}`. This kills the
+ *     popup → map overlap bug AND aligns clicks with the canonical detail
+ *     page (good for SEO + funnel attribution).
  */
 
 import * as React from "react";
@@ -64,6 +77,9 @@ const ProvinceGrid = dynamic(
   () => import("@/components/dashboard/ProvinceGrid").then((m) => m.ProvinceGrid),
   { ssr: false, loading: () => <div className="h-40 bg-[--color-surface-muted] animate-pulse rounded-lg" /> },
 );
+
+/** Destination of the click-to-expand affordance on the compact map. */
+const FULL_MAP_HREF = "/subastas?view=map";
 
 export default function HomeObservatory() {
   const router = useRouter();
@@ -128,107 +144,152 @@ export default function HomeObservatory() {
     };
   }, []);
 
+  /**
+   * Click-to-expand on the compact map. We navigate to `/subastas?view=map`
+   * (same destination as the explicit "Abrir mapa completo" link) so users
+   * land on the canonical full-map experience without a duplicate route.
+   * Keyboard parity comes via `role="button"` + `tabIndex=0` + Enter/Space
+   * handlers — Leaflet swallows raw button semantics so we wrap the map in
+   * an outer div that owns the interaction.
+   */
+  const openFullMap = React.useCallback(() => {
+    router.push(FULL_MAP_HREF);
+  }, [router]);
+
   return (
     <div className="min-h-screen bg-[--color-page]">
       {/* Header + footer are rendered site-wide by SiteChrome in the root layout. */}
 
       <main className="mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8 space-y-6 md:space-y-8">
         {/* ───────────────────────────────────────────────────────────────
-            HERO (2026-06-07 — stat cards removed per Dennis).
-            Headline → subhead → source-type bullets → CTA row.
-            The 4-card stat row (Rastreadas · Activas · Próximas · Nuevas)
-            was removed; numbers were noise more than proof and pulled
-            attention away from the headline + CTA. The marquee + map
-            below carry the live-data signal.
+            HERO — two-column grid on lg+, single column below.
+            Left: headline + sources + CTA.
+            Right: compact, click-to-expand map card filling the space that
+            was previously empty (Dennis's red-box). The full-page map block
+            that previously sat below the carousel is gone.
             ─────────────────────────────────────────────────────────────── */}
         <section
           aria-labelledby="hero-headline"
-          className="pt-2"
+          className="pt-2 grid gap-6 lg:gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] lg:items-start"
         >
-          {/* Headline + subhead. Simple Spanish — Dennis explicit: no "en
-              juego", no fluff explaining what BOE is. */}
-          <div className="space-y-3 max-w-2xl">
-            <h1
-              id="hero-headline"
-              className="font-display text-[28px] sm:text-4xl lg:text-[44px] leading-[1.1] tracking-tight text-[--color-ink-primary]"
-            >
-              {t("heroHeadline")}
-            </h1>
-            <p className="text-[15px] md:text-base leading-relaxed text-[--color-ink-secondary]">
-              {t("heroSubhead")}
-            </p>
+          <div className="min-w-0">
+            {/* Headline + subhead. Simple Spanish — Dennis explicit: no "en
+                juego", no fluff explaining what BOE is. */}
+            <div className="space-y-3 max-w-2xl">
+              <h1
+                id="hero-headline"
+                className="font-display text-[28px] sm:text-4xl lg:text-[44px] leading-[1.1] tracking-tight text-[--color-ink-primary]"
+              >
+                {t("heroHeadline")}
+              </h1>
+              <p className="text-[15px] md:text-base leading-relaxed text-[--color-ink-secondary]">
+                {t("heroSubhead")}
+              </p>
+            </div>
+
+            {/* Source-type inline row. */}
+            <div className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[--color-ink-tertiary]">
+              <span className="font-medium text-[--color-ink-secondary]">
+                {t("heroSourcesIntro")}
+              </span>
+              <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span>{t("heroSourceJudicial")}</span>
+                <span aria-hidden="true" className="text-[--color-hairline]">·</span>
+                <span>{t("heroSourceHacienda")}</span>
+                <span aria-hidden="true" className="text-[--color-hairline]">·</span>
+                <span>{t("heroSourceNotarial")}</span>
+                <span aria-hidden="true" className="text-[--color-hairline]">·</span>
+                <span>{t("heroSourceAdministrativa")}</span>
+              </span>
+            </div>
+
+            {/* CTA row. */}
+            <div className="mt-7 flex flex-wrap items-center gap-3">
+              <Link
+                href="/register"
+                className="cta-gradient text-base px-6 py-3 rounded-lg"
+                aria-label={t("heroCtaPrimaryAria")}
+              >
+                {t("heroCtaPrimary")}
+              </Link>
+              <Link
+                href="/subastas?when=activas"
+                className="inline-flex items-center text-sm font-medium text-[--color-action] hover:text-[--color-brand] hover:underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-action]/40 rounded px-2 py-2"
+              >
+                {t("heroCtaSecondary")}
+              </Link>
+            </div>
           </div>
 
-          {/* Source-type inline row — one line on md+, wraps on mobile.
-              "Rastreadas del BOE oficial: judiciales · Hacienda (AEAT) ·
-              notariales · administrativas". Framed as one set so we don't
-              imply separate portal coverage we don't have yet. */}
-          <div className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[--color-ink-tertiary]">
-            <span className="font-medium text-[--color-ink-secondary]">
-              {t("heroSourcesIntro")}
-            </span>
-            <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span>{t("heroSourceJudicial")}</span>
-              <span aria-hidden="true" className="text-[--color-hairline]">·</span>
-              <span>{t("heroSourceHacienda")}</span>
-              <span aria-hidden="true" className="text-[--color-hairline]">·</span>
-              <span>{t("heroSourceNotarial")}</span>
-              <span aria-hidden="true" className="text-[--color-hairline]">·</span>
-              <span>{t("heroSourceAdministrativa")}</span>
-            </span>
-          </div>
-
-          {/* CTA row — primary gradient + quiet secondary. Primary leads to
-              registration (the conversion goal). Secondary keeps the
-              free-catalog tease alive for users not ready to register. */}
-          <div className="mt-7 flex flex-wrap items-center gap-3">
-            <Link
-              href="/register"
-              className="cta-gradient text-base px-6 py-3 rounded-lg"
-              aria-label={t("heroCtaPrimaryAria")}
-            >
-              {t("heroCtaPrimary")}
-            </Link>
-            <Link
-              href="/subastas?when=activas"
-              className="inline-flex items-center text-sm font-medium text-[--color-action] hover:text-[--color-brand] hover:underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-action]/40 rounded px-2 py-2"
-            >
-              {t("heroCtaSecondary")}
-            </Link>
-          </div>
-        </section>
-
-        {/* Endless marquee + quick-filter chips + click-to-modal (D + E + G).
-            Chips drive the marquee's data feed; marquee click opens the full
-            AuctionDetailModal in-place (no navigation). Component pauses the
-            drift on hover, on modal-open, and honours `prefers-reduced-motion`. */}
-        <HomeCarouselSection limit={30} seeAllHref="/subastas?when=activas" />
-
-        {/* Map — IMMEDIATELY visible per landing spec */}
-        <section aria-labelledby="map-heading">
-          <div className="mb-3 flex items-baseline justify-between">
-            <h2 id="map-heading" className="font-display text-2xl text-[--color-ink-primary]">
-              {t("mapHeading")}
-            </h2>
-            <Link
-              href="/subastas?view=map"
-              className="text-sm font-medium text-[--color-action] hover:underline"
-            >
-              {t("openFullMap")}
-            </Link>
-          </div>
-          <div className="h-[55vh] md:h-[560px] rounded-xl overflow-hidden border border-[--color-hairline] bg-white shadow-[var(--shadow-card)]">
-            <HierarchicalMap
-              items={mapItems}
-              onMarkerClick={(a: AuctionItem) => router.push(`/auction/${encodeURIComponent(a.id)}`)}
-              onProvinceClick={(province: string) =>
-                router.push(provinceHref(province))
+          {/* ── Compact map (right column / stacks on mobile) ──────────────
+              Sized so it visually balances the headline block on lg+ without
+              dominating. The whole card is one big keyboard-accessible
+              "open the full map" button — pointer-events on the inner
+              Leaflet map are disabled so a click anywhere is interpreted as
+              "expand", never as a drag/zoom. A small overlay button mirrors
+              the explicit "Abrir mapa completo" affordance so the action is
+              also discoverable without hovering. */}
+          <div
+            role="button"
+            tabIndex={0}
+            aria-label={t("compactMapAria")}
+            onClick={openFullMap}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                openFullMap();
               }
-              onBackToProvinces={() => {}}
-              onBackToMunicipalities={() => {}}
-            />
+            }}
+            className={[
+              "group relative w-full",
+              // ~280px tall on mobile, 320px on lg (fits the hero block height
+              // without forcing extra vertical scroll).
+              "h-[260px] sm:h-[300px] lg:h-[320px]",
+              "rounded-xl overflow-hidden border border-[--color-hairline]",
+              "bg-white shadow-[var(--shadow-card)]",
+              "cursor-pointer transition-shadow hover:shadow-lg",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-action]/50",
+            ].join(" ")}
+            title={t("compactMapAria")}
+          >
+            {/* Leaflet map — visual only; pointer events killed so the outer
+                div captures the click. The inner map still renders markers
+                so the preview is honest. */}
+            <div className="absolute inset-0 pointer-events-none select-none">
+              <HierarchicalMap
+                items={mapItems}
+                onMarkerClick={() => {}}
+                onProvinceClick={() => {}}
+                onBackToProvinces={() => {}}
+                onBackToMunicipalities={() => {}}
+              />
+            </div>
+
+            {/* Soft top label so users know what they're looking at. */}
+            <div className="absolute top-2 left-2 z-10 pointer-events-none">
+              <span className="inline-flex items-center rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-[--color-ink-primary] shadow-sm">
+                {t("mapHeading")}
+              </span>
+            </div>
+
+            {/* Expand affordance — bottom-right. Pointer events left on so
+                the inner pill is still a visible "button" for users who
+                instinctively look for one. Its click bubbles up to the outer
+                role=button so behavior is identical. */}
+            <div className="absolute bottom-2 right-2 z-10">
+              <span
+                className="inline-flex items-center gap-1 rounded-full bg-[--color-ink-primary] px-3 py-1.5 text-[11px] font-semibold text-white shadow-md group-hover:bg-[--color-action] transition-colors"
+                aria-hidden="true"
+              >
+                {t("openFullMap")}
+              </span>
+            </div>
           </div>
         </section>
+
+        {/* Endless marquee — split into two category rows (inmuebles +
+            vehículos). Modal popup is OFF (cards link to detail page). */}
+        <HomeCarouselSection limit={30} seeAllHref="/subastas?when=activas" />
 
         {/* Province selector + grid */}
         <section aria-labelledby="provinces-heading" className="space-y-4">

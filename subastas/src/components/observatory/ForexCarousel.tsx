@@ -53,6 +53,8 @@ import { apiFetch } from "@/lib/api-path";
 import { StatusBadge } from "./StatusBadge";
 import { resolveCardImage, fallbackImageFor, isVariosLotesTitle } from "@/lib/resolve-card-image";
 import { statusDateLabel } from "@/lib/auction-status";
+import { OFFICIAL_CATEGORIES } from "@/lib/constants";
+import { buildAuctionSlug } from "@/lib/seo/auction-slug";
 import {
   formatPrice,
   formatDaysLeft,
@@ -63,6 +65,21 @@ import {
   prettifyAuctionType,
 } from "./format";
 import { cn } from "@/lib/utils";
+
+/**
+ * Category-group predicates — used by HomeCarouselSection to split the home
+ * marquee into "Últimos inmuebles" (REAL_ESTATE) and "Últimos vehículos"
+ * (MOVABLE) rows from a single carousel-mix fetch. The endpoint only accepts
+ * a single category filter, so we filter client-side after fetch.
+ */
+const REAL_ESTATE_SET = new Set<string>(OFFICIAL_CATEGORIES.REAL_ESTATE);
+const MOVABLE_SET = new Set<string>(OFFICIAL_CATEGORIES.MOVABLE);
+export type CategoryGroup = "real_estate" | "movable";
+
+function matchesCategoryGroup(category: string | null | undefined, group: CategoryGroup): boolean {
+  if (!category) return false;
+  return group === "real_estate" ? REAL_ESTATE_SET.has(category) : MOVABLE_SET.has(category);
+}
 
 export type FeedAuction = {
   id: string;
@@ -219,6 +236,21 @@ export type ForexCarouselProps = {
 
   /** Notify parent of the current drifting card count (for the "Todas" pill). */
   onItemsCountChange?: (count: number) => void;
+
+  /** Header text — defaults to "Últimas actualizaciones" for backwards
+   *  compatibility. The home page passes "Últimos inmuebles" / "Últimos
+   *  vehículos" via this prop. */
+  heading?: string;
+
+  /** Compact card mode — shrinks card width + image + typography by ~25 %
+   *  so two stacked rows fit comfortably on the home page. */
+  compact?: boolean;
+
+  /** Client-side category-group predicate. When set, fetched rows whose
+   *  `category` is not in the group are dropped before render. We also
+   *  bump the fetch limit upstream (×2) so the post-filter row stays
+   *  populated. */
+  categoryGroup?: CategoryGroup | null;
 };
 
 export function ForexCarousel({
@@ -235,7 +267,13 @@ export function ForexCarousel({
   onCardClick,
   pause = false,
   onItemsCountChange,
+  heading = "Últimas actualizaciones",
+  compact = false,
+  categoryGroup = null,
 }: ForexCarouselProps) {
+  // Unique id so two carousels on the same page (home: properties + vehicles)
+  // don't collide on `aria-labelledby`.
+  const headingId = React.useId();
   const [items, setItems] = React.useState<FeedAuction[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [hovered, setHovered] = React.useState(false);
@@ -258,14 +296,15 @@ export function ForexCarousel({
   const load = React.useCallback(async () => {
     try {
       const params = new URLSearchParams();
-      params.set("limit", String(limit));
+      // When a category-GROUP filter is active (home page properties vs
+      // vehicles split), over-fetch so the post-filter row still hits the
+      // visible limit. The carousel-mix endpoint caps at 60 internally.
+      const fetchLimit = categoryGroup ? Math.min(60, limit * 2) : limit;
+      params.set("limit", String(fetchLimit));
       // /api/auctions/carousel-mix returns the 50/30/20 composed feed
       // (active / próxima-apertura / suspendida, interleaved). It only
       // accepts `limit`, `province`, `category` — `when` and the old
-      // recent-route knobs (`types`, `activeOnly`) are not used. The chip-
-      // driven `when` bucket no longer applies here: the carousel-mix is
-      // its own ratio-driven slice. Pixel keeps the `when` prop on the
-      // component for API stability with HomeCarouselSection.
+      // recent-route knobs (`types`, `activeOnly`) are not used.
       if (category) params.set("category", category);
       if (province) params.set("province", province);
       const res = await apiFetch(`/api/auctions/carousel-mix?${params.toString()}`);
@@ -275,9 +314,14 @@ export function ForexCarousel({
         // The server is authoritative — `CAROUSEL_STATUSES` is a safety net,
         // never a re-strip of the mix. Critically, `suspendida` MUST pass
         // through (it's part of the composed feed by design).
-        const rows = (body.data as FeedItem[])
+        let rows = (body.data as FeedItem[])
           .map((it) => it.auction)
           .filter((a) => CAROUSEL_STATUSES.has(a.status));
+        // Category-group split (home properties vs vehicles). When unset,
+        // every row passes through unchanged.
+        if (categoryGroup) {
+          rows = rows.filter((a) => matchesCategoryGroup(a.category, categoryGroup));
+        }
         // Dedupe by id keeping first occurrence (most recent activity).
         const seen = new Set<string>();
         const deduped: FeedAuction[] = [];
@@ -286,7 +330,9 @@ export function ForexCarousel({
           seen.add(a.id);
           deduped.push(a);
         }
-        setItems(deduped);
+        // Cap at the caller-requested limit after filtering so the visible
+        // row size matches expectations.
+        setItems(deduped.slice(0, limit));
       }
     } catch {
       /* silent */
@@ -298,7 +344,7 @@ export function ForexCarousel({
     // próxima / suspendida), so changing the chip shouldn't refetch on
     // that axis. Kept on the prop signature for API stability with
     // HomeCarouselSection.
-  }, [limit, category, province]);
+  }, [limit, category, province, categoryGroup]);
 
   React.useEffect(() => {
     setLoading(true);
@@ -503,7 +549,7 @@ export function ForexCarousel({
 
   return (
     <section
-      aria-labelledby="forex-carousel-heading"
+      aria-labelledby={headingId}
       className={cn(
         "rounded-xl border border-[--color-hairline] bg-[--color-surface]",
         "shadow-[var(--shadow-card)]",
@@ -513,10 +559,10 @@ export function ForexCarousel({
       <header className="flex items-center justify-between gap-3 px-4 py-3 hairline-b">
         <div className="min-w-0 flex items-baseline gap-3">
           <h2
-            id="forex-carousel-heading"
+            id={headingId}
             className="font-display text-base md:text-lg text-[--color-ink-primary] whitespace-nowrap"
           >
-            Últimas actualizaciones
+            {heading}
           </h2>
           {/* Per Dennis (2026-06-03): removed the "{items.length} activas"
               indicator. `items.length` is the carousel's fetch cap (30), not
@@ -590,7 +636,7 @@ export function ForexCarousel({
           )}
         >
           {items.map((a) => (
-            <ExpandedCard key={a.id} auction={a} onCardClick={onCardClick} />
+            <ExpandedCard key={a.id} auction={a} onCardClick={onCardClick} compact={compact} />
           ))}
         </div>
       ) : (
@@ -640,6 +686,7 @@ export function ForexCarousel({
                 auction={a}
                 onCardClick={onCardClick}
                 isDragging={dragging}
+                compact={compact}
               />
             ))}
             {/* Second copy — `duplicate` flag makes each card aria-hidden and
@@ -653,6 +700,7 @@ export function ForexCarousel({
                 onCardClick={onCardClick}
                 duplicate
                 isDragging={dragging}
+                compact={compact}
               />
             ))}
           </div>
@@ -669,6 +717,7 @@ function ExpandedCard({
   onCardClick,
   duplicate = false,
   isDragging = false,
+  compact = false,
 }: {
   auction: FeedAuction;
   onCardClick?: (auction: FeedAuction) => void;
@@ -676,6 +725,9 @@ function ExpandedCard({
   /** True while the marquee is being scrubbed — suppress the card click so
    *  a drag-release doesn't accidentally open the modal. */
   isDragging?: boolean;
+  /** Compact mode: ~25 % smaller card width + tighter typography for the
+   *  home page two-row layout. */
+  compact?: boolean;
 }) {
   // Status-branched date intent (Wave52, Pixel 2026-06-04). The carousel was
   // the surface in Dennis's screenshot showing "Termina en 6d 13h" + a
@@ -779,8 +831,11 @@ function ExpandedCard({
     tasacion == null && valorSubasta == null && reclamada == null && deposit == null;
   const isVariosLotes = isVariosLotesTitle(auction.title);
 
+  // Card width: full 260px in default mode; ~25 % smaller (195px) in compact
+  // mode for the home page properties + vehicles two-row layout.
   const cardClass = cn(
-    "snap-start shrink-0 w-[260px] rounded-lg border bg-[--color-surface] overflow-hidden",
+    "snap-start shrink-0 rounded-lg border bg-[--color-surface] overflow-hidden",
+    compact ? "w-[195px]" : "w-[260px]",
     "flex flex-col transition-colors text-left cursor-pointer",
     "hover:border-[--color-brand-soft]/50 hover:shadow-[var(--shadow-card)]",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand-soft]/40",
@@ -794,7 +849,7 @@ function ExpandedCard({
           src={imageSrc}
           alt={resolved.alt}
           fill
-          sizes="260px"
+          sizes={compact ? "195px" : "260px"}
           className={
             resolved.isPlaceholder || (imgFailed && resolved.rung !== "placeholder")
               ? "object-contain p-4 opacity-80"
@@ -1072,9 +1127,21 @@ function ExpandedCard({
     );
   }
 
+  // Canonical detail URL — the auction-detail page lives at
+  // /subastas/subasta/{slug}. buildAuctionSlug composes
+  // `{tipo}-{provincia}-{municipio}-{id}`. We always route here from the
+  // home carousel (Dennis 2026-06-07): the popup modal path is OFF, cards
+  // become plain links so clicks land on the SEO + funnel destination.
+  const detailHref = `/subastas/subasta/${buildAuctionSlug({
+    id: auction.id,
+    auctionType: auction.auctionType,
+    province: auction.province,
+    municipality: auction.municipality,
+  })}`;
+
   return (
     <Link
-      href={`/auction/${encodeURIComponent(auction.id)}`}
+      href={detailHref}
       onClickCapture={handleClickCapture}
       aria-hidden={duplicate || undefined}
       tabIndex={duplicate ? -1 : 0}
