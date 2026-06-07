@@ -68,6 +68,15 @@ function townHref(province: string, municipality: string): string {
     : `/subastas?province=${encodeURIComponent(province)}&municipality=${encodeURIComponent(municipality)}`;
 }
 
+/**
+ * Stable URLSearchParams instance passed to the landing map's category rail
+ * (C4a #7). The rail counts API is keyed on `apiSearchParams.toString()` so we
+ * lift this to module scope to avoid a new `URLSearchParams` allocation per
+ * render (which would re-fire the counts fetch every render). `status=active`
+ * is the canonical clock-guarded predicate used by /api/auctions/counts.
+ */
+const LANDING_MAP_COUNTS_PARAMS = new URLSearchParams({ status: "active" });
+
 const HierarchicalMap = dynamic(
   () => import("@/components/dashboard/HierarchicalMap").then((m) => m.HierarchicalMap),
   { ssr: false, loading: () => <div className="h-full w-full bg-[--color-surface-muted] animate-pulse" /> },
@@ -87,12 +96,16 @@ export default function HomeObservatory() {
   const [mapItems, setMapItems] = React.useState<AuctionItem[]>([]);
   const [provinceCounts, setProvinceCounts] = React.useState<Record<string, { active: number; preAuction: number; finished: number; total: number }>>({});
 
-  // Map auctions (active + upcoming only).
+  // Map auctions — ACTIVAS only (C4a #7, 2026-06-07). Dennis: the landing
+  // map defaults to Activas, not "active + upcoming". We hit the canonical
+  // clock-guarded `status=active` predicate (matches the 542 active badge
+  // semantics and the `/subastas?view=map` URL-less seed wired in C2).
+  // Users can still widen by clicking through to the full map view.
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await apiFetch("/api/auctions/map?statuses=celebrandose,proxima-apertura");
+        const res = await apiFetch("/api/auctions/map?status=active");
         if (!res.ok || cancelled) return;
         const body = await res.json();
         if (cancelled) return;
@@ -255,13 +268,18 @@ export default function HomeObservatory() {
           >
             {/* Category rail — counts come from /api/auctions/counts so users
                 see live inventory at a glance before deciding to drill in.
-                We pass no apiSearchParams (landing surface = unfiltered
-                baseline). */}
+                C4a #7 (2026-06-07): scope counts to ACTIVAS via `status=active`
+                so the per-category numbers reconcile with the map pins above
+                (which are also activas-only) and with the full-map view (whose
+                URL-less default is `when=activas` per C2). The rail click
+                still routes to the full unfiltered map view — users widen by
+                landing there. */}
             <MapCategorySidebar
               selected=""
               onChange={openFullMapWithCategory}
               variant="compact"
               heading={t("mapHeading")}
+              apiSearchParams={LANDING_MAP_COUNTS_PARAMS}
               className="border-0 sm:border-r sm:border-[--color-hairline] rounded-none"
             />
 
