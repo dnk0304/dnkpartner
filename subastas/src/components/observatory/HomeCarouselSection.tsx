@@ -1,68 +1,51 @@
 "use client";
 
 /**
- * HomeCarouselSection — the steering wheel + the conveyor belt + the popup,
- * wired together as ONE coordinated unit (Items D + E + G).
+ * HomeCarouselSection — TWO stacked carousels: latest properties + latest
+ * vehicles. Replaces the previous single-row marquee + chip filters + modal
+ * popup (2026-06-07, Pixel — Dennis brief "landing-map-carousel").
  *
- *   ┌─ HomeQuickFilterChips ───────────────────────────────────┐
- *   │  Viviendas · Otros · Terrenos · ... · Provincia · Cuándo │
- *   └──────────────────────────────────────────────────────────┘
- *   ┌─ ForexCarousel (endless marquee) ────────────────────────┐
+ *   ┌─ Últimos inmuebles ──────────────────────────────────────┐
  *   │  [card] [card] [card] [card] [card] [card] [card] …      │
  *   └──────────────────────────────────────────────────────────┘
- *                            ↓ click any card
- *   ┌─ AuctionDetailModal (popup, NO navigation) ──────────────┐
- *   │  Full auction detail. Pauses the marquee while open.     │
+ *   ┌─ Últimos vehículos ──────────────────────────────────────┐
+ *   │  [card] [card] [card] [card] [card] [card] [card] …      │
  *   └──────────────────────────────────────────────────────────┘
  *
- * Why one component:
- *  - The chips MUST drive the marquee's data feed in lockstep — co-locating
- *    the state here avoids a global store and keeps re-render scope tight.
- *  - The modal lives at this level (not inside the carousel) so it persists
- *    if the carousel re-mounts on filter change AND so Item H (the blur-gate)
- *    can wrap modal fields without re-plumbing through the carousel.
+ * Behavior changes vs. the previous version:
+ *  - The chip steering wheel (HomeQuickFilterChips) is REMOVED from the home
+ *    page. Each row is now category-locked (properties vs vehicles), so a
+ *    chip that overrides the category would conflict with the row's
+ *    identity. Chips remain in use on the listing page.
+ *  - The AuctionDetailModal click-to-popup path is REMOVED. Cards are now
+ *    plain `<Link>`s to `/subastas/subasta/{slug}` (rendered inside
+ *    ForexCarousel when `onCardClick` is omitted). This kills the popup→map
+ *    overlap bug AND lines navigation up with the canonical SEO detail
+ *    URL — clicks now leave a real funnel + ranking signal.
+ *  - Cards are 25 % smaller (handled inside `ForexCarousel` via the new
+ *    `compact` flag).
  *
- * Modal-source decision (Item G):
- *   We map the existing `FeedAuction` → `AuctionItem` ON THE CLIENT. The
- *   `recent` feed already projects nearly every field the modal reads
- *   (title, category, province, municipality, status, currentBid,
- *   appraisalValue, minimumBid, endsAt, imageUrl, boeLink, latitude,
- *   longitude, address, pujaStatus, currentBidAmount, occupancy). Fields
- *   the feed doesn't carry (mapUrl, streetViewUrl, edictUrl, pdfUrl,
- *   directionsUrl, address details, court info, cadastralRef) are simply
- *   nulled — the modal already null-guards every one of them. This gives
- *   us:
- *     - Zero extra network round-trip on click (modal opens instantly).
- *     - No loading skeleton flicker.
- *     - One single source of truth for the data (the recent feed payload
- *       the carousel already has in hand).
- *   The trade-off: a few BOE-only fields (edicto PDF, court name) won't be
- *   visible in the modal UNTIL Item H either gates them OR we add a lazy
- *   detail fetch later. Ken can decide. We left the door open: the modal
- *   body has clear conditional blocks per-field, so a future enrich-on-open
- *   merge is one effect away.
- *
- * Item H prep (blur-gate, NOT built now):
- *   The modal is wired here at the section level (not inside the carousel),
- *   meaning H can wrap any field-rendering block in the modal body with a
- *   `<GatedField>` component without ever touching this file. The modal
- *   already keeps every field in its own conditional `{auction.X && (...)}`
- *   block — clean seams for H to slot into.
+ * Property vs. vehicle split:
+ *  - `/api/auctions/carousel-mix` only accepts a single `category` param.
+ *    Instead of fanning out one fetch per category, we fetch the full mix
+ *    inside each `ForexCarousel` instance and pass a category-group filter
+ *    (`'real_estate' | 'movable'`). The carousel applies the predicate
+ *    client-side after the standard fetch. Both rows still benefit from the
+ *    50/30/20 status mix the endpoint provides — the property split keeps
+ *    that mix among REAL_ESTATE rows, the vehicle split among MOVABLE rows.
+ *  - Trade-off: each row may briefly show fewer cards than the limit while
+ *    the natural property/vehicle ratio in the data settles (vehicles are
+ *    a smaller slice of total auctions). We over-fetch to compensate
+ *    (`limit * 2` for each row inside ForexCarousel).
  */
 
 import * as React from "react";
-import { AuctionItem, AuctionCategory } from "@/types";
-import { AuctionDetailModal } from "@/components/dashboard/AuctionDetailModal";
-import { ForexCarousel, FeedAuction } from "./ForexCarousel";
-import {
-  HomeQuickFilterChips,
-  HomeChipsValue,
-  EMPTY_CHIPS_VALUE,
-} from "./HomeQuickFilterChips";
+import { useTranslations } from "next-intl";
+import { ForexCarousel } from "./ForexCarousel";
 import { cn } from "@/lib/utils";
 
 export type HomeCarouselSectionProps = {
-  /** How many cards to fetch into the marquee. Default 30 — same as legacy. */
+  /** How many cards to fetch per row. Default 30. */
   limit?: number;
   /** Where the "Ver todas" header link routes. */
   seeAllHref?: string;
@@ -74,150 +57,24 @@ export function HomeCarouselSection({
   seeAllHref = "/subastas?when=activas",
   className,
 }: HomeCarouselSectionProps) {
-  const [chips, setChips] = React.useState<HomeChipsValue>(EMPTY_CHIPS_VALUE);
-  const [driftingCount, setDriftingCount] = React.useState<number | undefined>(
-    undefined,
-  );
-  const [selectedAuction, setSelectedAuction] = React.useState<AuctionItem | null>(
-    null,
-  );
-  const [modalOpen, setModalOpen] = React.useState(false);
-
-  const handleCardClick = React.useCallback((feedAuction: FeedAuction) => {
-    setSelectedAuction(feedToAuctionItem(feedAuction));
-    setModalOpen(true);
-  }, []);
-
-  const handleOpenChange = React.useCallback((open: boolean) => {
-    setModalOpen(open);
-    // Don't clear the selected auction immediately — Radix Dialog animates
-    // out, and clearing the data mid-animation flashes the empty state.
-    // Modal's own internal `if (!auction) return null` guards re-opens.
-  }, []);
-
-  // Memoise the count-change callback so the marquee's effect doesn't
-  // re-fire on every parent render.
-  const handleItemsCountChange = React.useCallback((n: number) => {
-    setDriftingCount(n);
-  }, []);
+  const t = useTranslations("home");
 
   return (
-    <section className={cn("flex flex-col gap-3", className)}>
-      <HomeQuickFilterChips
-        value={chips}
-        onChange={setChips}
-        driftingCount={driftingCount}
+    <div className={cn("flex flex-col gap-6", className)}>
+      <ForexCarousel
+        limit={limit}
+        seeAllHref={seeAllHref}
+        compact
+        heading={t("propertiesHeading")}
+        categoryGroup="real_estate"
       />
       <ForexCarousel
         limit={limit}
         seeAllHref={seeAllHref}
-        category={chips.category}
-        province={chips.province}
-        when={chips.when}
-        onCardClick={handleCardClick}
-        pause={modalOpen}
-        onItemsCountChange={handleItemsCountChange}
+        compact
+        heading={t("vehiclesHeading")}
+        categoryGroup="movable"
       />
-      <AuctionDetailModal
-        auction={selectedAuction}
-        open={modalOpen}
-        onOpenChange={handleOpenChange}
-      />
-    </section>
+    </div>
   );
-}
-
-/* ── FeedAuction → AuctionItem projection ────────────────────────────────── */
-
-/**
- * Map the lean `FeedAuction` payload the marquee fetches into the
- * `AuctionItem` shape the existing `AuctionDetailModal` reads.
- *
- * Field-by-field rationale (read alongside `types/index.ts` AuctionItem):
- *  - `status` — maps frontend-canonical status keys into the legacy
- *    'active' | 'finished' | 'pre-auction' triad the modal switches on
- *    (`getStatusBadge`). `celebrandose` & `suspendida` → 'active' (the
- *    suspended row is still surfaced as live in the modal header; the
- *    timeline section will eventually explain why), `proxima-apertura` →
- *    'pre-auction', everything terminal → 'finished'.
- *  - `category` — the feed exposes any DB string; the modal types it as
- *    `AuctionCategory`. We cast through `as AuctionCategory` because the
- *    union exactly matches the canonical DB labels OFFICIAL_CATEGORIES
- *    uses. Unknown values just render as text in the badge.
- *  - `endDate` — the modal expects a Date; feed sends ISO. We coerce to
- *    `endsAt` first, falling back to `endDateTime`, and fall further back
- *    to `now` so the "days remaining" math never NaN's.
- *  - `imageUrl` — the modal types this as non-nullable string. We pass
- *    the feed's value or '' so Next/Image at least renders the empty
- *    block; the real per-rung resolution already happened on the card.
- *  - `community` — the modal types it as non-nullable but never reads it;
- *    we pass ''.
- *  - Fields the feed doesn't carry (mapUrl, streetViewUrl, edictUrl,
- *    pdfUrl, directionsUrl, address details, court fields, cadastralRef)
- *    → null. The modal's render tree gates every one of them on truthy.
- */
-function feedToAuctionItem(a: FeedAuction): AuctionItem {
-  const endsAtIso = a.endsAt ?? a.endDateTime ?? null;
-  const endDate = endsAtIso ? new Date(endsAtIso) : new Date();
-
-  return {
-    id: a.id,
-    title: a.title,
-    category: (a.category as AuctionCategory) ?? "Otros inmuebles",
-    province: a.province ?? "",
-    community: "",
-    municipality: a.municipality ?? null,
-    address: a.address ?? null,
-    currentBid: a.currentBid,
-    appraisalValue: a.appraisalValue,
-    minimumBid: a.minimumBid,
-    status: mapStatusForModal(a.status),
-    endDate,
-    source: "BOE",
-    imageUrl: a.imageUrl ?? "",
-    boeLink: a.boeLink,
-    latitude: a.latitude,
-    longitude: a.longitude,
-    // Detail-only enrichments the feed doesn't currently project. The
-    // modal renders nothing for these when null.
-    courtName: null,
-    procedureNumber: null,
-    courtReference: null,
-    edictUrl: null,
-    pdfUrl: null,
-    mapUrl: null,
-    streetViewUrl: null,
-    placeUrl: null,
-    directionsUrl: null,
-    cadastralRef: null,
-    pujaStatus: a.pujaStatus ?? null,
-    currentBidAmount: a.currentBidAmount ?? null,
-    occupancy: a.occupancy ?? null,
-    isLocked: false,
-  };
-}
-
-function mapStatusForModal(
-  status: string,
-): AuctionItem["status"] {
-  switch (status) {
-    case "celebrandose":
-    case "active":
-      return "active";
-    case "proxima-apertura":
-    case "pre-auction":
-      return "pre-auction";
-    case "concluida-portal":
-    case "finalizada-autoridad":
-    case "cancelada":
-    case "finished":
-      return "finished";
-    case "suspendida":
-      // No 'suspended' branch in the modal switch — surface as active so
-      // header still renders + badge stays meaningful. (Modal status badge
-      // is a Pixel polish item for later.)
-      return "active";
-    default:
-      return "active";
-  }
 }
