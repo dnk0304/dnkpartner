@@ -290,6 +290,28 @@ export function ActiveFilterChips({
       onRemove: () => onChange({ municipality: "" }),
     });
   }
+  // wave69 — multi-select location chips. Each picked province/town gets a
+  // dismissible chip above the result list. Labels mirror the slug so the
+  // user sees what URL they're building; the tree shows the prettier display
+  // name in the sidebar. Chips are intentionally prefixed ("Provincia: …" /
+  // "Municipio: …") so they don't blur into the bare province/municipality
+  // chips above when the lockedFilter SEO path is also active.
+  for (const slug of filters.provincias) {
+    chips.push({
+      key: `provs-${slug}`,
+      label: `Provincia: ${slug}`,
+      onRemove: () =>
+        onChange({ provincias: filters.provincias.filter((x) => x !== slug) }),
+    });
+  }
+  for (const slug of filters.municipios) {
+    chips.push({
+      key: `munis-${slug}`,
+      label: `Municipio: ${slug}`,
+      onRemove: () =>
+        onChange({ municipios: filters.municipios.filter((x) => x !== slug) }),
+    });
+  }
   // ¿Cuándo? — always surface a chip when no explicit statuses[] is set, INCLUDING
   // the default "Activas ahora". This makes the invisible default visible. Removing
   // it expands to all 6 statuses (effectively disabling the implicit status filter).

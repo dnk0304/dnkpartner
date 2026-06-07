@@ -340,13 +340,18 @@ export function FiltersSidebar({
             )}
           </div>
         ) : (
-          /* Wave 59 — expandable PROVINCE→TOWN tree replaces the flat
-             Provincia + Municipio dropdowns. Each row clicks through to a
-             clean SEO URL (/subastas/{prov} or /subastas/{prov}/{muni}),
-             which is also the muni-clean-URL fix Dennis flagged (no more
-             `?municipality=`). Tree owns its own data fetches against
-             /api/auctions/counts. */
-          <ProvinceTownTree filters={filters} />
+          /* Wave 69 — multi-select mode. The expandable PROVINCE→TOWN tree
+             now renders checkboxes (province + town) when the page is
+             unlocked. Ticking accumulates into `filters.provincias[]` /
+             `filters.municipios[]` rather than navigating to a clean SEO
+             URL — the single-town SEO routes (/subastas/{prov}/{muni}) stay
+             intact behind the lockedFilter branch above. The tree owns its
+             own data fetches against /api/auctions/counts. */
+          <ProvinceTownTree
+            filters={filters}
+            selectMode="multi"
+            onChange={onChange}
+          />
         )}
       </FilterBlock>
 

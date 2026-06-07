@@ -236,6 +236,13 @@ export function middleware(request: NextRequest) {
     // present, the user wants the filtered listing — do not redirect.
     const FILTER_PARAMS = [
       'municipality',
+      // wave69 — multi-select town/province arrays (Dennis Feature F1). When
+      // either array param is on `/subastas` the user explicitly wants the
+      // multi-dimension filter UI, NOT a 301 to a single-dimension SEO route.
+      // The canonical SEO paths can only encode one province or one town, so
+      // bouncing them would silently drop the multi-select.
+      'municipios',
+      'provincias',
       'search',
       'kind',
       'when',
