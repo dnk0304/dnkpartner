@@ -39,6 +39,7 @@ import { effectiveStatus } from "@/components/observatory/status";
 import { DetailStatusPanel } from "@/components/observatory/DetailStatusPanel";
 import { DetailTimeline } from "@/components/observatory/DetailTimeline";
 import { PROVINCE_DB_KEY_TO_SLUG } from "@/lib/seo/slugs";
+import { auctionDisplayTitle } from "@/lib/seo/display-title";
 import { StatusBadge } from "@/components/observatory/StatusBadge";
 import { FollowButton } from "@/components/notifications/FollowButton";
 import { GatedField } from "@/components/dashboard/GatedField";
@@ -361,10 +362,23 @@ export default function AuctionDetailClient({
           )}
         </nav>
 
-        {/* Hero */}
+        {/* Hero
+            H1: address-led display title (wave-A 2026-06-07). The page is
+            fully public so the real street address can lead the headline;
+            falls back to municipality/province for vehicles/land per the
+            helper's fallback ladder. The reference code (raw.boeId) is shown
+            below as secondary metadata, NEVER as the H1. */}
         <header className="mt-3 mb-6 md:mb-8">
           <h1 className="font-serif text-2xl md:text-3xl lg:text-4xl leading-tight text-[--color-ink-primary]">
-            {raw.title}
+            {auctionDisplayTitle({
+              address: raw.address,
+              propertyType: raw.propertyType,
+              auctionType: raw.auctionType,
+              category: raw.category,
+              municipality: raw.municipality,
+              province: raw.province,
+              title: raw.title,
+            })}
           </h1>
           {where && (
             <p className="mt-1.5 text-sm text-[--color-ink-secondary]">{where}</p>
