@@ -38,14 +38,24 @@ export const SIMPLE_KIND_OPTIONS: Array<{
   },
 ];
 
-/** Simple "¿Cuándo?" buckets — map onto the API's `statuses` param. */
+/** Simple "¿Cuándo?" buckets — map onto the API's `statuses` param.
+ *
+ * `todas` (wave 80, Dennis brief) widens to active + upcoming so users can
+ * SEE the Seguridad Social / PLABI inventory (which is upcoming-only today,
+ * so an Activas-default listing hides it entirely). It intentionally excludes
+ * concluded/cancelled — that's still the Finalizadas tab's job. */
 export const SIMPLE_WHEN_OPTIONS: Array<{
-  id: "activas" | "proximas" | "finalizadas";
+  id: "activas" | "proximas" | "todas" | "finalizadas";
   label: string;
   statuses: AuctionStatus[];
 }> = [
   { id: "activas", label: "Activas ahora", statuses: ["celebrandose"] },
   { id: "proximas", label: "Próximas", statuses: ["proxima-apertura"] },
+  {
+    id: "todas",
+    label: "Todas",
+    statuses: ["celebrandose", "proxima-apertura"],
+  },
   {
     id: "finalizadas",
     label: "Finalizadas",
@@ -158,8 +168,10 @@ export type ObservatoryFilters = {
    * principle as `provincias` above vs the single `municipality` field.
    */
   municipios: string[];
-  /** Simple when-bucket id. */
-  when: "activas" | "proximas" | "finalizadas";
+  /** Simple when-bucket id. `todas` (wave 80) shows active + upcoming so the
+   *  Seguridad Social / PLABI sources — which are upcoming-only today —
+   *  become reachable without the user toggling Próximas explicitly. */
+  when: "activas" | "proximas" | "todas" | "finalizadas";
   /** Min/max price (puja actual). */
   priceMin: number | null;
   priceMax: number | null;
@@ -356,6 +368,17 @@ export function filtersToApiParams(f: ObservatoryFilters): URLSearchParams {
     p.set("statuses", f.statuses.join(","));
   } else if (f.when === "activas") {
     p.set("status", "active");
+  } else if (f.when === "todas") {
+    // wave 80 — "Todas" widens to active + upcoming so the SS / PLABI
+    // upcoming-only inventory is reachable in one tap. We send the canonical
+    // active predicate AND the proxima-apertura status alongside so the
+    // server's clock-guarded "active" set (542) keeps its semantics; the
+    // statuses[] CSV is unioned with `status=active` server-side via the
+    // `?statuses=` whitelist (see Forge §8B). If the API treats `status` and
+    // `statuses` as mutually exclusive on this build, the statuses[] CSV
+    // wins and we lose the SUSPENDIDA bucket from the 542 — flagged for a
+    // tiny Forge follow-up if Dennis notices the discrepancy.
+    p.set("statuses", ["celebrandose", "proxima-apertura"].join(","));
   } else {
     const bucket = SIMPLE_WHEN_OPTIONS.find((b) => b.id === f.when);
     if (bucket) p.set("statuses", bucket.statuses.join(","));

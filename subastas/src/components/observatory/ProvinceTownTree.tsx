@@ -71,7 +71,11 @@ type TownRow = {
 export type ProvinceTownTreeProps = {
   /** Current filter draft — preserved as querystring when navigating. */
   filters: ObservatoryFilters;
-  /** Max height for the scroll region. Defaults to 420px (sidebar). */
+  /** Max height for the scroll region. Defaults to 360px so the surrounding
+   *  sidebar groups (Valor subasta, Depósito, Fechas) stay reachable without
+   *  the tree dominating the viewport. The outer sidebar (`SubastasListClient`)
+   *  now owns its own scroll axis as well — the inner cap is a soft upper
+   *  bound, not the primary scroll affordance. */
   maxHeightClass?: string;
   className?: string;
   /**
@@ -106,7 +110,7 @@ const PSEUDO_MUNI_LABEL = "Otros / Sin municipio";
 
 export function ProvinceTownTree({
   filters,
-  maxHeightClass = "max-h-[420px]",
+  maxHeightClass = "max-h-[360px]",
   className,
   selectMode = "navigate",
   onChange,
@@ -328,12 +332,10 @@ export function ProvinceTownTree({
         />
       </div>
 
-      {/* Legend — small, single line, so the colour grammar is unambiguous. */}
-      <div className="flex items-center gap-3 px-0.5 text-[10px] text-[var(--color-ink-tertiary)]">
-        <LegendDot tone="active" /> Activas
-        <LegendDot tone="proximas" /> Próximas
-        <LegendDot tone="total" /> Total
-      </div>
+      {/* Legend removed — Dennis brief: the tree rows now show TOTAL ONLY
+          (single grey badge per row). The Activas/Próximas split lives at
+          the top-of-page StatusTabs instead, so the legend was duplicating
+          the colour grammar without adding signal. */}
 
       {/* Scroll region — caps height so the rest of the sidebar (price,
           dates …) stays visible. */}
@@ -414,16 +416,14 @@ export function ProvinceTownTree({
                     {p.label}
                   </button>
 
-                  {/* Three badges — green, amber, grey. Skip 0 values. */}
+                  {/* Total-only badge (Dennis brief — wave 80). Replaces the
+                       previous 3-badge cluster (activas / próximas / total) so
+                       each row reads as a clean "place + count". The
+                       Activas/Próximas split now lives at page level via
+                       StatusTabs — duplicating it here was noise. */}
                   <div className="flex shrink-0 items-center gap-1 tnum">
-                    {counts.active > 0 && (
-                      <CountBadge tone="active" value={counts.active} ariaLabel="activas" />
-                    )}
-                    {counts.proximas > 0 && (
-                      <CountBadge tone="proximas" value={counts.proximas} ariaLabel="próximas" />
-                    )}
                     {counts.total > 0 && (
-                      <CountBadge tone="total" value={counts.total} ariaLabel="total histórico" />
+                      <CountBadge tone="total" value={counts.total} ariaLabel="subastas" />
                     )}
                   </div>
                 </div>
@@ -472,12 +472,11 @@ export function ProvinceTownTree({
                                 />
                               )}
                               <span className="flex-1 min-w-0 truncate">{t.name}</span>
+                              {/* Total-only count per Dennis brief — see the
+                                   province row comment above for rationale. */}
                               <div className="flex shrink-0 items-center gap-1 tnum">
-                                {t.active > 0 && (
-                                  <CountBadge tone="active" value={t.active} ariaLabel="activas" size="sm" />
-                                )}
-                                {t.proximas > 0 && (
-                                  <CountBadge tone="proximas" value={t.proximas} ariaLabel="próximas" size="sm" />
+                                {t.total > 0 && (
+                                  <CountBadge tone="total" value={t.total} ariaLabel="subastas" size="sm" />
                                 )}
                               </div>
                             </>
@@ -580,17 +579,7 @@ function CountBadge({
   );
 }
 
-const LEGEND_TONE_CLASSES: Record<Tone, string> = {
-  active: "bg-[var(--color-status-live,#1f7a3a)]",
-  proximas: "bg-amber-500",
-  total: "bg-[var(--color-ink-tertiary)]",
-};
-
-function LegendDot({ tone }: { tone: Tone }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={cn("inline-block h-2 w-2 rounded-full mr-0.5", LEGEND_TONE_CLASSES[tone])}
-    />
-  );
-}
+// LegendDot + LEGEND_TONE_CLASSES removed in wave 80 — the tree now renders
+// total-only counts (single grey badge per row) so the legend was duplicating
+// the colour grammar without adding signal. Activas/Próximas split lives at
+// the page-level StatusTabs instead.

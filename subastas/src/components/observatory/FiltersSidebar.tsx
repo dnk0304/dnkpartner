@@ -602,13 +602,19 @@ export function SortTabs({
 }
 
 /**
- * StatusTabs — Activas / Próximas / Finalizadas. Maps to filters.when.
+ * StatusTabs — Activas / Próximas / Todas / Finalizadas. Maps to filters.when.
  *
  * Added Próximas (2026-06-04) per Dennis: the ~220 upcoming auctions
  * (`proxima-apertura` status) had no browse surface — the when-bucket was
  * defined in filters.ts but unreachable from the UI. Tab sits between
  * Activas and Finalizadas to match the natural lifecycle order
  * (open → live → finished).
+ *
+ * Added Todas (wave 80, Dennis brief): a single tap that widens to
+ * active + upcoming so the Seguridad Social / PLABI inventory becomes
+ * discoverable without the user having to know to click Próximas. SS+PLABI
+ * are currently upcoming-only, so the Activas default was hiding them
+ * entirely and the QC report showed 0 results against those sources.
  */
 export function StatusTabs({
   value,
@@ -622,6 +628,7 @@ export function StatusTabs({
   const TABS: Array<{ id: ObservatoryFilters["when"]; label: string }> = [
     { id: "activas", label: "Activas" },
     { id: "proximas", label: "Próximas" },
+    { id: "todas", label: "Todas" },
     { id: "finalizadas", label: "Finalizadas" },
   ];
   return (

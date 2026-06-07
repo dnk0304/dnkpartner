@@ -386,6 +386,8 @@ export default function SubastasListClient({
                   ? " finalizadas"
                   : filters.when === "proximas"
                   ? " próximas"
+                  : filters.when === "todas"
+                  ? " (activas + próximas)"
                   : " activas"}
               </p>
             )}
@@ -417,8 +419,14 @@ export default function SubastasListClient({
         <div className="grid grid-cols-1 gap-6 md:gap-8 items-start lg:grid-cols-[280px_1fr]">
           {/* SIDEBAR — desktop persistent. Mobile hides behind a Filtros
               button below the H1; a basic overlay drawer mounts on click.
-              Sticky so it stays visible as the list scrolls. */}
-          <div className="hidden lg:block sticky top-24">
+              Sticky so it stays visible as the list scrolls.
+              `max-h-[calc(100vh-6rem)] overflow-y-auto` gives the sidebar its
+              OWN scroll axis — without it, sticky pins the sidebar at top:24
+              and any content past the viewport (Valor subasta / lower groups)
+              becomes unreachable because the page scroll only moves the right
+              column. `overscroll-contain` keeps wheel/touch from bubbling out
+              when the user is mid-scroll inside the sidebar. */}
+          <div className="hidden lg:block sticky top-24 max-h-[calc(100vh-6rem)] overflow-y-auto overscroll-contain pr-1 -mr-1">
             <FiltersSidebar
               filters={filters}
               // `municipalities` / `municipalityCounts` feed the LOCKED-

@@ -27,6 +27,7 @@ import {
   DEFAULT_SORT,
 } from "./filters";
 import { getSourceLabel } from "@/lib/source-labels";
+import { provinceLabelForSlug } from "@/lib/seo/slugs";
 import { cn } from "@/lib/utils";
 
 export type SimpleFiltersProps = {
@@ -291,15 +292,24 @@ export function ActiveFilterChips({
     });
   }
   // wave69 — multi-select location chips. Each picked province/town gets a
-  // dismissible chip above the result list. Labels mirror the slug so the
-  // user sees what URL they're building; the tree shows the prettier display
-  // name in the sidebar. Chips are intentionally prefixed ("Provincia: …" /
-  // "Municipio: …") so they don't blur into the bare province/municipality
-  // chips above when the lockedFilter SEO path is also active.
+  // dismissible chip above the result list. Labels are the prettified display
+  // name (with accent + casing) where we have one, falling back to a
+  // title-cased slug for municipalities (we don't carry a global slug→label
+  // map for the 8k+ towns — close enough for a chip). Chips are intentionally
+  // prefixed ("Provincia: …" / "Municipio: …") so they don't blur into the
+  // bare province/municipality chips above when the lockedFilter SEO path is
+  // also active. Wave 80 — switched from raw-slug labels to display names so
+  // the chips read as language, not URL fragments.
+  const titleCaseSlug = (s: string) =>
+    s
+      .split("-")
+      .map((w) => (w.length ? w[0].toUpperCase() + w.slice(1) : w))
+      .join(" ");
   for (const slug of filters.provincias) {
+    const label = provinceLabelForSlug(slug) ?? titleCaseSlug(slug);
     chips.push({
       key: `provs-${slug}`,
-      label: `Provincia: ${slug}`,
+      label: `Provincia: ${label}`,
       onRemove: () =>
         onChange({ provincias: filters.provincias.filter((x) => x !== slug) }),
     });
@@ -307,7 +317,7 @@ export function ActiveFilterChips({
   for (const slug of filters.municipios) {
     chips.push({
       key: `munis-${slug}`,
-      label: `Municipio: ${slug}`,
+      label: `Municipio: ${titleCaseSlug(slug)}`,
       onRemove: () =>
         onChange({ municipios: filters.municipios.filter((x) => x !== slug) }),
     });
@@ -420,14 +430,21 @@ export function ActiveFilterChips({
       {chips.map((c) => (
         <span
           key={c.key}
-          className="inline-flex items-center gap-1 rounded-full bg-[--color-surface-muted] border border-[--color-hairline] px-2.5 py-0.5 text-xs text-[--color-ink-secondary]"
+          // Wave 80 — switched the chip background from the bare-token shorthand
+          // (`bg-[--color-surface-muted]`) to the `bg-[var(--...)]` form so the
+          // CSS variable actually paints in Tailwind v4 (see the same fix
+          // documented at the top of FiltersSidebar.tsx). The previous version
+          // emitted `background-color: --color-surface-muted;` which paints
+          // nothing — chips rendered as a transparent pill with only a hairline
+          // border, easy to miss against the page.
+          className="inline-flex items-center gap-1 rounded-full bg-[var(--color-surface-muted)] border border-[var(--color-hairline)] px-2.5 py-1 text-xs text-[var(--color-ink-primary)]"
         >
           {c.label}
           <button
             type="button"
             onClick={c.onRemove}
             aria-label={`Quitar filtro ${c.label}`}
-            className="ml-0.5 text-[--color-ink-tertiary] hover:text-[--color-brand] focus-visible:outline-none focus-visible:text-[--color-brand]"
+            className="ml-0.5 inline-flex items-center justify-center rounded-full p-0.5 text-[var(--color-ink-tertiary)] hover:bg-[var(--color-surface)] hover:text-[var(--color-brand)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40"
           >
             <X className="h-3 w-3" aria-hidden="true" />
           </button>
@@ -436,9 +453,9 @@ export function ActiveFilterChips({
       <button
         type="button"
         onClick={onClear}
-        className="text-xs text-[--color-ink-tertiary] hover:text-[--color-brand] focus-visible:outline-none focus-visible:underline"
+        className="text-xs font-medium text-[var(--color-ink-tertiary)] hover:text-[var(--color-brand)] focus-visible:outline-none focus-visible:underline"
       >
-        Limpiar todos
+        Limpiar
       </button>
     </div>
   );
