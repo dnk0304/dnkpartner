@@ -65,9 +65,13 @@ export function FollowButton({
     if (loadState === "loading") return;
 
     if (status === "unauthenticated") {
-      // Take the user to login then back here. basePath handled by next/navigation.
+      // Take the user to account creation then back here (wave-C, 2026-06-07):
+      // following an auction is the ONE gated action on the now-public detail
+      // page. We send logged-out users to /register (not /login) — they almost
+      // certainly need to create an account first, and /register has a "ya
+      // tengo cuenta" link inline for the rare returning user.
       const back = pathname || "/";
-      router.push(`/login?callbackUrl=${encodeURIComponent(back)}`);
+      router.push(`/register?callbackUrl=${encodeURIComponent(back)}`);
       return;
     }
 
