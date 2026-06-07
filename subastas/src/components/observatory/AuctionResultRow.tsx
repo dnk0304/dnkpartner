@@ -32,6 +32,7 @@ import { MapPin, ImageOff } from "lucide-react";
 import { AuctionItem, type AuctionStatus } from "@/types";
 import { StatusBadge } from "./StatusBadge";
 import { AuctionTypeBadge } from "./AuctionTypeBadge";
+import { SourceBadge } from "./SourceBadge";
 import { PujaBadge, OccupancyBadge } from "./PujaOccupancyBadges";
 import { LiveCountdown } from "./LiveCountdown";
 import { FollowButton } from "@/components/notifications/FollowButton";
@@ -297,6 +298,8 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
           />
           <OccupancyBadge occupancy={item.occupancy ?? null} />
           {item.auctionType && <AuctionTypeBadge type={item.auctionType} size="sm" />}
+          {/* SourceBadge — null-safe (returns null for blank/unknown sources). */}
+          <SourceBadge source={item.source} size="sm" />
         </div>
 
         {/* Short description excerpt. Hidden on the smallest viewports to keep

@@ -20,6 +20,7 @@ import {
   isFinishedStatus as sharedIsFinishedStatus,
 } from '@/lib/auction-status';
 import { normalizeText } from '@/lib/normalize';
+import { isKnownSource } from '@/lib/source-labels';
 
 // Cached "SELECT DISTINCT province" \u2014 full scan against 229k rows on every
 // filtered request is wildly expensive. Provinces change rarely (Spain has 52);
@@ -485,7 +486,11 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
       resumeAt: item.resumeAt,
       propertyType: item.propertyType,
       endDate: endsAt || new Date(publishedAt.getTime() + 30 * 24 * 60 * 60 * 1000),
-      source: (item.source || 'BOE') as 'BOE' | 'TEJU',
+      // Source is a free string in the DB so any new scraper source (SEGSOCIAL,
+      // future ayuntamiento sources, etc.) self-flows through to the UI. The
+      // type field on AuctionItem is already `string` — keep the cast off so
+      // values like 'SEGSOCIAL' don't have to be widened in five places.
+      source: item.source || 'BOE',
       imageUrl,
       hasImage: isRealAuctionImage(item.imageUrl),
       isLocked: true,
@@ -556,7 +561,9 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
     resumeAt: item.resumeAt,
     propertyType: item.propertyType,
     endDate: endsAt || publishedAt,
-    source: (item.source || 'BOE') as 'BOE' | 'TEJU',
+    // See note on the locked-teaser branch above — source is a free string;
+    // SEGSOCIAL and future sources flow through without a type widen.
+    source: item.source || 'BOE',
     imageUrl,
     hasImage: isRealAuctionImage(item.imageUrl),
     isLocked: false,
@@ -701,6 +708,25 @@ export async function GET(request: NextRequest) {
     const tierParam = searchParams.get('tier');
     const userIdParam = searchParams.get('userId');
 
+    // Source filter (2026-06-07, Wave66). Optional + additive — absent param
+    // leaves the source-dimension unconstrained (every source returned).
+    // Accepts single (?source=SEGSOCIAL) or multi (?sources=BOE,SEGSOCIAL)
+    // forms; values are whitelisted against KNOWN_SOURCES so the user can't
+    // probe arbitrary strings into the WHERE.
+    const sourceRaw = searchParams.get('source');
+    const sourcesRaw = searchParams.get('sources');
+    const sourcesList = (() => {
+      const raw: string[] = [];
+      if (sourcesRaw) raw.push(...sourcesRaw.split(','));
+      if (sourceRaw) raw.push(sourceRaw);
+      const cleaned = raw
+        .map((s) => s.trim().toUpperCase())
+        .filter((s) => s.length > 0)
+        .filter((s) => isKnownSource(s));
+      const unique = [...new Set(cleaned)];
+      return unique.length > 0 ? unique : null;
+    })();
+
     // --- P1 advanced filter params (Dennis decision F, all FREE) ----------
     // Whitelisted, parameterized, backward-compatible (absent => no constraint).
     // Powers Pixel's 4 advanced presets + hasImage filter.
@@ -844,7 +870,8 @@ export async function GET(request: NextRequest) {
       // Keyed on the FOLDED form (post-normalizeText) so "Arguineguin" and
       // "arguineguín" collapse to one cache entry — the SQL predicate also
       // compares on the identical folded value.
-      search: searchTerm ?? 'none'
+      search: searchTerm ?? 'none',
+      sources: sourcesList ? sourcesList.join('|') : 'none',
     };
     
     // Try cache first (30 second TTL)
@@ -1003,6 +1030,15 @@ export async function GET(request: NextRequest) {
     // Category placeholders must NOT satisfy this filter — mirrors isRealAuctionImage().
     if (hasImage) {
       sql += ` AND "imageUrl" IS NOT NULL AND ("imageUrl" LIKE '/api/auction-image/%' OR "imageUrl" LIKE '/streetview/%')`;
+    }
+
+    // Source filter (2026-06-07, Wave66). Whitelisted values only — see
+    // KNOWN_SOURCES in `@/lib/source-labels`. Lives BEFORE preStatusSqlLen so
+    // totalCount + teaserCounts honor the source narrowing the same way the
+    // list does (the badge reconciles against the same row set).
+    if (sourcesList && sourcesList.length > 0) {
+      sql += ` AND source IN (${sourcesList.map(() => '?').join(', ')})`;
+      params.push(...sourcesList);
     }
 
     // FORGE 2026-06-03 (search across ALL card-text columns, accent +

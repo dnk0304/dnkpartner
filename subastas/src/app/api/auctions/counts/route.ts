@@ -12,6 +12,7 @@ import {
 } from '@/lib/auction-status';
 import { normalizeText } from '@/lib/normalize';
 import { toCanonicalProvince } from '@/lib/spain-provinces';
+import { getSourceLabel } from '@/lib/source-labels';
 
 // Sentinel municipality strings the scraper writes for unknown / blank rows.
 // We bucket them all into a single "Otros / Sin municipio" group so the
@@ -69,10 +70,10 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category'); // Filter by category
     const status = searchParams.get('status'); // Filter by status
     
-    if (!groupBy || !['category', 'province', 'municipality'].includes(groupBy)) {
+    if (!groupBy || !['category', 'province', 'municipality', 'source'].includes(groupBy)) {
       return NextResponse.json({
         success: false,
-        error: 'Invalid or missing groupBy parameter. Must be: category, province, or municipality'
+        error: 'Invalid or missing groupBy parameter. Must be: category, province, municipality, or source'
       }, { status: 400 });
     }
     
@@ -254,6 +255,18 @@ export async function GET(request: NextRequest) {
           normKey = '__otros_provincia__';
           displayHint = OTROS_PROVINCIA_LABEL;
         }
+      } else if (groupBy === 'source') {
+        // Source — fold DB tokens (BOE / TEJU / SEGSOCIAL / future) onto their
+        // canonical human display labels via the shared source-labels map. So
+        // legacy `TEJU` rows aggregate into the same "BOE" bucket the rest of
+        // the BOE-family rows live in, and a new source (e.g. AYTO_*) gets a
+        // titlecased fallback rather than a screaming-snake-case bucket.
+        // The map is the single source of truth — adding a new source there
+        // makes its count appear here automatically (data-driven).
+        if (!rawKey) return;
+        const label = getSourceLabel(rawKey) ?? rawKey;
+        normKey = normalizeText(label);
+        displayHint = label;
       } else {
         // category — no normalization fold (the taxonomy is server-controlled).
         if (!rawKey) return;

@@ -19,6 +19,7 @@ import { ImageOff, MapPin, FileText, Calendar } from "lucide-react";
 import { AuctionItem, type AuctionStatus } from "@/types";
 import { StatusBadge } from "./StatusBadge";
 import { AuctionTypeBadge } from "./AuctionTypeBadge";
+import { SourceBadge } from "./SourceBadge";
 import { PujaBadge, OccupancyBadge } from "./PujaOccupancyBadges";
 import { LiveCountdown } from "./LiveCountdown";
 import { FollowButton } from "@/components/notifications/FollowButton";
@@ -189,9 +190,13 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             <ImageOff aria-hidden="true" /> Imagen no disponible
           </span>
         )}
-        <span className="pointer-events-none absolute top-2 left-2 flex items-center gap-1.5">
+        <span className="pointer-events-none absolute top-2 left-2 flex flex-wrap items-center gap-1.5">
           <StatusBadge status={effective} size="sm" />
           {item.auctionType && <AuctionTypeBadge type={item.auctionType} size="sm" />}
+          {/* SourceBadge — sits with the other identity pills so users can
+              tell at a glance whether a row came from the BOE or Seguridad
+              Social. Null-safe (returns null for blank/unknown sources). */}
+          <SourceBadge source={item.source} size="sm" />
         </span>
         {daysBadge && (
           <span
