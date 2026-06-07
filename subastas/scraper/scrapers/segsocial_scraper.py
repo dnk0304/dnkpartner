@@ -46,6 +46,7 @@ from bs4 import BeautifulSoup
 from .bank_base_scraper import BankBaseScraper
 from ..config.provinces import ALL_PROVINCES, get_province_by_code
 from ..config.categories import get_category_type
+from .vehicle_parser import set_vehicle_fields
 
 import logging
 
@@ -385,7 +386,7 @@ class SegSocialScraper(BankBaseScraper):
 
         court_name = f"TGSS — U.R.E. {ure}" if ure else None
 
-        return {
+        record = {
             "boe_id": f"SUB-SS-{emb_id}",
             "title": title,
             "category": category,
@@ -417,6 +418,9 @@ class SegSocialScraper(BankBaseScraper):
             "published_at": datetime.now(),
             "image_url": None,  # portal exposes no photo -> honest NULL
         }
+        # Vehicle make/model/year (wave E2) — no-op on non-vehicle bienes.
+        set_vehicle_fields(record)
+        return record
 
     @staticmethod
     def _extract_title(lines: List[str]) -> Optional[str]:

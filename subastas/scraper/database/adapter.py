@@ -35,6 +35,14 @@ _BIEN_FIELD_COLS = [
     ('vivienda_habitual',    'viviendaHabitual'),
 ]
 
+# Vehicle make/model/year columns (Forge wave E2, 20260607). (data_key, db_col).
+# Written only on VEHICLE-category rows and only when the parser found a value.
+_VEHICLE_FIELD_COLS = [
+    ('vehicle_make',  'vehicleMake'),
+    ('vehicle_model', 'vehicleModel'),
+    ('vehicle_year',  'vehicleYear'),
+]
+
 
 class DatabaseAdapter:
     """
@@ -416,6 +424,7 @@ class DatabaseAdapter:
                                       'sourceIdSub', 'loteNumber',
                                       'pujaStatus', 'currentBidAmount', 'occupancy',
                                       'valorSubasta',
+                                      'vehicleMake', 'vehicleModel', 'vehicleYear',
                                       'postalCode', 'idufir', 'registryInscription',
                                       'legalTitle', 'bienLocalidad', 'bienProvincia',
                                       'viviendaHabitual')
@@ -550,6 +559,13 @@ class DatabaseAdapter:
             if 'valorSubasta' in forge_cols and data.get('valor_subasta') is not None:
                 update_fields.append('"valorSubasta" = %s')
                 params.append(data['valor_subasta'])
+            # Vehicle make/model/year (Forge 20260607, guarded). Written ONLY on
+            # vehicle rows and ONLY when parsed (honest-NULL; never blanks a good
+            # value on a transient parse miss). vehicleYear is a 4-digit int.
+            for _vk, _vc in _VEHICLE_FIELD_COLS:
+                if _vc in forge_cols and data.get(_vk) is not None:
+                    update_fields.append(f'"{_vc}" = %s')
+                    params.append(data[_vk])
             # G1 discrete "Datos del bien" columns (Forge 20260603). Guarded by
             # info_schema so this is safe before the migration is applied; only
             # written when the scraper actually parsed a value (never blanks).
@@ -689,6 +705,12 @@ class DatabaseAdapter:
                 col_names.append('"valorSubasta"')
                 placeholders.append('%s')
                 vals.append(data['valor_subasta'])
+            # Vehicle make/model/year (Forge 20260607, guarded). Honest-NULL.
+            for _vk, _vc in _VEHICLE_FIELD_COLS:
+                if _vc in forge_cols and data.get(_vk) is not None:
+                    col_names.append(f'"{_vc}"')
+                    placeholders.append('%s')
+                    vals.append(data[_vk])
             # G1 discrete "Datos del bien" columns (Forge 20260603, guarded).
             for _data_key, _col in _BIEN_FIELD_COLS:
                 if _col in forge_cols and data.get(_data_key) is not None:

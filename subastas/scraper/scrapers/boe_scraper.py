@@ -21,6 +21,7 @@ from ..config.provinces import (
     get_province_code, ALL_PROVINCES, canonical_province, province_by_code_strict,
 )
 from ..config.categories import get_category_type
+from .vehicle_parser import is_vehicle_category, parse_vehicle_fields
 from ..config.municipality_province import (
     municipality_to_province, province_from_text, normalize_municipality,
 )
@@ -2137,6 +2138,23 @@ class BOEScraper(BaseScraper):
                 f"(bien_type={detail_info.get('bien_type')!r})"
             )
             auction_data['category'] = cat
+
+        # Vehicle make/model/year (wave E2). Runs AFTER the category override so
+        # we test the authoritative category. Source text = the bien block
+        # (bienes_info / lot_description) + the listing title. Honest-NULL:
+        # only set a field when the parser actually found it; never blanks a
+        # previously-good value, never writes on a non-vehicle row.
+        if is_vehicle_category(auction_data.get('category')):
+            desc = (detail_info.get('bienes_info')
+                    or auction_data.get('lot_description')
+                    or auction_data.get('property_description'))
+            vf = parse_vehicle_fields(auction_data.get('title'), desc)
+            if vf['make'] is not None:
+                auction_data['vehicle_make'] = vf['make']
+            if vf['model'] is not None:
+                auction_data['vehicle_model'] = vf['model']
+            if vf['year'] is not None:
+                auction_data['vehicle_year'] = vf['year']
 
     def _enumerate_lote_numbers(self, page: Any) -> List[int]:
         """
