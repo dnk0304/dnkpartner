@@ -35,6 +35,10 @@ const SOURCE_TINT: Record<string, string> = {
   BOE: "bg-[--color-info-soft] border-[--color-brand-soft]/30",
   TEJU: "bg-[--color-info-soft] border-[--color-brand-soft]/30",
   SEGSOCIAL: "bg-[--color-action-soft] border-[--color-action]/30",
+  // PLABI (Plataforma de Liquidaciones / concursal). Distinct soft tint from
+  // BOE (info-soft) and SegSocial (action-soft) so the three are
+  // distinguishable in the same card row. All-black text per the project rule.
+  PLABI: "bg-[--color-warn-soft] border-[--color-warn-soft]/40",
 };
 
 export type SourceBadgeProps = {

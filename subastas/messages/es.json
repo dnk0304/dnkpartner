@@ -61,7 +61,8 @@
     "sourceLabel": "Fuente",
     "sourceBoe": "BOE",
     "sourceSegsocial": "Seguridad Social",
-    "sourceTeju": "BOE"
+    "sourceTeju": "BOE",
+    "sourcePlabi": "PLABI"
   },
   "footer": {
     "aria": "Pie del sitio",
