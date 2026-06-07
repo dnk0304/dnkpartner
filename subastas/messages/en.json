@@ -13,7 +13,6 @@
     "languageSwitcherAria": "Change language"
   },
   "home": {
-    "liveSummaryAria": "Live summary",
     "happeningNow": "live now",
     "upcoming": "upcoming",
     "activeTotal": "active",
@@ -26,10 +25,6 @@
     "heroLead": "Synchronised with Spain's BOE Auctions Portal and other official sources. Follow the auctions you care about; we'll alert you when the status changes, a new bid lands, or closing time approaches.",
     "heroHeadline": "Every public auction in Spain",
     "heroSubhead": "We track them every day and alert you when yours appears.",
-    "heroChipTrackedLabel": "tracked",
-    "heroChipActiveLabel": "active",
-    "heroChipUpcomingLabel": "upcoming",
-    "heroChipNewLabel": "New · last 30 days",
     "heroSourcesIntro": "Tracked from the official BOE:",
     "heroSourceJudicial": "judicial",
     "heroSourceHacienda": "Tax Agency (AEAT)",

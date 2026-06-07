@@ -4,17 +4,17 @@
  * HomeObservatory — the rebuilt home page.
  *
  * Sections (top to bottom):
- *   1. ObservatoryHeader
- *   2. Editorial hero: trueActiveCount + sub-line + 3 quick-link chips
- *   3. LiveFeed ("Últimas actualizaciones")
- *   4. HierarchicalMap (existing, wrapped in our judicial frame)
- *   5. ProvinceGrid (existing, kept — list of provinces with counts)
+ *   1. ObservatoryHeader (site-wide chrome)
+ *   2. Hero: headline + subhead + source bullets + CTA row
+ *   3. HomeCarouselSection (live marquee — proof we track in real time)
+ *   4. HierarchicalMap (judicial-framed map)
+ *   5. ProvinceGrid (province → town tree)
  *   6. "Cómo funciona" plain-spoken explainer block
  *
- * The live feed sits second deliberately: it is the *proof* that we
- * track auctions in real time. Every visit, it's different. That is the
- * single biggest credibility lever this site has against alertasubastas
- * and subastasia.io which both show stale directory pages.
+ * The live marquee + map carry the credibility signal that we track
+ * auctions in real time — the single biggest lever this site has
+ * against alertasubastas and subastasia.io which both show stale
+ * directory pages.
  */
 
 import * as React from "react";
@@ -25,7 +25,6 @@ import { useTranslations } from "next-intl";
 import { HomeCarouselSection } from "@/components/observatory/HomeCarouselSection";
 import { ProvinceDropdown } from "@/components/observatory/ProvinceDropdown";
 import { apiFetch } from "@/lib/api-path";
-import { formatNumber } from "@/components/observatory/format";
 import { AuctionItem } from "@/types";
 import { PROVINCE_DB_KEY_TO_SLUG, slugify } from "@/lib/seo/slugs";
 
@@ -66,61 +65,11 @@ const ProvinceGrid = dynamic(
   { ssr: false, loading: () => <div className="h-40 bg-[--color-surface-muted] animate-pulse rounded-lg" /> },
 );
 
-type Stats = {
-  trueActiveCount: number;
-  trueLiveCount: number;
-  trueUpcomingCount: number;
-  totalAuctions: number;
-  lastUpdateTime: string | null;
-  // Active split — surfaced in hero strip as "propiedades / vehículos / otros".
-  // Reconciles: activeProperties + activeVehicles + activeOtros === trueActiveCount.
-  // All three are optional on the type so the UI degrades gracefully if the API
-  // hasn't been redeployed with Forge's classification fix.
-  activeProperties?: number;
-  activeVehicles?: number;
-  activeOtros?: number;
-  // Legacy hero chip — auctions whose publishedAt landed on/after the 1st
-  // of the current month. PRESERVED for back-compat; hero now reads
-  // `newLast30DaysCount` (rolling 30d) so the chip never resets to ~0 at a
-  // month boundary.
-  newThisMonthCount?: number;
-  // Wave61 hero chip (rolling) — auctions WE ingested in the last 30 days.
-  // Always-fresh number for the "Nuevas · últimos 30 días" stat card.
-  newLast30DaysCount?: number;
-  // Wave61 honest grand total — COUNT(*) over Auction with NO filters.
-  // The "auctions we've ever tracked" number for the "Rastreadas" chip
-  // (~235.767), distinct from `totalAuctions` (~198k, cleanly-categorized
-  // province-valid subset).
-  totalTrackedAll?: number;
-};
-
 export default function HomeObservatory() {
   const router = useRouter();
   const t = useTranslations("home");
-  const [stats, setStats] = React.useState<Stats | null>(null);
   const [mapItems, setMapItems] = React.useState<AuctionItem[]>([]);
   const [provinceCounts, setProvinceCounts] = React.useState<Record<string, { active: number; preAuction: number; finished: number; total: number }>>({});
-
-  // Stats
-  React.useEffect(() => {
-    let cancelled = false;
-    const tick = async () => {
-      try {
-        const res = await apiFetch("/api/auctions/stats");
-        if (!res.ok || cancelled) return;
-        const body = await res.json();
-        if (!cancelled && body?.success) setStats(body.data as Stats);
-      } catch {
-        /* silent */
-      }
-    };
-    tick();
-    const id = window.setInterval(tick, 5 * 60 * 1000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, []);
 
   // Map auctions (active + upcoming only).
   React.useEffect(() => {
@@ -185,84 +134,20 @@ export default function HomeObservatory() {
 
       <main className="mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8 space-y-6 md:space-y-8">
         {/* ───────────────────────────────────────────────────────────────
-            P3 TEASING HERO (2026-06-04 — Pixel, conversion redesign).
-            Replaces the Bloomberg-style counter strip + editorial heading
-            with a single conversion-focused block:
-              1. Honest scale — 4 .count-chip cards (gradient accent) with
-                 the real numbers from /api/auctions/stats:
-                 Rastreadas · Activas · Próximas · Nuevas este mes.
-              2. Simple ES headline + plain subhead. No "en juego", no
-                 explainer of what BOE is.
-              3. Source-type bullets — judiciales · Hacienda (AEAT) ·
-                 notariales · administrativas (honest framing as one set
-                 rastreadas del BOE oficial; we don't claim separate
-                 portals we don't have).
-              4. Primary CTA "Empieza gratis — sin tarjeta" with the
-                 .cta-gradient token + a quiet secondary "Ver las subastas".
-
-            Restraint = crisp. White surface, gradient as accent on the
-            chips + the primary CTA only (NOT a green wallpaper). Max two
-            greens + white + one ink-gray on screen.
-
-            All numbers degrade gracefully: chips render "—" until the
-            stats API resolves (same shape as the legacy strip used).
+            HERO (2026-06-07 — stat cards removed per Dennis).
+            Headline → subhead → source-type bullets → CTA row.
+            The 4-card stat row (Rastreadas · Activas · Próximas · Nuevas)
+            was removed; numbers were noise more than proof and pulled
+            attention away from the headline + CTA. The marquee + map
+            below carry the live-data signal.
             ─────────────────────────────────────────────────────────────── */}
         <section
           aria-labelledby="hero-headline"
           className="pt-2"
         >
-          {/* Chip row — the social proof / scale-flex. 2 columns on mobile,
-              4 across from md up. Numbers use tabular-nums via the
-              .count-chip-num token so digit width stays even. */}
-          <ul
-            className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4"
-            aria-label={t("liveSummaryAria")}
-          >
-            <li className="count-chip">
-              <span className="count-chip-num">
-                {typeof stats?.totalTrackedAll === "number"
-                  ? formatNumber(stats.totalTrackedAll)
-                  : stats
-                  ? formatNumber(stats.totalAuctions)
-                  : "—"}
-              </span>
-              <span className="count-chip-label">
-                {t("heroChipTrackedLabel")}
-              </span>
-            </li>
-            <li className="count-chip">
-              <span className="count-chip-num">
-                {stats ? formatNumber(stats.trueActiveCount) : "—"}
-              </span>
-              <span className="count-chip-label">
-                {t("heroChipActiveLabel")}
-              </span>
-            </li>
-            <li className="count-chip">
-              <span className="count-chip-num">
-                {stats ? formatNumber(stats.trueUpcomingCount) : "—"}
-              </span>
-              <span className="count-chip-label">
-                {t("heroChipUpcomingLabel")}
-              </span>
-            </li>
-            <li className="count-chip">
-              <span className="count-chip-num">
-                {typeof stats?.newLast30DaysCount === "number"
-                  ? formatNumber(stats.newLast30DaysCount)
-                  : typeof stats?.newThisMonthCount === "number"
-                  ? formatNumber(stats.newThisMonthCount)
-                  : "—"}
-              </span>
-              <span className="count-chip-label">
-                {t("heroChipNewLabel")}
-              </span>
-            </li>
-          </ul>
-
           {/* Headline + subhead. Simple Spanish — Dennis explicit: no "en
               juego", no fluff explaining what BOE is. */}
-          <div className="mt-8 md:mt-10 space-y-3 max-w-2xl">
+          <div className="space-y-3 max-w-2xl">
             <h1
               id="hero-headline"
               className="font-display text-[28px] sm:text-4xl lg:text-[44px] leading-[1.1] tracking-tight text-[--color-ink-primary]"
