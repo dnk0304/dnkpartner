@@ -3,33 +3,51 @@
 /**
  * PreciosClient — /precios.
  *
- * Single-offer redesign (2026-06-04, Pixel). One centered Acceso card,
- * 30-day free access trial, then 5,99 €/mes. No free permanent plan,
- * no card mention anywhere on the page or FAQ. Winter-green accent stays.
- *
- * What did NOT change:
- *   - The Whop checkout embed (`WhopCheckoutEmbed`) — the `metadata[userId]`
- *     webhook contract is critical and stays exactly as-is.
- *   - Tier-aware CTA behavior (already-paid → "Suscripción activa";
- *     signed-out → /login?callbackUrl=/precios#checkout).
+ * Mirrors the alertasubastas.com/precios LAYOUT in OUR tokens
+ * (2026-06-07, Pixel — wave68). Strong crisp WHITE everywhere,
+ * winter-green gradient as the only accent (CTA, badges, check icons,
+ * featured card edge). Single offer only — NO second tier, NO toggle.
  *
  * Layout (top → bottom):
- *   1. Hero eyebrow + headline + lead + "30 días de acceso gratis" pill
- *   2. ONE centered pricing card — Acceso (featured, gradient CTA)
- *   3. Embedded Whop checkout (#checkout anchor)
- *   4. FAQ
+ *   1. Hero — eyebrow + headline + subhead + trust-badge pill
+ *   2. Single centered pricing card (Acceso, RECOMENDADO)
+ *   3. Trust row — "Cancela cuando quieras · Pago seguro · Sin compromiso"
+ *   4. Feature/benefit grid — 6 honest features (real product surfaces)
+ *   5. Embedded Whop checkout (id="checkout") — CONTRACT-CRITICAL, untouched
+ *   6. FAQ
+ *   7. Persistent footer (from SiteChrome — NOT rendered here)
  *
- * Palette discipline: max two greens (`--color-action` + `--color-brand`,
- * carried by `--gradient-accent`) + white + one ink-gray. Gradient is an
- * accent only — appears on the featured card's CTA and the recommended
- * badge, nowhere else.
+ * What we deliberately did NOT add:
+ *   - Testimonials / "Muro de Opiniones" — we have no real ones, refuse to fake.
+ *   - Stats band — no live numbers we can cite without fabricating.
+ *   - Monthly/annual toggle — single flat €5.99/mo, a toggle would be noise.
+ *   - Any mention of "tarjeta"/"card"/"Stripe" — Whop handles payments,
+ *     we don't surface the instrument.
+ *
+ * What did NOT change:
+ *   - WhopCheckoutEmbed mount + `metadata[userId]` webhook contract.
+ *   - Tier-aware CTA behavior + #checkout anchor.
+ *   - Whop API routes, gate logic, middleware.
  */
 
 import * as React from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
-import { Check, ArrowRight, Sparkles } from "lucide-react";
+import {
+  Check,
+  ArrowRight,
+  Sparkles,
+  ShieldCheck,
+  XCircle,
+  Lock,
+  BellRing,
+  Heart,
+  FileText,
+  Map as MapIcon,
+  Database,
+  RefreshCw,
+} from "lucide-react";
 import { WhopCheckoutEmbed } from "@/components/pricing/WhopCheckoutEmbed";
 import { cn } from "@/lib/utils";
 
@@ -42,36 +60,31 @@ export default function PreciosClient() {
   const isAuthed = status === "authenticated" && !!user?.id;
   const hasAcceso = (user?.tier ?? "FREE") !== "FREE";
 
-  // Anchor for the "Empezar 30 días gratis" CTA — when authed, jump to the
-  // embedded checkout iframe; signed-out, send to /login with a callback
-  // that lands the user back on the checkout anchor after auth.
   const accesoHref = isAuthed
     ? "#checkout"
     : `/login?callbackUrl=${encodeURIComponent("/precios#checkout")}`;
 
   return (
-    <div className="min-h-screen bg-[--color-page] text-[--color-ink-primary]">
-      {/* Header + footer come from SiteChrome in the root layout. */}
-
-      <main className="mx-auto max-w-editorial px-4 py-10 md:px-6 md:py-14">
+    // Strong crisp WHITE canvas across the whole page — overrides
+    // --color-page (#F7FAF8) deliberately for this layout per design lead.
+    <div className="min-h-screen bg-white text-[--color-ink-primary]">
+      <main className="mx-auto max-w-editorial px-4 py-12 md:px-6 md:py-20">
         {/* ──────────────────────────────────────────────────────────────
-            Hero — eyebrow, headline, lead, trial pill.
+            1. HERO — centered. eyebrow, headline, subhead, trust pill.
             ────────────────────────────────────────────────────────────── */}
-        <section className="max-w-readable">
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-[--color-action]">
+        <section className="mx-auto max-w-2xl text-center">
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[--color-action]">
             {t("heroEyebrow")}
           </p>
-          <h1 className="mt-3 font-display text-3xl font-semibold leading-tight tracking-tight md:text-[42px] md:leading-[1.1]">
+          <h1 className="mt-4 font-display text-4xl font-semibold leading-[1.1] tracking-tight text-[--color-ink-primary] md:text-5xl">
             {t("heroTitle")}
           </h1>
-          <p className="mt-4 text-[15px] leading-relaxed text-[--color-ink-secondary] md:text-base">
+          <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-[--color-ink-secondary] md:text-[17px]">
             {t("heroLead")}
           </p>
 
-          {/* "30 días de acceso gratis" pill — winter-green soft tint,
-              flag-icon prefix, deliberate visual weight so it reads as the
-              core value prop, not decoration. */}
-          <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-[--color-action-soft] px-3.5 py-2">
+          {/* Trust pill — winter-green soft fill, gradient-aware icon. */}
+          <div className="mt-7 inline-flex items-center gap-2 rounded-full bg-[--color-action-soft] px-4 py-2">
             <Sparkles
               className="h-3.5 w-3.5 text-[--color-action]"
               aria-hidden="true"
@@ -86,13 +99,12 @@ export default function PreciosClient() {
         </section>
 
         {/* ──────────────────────────────────────────────────────────────
-            Pricing — ONE centered Acceso card with gradient CTA.
+            2. PRICING CARD — single centered offer.
             ────────────────────────────────────────────────────────────── */}
         <section
-          className="mx-auto mt-10 max-w-md md:mt-12"
+          className="mx-auto mt-12 max-w-md md:mt-16"
           aria-label={t("heroTitle")}
         >
-          {/* ACCESO */}
           <PricingCard
             featured
             badge={t("accesoBadge")}
@@ -115,14 +127,9 @@ export default function PreciosClient() {
                 <CtaButton variant="ghost" disabled>
                   {t("accesoCtaActive")}
                 </CtaButton>
-              ) : isAuthed ? (
-                <CtaButton variant="gradient" href={accesoHref}>
-                  {t("accesoCta")}
-                  <ArrowRight className="ml-1.5 h-4 w-4" aria-hidden="true" />
-                </CtaButton>
               ) : (
                 <CtaButton variant="gradient" href={accesoHref}>
-                  {t("accesoCtaSignedOut")}
+                  {isAuthed ? t("accesoCta") : t("accesoCtaSignedOut")}
                   <ArrowRight className="ml-1.5 h-4 w-4" aria-hidden="true" />
                 </CtaButton>
               )
@@ -131,22 +138,88 @@ export default function PreciosClient() {
         </section>
 
         {/* ──────────────────────────────────────────────────────────────
-            Embedded checkout — Whop. CONTRACT-CRITICAL: do not alter the
+            3. TRUST ROW — single horizontal reassurance line under card.
+            Icons + labels in winter-green. NO card/Stripe wording.
+            ────────────────────────────────────────────────────────────── */}
+        <section className="mt-10" aria-label={t("trustRowAria")}>
+          <ul
+            className="mx-auto flex max-w-2xl flex-col items-center justify-center gap-3 text-sm text-[--color-ink-secondary] sm:flex-row sm:gap-8"
+            role="list"
+          >
+            <TrustItem icon={XCircle} label={t("trustCancel")} />
+            <TrustItem icon={ShieldCheck} label={t("trustSecure")} />
+            <TrustItem icon={Lock} label={t("trustNoCommit")} />
+          </ul>
+        </section>
+
+        {/* ──────────────────────────────────────────────────────────────
+            4. FEATURE / BENEFIT GRID — what's included, 3×2 desktop.
+            Honest: built from real product surfaces only.
+            ────────────────────────────────────────────────────────────── */}
+        <section className="mt-20 md:mt-24">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-[--color-action]">
+              {t("featuresEyebrow")}
+            </p>
+            <h2 className="mt-3 font-display text-3xl font-semibold leading-tight tracking-tight text-[--color-ink-primary] md:text-4xl">
+              {t("featuresHeading")}
+            </h2>
+            <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-[--color-ink-secondary]">
+              {t("featuresLead")}
+            </p>
+          </div>
+
+          <div className="mx-auto mt-12 grid max-w-5xl grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 md:gap-8">
+            <FeatureCard
+              icon={BellRing}
+              title={t("feat1Title")}
+              body={t("feat1Body")}
+            />
+            <FeatureCard
+              icon={Heart}
+              title={t("feat2Title")}
+              body={t("feat2Body")}
+            />
+            <FeatureCard
+              icon={FileText}
+              title={t("feat3Title")}
+              body={t("feat3Body")}
+            />
+            <FeatureCard
+              icon={MapIcon}
+              title={t("feat4Title")}
+              body={t("feat4Body")}
+            />
+            <FeatureCard
+              icon={Database}
+              title={t("feat5Title")}
+              body={t("feat5Body")}
+            />
+            <FeatureCard
+              icon={RefreshCw}
+              title={t("feat6Title")}
+              body={t("feat6Body")}
+            />
+          </div>
+        </section>
+
+        {/* ──────────────────────────────────────────────────────────────
+            5. CHECKOUT — Whop embed. CONTRACT-CRITICAL: do not alter the
             WhopCheckoutEmbed props or the metadata[userId] linkage.
             ────────────────────────────────────────────────────────────── */}
-        <section id="checkout" className="mt-14 scroll-mt-24">
-          <div className="max-w-readable">
-            <h2 className="font-display text-2xl font-semibold">
+        <section id="checkout" className="mt-20 scroll-mt-24 md:mt-24">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="font-display text-2xl font-semibold text-[--color-ink-primary] md:text-3xl">
               {t("checkoutHeading")}
             </h2>
-            <p className="mt-2 text-sm text-[--color-ink-secondary]">
+            <p className="mt-3 text-sm text-[--color-ink-secondary] md:text-base">
               {t("checkoutSub")}
             </p>
           </div>
 
-          <div className="mt-6">
+          <div className="mx-auto mt-8 max-w-2xl">
             {hasAcceso ? (
-              <div className="rounded-xl border border-[--color-hairline] bg-[--color-surface] p-6 text-center">
+              <div className="rounded-2xl border border-[--color-hairline] bg-white p-6 text-center">
                 <p className="text-sm font-medium text-[--color-ink-primary]">
                   {t("accesoCtaActive")}
                 </p>
@@ -157,7 +230,7 @@ export default function PreciosClient() {
                 userEmail={user.email ?? null}
               />
             ) : (
-              <div className="rounded-xl border border-dashed border-[--color-hairline] bg-[--color-surface] p-8 text-center">
+              <div className="rounded-2xl border border-dashed border-[--color-hairline] bg-white p-8 text-center">
                 <p className="mx-auto max-w-md text-sm text-[--color-ink-secondary]">
                   {t("checkoutSignInPrompt")}
                 </p>
@@ -180,14 +253,18 @@ export default function PreciosClient() {
         </section>
 
         {/* ──────────────────────────────────────────────────────────────
-            FAQ — 4 questions. Unchanged structure; quiet surface so it
-            doesn't compete with the pricing card or checkout.
+            6. FAQ — accordion-style flat list, quiet surface.
             ────────────────────────────────────────────────────────────── */}
-        <section className="mt-16 max-w-readable">
-          <h2 className="font-display text-2xl font-semibold">
-            {t("faqHeading")}
-          </h2>
-          <dl className="mt-6 divide-y divide-[--color-hairline] rounded-xl border border-[--color-hairline] bg-[--color-surface]">
+        <section className="mx-auto mt-20 max-w-3xl md:mt-24">
+          <div className="text-center">
+            <h2 className="font-display text-3xl font-semibold tracking-tight text-[--color-ink-primary] md:text-4xl">
+              {t("faqHeading")}
+            </h2>
+            <p className="mx-auto mt-3 max-w-xl text-sm text-[--color-ink-secondary] md:text-base">
+              {t("faqLead")}
+            </p>
+          </div>
+          <dl className="mt-10 divide-y divide-[--color-hairline] rounded-2xl border border-[--color-hairline] bg-white">
             <FaqItem q={t("faqQ1")} a={t("faqA1")} />
             <FaqItem q={t("faqQ2")} a={t("faqA2")} />
             <FaqItem q={t("faqQ3")} a={t("faqA3")} />
@@ -195,6 +272,7 @@ export default function PreciosClient() {
           </dl>
         </section>
       </main>
+      {/* Persistent footer comes from SiteChrome in the root layout. */}
     </div>
   );
 }
@@ -231,7 +309,7 @@ function PricingCard({
   return (
     <article
       className={cn(
-        "relative flex flex-col rounded-2xl border bg-[--color-surface] p-6 md:p-7",
+        "relative flex flex-col rounded-2xl border bg-white p-7 md:p-8",
         featured
           ? "border-[--color-action] ring-1 ring-[--color-action]/30 shadow-[var(--shadow-lift)]"
           : "border-[--color-hairline] shadow-[var(--shadow-card)]",
@@ -239,24 +317,24 @@ function PricingCard({
     >
       {featured && badge && (
         <span
-          className="cta-gradient absolute -top-3 left-6 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider rounded-full"
+          className="cta-gradient absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider rounded-full"
           style={{ boxShadow: "var(--shadow-cta)" }}
         >
           {badge}
         </span>
       )}
 
-      <header>
+      <header className="text-center">
         <h3 className="font-display text-xl font-semibold text-[--color-ink-primary]">
           {name}
         </h3>
-        <p className="mt-1.5 text-sm text-[--color-ink-secondary]">
+        <p className="mx-auto mt-2 max-w-xs text-sm text-[--color-ink-secondary]">
           {tagline}
         </p>
       </header>
 
-      <div className="mt-5 flex items-baseline gap-1.5">
-        <span className="font-display text-[40px] font-semibold leading-none tnum text-[--color-ink-primary]">
+      <div className="mt-6 flex items-baseline justify-center gap-1.5">
+        <span className="font-display text-[44px] font-semibold leading-none tnum text-[--color-ink-primary]">
           {price}
         </span>
         {priceSuffix && (
@@ -266,32 +344,30 @@ function PricingCard({
         )}
       </div>
       {priceMeta && (
-        <p className="mt-1 text-xs text-[--color-ink-tertiary]">{priceMeta}</p>
+        <p className="mt-1.5 text-center text-xs text-[--color-ink-tertiary]">
+          {priceMeta}
+        </p>
       )}
       {trialNote && (
-        <p className="mt-2 text-xs font-medium text-[--color-action]">
+        <p className="mt-3 text-center text-xs font-medium text-[--color-action]">
           {trialNote}
         </p>
       )}
 
-      <div className="mt-6">{cta}</div>
+      <div className="mt-7">{cta}</div>
 
-      <ul className="mt-6 space-y-3" role="list">
+      <ul className="mt-7 space-y-3 border-t border-[--color-hairline-soft] pt-6" role="list">
         {features.map((feat) => (
           <li
             key={feat}
             className="flex items-start gap-2.5 text-sm text-[--color-ink-primary]"
           >
             <span
-              className={cn(
-                "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full",
-                featured
-                  ? "bg-[--color-action] text-white"
-                  : "bg-[--color-action-soft] text-[--color-action]",
-              )}
+              className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full"
+              style={{ background: "var(--gradient-accent)" }}
               aria-hidden="true"
             >
-              <Check className="h-3 w-3" strokeWidth={3} />
+              <Check className="h-3 w-3 text-white" strokeWidth={3} />
             </span>
             <span className="leading-snug">{feat}</span>
           </li>
@@ -309,10 +385,9 @@ type CtaButtonProps = {
 };
 
 function CtaButton({ children, href, variant, disabled }: CtaButtonProps) {
-  // Gradient variant uses the .cta-gradient utility from globals.css —
-  // shared with the landing hero so visual signature stays consistent.
   if (variant === "gradient" && !disabled) {
-    const cls = "cta-gradient w-full text-sm px-4 py-2.5 rounded-md";
+    const cls =
+      "cta-gradient w-full text-sm px-4 py-3 rounded-md font-semibold";
     if (href) {
       return (
         <Link href={href} className={cls}>
@@ -328,7 +403,7 @@ function CtaButton({ children, href, variant, disabled }: CtaButtonProps) {
   }
 
   const classes = cn(
-    "inline-flex w-full items-center justify-center rounded-md px-4 py-2.5 text-sm font-medium transition-colors",
+    "inline-flex w-full items-center justify-center rounded-md px-4 py-3 text-sm font-medium transition-colors",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-action]/40",
     variant === "primary" && !disabled
       ? "cursor-pointer bg-[--color-action] text-white hover:bg-[--color-action-hover]"
@@ -354,11 +429,58 @@ function CtaButton({ children, href, variant, disabled }: CtaButtonProps) {
   );
 }
 
+type IconType = React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+
+function TrustItem({ icon: Icon, label }: { icon: IconType; label: string }) {
+  return (
+    <li className="flex items-center gap-2">
+      <span
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+        style={{ background: "var(--gradient-accent)" }}
+        aria-hidden="true"
+      >
+        <Icon className="h-3.5 w-3.5 text-white" aria-hidden={true} />
+      </span>
+      <span>{label}</span>
+    </li>
+  );
+}
+
+function FeatureCard({
+  icon: Icon,
+  title,
+  body,
+}: {
+  icon: IconType;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-[--color-hairline] bg-white p-6">
+      <span
+        className="inline-flex h-10 w-10 items-center justify-center rounded-xl"
+        style={{ background: "var(--gradient-accent)" }}
+        aria-hidden="true"
+      >
+        <Icon className="h-5 w-5 text-white" aria-hidden={true} />
+      </span>
+      <h3 className="mt-4 font-display text-base font-semibold text-[--color-ink-primary]">
+        {title}
+      </h3>
+      <p className="mt-2 text-sm leading-relaxed text-[--color-ink-secondary]">
+        {body}
+      </p>
+    </div>
+  );
+}
+
 function FaqItem({ q, a }: { q: string; a: string }) {
   return (
-    <div className="px-5 py-4 md:px-6 md:py-5">
-      <dt className="text-sm font-semibold text-[--color-ink-primary]">{q}</dt>
-      <dd className="mt-1.5 text-sm leading-relaxed text-[--color-ink-secondary]">
+    <div className="px-5 py-5 md:px-7 md:py-6">
+      <dt className="text-sm font-semibold text-[--color-ink-primary] md:text-base">
+        {q}
+      </dt>
+      <dd className="mt-2 text-sm leading-relaxed text-[--color-ink-secondary]">
         {a}
       </dd>
     </div>
