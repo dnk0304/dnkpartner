@@ -21,6 +21,7 @@ import {
 } from '@/lib/auction-status';
 import { normalizeText } from '@/lib/normalize';
 import { isKnownSource } from '@/lib/source-labels';
+import { toCanonicalProvince } from '@/lib/spain-provinces';
 
 // Cached "SELECT DISTINCT province" \u2014 full scan against 229k rows on every
 // filtered request is wildly expensive. Provinces change rarely (Spain has 52);
@@ -65,6 +66,61 @@ async function getCachedDistinctMunicipalitiesInProvince(province: string): Prom
     expiresAt: Date.now() + 5 * 60 * 1000,
   });
   return values;
+}
+
+// FORGE 2026-06-07 (multi-town-api): GLOBAL distinct-municipality fold cache.
+// Powers the province-agnostic `?municipios=` multi-select where towns can
+// span provinces (e.g. Calldetenes (Barcelona) + Getafe (Madrid) in one list).
+// Returns a Map<foldedSlug, DBCasings[]> so a folded slug like "calldetenes"
+// resolves to every DB casing variant ("Calldetenes", "CALLDETENES") in O(1)
+// across the whole table. Same 5-min TTL as the per-province cache; the
+// distinct municipality list moves slowly.
+// IMPORTANT: this is NOT province-scoped — same-name towns across provinces
+// (e.g. two "Sant Joan") will both match. Accepted v1 behavior per Ken's brief.
+let municipalityGlobalCache: {
+  byFolded: Map<string, string[]>;
+  expiresAt: number;
+} | null = null;
+async function getCachedDistinctMunicipalitiesGlobal(): Promise<Map<string, string[]>> {
+  if (municipalityGlobalCache && municipalityGlobalCache.expiresAt > Date.now()) {
+    return municipalityGlobalCache.byFolded;
+  }
+  const rows = await query<{ municipality: string }>(
+    'SELECT DISTINCT municipality FROM Auction WHERE municipality IS NOT NULL',
+    [],
+  );
+  const byFolded = new Map<string, string[]>();
+  for (const r of rows) {
+    if (!r.municipality) continue;
+    const folded = normalizeText(r.municipality);
+    if (!folded) continue;
+    const bucket = byFolded.get(folded);
+    if (bucket) bucket.push(r.municipality);
+    else byFolded.set(folded, [r.municipality]);
+  }
+  municipalityGlobalCache = {
+    byFolded,
+    expiresAt: Date.now() + 5 * 60 * 1000,
+  };
+  return byFolded;
+}
+
+// FORGE 2026-06-07 (multi-town-api): array-param caps. Keeps the IN-list bounded
+// and rejects probe attempts past sane UI limits.
+const MAX_MUNICIPIOS = 25;
+const MAX_PROVINCIAS = 10;
+
+// Parse a CSV query param into a deduped, trimmed, capped string array.
+// Returns null when absent / fully empty (caller treats null as "no constraint").
+function parseCsvParam(raw: string | null, cap: number): string[] | null {
+  if (!raw) return null;
+  const list = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && s.length <= 80); // 80 chars covers every real muni/province slug
+  if (list.length === 0) return null;
+  const unique = [...new Set(list)];
+  return unique.slice(0, cap);
 }
 
 // Streetview directory listing cache \u2014 `fs.existsSync` ran per row, per request.
@@ -700,6 +756,15 @@ export async function GET(request: NextRequest) {
     // province one (same-named towns across provinces stay separate). No-op
     // when absent — every existing 1-dim caller is unaffected.
     const municipality = searchParams.get('municipality');
+    // FORGE 2026-06-07 (multi-town-api / Feature F1): multi-select town +
+    // province filters for the MAIN /subastas page. Province-AGNOSTIC: towns
+    // can span provinces (e.g. ?municipios=calldetenes,getafe → Barcelona +
+    // Madrid in one list). Single `province`/`municipality` params above stay
+    // untouched so the locked SEO town pages keep working.
+    const municipiosRaw = searchParams.get('municipios');
+    const provinciasRaw = searchParams.get('provincias');
+    const municipiosList = parseCsvParam(municipiosRaw, MAX_MUNICIPIOS);
+    const provinciasList = parseCsvParam(provinciasRaw, MAX_PROVINCIAS);
     const category = searchParams.get('category');
     const status = searchParams.get('status');
     const statuses = searchParams.get('statuses'); // Support multiple statuses
@@ -851,6 +916,9 @@ export async function GET(request: NextRequest) {
     const cacheKey = {
       province: province || 'all',
       municipality: municipality || 'all',
+      // multi-select (folded+sorted so order-insensitive cache hit)
+      municipios: municipiosList ? [...municipiosList].map((s) => normalizeText(s)).sort().join('|') : 'none',
+      provincias: provinciasList ? [...provinciasList].map((s) => normalizeText(s)).sort().join('|') : 'none',
       category: category || 'all',
       status: status || 'all',
       statuses: statuses || 'all',
@@ -996,6 +1064,86 @@ export async function GET(request: NextRequest) {
         // rarely (the town SEO page always sends province too).
         sql += ' AND LOWER(municipality) = LOWER(?)';
         params.push(municipality);
+      }
+    }
+
+    // FORGE 2026-06-07 (multi-town-api / Feature F1): province-agnostic
+    // multi-select location predicate.
+    //
+    // Semantics (locked by Ken's brief): UNION — a row matches if it's in
+    // ANY selected municipio OR ANY selected provincia. This lets the user
+    // tick "Calldetenes" + "Getafe" (towns from 2 different provinces) and
+    // also "Lleida" (whole province) and see one combined list.
+    //
+    // Resolution:
+    //   - municipios CSV → fold each slug via normalizeText, look up the
+    //     GLOBAL distinct-muni cache → all DB casings across ALL provinces
+    //     OR'd into a single IN-list. Cross-province same-name towns
+    //     (e.g. two "Sant Joan") both match — accepted v1 behavior.
+    //   - provincias CSV → fold each slug via the canonical-province helper
+    //     so "barcelona" / "Barcelona" / "Barcelona / Provincia" all resolve
+    //     to the same DB casings via the existing distinct-province cache.
+    //
+    // Empty match (e.g. ?municipios=garbageslug with no other location filter)
+    // → push `1=0` so the result set is deterministically empty rather than
+    // leaking the whole table.
+    //
+    // Placement: BEFORE preStatusSqlLen so totalCount + teaserCounts both
+    // reflect the multi-town set — count-vs-list invariant preserved (same
+    // pattern the seg-social ?sources= work used).
+    //
+    // Coexistence with single `province` / `municipality`: those still apply
+    // (AND) so the locked SEO town pages keep their narrow scope. In practice
+    // the unlocked /subastas multi-select UI sends ONLY the array params and
+    // omits the singletons; the locked SEO pages send ONLY the singletons.
+    if ((municipiosList && municipiosList.length > 0) || (provinciasList && provinciasList.length > 0)) {
+      const orParts: string[] = [];
+
+      if (municipiosList && municipiosList.length > 0) {
+        const globalMuniMap = await getCachedDistinctMunicipalitiesGlobal();
+        const muniDbCasings = new Set<string>();
+        for (const slug of municipiosList) {
+          const folded = normalizeText(slug);
+          const variants = globalMuniMap.get(folded);
+          if (variants) {
+            for (const v of variants) muniDbCasings.add(v);
+          }
+        }
+        if (muniDbCasings.size > 0) {
+          const arr = Array.from(muniDbCasings);
+          orParts.push(`municipality IN (${arr.map(() => '?').join(', ')})`);
+          params.push(...arr);
+        }
+      }
+
+      if (provinciasList && provinciasList.length > 0) {
+        const dbProvinces = await getCachedDistinctProvinces();
+        const provDbCasings = new Set<string>();
+        for (const slug of provinciasList) {
+          const folded = normalizeText(slug);
+          const canonical = toCanonicalProvince(slug);
+          for (const v of dbProvinces) {
+            const vFolded = normalizeText(v);
+            if (vFolded === folded) provDbCasings.add(v);
+            if (canonical) {
+              if (vFolded === normalizeText(canonical.key)) provDbCasings.add(v);
+              if (vFolded === normalizeText(canonical.label)) provDbCasings.add(v);
+            }
+          }
+        }
+        if (provDbCasings.size > 0) {
+          const arr = Array.from(provDbCasings);
+          orParts.push(`province IN (${arr.map(() => '?').join(', ')})`);
+          params.push(...arr);
+        }
+      }
+
+      if (orParts.length > 0) {
+        sql += ` AND (${orParts.join(' OR ')})`;
+      } else {
+        // Both params supplied but neither resolved to any DB value —
+        // deterministic empty result, never leak-all.
+        sql += ' AND 1=0';
       }
     }
 
