@@ -367,7 +367,7 @@ function PricingCard({
                 refresh. Solid --color-action (saturated mint #17926D) keeps
                 the icon WCAG-AA on white ink (4.78:1). */}
             <span
-              className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[--color-action]"
+              className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--color-action)]"
               aria-hidden="true"
             >
               <Check className="h-3 w-3 text-white" strokeWidth={3} />
@@ -409,7 +409,7 @@ function CtaButton({ children, href, variant, disabled }: CtaButtonProps) {
     "inline-flex w-full items-center justify-center rounded-md px-4 py-3 text-sm font-medium transition-colors",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-action]/40",
     variant === "primary" && !disabled
-      ? "cursor-pointer bg-[--color-action] text-white hover:bg-[--color-action-hover]"
+      ? "cursor-pointer bg-[var(--color-action)] text-white hover:bg-[--color-action-hover]"
       : "",
     variant === "ghost" && !disabled
       ? "cursor-pointer border border-[--color-hairline] bg-transparent text-[--color-ink-primary] hover:bg-[--color-surface-muted]"
@@ -440,7 +440,7 @@ function TrustItem({ icon: Icon, label }: { icon: IconType; label: string }) {
       {/* Contrast fix (Pixel 2026-06-07): saturated --color-action keeps the
           white glyph readable. Pale --gradient-accent + white = invisible. */}
       <span
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[--color-action]"
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-action)]"
         aria-hidden="true"
       >
         <Icon className="h-3.5 w-3.5 text-white" aria-hidden={true} />
@@ -465,7 +465,7 @@ function FeatureCard({
           white feature icon readable. Pale --gradient-accent + white failed
           AA after the cold-mint token refresh. */}
       <span
-        className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[--color-action]"
+        className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-action)]"
         aria-hidden="true"
       >
         <Icon className="h-5 w-5 text-white" aria-hidden={true} />

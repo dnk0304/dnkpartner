@@ -83,43 +83,53 @@ export function AuthGatePopup({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton
-        className="sm:max-w-[440px] bg-[--color-surface] border border-[--color-hairline] rounded-2xl p-0 overflow-hidden"
+        // bg-white (not the token alias) guarantees an opaque surface across
+        // Tailwind 4 @theme-inline resolutions. We can't rely on the shadcn
+        // primitive's default `bg-background` (#FBFCFD, the page frame) —
+        // it's a *near*-white and reads as translucent over the dimmed
+        // overlay in some browsers.
+        className="sm:max-w-[440px] bg-white border border-[var(--color-hairline)] rounded-2xl p-0 overflow-hidden shadow-[var(--shadow-lift)]"
       >
         <div className="px-6 pt-7 pb-6 md:px-8 md:pt-8 md:pb-7 text-center">
           {/* Lock chip — dark ink on action-soft (pale mint), passes AA. */}
           <div
-            className="mx-auto mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[--color-action-soft]"
+            className="mx-auto mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[var(--color-action-soft)]"
             aria-hidden="true"
           >
-            <Lock className="h-5 w-5 text-[--color-action]" />
+            <Lock className="h-5 w-5 text-[var(--color-action)]" />
           </div>
 
-          <DialogTitle className="font-serif text-xl md:text-2xl text-[--color-ink-primary] leading-tight">
+          <DialogTitle className="font-serif text-xl md:text-2xl text-[var(--color-ink-primary)] leading-tight">
             {title}
           </DialogTitle>
 
-          <DialogDescription className="mx-auto mt-2.5 max-w-[360px] text-sm leading-relaxed text-[--color-ink-secondary]">
+          <DialogDescription className="mx-auto mt-2.5 max-w-[360px] text-sm leading-relaxed text-[var(--color-ink-secondary)]">
             Regístrate gratis para ver dirección exacta, documentos, edicto y
             crear alertas. Sin tarjeta.
           </DialogDescription>
 
           <div className="mt-6 flex flex-col gap-2.5">
+            {/* The bracket-shortcut syntax `bg-[--color-action]` emits
+                invalid CSS in Tailwind 4 (`background-color:--color-action`),
+                which fails silently and renders the button transparent. The
+                `bg-[var(--…)]` form wraps the var() call and works. We use
+                the longhand form throughout this file. */}
             <Link
               href={registerHref}
-              className="inline-flex items-center justify-center rounded-md bg-[--color-action] px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[--color-action-hover] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-action]/40 focus-visible:ring-offset-2 transition-colors"
+              className="inline-flex items-center justify-center rounded-md bg-[var(--color-action)] px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--color-action-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/40 focus-visible:ring-offset-2 transition-colors"
               aria-label="Crear una cuenta gratuita"
             >
               Regístrate gratis
             </Link>
             <Link
               href={loginHref}
-              className="inline-flex items-center justify-center rounded-md border border-[--color-hairline] bg-[--color-surface] px-5 py-2.5 text-sm font-medium text-[--color-ink-primary] hover:bg-[--color-surface-muted] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-action]/30 transition-colors"
+              className="inline-flex items-center justify-center rounded-md border border-[var(--color-hairline)] bg-white px-5 py-2.5 text-sm font-medium text-[var(--color-ink-primary)] hover:bg-[var(--color-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/30 transition-colors"
             >
               Iniciar sesión
             </Link>
           </div>
 
-          <p className="mt-5 text-[11px] text-[--color-ink-tertiary]">
+          <p className="mt-5 text-[11px] text-[var(--color-ink-tertiary)]">
             Buscar y navegar el catálogo es siempre gratis. La cuenta desbloquea
             el detalle completo de cada subasta.
           </p>
