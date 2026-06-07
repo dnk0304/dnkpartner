@@ -39,6 +39,46 @@ interface AuctionLocationMapProps {
   zoom?: number;
 }
 
+/**
+ * Build the "Open in Google Maps" href.
+ *
+ * COORDS BUG (Dennis 2026-06-07, wave-A): the previous link was always
+ * `https://www.google.com/maps?q=${lat},${lng}` — i.e. it pinned by the
+ * STORED coordinates regardless of accuracy. Root cause investigation
+ * found that the geocode pipeline (`scraper/services/geocoding_service.py`)
+ * returns Google Geocoding results with a `location_type` field that
+ * commonly degrades to `GEOMETRIC_CENTER` (street/neighbourhood centre)
+ * or `APPROXIMATE` (town centroid) when the BOE address is partial — but
+ * we store the lat/lng without distinguishing precise from approximate
+ * hits, so a row with a town-centroid coord still renders a pin "at" the
+ * property. Symptom: the Google Maps link lands on the town centre, not
+ * the actual address.
+ *
+ * Fix: when an `address` exists, build the maps link from the ADDRESS
+ * itself (`/maps/search/?api=1&query=<encoded address>`). Google's
+ * geocoder is more reliable than our stored centroid, so this routinely
+ * lands the user on the right street/building. Only fall back to the
+ * lat/lng query when the row has no address.
+ *
+ * Note: the visual Leaflet pin still uses the stored lat/lng — that's a
+ * data-layer fix (re-geocode rows where location_type ∈ {APPROXIMATE,
+ * GEOMETRIC_CENTER}). Flagged for a Ghost/scheduler follow-up wave.
+ */
+function buildGoogleMapsHref(
+  address: string | null | undefined,
+  lat: number,
+  lng: number,
+): string {
+  const trimmed = typeof address === 'string' ? address.trim() : '';
+  if (trimmed.length > 0) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(trimmed)}`;
+  }
+  // No address — use the modern search-api form (more reliable than the
+  // legacy `?q=` which Google increasingly treats as an old "show this
+  // search" URL rather than a pin coordinate).
+  return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+}
+
 // Single, accessible blue pin. SVG inline so the basePath / asset path
 // never matters — no /marker-icon.png fetch.
 const createPin = () =>
@@ -172,7 +212,7 @@ export const AuctionLocationMap: React.FC<AuctionLocationMapProps> = ({
               )}
               <a
                 className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-blue-700 hover:text-blue-900 hover:underline"
-                href={`https://www.google.com/maps?q=${lat},${lng}`}
+                href={buildGoogleMapsHref(auction.address, lat, lng)}
                 target="_blank"
                 rel="noopener noreferrer"
               >

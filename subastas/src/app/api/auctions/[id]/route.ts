@@ -16,10 +16,12 @@ import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { boeLinkFor } from '@/lib/boe-link';
 import { publicPathForDocId } from '@/lib/auction-docs/storage';
-import { getAccessState } from '@/lib/access';
-import { pickTeaserSnippet } from '@/lib/teaser-snippet';
-import { mapStatus } from '@/lib/auction-status';
-import { effectiveStatus } from '@/components/observatory/status';
+// NOTE (wave-A gate reversal, 2026-06-07): `getAccessState` /
+// `pickTeaserSnippet` / `mapStatus` / `effectiveStatus` were used by the
+// previous `!fullAccess` payload-stripping block. The detail page is now
+// fully public — the strip block is removed below and these imports drop
+// with it. `pickTeaserSnippet` itself stays in the tree (still used by
+// AuctionTeaser.tsx for the list-card snippet — see grep in dispatch notes).
 
 export async function GET(
   _req: NextRequest,
@@ -89,16 +91,18 @@ export async function GET(
     // Session lookup failure shouldn't break the public detail load.
   }
 
-  // Freemium gate (2026-06-04): when the caller is not trial-active or
-  // paid-active, the API projects out the fields that constitute "opening
-  // the auction's full info" (Dennis boundary). Teaser fields (title, type,
-  // province, municipality, status, headline figure, description snippet)
-  // stay in the payload so SSR + the public teaser block can render them.
-  // The detail page page.tsx ALSO already SSRs those teaser fields against
-  // the DB directly — this projection is the API-layer belt-and-braces so
-  // a non-qualifying client cannot scrape sensitive intel via the JSON API.
-  const access = await getAccessState();
-  const fullAccess = access.hasFullAccess;
+  // GATE REVERSAL (wave-A, 2026-06-07): the auction detail page is now FULLY
+  // PUBLIC. The previous freemium projection block (which nulled address,
+  // latitude/longitude, edictUrl, pdfUrl, boeLink, documents, postalCode,
+  // idufir, court fields, financials breakdown, and replaced
+  // propertyDescription with a teaser snippet for non-qualifying callers) is
+  // REMOVED. Per Dennis: "allow free access to the page, but with no access
+  // to notifications." The only gate boundary left is the alert POST — see
+  // `src/app/api/alerts/route.ts` for the single flip point.
+  //
+  // The `access` field is still surfaced in the response so any client that
+  // wants to render an "upgrade" CTA contextually can still do so without a
+  // second fetch — but it no longer changes the payload shape.
 
   // Derive the per-auction BOE URL at projection time so the detail page
   // never falls back to the BOE homepage when `boeLink` is NULL (only 630
@@ -157,104 +161,24 @@ export async function GET(
     documents,
   };
 
-  // Freemium projection — strip gated fields when caller lacks full access.
-  // Field set is EXACTLY the brief's GATED list:
-  //   exact address + precise location, full financials beyond the headline,
-  //   documents / edicto / BOE link detail, court/expediente, contact panel.
-  // PUBLIC teaser fields stay: title, category, province, municipality,
-  // status, auctionType, propertyType, publishedAt, opensAt, endsAt,
-  // appraisalValue (the headline tasacion shown on the card),
-  // description snippet.
-  if (!fullAccess) {
-    // PII-safe-by-construction teaser snippet — shared builder with
-    // AuctionTeaser.tsx so the API payload and the SSR-rendered teaser can
-    // never drift. The raw `propertyDescription` / `lotDescription` /
-    // `boeAnnouncement` blobs are NEVER passed in: they are untrusted free
-    // text that can embed PII (address, cadastral, IDUFIR, postal, registry,
-    // court) inline for ANY source. The snippet is CONSTRUCTED from safe
-    // structured fields only (type, municipality, province, status) — see
-    // lib/teaser-snippet.ts header for the two leak incidents (BOE Key\tValue
-    // dump 2026-06-04, SEGSOCIAL prose paragraph 2026-06-05) that drove
-    // this design.
-    const frontendStatus = effectiveStatus(
-      mapStatus(auction.status),
-      auction.endsAt as Date | string | null,
-    );
-    const teaserDescription = pickTeaserSnippet({
-      tipoBien:
-        projectedAuction.propertyType ??
-        (projectedAuction.auctionType
-          ? projectedAuction.auctionType.toLowerCase()
-          : null) ??
-        projectedAuction.category ??
-        null,
-      municipio: projectedAuction.municipality,
-      provincia: projectedAuction.province,
-      frontendStatus,
-    });
-    Object.assign(projectedAuction, {
-      // Location detail — keep province/municipality (teaser), strip the
-      // exact address + map coordinates.
-      address: null,
-      latitude: null,
-      longitude: null,
-      mapUrl: null,
-      streetViewUrl: null,
-      placeUrl: null,
-      directionsUrl: null,
-      // Documents / edicto / BOE detail link — full gating.
-      edictUrl: null,
-      pdfUrl: null,
-      boeLink: null,
-      documents: [],
-      // Bien detail beyond municipality/province.
-      postalCode: null,
-      idufir: null,
-      registryInscription: null,
-      legalTitle: null,
-      bienLocalidad: null,
-      bienProvincia: null,
-      // Court / expediente / contact-panel intel.
-      courtName: null,
-      courtReference: null,
-      procedureNumber: null,
-      registryId: null,
-      registryInfo: null,
-      contactInfo: null,
-      auctionId: null,
-      lotNumber: null,
-      boeAnnouncement: null,
-      cadastralRef: null,
-      cadastralData: null,
-      // Full financials — keep appraisalValue (the headline tasacion shown
-      // on the card) and valorSubasta (already on the card too); strip the
-      // gated breakdown (currentBid, minimum, deposit, increment, claim,
-      // final bid).
-      currentBid: null,
-      minimumBid: null,
-      depositAmount: null,
-      bidIncrement: null,
-      claimedAmount: null,
-      finalBid: null,
-      currentBidAmount: null,
-      // Property description: replace with a clamped snippet (the teaser).
-      propertyDescription: teaserDescription,
-      lotDescription: null,
-    });
-  }
+  // GATE REVERSAL (wave-A, 2026-06-07): the `!fullAccess` strip block that
+  // previously lived here has been REMOVED. The detail API now returns the
+  // FULL auction payload to every caller (logged-out, trial-expired, paid).
+  // History (status + bid) is also returned in full for everyone now —
+  // previously it was nulled-out for non-qualifying callers. The only gate
+  // boundary that remains is the alert POST (see /api/alerts/route.ts).
 
   return NextResponse.json({
     success: true,
     data: {
       auction: projectedAuction,
-      history: fullAccess
-        ? { statuses: statusHistory, bids: bidHistory }
-        : { statuses: [], bids: [] },
+      history: { statuses: statusHistory, bids: bidHistory },
       followCount: auction.favoriteCount,
       isFollowing,
-      // Surface the gate state so the client can render the wall without a
-      // second fetch. Never includes user PII.
-      access: { hasFullAccess: fullAccess, state: access.state },
+      // `access` field intentionally omitted — the detail payload no longer
+      // varies on it, so consumers should not branch on it. Components that
+      // need the viewer's gate state for OTHER reasons (e.g. the alert CTA)
+      // can fetch /api/account or read it from session client-side.
     },
   });
 }

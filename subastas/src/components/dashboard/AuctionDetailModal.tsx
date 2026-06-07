@@ -314,19 +314,42 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
               </Button>
             )}
 
-            {/* Google Maps button - uses mapUrl or placeUrl */}
+            {/* Google Maps button - prefer address (more accurate than our
+                stored centroid coords), then mapUrl/placeUrl, then coords.
+                See AuctionLocationMap.tsx `buildGoogleMapsHref` for the full
+                root-cause analysis of the coords-wrong bug (wave-A
+                2026-06-07). */}
             <Button
               variant="outline"
               className="gap-2 h-14 text-lg font-semibold border-2 border-blue-200 text-blue-700 hover:bg-blue-50"
               onClick={() => {
+                const addr = typeof auction.address === 'string' ? auction.address.trim() : '';
+                if (addr.length > 0) {
+                  window.open(
+                    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`,
+                    '_blank',
+                  );
+                  return;
+                }
                 const mapLink = auction.mapUrl || auction.placeUrl;
                 if (mapLink) {
                   window.open(mapLink, '_blank');
-                } else if (auction.latitude && auction.longitude) {
-                  window.open(`https://www.google.com/maps?q=${auction.latitude},${auction.longitude}`, '_blank');
+                  return;
+                }
+                if (auction.latitude && auction.longitude) {
+                  window.open(
+                    `https://www.google.com/maps/search/?api=1&query=${auction.latitude},${auction.longitude}`,
+                    '_blank',
+                  );
                 }
               }}
-              disabled={!auction.mapUrl && !auction.placeUrl && !auction.latitude && !auction.longitude}
+              disabled={
+                !auction.address &&
+                !auction.mapUrl &&
+                !auction.placeUrl &&
+                !auction.latitude &&
+                !auction.longitude
+              }
             >
               <MapPin className="h-6 w-6" />
               Ver en Mapa

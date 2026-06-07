@@ -13,20 +13,26 @@
  * /subastas/subasta/{slug}. CONCLUIDA / FINALIZADA → noindex (don't index
  * expired auctions).
  *
- * FREEMIUM GATE (Dennis 2026-06-04, locked):
- *   The page ALWAYS returns 200 + the SSR-rendered <AuctionTeaser>
- *   (title, type, province/municipality, status, headline figure, snippet)
- *   so Google indexes the teaser regardless of session state. NO noindex,
- *   NO login redirect on this route.
+ * GATE REVERSAL (Dennis 2026-06-07, wave-A):
+ *   The detail page is now FULLY PUBLIC. Every viewer — logged-out,
+ *   trial-expired, paid — sees the full info: real H1 + street address,
+ *   exact map pin, financials, documents, edicto, BOE/SEGSOCIAL source
+ *   links. NO noindex, NO login redirect, NO teaser-vs-full split.
  *
- *   Then:
- *     - trial-active OR paid-active → mount <AuctionDetailClient> below the
- *       teaser → fetches /api/auctions/[id] (full payload) → renders the
- *       full info (exact map, address, financials, documents, edicto,
- *       contact panel).
- *     - logged-out OR trial-expired → render <FullInfoWall> below the
- *       teaser. The Detail API also projects the sensitive fields OUT, so
- *       even a hand-crafted JSON request returns the teaser-equivalent.
+ *   The only gate boundary left is the alert action (POST /api/alerts)
+ *   which requires a logged-in (free) account. See
+ *   `src/app/api/alerts/route.ts` for the single ALERT_GATE flip point.
+ *
+ * Dead-code flag (do not delete yet — flagged for the cleanup wave):
+ *   - <FullInfoWall> (components/access/FullInfoWall.tsx) is no longer
+ *     rendered by this page.
+ *   - <AuctionTeaser> (components/auction/AuctionTeaser.tsx) is no longer
+ *     rendered by this page either, since AuctionDetailClient renders the
+ *     full hero/title/where. AuctionTeaser is still used in list contexts
+ *     (snippet builder shared with /api/auctions list cards) — verify
+ *     before removing.
+ *   - hasFullAccessServer / getAccessState are still consumed by the
+ *     account/alerts/favourites surfaces. Keep them.
  */
 
 import { notFound, redirect } from 'next/navigation';
@@ -35,9 +41,7 @@ import { prisma } from '@/lib/prisma';
 import { buildAuctionSlug, resolveAuctionIdFromSlug } from '@/lib/seo/auction-slug';
 import { isLegacyRow } from '@/lib/seo/legacy-rows';
 import AuctionDetailClient from '@/app/auction/[id]/AuctionDetailClient';
-import { AuctionTeaser, type AuctionTeaserData } from '@/components/auction/AuctionTeaser';
-import { FullInfoWall } from '@/components/access/FullInfoWall';
-import { hasFullAccessServer } from '@/lib/access';
+import { auctionMetaTitle } from '@/lib/seo/display-title';
 
 type PageProps = { params: Promise<{ slug: string }> };
 const SITE = 'https://subastasactivas.com';
@@ -58,50 +62,18 @@ async function loadAuctionMeta(slug: string) {
       municipality: true,
       status: true,
       auctionType: true,
+      // Surfaced for the title-from-address helper (wave-A, 2026-06-07).
+      // The page is now fully public so the address can lead the <title>.
+      address: true,
+      propertyType: true,
+      // Price hint for SERP CTR — appraisal first (always populated when
+      // present), valorSubasta as a secondary if the row lacks an appraisal.
+      appraisalValue: true,
+      valorSubasta: true,
       boeId: true,
     },
   });
   return auction;
-}
-
-/**
- * Full teaser-shape loader for the page render. Selects exactly the fields
- * the SSR <AuctionTeaser> needs — keeps the SSR payload small and lets
- * the gated detail fetch (`/api/auctions/[id]`) own the rest.
- */
-async function loadTeaserData(slug: string): Promise<AuctionTeaserData | null> {
-  const id = resolveAuctionIdFromSlug(slug);
-  if (!id) return null;
-  const auction = await prisma.auction.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      boeId: true,
-      title: true,
-      category: true,
-      province: true,
-      municipality: true,
-      status: true,
-      auctionType: true,
-      propertyType: true,
-      // Source (`Auction.source`) — NON-PII scraper-origin identifier
-      // (BOE / SEGSOCIAL / …). Surfaced on the public teaser via SourceBadge.
-      source: true,
-      appraisalValue: true,
-      valorSubasta: true,
-      // propertyDescription / lotDescription / boeAnnouncement are
-      // intentionally NOT selected — the public teaser snippet is built
-      // from structured fields only (type, municipality, province, status)
-      // by `pickTeaserSnippet`. Keeping the raw free-text columns OUT of
-      // the SSR payload guarantees they cannot leak via `__next_f` JSON.
-      // The gated detail fetch owns the full description.
-      publishedAt: true,
-      opensAt: true,
-      endsAt: true,
-    },
-  });
-  if (!auction) return null;
-  return auction as AuctionTeaserData;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -114,16 +86,48 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // See: src/lib/seo/legacy-rows.ts
   if (isLegacyRow(a)) return { title: 'Subasta retirada', robots: 'noindex,follow' };
   const canonicalSlug = buildAuctionSlug(a);
+  // Title-from-address (wave-A, 2026-06-07): the <title> now leads with the
+  // real street address (or municipality fallback for vehicles/land) — the
+  // page is fully public so this is safe, and it dramatically improves SERP
+  // CTR vs the previous reference-code title.
+  const title = auctionMetaTitle({
+    address: a.address,
+    propertyType: a.propertyType,
+    auctionType: a.auctionType,
+    category: a.category,
+    municipality: a.municipality,
+    province: a.province,
+    title: a.title,
+  });
   const where = [a.municipality, a.province].filter(Boolean).join(', ') || 'España';
-  const title = `${a.title || a.category} en ${where} · subasta pública | SubastasActivas`;
-  const description = `Subasta pública de ${a.category} en ${where}. Estado en vivo, datos del BOE y enlace oficial. Sigue la subasta y recibe alertas en SubastasActivas.`.slice(0, 158);
+  // Include the headline price in the meta description for CTR (Ken brief).
+  // Appraisal first; fall back to valorSubasta when no appraisal.
+  const priceForDescription = (() => {
+    const v = a.appraisalValue ?? a.valorSubasta;
+    if (v == null) return null;
+    const n = typeof v === 'bigint' ? Number(v) : Number(v);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    try {
+      return new Intl.NumberFormat('es-ES', {
+        style: 'currency',
+        currency: 'EUR',
+        maximumFractionDigits: 0,
+      }).format(n);
+    } catch {
+      return null;
+    }
+  })();
+  const description = (priceForDescription
+    ? `Subasta pública de ${a.category} en ${where}. Tasación ${priceForDescription}. Estado en vivo, datos del BOE y enlace oficial. Sigue la subasta y recibe alertas en SubastasActivas.`
+    : `Subasta pública de ${a.category} en ${where}. Estado en vivo, datos del BOE y enlace oficial. Sigue la subasta y recibe alertas en SubastasActivas.`
+  ).slice(0, 158);
   // Only index ACTIVE / PRE-AUCTION states (07 §1.7 — CONCLUIDA stays noindex).
-  // The freemium gate does NOT change this — teaser is ALWAYS in the SSR
-  // HTML, so the indexable states stay indexable regardless of gate state.
+  // The gate reversal does NOT change this — the detail page was already
+  // 200+indexable for active states; now it's just richer content.
   const activeStates = ['ACTIVE', 'CELEBRANDOSE', 'PRE_AUCTION', 'PROXIMA_APERTURA', 'SUSPENDIDA', 'SUSPENDED'];
   const indexable = activeStates.includes(a.status as string);
   return {
-    title: title.slice(0, 70),
+    title,
     description,
     alternates: { canonical: `${SITE}/subastas/subasta/${canonicalSlug}` },
     robots: indexable ? 'index,follow' : 'noindex,follow',
@@ -132,7 +136,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function SubastaDetailPage({ params }: PageProps) {
   const { slug } = await params;
-  const a = await loadTeaserData(slug);
+  const a = await loadAuctionMeta(slug);
   if (!a) notFound();
   // Legacy junk row → retire (Ken brief 2026-06-02). Middleware already
   // 410s the cuid-id case before we get here; this handles the residual
@@ -145,26 +149,16 @@ export default async function SubastaDetailPage({ params }: PageProps) {
     redirect(`/subastas/subasta/${canonical}`);
   }
 
-  // Freemium gate (Dennis 2026-06-04). The teaser is ALWAYS rendered in
-  // the SSR HTML stream — Google sees it whether or not the request had a
-  // session cookie. Then either the full client UI (with-access) or the
-  // wall (without-access) renders below.
-  const hasAccess = await hasFullAccessServer();
-
+  // GATE REVERSAL (wave-A, 2026-06-07): the detail page is fully public.
+  // No teaser-vs-wall split. Every viewer gets the full client which fetches
+  // /api/auctions/[id] (now returning the full payload to everyone) and
+  // renders the H1 (address-led), exact map pin, financials, documents,
+  // edicto, source links. The only gate boundary left in the app is the
+  // alert POST — see /api/alerts/route.ts (ALERT_GATE constant).
   return (
     <div className="min-h-screen bg-[--color-page] pb-12">
       <main className="mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8">
-        {/* Public, SSR, indexable teaser — same markup for every viewer. */}
-        <AuctionTeaser data={a} />
-
-        {/* Gated full info OR conversion wall. Only one renders. */}
-        {hasAccess ? (
-          <div className="mt-8">
-            <AuctionDetailClient id={a.id} hideHeader />
-          </div>
-        ) : (
-          <FullInfoWall />
-        )}
+        <AuctionDetailClient id={a.id} />
       </main>
     </div>
   );
