@@ -29,6 +29,8 @@ import { effectiveStatus } from "./status";
 import { cn } from "@/lib/utils";
 import { resolveCardImage, fallbackImageFor, isVariosLotesTitle } from "@/lib/resolve-card-image";
 import { statusDateLabel } from "@/lib/auction-status";
+import { AuctionCardTypeBanner } from "./AuctionCardTypeBanner";
+import { OFFICIAL_CATEGORIES } from "@/lib/constants";
 
 export type AuctionListCardProps = {
   item: AuctionItem & { hasImage?: boolean | null };
@@ -43,14 +45,19 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
     .filter(Boolean)
     .join(" · ");
 
-  // Address-led card title (Wave C1b, 2026-06-07). The card title now reads
-  // "{Tipo} en {dirección/town}" — matching the carousel + the detail page
-  // (which adds a "Subasta de " prefix on its H1). The reference code is
-  // never surfaced as a card title; `displayTitle` (the muni/province
-  // fallback) is implicit in `auctionCardTitle`'s ladder when address is
-  // missing. Vehicle category cards use municipality only (BOE depot codes
-  // aren't user-meaningful).
-  const title = auctionCardTitle({
+  // Category group hint — drives the dual-card-headline path (vehicle vs
+  // property) and the short-street wiring below.
+  const isVehicle = item.category
+    ? (OFFICIAL_CATEGORIES.MOVABLE as readonly string[]).includes(item.category)
+    : false;
+  // Card title (Wave C3, 2026-06-07):
+  //   - PROPERTY: short-street mode — "{Tipo} – {Calle X}" (helper from C2).
+  //     Falls back to "{Tipo} en {town}" when the street parse fails. NEVER
+  //     the full address, NEVER the BOE ref.
+  //   - VEHICLE: when make+model are present, render "{Make} {Model}" only
+  //     (no Tipo prefix, no town suffix — Dennis-locked). Otherwise fall
+  //     back to "{Tipo} en {town}" via the standard helper.
+  const baseTitle = auctionCardTitle({
     address: item.address,
     propertyType: item.propertyType,
     auctionType: item.auctionType,
@@ -58,13 +65,17 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
     municipality: item.municipality,
     province: item.province,
     title: item.title,
-    // Wave E2 (2026-06-07) — vehicle make/model/year. When make+model are
-    // present on a VEHICLE card the title becomes "{Tipo} - {make} {model}
-    // en {town}"; otherwise falls back to the existing "{Tipo} en {town}".
+    categoryGroup: isVehicle ? "movable" : "real_estate",
     vehicleMake: item.vehicleMake,
     vehicleModel: item.vehicleModel,
     vehicleYear: item.vehicleYear,
+    useShortStreet: !isVehicle,
   });
+  const vehicleMakeModel =
+    isVehicle && item.vehicleMake && item.vehicleModel
+      ? `${titleCase(item.vehicleMake)} ${titleCase(item.vehicleModel)}`
+      : null;
+  const title = vehicleMakeModel ?? baseTitle;
 
   // Imagery resolves through the 3-rung ladder: real photo → static map pin
   // → category SVG. Cards are NEVER blank. `imgFailed` only switches us to
@@ -206,13 +217,21 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             <ImageOff aria-hidden="true" /> Imagen no disponible
           </span>
         )}
-        <span className="pointer-events-none absolute top-2 left-2 flex flex-wrap items-center gap-1.5">
-          <StatusBadge status={effective} size="sm" />
-          {item.auctionType && <AuctionTypeBadge type={item.auctionType} size="sm" />}
-          {/* SourceBadge — sits with the other identity pills so users can
-              tell at a glance whether a row came from the BOE or Seguridad
-              Social. Null-safe (returns null for blank/unknown sources). */}
-          <SourceBadge source={item.source} size="sm" />
+        {/* Status / identity column (top-left). Vertical stack so the TYPE
+            banner sits directly UNDER the status badge cluster (Wave C3,
+            2026-06-07). Each row is its own flex group so badges wrap
+            independently when the card is narrow. */}
+        <span className="pointer-events-none absolute top-2 left-2 flex flex-col items-start gap-1.5">
+          <span className="flex flex-wrap items-center gap-1.5">
+            <StatusBadge status={effective} size="sm" />
+            {item.auctionType && <AuctionTypeBadge type={item.auctionType} size="sm" />}
+            {/* SourceBadge — sits with the other identity pills so users can
+                tell at a glance whether a row came from the BOE or Seguridad
+                Social. Null-safe (returns null for blank/unknown sources). */}
+            <SourceBadge source={item.source} size="sm" />
+          </span>
+          {/* TYPE banner — Vivienda / Garaje / Coche / Moto / … */}
+          <AuctionCardTypeBanner item={item} size="sm" />
         </span>
         {daysBadge && (
           <span
@@ -243,6 +262,14 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
           <h3 className="font-serif text-lg leading-tight text-[--color-ink-primary] line-clamp-2 hover:underline">
             {title}
           </h3>
+          {/* Vehicle subtitle — año from "primera matriculación" (Wave C3,
+              2026-06-07). Sits between the title and the where line so the
+              reading order is: "SEAT León" → 2015 → Murcia · Murcia. */}
+          {isVehicle && item.vehicleYear && (
+            <p className="mt-0.5 text-xs text-[--color-ink-tertiary] tnum">
+              {item.vehicleYear}
+            </p>
+          )}
           {where && (
             <p className="mt-1 text-xs text-[--color-ink-tertiary]">{where}</p>
           )}

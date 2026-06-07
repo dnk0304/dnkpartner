@@ -51,6 +51,7 @@ import Image from "next/image";
 import { ChevronLeft, ChevronRight, ArrowRight, Loader2, MapPin } from "lucide-react";
 import { apiFetch } from "@/lib/api-path";
 import { StatusBadge } from "./StatusBadge";
+import { AuctionCardTypeBanner } from "./AuctionCardTypeBanner";
 import { resolveCardImage, fallbackImageFor, isVariosLotesTitle } from "@/lib/resolve-card-image";
 import { statusDateLabel } from "@/lib/auction-status";
 import { OFFICIAL_CATEGORIES } from "@/lib/constants";
@@ -805,19 +806,27 @@ function ExpandedCard({
   const dl = isActiveLabel ? daysLeft(endsAt) : null;
   const urgent = isActiveLabel && !ended && dl != null && dl <= 1;
 
-  // Headline = address-led title (Wave C1b, 2026-06-07). Dennis wants the
-  // card to read "{Tipo} en {dirección}" / "{Tipo} en {town}" — the same
-  // address-first phrasing the detail H1 uses but WITHOUT the "Subasta de "
-  // prefix (cards are tight; the prefix is implied by the surrounding row
-  // header "Últimos inmuebles / vehículos"). `auctionCardTitle` resolves
-  // tipo + address/municipality/province with a vehicle branch that skips
-  // the BOE depot-code "address" (wave-E will replace this with make/model).
-  // Fallback chain still routes through propertyType → auctionType →
-  // category → "Inmueble", so the headline is NEVER the BOE ref.
+  // Headline (Wave C3, 2026-06-07):
+  //   - PROPERTY: short-street mode — "{Tipo} – {Calle X}" via the C2
+  //     helper. Falls back to "{Tipo} en {town}" when the street parse
+  //     fails. No full address, no muni suffix on the short path.
+  //   - VEHICLE: "{Make} {Model}" only (e.g. "SEAT León") when make+model
+  //     are present. Otherwise the standard "{Tipo} en {town}" fallback.
+  //     The año subtitle appears as its own line below the headline.
   const typeOnly = prettifyAuctionType(
     auction.propertyType ?? auction.category ?? null,
   );
-  const cardHeadline = auctionCardTitle({
+  // Resolve the category group locally so the short-street + vehicle-title
+  // branches behave correctly even when `categoryGroup` prop is unset.
+  const inferredGroup: CategoryGroup | null =
+    categoryGroup ??
+    (auction.category && MOVABLE_SET.has(auction.category)
+      ? "movable"
+      : auction.category
+      ? "real_estate"
+      : null);
+  const isVehicleRow = inferredGroup === "movable";
+  const baseHeadline = auctionCardTitle({
     address: auction.address,
     propertyType: auction.propertyType,
     auctionType: auction.auctionType,
@@ -825,13 +834,17 @@ function ExpandedCard({
     municipality: auction.municipality,
     province: auction.province,
     title: auction.title,
-    categoryGroup,
-    // Wave E2 (2026-06-07) — vehicle fields forwarded so the headline reads
-    // "Turismo - SEAT León en Murcia" when make+model are present.
+    categoryGroup: inferredGroup,
     vehicleMake: auction.vehicleMake,
     vehicleModel: auction.vehicleModel,
     vehicleYear: auction.vehicleYear,
+    useShortStreet: !isVehicleRow,
   });
+  const vehicleMakeModel =
+    isVehicleRow && auction.vehicleMake && auction.vehicleModel
+      ? `${titleCase(auction.vehicleMake)} ${titleCase(auction.vehicleModel)}`
+      : null;
+  const cardHeadline = vehicleMakeModel ?? baseHeadline;
   // Compact "Termina en Nd Nh" string — short variant for the ACTIVE card
   // footer only. NEVER computed for PROXIMA / SUSPENDIDA (those rows render
   // their own status-branched date line below). Distinct from the floating
@@ -972,8 +985,12 @@ function ExpandedCard({
             Ubicación
           </span>
         )}
-        <span className="absolute top-1.5 left-1.5">
+        {/* Status + TYPE banner column (top-left). Vertical stack so the
+            type chip sits directly under the status badge — Wave C3,
+            2026-06-07. */}
+        <span className="absolute top-1.5 left-1.5 flex flex-col items-start gap-1">
           <StatusBadge status={effectiveStatus} size="sm" />
+          <AuctionCardTypeBanner item={auction} size="sm" />
         </span>
         {/* Days-left badge — ACTIVE only (Wave52, Pixel 2026-06-04). On a
             PROXIMA / SUSPENDIDA / terminal row this badge is suppressed
@@ -1012,6 +1029,12 @@ function ExpandedCard({
         >
           {cardHeadline}
         </div>
+        {/* Vehicle subtitle — año from primera matriculación. (Wave C3.) */}
+        {isVehicleRow && auction.vehicleYear && (
+          <div className="text-[10.5px] text-[--color-ink-tertiary] tnum">
+            {auction.vehicleYear}
+          </div>
+        )}
         {where && (
           <div className="text-[11px] text-[--color-ink-tertiary] truncate">
             {where}

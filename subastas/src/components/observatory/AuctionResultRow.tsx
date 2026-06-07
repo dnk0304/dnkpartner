@@ -51,6 +51,8 @@ import {
   fallbackImageFor,
 } from "@/lib/resolve-card-image";
 import { statusDateLabel } from "@/lib/auction-status";
+import { AuctionCardTypeBanner } from "./AuctionCardTypeBanner";
+import { OFFICIAL_CATEGORIES } from "@/lib/constants";
 
 export type AuctionResultRowProps = {
   item: AuctionItem & { hasImage?: boolean | null };
@@ -67,11 +69,14 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
     .filter(Boolean)
     .join(" · ");
 
-  // Address-led row title (Wave C1b, 2026-06-07). Same helper the carousel
-  // + AuctionListCard use — "{Tipo} en {dirección}" for properties,
-  // "{Tipo} en {town}" for vehicles. No "Subasta de " prefix on the row
-  // (it's implied by the listing context), no BOE ref title.
-  const title = auctionCardTitle({
+  // Row title (Wave C3, 2026-06-07):
+  //   - PROPERTY: short-street "{Tipo} – {Calle X}" (helper from C2),
+  //     fallback "{Tipo} en {town}" when street parse fails.
+  //   - VEHICLE: "{Make} {Model}" when present, else "{Tipo} en {town}".
+  const isVehicle = item.category
+    ? (OFFICIAL_CATEGORIES.MOVABLE as readonly string[]).includes(item.category)
+    : false;
+  const baseTitle = auctionCardTitle({
     address: item.address,
     propertyType: item.propertyType,
     auctionType: item.auctionType,
@@ -79,11 +84,17 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
     municipality: item.municipality,
     province: item.province,
     title: item.title,
-    // Wave E2 (2026-06-07) — vehicle make/model/year for the row title.
+    categoryGroup: isVehicle ? "movable" : "real_estate",
     vehicleMake: item.vehicleMake,
     vehicleModel: item.vehicleModel,
     vehicleYear: item.vehicleYear,
+    useShortStreet: !isVehicle,
   });
+  const vehicleMakeModel =
+    isVehicle && item.vehicleMake && item.vehicleModel
+      ? `${titleCase(item.vehicleMake)} ${titleCase(item.vehicleModel)}`
+      : null;
+  const title = vehicleMakeModel ?? baseTitle;
 
   // 3-rung imagery ladder. `card` size feeds rung-2 a static-map URL sized for
   // the ~square thumbnail; rung-3 is the neutral placeholder. Vehicle rows
@@ -264,6 +275,12 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
             <h3 className="font-serif text-base md:text-lg leading-snug text-[--color-ink-primary] line-clamp-2 hover:underline">
               {title}
             </h3>
+            {/* Vehicle subtitle — año from primera matriculación. (Wave C3.) */}
+            {isVehicle && item.vehicleYear && (
+              <p className="mt-0.5 text-xs text-[--color-ink-tertiary] tnum">
+                {item.vehicleYear}
+              </p>
+            )}
             {where && (
               <p className="mt-0.5 text-xs text-[--color-ink-tertiary] truncate">{where}</p>
             )}
@@ -300,10 +317,14 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
           </div>
         )}
 
-        {/* Status + puja/occupancy badges row. Each badge is null-safe so the
-            row collapses to empty when no field is populated. */}
+        {/* Status + TYPE banner + puja/occupancy badges. The TYPE banner sits
+            DIRECTLY AFTER the status badge so it reads as the "kind of bien"
+            chip immediately under the status word (Wave C3, 2026-06-07). Each
+            badge is null-safe so the row collapses cleanly when fields are
+            absent. */}
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <StatusBadge status={effective} size="sm" />
+          <AuctionCardTypeBanner item={item} size="sm" />
           <PujaBadge
             status={item.pujaStatus ?? null}
             amountEuros={item.currentBidAmount ?? null}
