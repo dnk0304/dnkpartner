@@ -850,9 +850,13 @@ export async function GET(request: NextRequest) {
         case 'publishedAt_desc':
           return 'published_desc';
         default:
-          // FORGE 2026-06-03 (Item C): default is now properties-first.
-          // Was 'endsAt_asc' (urgency-first). Explicit sort still wins above.
-          return 'category_rank';
+          // FORGE 2026-06-07 (C2 batch-c #9): default flipped
+          // `category_rank` → `published_desc` so a URL-less /subastas surfaces
+          // active/próximas by `publishedAt DESC` first, then finished/older
+          // rows fall to the tail. Mirrors DEFAULT_SORT in
+          // src/components/observatory/filters.ts. Explicit ?sort=category_rank
+          // still resolves above and continues to work for legacy callers.
+          return 'published_desc';
       }
     })();
     const sortPlan = SORT_MAP[normalizedSort];

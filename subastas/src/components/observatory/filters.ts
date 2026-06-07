@@ -116,12 +116,21 @@ export type SortValue = "category_rank" | "endsAt_asc" | "published_desc" | "pri
 export const SORT_OPTIONS: Array<{ id: SortValue; label: string }> = [
   { id: "category_rank", label: "Destacados" },
   { id: "endsAt_asc", label: "Termina antes" },
-  { id: "published_desc", label: "Más recientes" },
+  // C2 (2026-06-07): label flipped "Más recientes" → "Publicadas recientes"
+  // to match Dennis's wording in batch-2026-06-07c #9. Sort id unchanged.
+  { id: "published_desc", label: "Publicadas recientes" },
   { id: "price_asc", label: "Precio: menor a mayor" },
   { id: "price_desc", label: "Precio: mayor a menor" },
 ];
-/** Server default — must match Forge's API default so SSR/CSR agree. */
-export const DEFAULT_SORT: SortValue = "category_rank";
+/** Server default — must match Forge's API default so SSR/CSR agree.
+ *
+ * C2 (2026-06-07): default sort flipped `category_rank` → `published_desc`
+ * so active/próximas surface at the top of the listing (newest publishedAt
+ * first) and finished/older drop below. Pairs with `DEFAULT_FILTERS.when =
+ * "todas"` below. URL-explicit `?sort=category_rank` continues to win.
+ * Server-side default in /api/auctions route.ts is flipped to match.
+ */
+export const DEFAULT_SORT: SortValue = "published_desc";
 
 /** All precise categories. */
 export const ALL_CATEGORIES: AuctionCategory[] = [
@@ -219,7 +228,12 @@ export const DEFAULT_FILTERS: ObservatoryFilters = {
   municipality: "",
   provincias: [],
   municipios: [],
-  when: "activas",
+  // C2 (2026-06-07): listing default flipped "activas" → "todas" per
+  // batch-2026-06-07c #9. The MAP view applies a view-scoped override in
+  // SubastasListClient (URL-less ?view=map still seeds "activas") so the
+  // single DEFAULT_FILTERS source-of-truth doesn't fork. URL-explicit
+  // `?when=activas` continues to win on both views.
+  when: "todas",
   priceMin: null,
   priceMax: null,
   categories: [],
@@ -264,7 +278,8 @@ export function filtersFromParams(p: URLSearchParams): ObservatoryFilters {
     // wave69 — multi-select arrays. CSV→string[], drop blanks, dedupe.
     provincias: dedupe(p.get("provincias")?.split(",").filter(Boolean) ?? []),
     municipios: dedupe(p.get("municipios")?.split(",").filter(Boolean) ?? []),
-    when: (p.get("when") as ObservatoryFilters["when"]) || "activas",
+    // C2: default flipped to "todas" — see DEFAULT_FILTERS.when above.
+    when: (p.get("when") as ObservatoryFilters["when"]) || "todas",
     priceMin: num(p.get("priceMin")),
     priceMax: num(p.get("priceMax")),
     categories: (p.get("categories")?.split(",").filter(Boolean) as AuctionCategory[]) ?? [],
@@ -293,7 +308,8 @@ export function paramsFromFilters(f: ObservatoryFilters): URLSearchParams {
   // wave69 — multi-select arrays. Omit when empty so default URLs stay clean.
   if (f.provincias.length) p.set("provincias", f.provincias.join(","));
   if (f.municipios.length) p.set("municipios", f.municipios.join(","));
-  if (f.when !== "activas") p.set("when", f.when);
+  // C2: default flipped to "todas" — only emit when narrowing away from it.
+  if (f.when !== "todas") p.set("when", f.when);
   if (f.priceMin != null) p.set("priceMin", String(f.priceMin));
   if (f.priceMax != null) p.set("priceMax", String(f.priceMax));
   if (f.categories.length) p.set("categories", f.categories.join(","));
@@ -447,7 +463,7 @@ export function isDefaultFilters(f: ObservatoryFilters): boolean {
     !f.municipality &&
     f.provincias.length === 0 &&
     f.municipios.length === 0 &&
-    f.when === "activas" &&
+    f.when === "todas" &&
     f.priceMin == null &&
     f.priceMax == null &&
     f.categories.length === 0 &&
