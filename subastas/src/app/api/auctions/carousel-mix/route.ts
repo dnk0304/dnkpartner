@@ -55,6 +55,10 @@ import {
   DB_TO_FRONTEND_STATUS,
   activeClockGuardPrisma,
 } from "@/lib/auction-status";
+import {
+  getAppropriateImageUrl,
+  isRealAuctionImage,
+} from "@/lib/auction-image-projection";
 
 export const dynamic = "force-dynamic";
 
@@ -100,6 +104,15 @@ type FeedAuctionProjection = {
   endDateTime: string | null;
   lotNumber: string | null;
   imageUrl: string | null;
+  /**
+   * Wave B0 (2026-06-07). Authoritative "is this a resolver-served real
+   * photo?" flag. Mirrors the projection added by `/api/auctions` — Pixel's
+   * `resolveCardImage` reads this as the rung-1 signal. Before this fix the
+   * carousel projected raw DB `imageUrl` with NO `hasImage`, so EVERY card
+   * fell through to the rung-3 branded placeholder. True iff
+   * `isRealAuctionImage(rawImageUrl)` — the resolver-served URL test.
+   */
+  hasImage: boolean;
   boeLink: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -236,6 +249,21 @@ type AuctionRow = {
 };
 
 function projectAuction(a: AuctionRow): FeedAuctionProjection {
+  // Wave B0 (2026-06-07). Run the row through the SHARED image-projection
+  // ladder so the carousel card receives a usable URL (rung-1 real photo
+  // when present, rung-2 static-map pin or rung-3 category placeholder
+  // otherwise) — instead of the raw DB `imageUrl` which is null on most
+  // rows. The accompanying `hasImage` flag tells `resolveCardImage` whether
+  // the URL is an authoritative rung-1 real photo, so the client never
+  // mis-promotes a map tile into the photo slot.
+  const resolvedImageUrl = getAppropriateImageUrl({
+    imageUrl: a.imageUrl,
+    latitude: a.latitude,
+    longitude: a.longitude,
+    boeId: a.boeId,
+    category: a.category,
+    status: a.status as string | null | undefined,
+  });
   return {
     id: a.id,
     boeId: a.boeId,
@@ -258,7 +286,8 @@ function projectAuction(a: AuctionRow): FeedAuctionProjection {
     resumeAt: a.resumeAt?.toISOString() ?? null,
     endDateTime: a.endDateTime?.toISOString() ?? null,
     lotNumber: a.lotNumber ?? null,
-    imageUrl: a.imageUrl ?? null,
+    imageUrl: resolvedImageUrl,
+    hasImage: isRealAuctionImage(a.imageUrl),
     boeLink: boeLinkFor(a.boeId, a.boeLink),
     latitude: a.latitude ?? null,
     longitude: a.longitude ?? null,

@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
 import { query, queryOne } from '@/lib/db';
 import { UserTier } from '@/types';
-import { generateMapImageUrl, getOptimalZoom } from '@/lib/map-image';
-import { getVehicleCategoryImageUrl } from '@/lib/vehicle-images';
-import { getPropertyCategoryImageUrl } from '@/lib/property-images';
+import {
+  getAppropriateImageUrl as sharedGetAppropriateImageUrl,
+  isRealAuctionImage as sharedIsRealAuctionImage,
+} from '@/lib/auction-image-projection';
 import { auctionCache } from '@/lib/cache';
 import { boeLinkFor } from '@/lib/boe-link';
 import { buildCategoryRankCaseSql } from '@/lib/category-rank';
@@ -123,26 +122,8 @@ function parseCsvParam(raw: string | null, cap: number): string[] | null {
   return unique.slice(0, cap);
 }
 
-// Streetview directory listing cache \u2014 `fs.existsSync` ran per row, per request.
-// Replace with one directory scan, cached 1 minute.
-let streetviewFileCache: { files: Set<string>; expiresAt: number } | null = null;
-function getStreetviewFileSet(): Set<string> {
-  if (streetviewFileCache && streetviewFileCache.expiresAt > Date.now()) {
-    return streetviewFileCache.files;
-  }
-  const dir = path.join(process.cwd(), 'public', 'streetview');
-  let files: string[] = [];
-  try {
-    files = fs.existsSync(dir) ? fs.readdirSync(dir) : [];
-  } catch {
-    files = [];
-  }
-  streetviewFileCache = {
-    files: new Set(files),
-    expiresAt: Date.now() + 60 * 1000,
-  };
-  return streetviewFileCache.files;
-}
+// Streetview directory listing cache moved to `@/lib/auction-image-projection`
+// alongside the resolver that consumes it (Wave B0, 2026-06-07). Same 60s TTL.
 
 // New BOE-accurate status values
 type DBStatus = 
@@ -283,11 +264,9 @@ function isPreAuctionStatus(dbStatus: DBStatus): boolean {
   return sharedIsPreAuctionStatus(dbStatus);
 }
 
-// Property categories that should use Street View or map images
-const PROPERTY_CATEGORIES = ['Viviendas', 'Locales', 'Terrenos', 'Garajes', 'Trasteros', 'Fincas rústicas', 'Naves industriales', 'Otros inmuebles'];
-
-// Vehicle categories that should use generated vehicle images
-const VEHICLE_CATEGORIES = ['Turismos', 'Motocicletas', 'Vehículos Industriales', 'Barcos'];
+// PROPERTY_CATEGORIES + VEHICLE_CATEGORIES moved to
+// `@/lib/auction-image-projection` alongside the resolver that consumes them
+// (Wave B0, 2026-06-07). No remaining call-sites in this route.
 
 // FORGE 2026-06-03 (Item C — promote properties primarily) +
 // RECONCILE 2026-06-03 (Ken, listing wave): the category → priority rank
@@ -363,89 +342,26 @@ function extractWarning(item: AuctionFromDB): string | null {
  * (Pixel's hasImage filter). Category placeholder URLs are NOT real photos
  * and MUST NOT satisfy the filter.
  */
-const REAL_IMAGE_PREFIX = '/api/auction-image/';
+// Wave B0 (2026-06-07): the image-resolution functions moved to
+// `@/lib/auction-image-projection` so /api/auctions/carousel-mix can use the
+// SAME ladder. Carousel cards were falling through to the rung-3 branded
+// placeholder because the carousel route projected the raw DB `imageUrl`
+// without running it through this resolver. These thin re-exports keep the
+// existing local call-sites (`getAppropriateImageUrl(item)` and
+// `isRealAuctionImage(item.imageUrl)`) unchanged.
 function isRealAuctionImage(u: string | null | undefined): boolean {
-  if (!u) return false;
-  if (u.startsWith(REAL_IMAGE_PREFIX)) return true;
-  // Legacy /streetview/<boeId>.jpg paths are also real photos (until migrated).
-  if (u.startsWith('/streetview/')) return true;
-  return false;
+  return sharedIsRealAuctionImage(u);
 }
-
 function getAppropriateImageUrl(item: AuctionFromDB): string {
-  const zoom = getOptimalZoom(item.category);
-  const safeStreetviewPath = item.boeId
-    ? `/streetview/${item.boeId.replace(/[^a-zA-Z0-9_-]+/g, '_')}.jpg`
-    : null;
-  const isActiveOrPreAuction = ['ACTIVE', 'CELEBRANDOSE', 'PRE_AUCTION', 'PROXIMA_APERTURA'].includes(item.status);
-
-  // Forge P1: prefer the resolver-populated real image (Catastro / StreetView)
-  // ahead of every other source. This is what makes the "real photo on card"
-  // story work without any per-request outbound calls.
-  if (item.imageUrl && item.imageUrl.startsWith(REAL_IMAGE_PREFIX)) {
-    return item.imageUrl;
-  }
-
-  const streetviewFiles = getStreetviewFileSet();
-  const streetviewFileExists = (publicPath: string | null): boolean => {
-    if (!publicPath || !publicPath.startsWith('/streetview/')) return false;
-    const fname = publicPath.replace(/^\/streetview\//, '');
-    return streetviewFiles.has(fname);
-  };
-
-  const hasValidLocalImage = (publicPath: string | null): boolean => {
-    if (!publicPath) return false;
-    if (!publicPath.startsWith('/streetview/')) return true;
-    return streetviewFileExists(publicPath);
-  };
-
-  const storedStreetviewImage = item.imageUrl && item.imageUrl.startsWith('/streetview/') && streetviewFileExists(item.imageUrl)
-    ? item.imageUrl
-    : null;
-  const storedStreetviewUrl = item.streetViewUrl && item.streetViewUrl.startsWith('/streetview/') && streetviewFileExists(item.streetViewUrl)
-    ? item.streetViewUrl
-    : null;
-  const storedImageUrl = item.imageUrl && !item.imageUrl.includes('unsplash.com') && !item.imageUrl.includes('images.unsplash') && hasValidLocalImage(item.imageUrl)
-    ? item.imageUrl
-    : null;
-
-  // Property auctions - prioritize Street View screenshot for active/pre-auction cards
-  if (PROPERTY_CATEGORIES.includes(item.category)) {
-    if (isActiveOrPreAuction) {
-      if (storedStreetviewImage) return storedStreetviewImage;
-      if (storedStreetviewUrl) return storedStreetviewUrl;
-      if (safeStreetviewPath && streetviewFileExists(safeStreetviewPath)) {
-        return safeStreetviewPath;
-      }
-      // If coordinates available, show map with pinpoint; otherwise show property-type image
-      if (item.latitude && item.longitude) {
-        return generateMapImageUrl(item.latitude, item.longitude, 800, 600, zoom);
-      }
-      return getPropertyCategoryImageUrl(item.category);
-    }
-
-    // Non-active/pre: fall back to stored image or map (if coords) or property-type image
-    if (storedImageUrl) {
-      return storedImageUrl;
-    }
-    if (item.latitude && item.longitude) {
-      return generateMapImageUrl(item.latitude, item.longitude, 800, 600, zoom);
-    }
-    return getPropertyCategoryImageUrl(item.category);
-  }
-  
-  // Vehicle auctions - use category-based placeholders
-  if (VEHICLE_CATEGORIES.includes(item.category)) {
-    return getVehicleCategoryImageUrl(item.category);
-  }
-  
-  // Fallback for other categories
-  const fallbackImageUrl = hasValidLocalImage(item.imageUrl) ? item.imageUrl : null;
-  if (fallbackImageUrl) return fallbackImageUrl;
-  if (item.latitude && item.longitude) {
-    return generateMapImageUrl(item.latitude, item.longitude, 800, 600, zoom);
-  }
-  return getPropertyCategoryImageUrl('Otros inmuebles');
+  return sharedGetAppropriateImageUrl({
+    imageUrl: item.imageUrl,
+    streetViewUrl: item.streetViewUrl,
+    latitude: item.latitude,
+    longitude: item.longitude,
+    boeId: item.boeId,
+    category: item.category,
+    status: item.status,
+  });
 }
 
 /**
