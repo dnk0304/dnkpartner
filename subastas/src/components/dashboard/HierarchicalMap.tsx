@@ -2,11 +2,38 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap } from 'react-leaflet';
+import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import { AuctionItem } from '@/types';
 import { MapPin, ArrowLeft, Layers } from 'lucide-react';
 import { ALL_PROVINCES } from '@/lib/constants';
 import { capitalizeLocation } from '@/lib/utils';
+
+/**
+ * Pixel C4b (2026-06-07) — Map restyle to the alertasubastas aesthetic.
+ *
+ * Three changes vs. the previous OSM-raw map:
+ *   1. Tile layer swapped to Carto Voyager (free, no API key) — cream land,
+ *      light-blue water, muted roads. Matches alertasubastas' Mapbox-streets
+ *      look without licence cost.
+ *   2. Auction-level pins are now green teardrop divIcons in the brand
+ *      winter-green (--color-action #17926D). Uniform across categories —
+ *      category context comes from the sidebar, not the pin.
+ *   3. Auction-level pins are wrapped in a MarkerClusterGroup so dense
+ *      municipalities don't render 500+ overlapping markers. Cluster
+ *      bubbles use brand-green family.
+ *
+ * Province/municipality bubbles are recoloured into the brand-green family
+ * so the whole map reads as one palette. The hierarchical drill-down,
+ * Activas default, fitBounds framing, and inset Canarias are unchanged.
+ */
+const CARTO_VOYAGER_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+const CARTO_VOYAGER_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const CARTO_VOYAGER_SUBDOMAINS = ['a', 'b', 'c', 'd'];
+const BRAND_GREEN = '#17926D';        // --color-action
+const BRAND_GREEN_DARK = '#127A5B';   // --color-action-hover
+const BRAND_GREEN_SOFT = '#DCF1EA';   // --color-action-soft
 
 interface HierarchicalMapProps {
   items: AuctionItem[];
@@ -181,8 +208,11 @@ const getProvinceCoordKey = (province: string) => {
 // users hear "N subastas activas" instead of a bare number.
 const createProvinceIcon = (active: number) => {
   const size = Math.min(64, Math.max(34, 34 + Math.log(Math.max(active, 1)) * 4));
-  const ring = active > 0 ? '#16a34a' : '#94a3b8'; // green-600 / slate-400
-  const labelColor = active > 0 ? '#15803d' : '#475569'; // green-700 / slate-600
+  // Pixel C4b: brand-green family (action / action-hover) replaces the prior
+  // tailwind green-600/700. Empty regions stay slate so the eye still finds
+  // the active hotspots first.
+  const ring = active > 0 ? BRAND_GREEN : '#94a3b8';
+  const labelColor = active > 0 ? BRAND_GREEN_DARK : '#475569';
 
   return L.divIcon({
     html: `
@@ -229,28 +259,69 @@ const createProvinceIcon = (active: number) => {
   });
 };
 
+// Status-aware pin colour kept for non-active edge cases. Active subastas
+// — by far the majority on the landing default — get the calm brand green
+// (matches alertasubastas' uniform teardrop). Pre/suspended/cancelled keep
+// a status hint because users need to differentiate them when drilling into
+// a municipality.
 const getAuctionPinColor = (status: string) => {
-  if (['active', 'celebrandose'].includes(status)) return '#22c55e';
+  if (['active', 'celebrandose'].includes(status)) return BRAND_GREEN;
   if (['pre-auction', 'proxima-apertura'].includes(status)) return '#f59e0b';
   if (['suspendida'].includes(status)) return '#eab308';
   if (['cancelada'].includes(status)) return '#ef4444';
   return '#6b7280';
 };
 
+// Pixel C4b: clean teardrop SVG matching the alertasubastas pin language.
+// Outer drop shape uses the brand green, inner dot is white. Drop-shadow
+// keeps it readable against the cream Carto land tiles.
 const createAuctionIcon = (status: string) => {
   const color = getAuctionPinColor(status);
   return L.divIcon({
     html: `
       <div style="display:flex;align-items:center;justify-content:center;">
-        <svg width="28" height="36" viewBox="0 0 24 32" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3))">
-          <path d="M12 0C7.6 0 4 3.6 4 8c0 5.4 8 16 8 16s8-10.6 8-16c0-4.4-3.6-8-8-8z" fill="${color}"/>
-          <circle cx="12" cy="8" r="5" fill="white"/>
+        <svg width="28" height="36" viewBox="0 0 24 32" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.35))" aria-hidden="true">
+          <path d="M12 0C7.6 0 4 3.6 4 8c0 5.4 8 16 8 16s8-10.6 8-16c0-4.4-3.6-8-8-8z" fill="${color}" stroke="#ffffff" stroke-width="1.5"/>
+          <circle cx="12" cy="8" r="3.2" fill="#ffffff"/>
         </svg>
       </div>
     `,
     className: 'auction-marker',
     iconSize: [28, 36],
     iconAnchor: [14, 36],
+  });
+};
+
+/**
+ * Pixel C4b: brand-green cluster bubble. Three size tiers track the count
+ * so a glance shows hotspots vs. light scatter. The white ring keeps the
+ * bubble readable against any tile.
+ */
+const createClusterIcon = (cluster: { getChildCount: () => number }) => {
+  const count = cluster.getChildCount();
+  const size = count < 10 ? 36 : count < 100 ? 44 : 52;
+  return L.divIcon({
+    html: `
+      <div style="
+        width:${size}px;
+        height:${size}px;
+        border-radius:50%;
+        background:${BRAND_GREEN};
+        border:3px solid #ffffff;
+        box-shadow:0 4px 12px rgba(0,0,0,0.25);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        color:#ffffff;
+        font-weight:700;
+        font-size:${size < 40 ? '13px' : size < 48 ? '14px' : '15px'};
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        line-height:1;
+      " aria-label="${count} subastas agrupadas">${count}</div>
+    `,
+    className: 'auction-cluster',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
   });
 };
 
@@ -552,9 +623,24 @@ export const HierarchicalMap: React.FC<HierarchicalMapProps> = ({ items, onMarke
       }
       [data-hierarchical-map] .province-marker,
       [data-hierarchical-map] .municipality-marker,
-      [data-hierarchical-map] .auction-marker {
+      [data-hierarchical-map] .auction-marker,
+      [data-hierarchical-map] .auction-cluster {
         background: transparent !important;
         border: none !important;
+      }
+      /* Pixel C4b: hide the default marker-cluster chrome so our divIcon
+         renders cleanly without the library's grey halo / inner circle. */
+      [data-hierarchical-map] .marker-cluster,
+      [data-hierarchical-map] .marker-cluster div,
+      [data-hierarchical-map] .marker-cluster-small,
+      [data-hierarchical-map] .marker-cluster-medium,
+      [data-hierarchical-map] .marker-cluster-large {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+      }
+      [data-hierarchical-map] .marker-cluster span {
+        display: none !important;
       }
       [data-hierarchical-map] .leaflet-popup-content-wrapper {
         background: #ffffff !important;
@@ -597,8 +683,9 @@ export const HierarchicalMap: React.FC<HierarchicalMapProps> = ({ items, onMarke
         scrollWheelZoom={true}
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution={CARTO_VOYAGER_ATTRIBUTION}
+          url={CARTO_VOYAGER_URL}
+          subdomains={CARTO_VOYAGER_SUBDOMAINS}
           maxZoom={19}
         />
 
@@ -762,34 +849,47 @@ export const HierarchicalMap: React.FC<HierarchicalMapProps> = ({ items, onMarke
           </Marker>
         ))}
 
-        {/* Auction-level markers */}
-        {viewLevel === 'auction' && auctionsWithCoords.map(auction => (
-          <Marker
-            key={auction.id}
-            position={[auction.latitude as number, auction.longitude as number]}
-            icon={createAuctionIcon(auction.status)}
+        {/* Auction-level markers — Pixel C4b: wrapped in MarkerClusterGroup
+            so dense municipalities (Madrid, Barcelona, Valencia) don't draw
+            hundreds of overlapping teardrops. Clusters expand into pins on
+            zoom-in. iconCreateFunction renders the brand-green count bubble. */}
+        {viewLevel === 'auction' && auctionsWithCoords.length > 0 && (
+          <MarkerClusterGroup
+            chunkedLoading
+            showCoverageOnHover={false}
+            maxClusterRadius={50}
+            spiderfyOnMaxZoom
+            iconCreateFunction={createClusterIcon}
           >
-            <Popup>
-              <div className="min-w-[200px]">
-                <h3 className="font-semibold text-sm text-gray-900 mb-1">
-                  {auction.title}
-                </h3>
-                <p className="text-xs text-gray-600 mb-2">
-                  {auction.municipality ? capitalizeLocation(auction.municipality) : 'Sin municipio'} - {auction.province ? capitalizeLocation(auction.province) : 'Sin provincia'}
-                </p>
-                <p className="text-xs text-gray-700 font-medium mb-3">
-                  {formatPrice(auction.appraisalValue)}
-                </p>
-                <button
-                  onClick={() => onMarkerClick?.(auction)}
-                  className="w-full px-3 py-2 bg-[--color-action-soft] border border-[--color-action] hover:bg-[--color-action-soft]/80 text-[--color-ink-primary] text-xs font-medium rounded-lg transition-colors"
-                >
-                  Ver subasta
-                </button>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+            {auctionsWithCoords.map(auction => (
+              <Marker
+                key={auction.id}
+                position={[auction.latitude as number, auction.longitude as number]}
+                icon={createAuctionIcon(auction.status)}
+              >
+                <Popup>
+                  <div className="min-w-[200px]">
+                    <h3 className="font-semibold text-sm text-gray-900 mb-1">
+                      {auction.title}
+                    </h3>
+                    <p className="text-xs text-gray-600 mb-2">
+                      {auction.municipality ? capitalizeLocation(auction.municipality) : 'Sin municipio'} - {auction.province ? capitalizeLocation(auction.province) : 'Sin provincia'}
+                    </p>
+                    <p className="text-xs text-gray-700 font-medium mb-3">
+                      {formatPrice(auction.appraisalValue)}
+                    </p>
+                    <button
+                      onClick={() => onMarkerClick?.(auction)}
+                      className="w-full px-3 py-2 bg-[--color-action-soft] border border-[--color-action] hover:bg-[--color-action-soft]/80 text-[--color-ink-primary] text-xs font-medium rounded-lg transition-colors"
+                    >
+                      Ver subasta
+                    </button>
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
+          </MarkerClusterGroup>
+        )}
       </MapContainer>
       
       {/* Legend Overlay */}
@@ -800,7 +900,11 @@ export const HierarchicalMap: React.FC<HierarchicalMapProps> = ({ items, onMarke
       >
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-green-600" aria-hidden="true" />
+            <div
+              className="w-3 h-3 rounded-full"
+              style={{ background: BRAND_GREEN }}
+              aria-hidden="true"
+            />
             <span className="text-xs text-gray-700 font-medium">Subastas activas</span>
           </div>
         </div>
@@ -907,7 +1011,9 @@ const InsetMap: React.FC<InsetMapProps> = ({ title, center, zoom, provinces, onP
           attributionControl={false}
         >
           <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            url={CARTO_VOYAGER_URL}
+            subdomains={CARTO_VOYAGER_SUBDOMAINS}
+            attribution={CARTO_VOYAGER_ATTRIBUTION}
             maxZoom={19}
           />
           {provinces.map((province) => (
