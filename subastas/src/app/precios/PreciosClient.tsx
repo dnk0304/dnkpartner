@@ -362,9 +362,12 @@ function PricingCard({
             key={feat}
             className="flex items-start gap-2.5 text-sm text-[--color-ink-primary]"
           >
+            {/* Contrast fix (Pixel 2026-06-07): the pale-mint --gradient-accent
+                made the white check disappear after the lighter-cold token
+                refresh. Solid --color-action (saturated mint #17926D) keeps
+                the icon WCAG-AA on white ink (4.78:1). */}
             <span
-              className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full"
-              style={{ background: "var(--gradient-accent)" }}
+              className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--color-action)]"
               aria-hidden="true"
             >
               <Check className="h-3 w-3 text-white" strokeWidth={3} />
@@ -406,7 +409,7 @@ function CtaButton({ children, href, variant, disabled }: CtaButtonProps) {
     "inline-flex w-full items-center justify-center rounded-md px-4 py-3 text-sm font-medium transition-colors",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-action]/40",
     variant === "primary" && !disabled
-      ? "cursor-pointer bg-[--color-action] text-white hover:bg-[--color-action-hover]"
+      ? "cursor-pointer bg-[var(--color-action)] text-white hover:bg-[--color-action-hover]"
       : "",
     variant === "ghost" && !disabled
       ? "cursor-pointer border border-[--color-hairline] bg-transparent text-[--color-ink-primary] hover:bg-[--color-surface-muted]"
@@ -434,9 +437,10 @@ type IconType = React.ComponentType<{ className?: string; "aria-hidden"?: boolea
 function TrustItem({ icon: Icon, label }: { icon: IconType; label: string }) {
   return (
     <li className="flex items-center gap-2">
+      {/* Contrast fix (Pixel 2026-06-07): saturated --color-action keeps the
+          white glyph readable. Pale --gradient-accent + white = invisible. */}
       <span
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
-        style={{ background: "var(--gradient-accent)" }}
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-action)]"
         aria-hidden="true"
       >
         <Icon className="h-3.5 w-3.5 text-white" aria-hidden={true} />
@@ -457,9 +461,11 @@ function FeatureCard({
 }) {
   return (
     <div className="rounded-2xl border border-[--color-hairline] bg-white p-6">
+      {/* Contrast fix (Pixel 2026-06-07): saturated --color-action keeps the
+          white feature icon readable. Pale --gradient-accent + white failed
+          AA after the cold-mint token refresh. */}
       <span
-        className="inline-flex h-10 w-10 items-center justify-center rounded-xl"
-        style={{ background: "var(--gradient-accent)" }}
+        className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--color-action)]"
         aria-hidden="true"
       >
         <Icon className="h-5 w-5 text-white" aria-hidden={true} />

@@ -12,18 +12,26 @@
  *   │  [card] [card] [card] [card] [card] [card] [card] …      │
  *   └──────────────────────────────────────────────────────────┘
  *
- * Behavior changes vs. the previous version:
- *  - The chip steering wheel (HomeQuickFilterChips) is REMOVED from the home
- *    page. Each row is now category-locked (properties vs vehicles), so a
- *    chip that overrides the category would conflict with the row's
- *    identity. Chips remain in use on the listing page.
- *  - The AuctionDetailModal click-to-popup path is REMOVED. Cards are now
- *    plain `<Link>`s to `/subastas/subasta/{slug}` (rendered inside
- *    ForexCarousel when `onCardClick` is omitted). This kills the popup→map
- *    overlap bug AND lines navigation up with the canonical SEO detail
- *    URL — clicks now leave a real funnel + ranking signal.
- *  - Cards are 25 % smaller (handled inside `ForexCarousel` via the new
- *    `compact` flag).
+ * Card-click behaviour (Pixel 2026-06-07, brief contrast-popup-c5):
+ *  - LOGGED-OUT viewer → opens a floating register/log-in popup
+ *    (`AuthGatePopup`) with `?next=<detail-href>` baked into both CTAs. The
+ *    underlying detail page is access-gated anyway; surfacing the gate at
+ *    click-time turns the carousel into a tighter conversion funnel — the
+ *    user just expressed intent on a specific card, we ask them to register
+ *    while that intent is fresh and bounce them back the moment they do.
+ *  - LOGGED-IN viewer (trial / paid / even trial-expired) → cards keep
+ *    behaving as plain `<Link>`s to `/subastas/subasta/{slug}` (the canonical
+ *    SEO route + funnel destination). They already have site access; another
+ *    auth modal would be pointless friction. ForexCarousel renders `<Link>`
+ *    cards whenever `onCardClick` is omitted, so we just don't pass the
+ *    handler in this case.
+ *
+ * What did NOT change (call out for the next session):
+ *  - The chip steering wheel is still removed. Each row is category-locked.
+ *  - Cards keep the `compact` flag (25 % smaller).
+ *  - The marquee pause prop is wired to the popup's open state so the cards
+ *    don't keep drifting behind the modal — important so the card the user
+ *    clicked stays where they expect when the modal closes.
  *
  * Property vs. vehicle split:
  *  - `/api/auctions/carousel-mix` only accepts a single `category` param.
@@ -33,15 +41,14 @@
  *    client-side after the standard fetch. Both rows still benefit from the
  *    50/30/20 status mix the endpoint provides — the property split keeps
  *    that mix among REAL_ESTATE rows, the vehicle split among MOVABLE rows.
- *  - Trade-off: each row may briefly show fewer cards than the limit while
- *    the natural property/vehicle ratio in the data settles (vehicles are
- *    a smaller slice of total auctions). We over-fetch to compensate
- *    (`limit * 2` for each row inside ForexCarousel).
  */
 
 import * as React from "react";
 import { useTranslations } from "next-intl";
-import { ForexCarousel } from "./ForexCarousel";
+import { ForexCarousel, type FeedAuction } from "./ForexCarousel";
+import { AuthGatePopup } from "@/components/access/AuthGatePopup";
+import { useAccess } from "@/lib/access-client";
+import { buildAuctionSlug } from "@/lib/seo/auction-slug";
 import { cn } from "@/lib/utils";
 
 export type HomeCarouselSectionProps = {
@@ -58,6 +65,32 @@ export function HomeCarouselSection({
   className,
 }: HomeCarouselSectionProps) {
   const t = useTranslations("home");
+  const access = useAccess();
+
+  const [popupOpen, setPopupOpen] = React.useState(false);
+  const [nextHref, setNextHref] = React.useState<string>("/subastas?when=activas");
+
+  // Logged-out viewers get the click-time auth gate; everyone else lets
+  // cards navigate directly (ForexCarousel falls back to <Link> when
+  // onCardClick is omitted). We still treat the loading window as gated so
+  // we don't briefly flash an open detail page before the session resolves.
+  const shouldGate = access.loading || access.state === "logged-out";
+
+  const handleCardClick = React.useCallback((auction: FeedAuction) => {
+    const slug = buildAuctionSlug({
+      id: auction.id,
+      auctionType: auction.auctionType,
+      province: auction.province,
+      municipality: auction.municipality,
+    });
+    setNextHref(`/subastas/subasta/${slug}`);
+    setPopupOpen(true);
+  }, []);
+
+  // Only wire onCardClick when the popup gate is active. When the user is
+  // signed in, omitting the handler tells ForexCarousel to render its cards
+  // as <Link>s (its existing G-not-shipped fallback) — no extra prop dance.
+  const cardClickProp = shouldGate ? handleCardClick : undefined;
 
   return (
     <div className={cn("flex flex-col gap-6", className)}>
@@ -67,6 +100,8 @@ export function HomeCarouselSection({
         compact
         heading={t("propertiesHeading")}
         categoryGroup="real_estate"
+        onCardClick={cardClickProp}
+        pause={popupOpen}
       />
       <ForexCarousel
         limit={limit}
@@ -74,6 +109,17 @@ export function HomeCarouselSection({
         compact
         heading={t("vehiclesHeading")}
         categoryGroup="movable"
+        onCardClick={cardClickProp}
+        pause={popupOpen}
+      />
+
+      {/* Single shared popup — both rows route through the same gate. The
+          `nextHref` state captures which auction was clicked so register /
+          log-in bounces the user straight back to that detail page. */}
+      <AuthGatePopup
+        open={popupOpen}
+        onOpenChange={setPopupOpen}
+        nextHref={nextHref}
       />
     </div>
   );
