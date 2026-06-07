@@ -88,6 +88,16 @@ export type FeedAuction = {
    *  the small secondary line on the card — never the headline. */
   boeId?: string | null;
   title: string;
+  /**
+   * Wave C1a (2026-06-07). Server-derived address-led title from the
+   * carousel-mix endpoint — same body the detail page H1 renders
+   * (`auctionDisplayTitle` in `lib/seo/display-title.ts`). Cards can
+   * surface this as the headline ("Subasta de Vivienda en Calle Tollo, 19,
+   * Ontur") without re-running the tipo/address fallback ladder per
+   * component. Optional + nullable for older cached fetches; the resolver
+   * UI falls back to the existing `prettifyAuctionType` path when absent.
+   */
+  displayTitle?: string | null;
   category: string;
   province: string | null;
   municipality: string | null;
@@ -304,29 +314,29 @@ export function ForexCarousel({
   const load = React.useCallback(async () => {
     try {
       const params = new URLSearchParams();
-      // When a category-GROUP filter is active (home page properties vs
-      // vehicles split), over-fetch so the post-filter row still hits the
-      // visible limit. The carousel-mix endpoint caps at 60 internally.
-      const fetchLimit = categoryGroup ? Math.min(60, limit * 2) : limit;
-      params.set("limit", String(fetchLimit));
+      params.set("limit", String(limit));
       // /api/auctions/carousel-mix returns the 50/30/20 composed feed
-      // (active / próxima-apertura / suspendida, interleaved). It only
-      // accepts `limit`, `province`, `category` — `when` and the old
-      // recent-route knobs (`types`, `activeOnly`) are not used.
+      // (active / próxima-apertura / suspendida, interleaved). Wave C1a
+      // (2026-06-07): the endpoint now also accepts `categoryGroup`
+      // (`movable` | `real_estate`) so the per-bucket cap is filled with
+      // the group's rows server-side — no more over-fetch + client-side
+      // post-filter (the old path biased properties-dominant and shipped a
+      // ~4-card vehicle row on a 30-card limit).
       if (category) params.set("category", category);
       if (province) params.set("province", province);
+      if (categoryGroup) params.set("categoryGroup", categoryGroup);
       const res = await apiFetch(`/api/auctions/carousel-mix?${params.toString()}`);
       if (!res.ok) return;
       const body = await res.json();
       if (body?.success && Array.isArray(body.data)) {
-        // The server is authoritative — `CAROUSEL_STATUSES` is a safety net,
-        // never a re-strip of the mix. Critically, `suspendida` MUST pass
-        // through (it's part of the composed feed by design).
+        // The server is authoritative for both status mix and category
+        // group. `CAROUSEL_STATUSES` + `matchesCategoryGroup` remain as
+        // a defence-in-depth safety net (catches a hypothetical stray
+        // status / category leak) but they should be no-ops on every
+        // happy-path response after the route change.
         let rows = (body.data as FeedItem[])
           .map((it) => it.auction)
           .filter((a) => CAROUSEL_STATUSES.has(a.status));
-        // Category-group split (home properties vs vehicles). When unset,
-        // every row passes through unchanged.
         if (categoryGroup) {
           rows = rows.filter((a) => matchesCategoryGroup(a.category, categoryGroup));
         }
