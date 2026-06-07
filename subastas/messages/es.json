@@ -13,7 +13,6 @@
     "languageSwitcherAria": "Cambiar idioma"
   },
   "home": {
-    "liveSummaryAria": "Resumen en vivo",
     "happeningNow": "celebrándose",
     "upcoming": "próximas",
     "activeTotal": "activas",
@@ -26,10 +25,6 @@
     "heroLead": "Sincronizado con el Portal de Subastas del BOE y otras fuentes oficiales. Sigue las subastas que te interesan; te avisamos cuando cambia el estado, llega una nueva puja o se acerca el cierre.",
     "heroHeadline": "Todas las subastas públicas de España",
     "heroSubhead": "Las rastreamos a diario y te avisamos cuando aparezca la tuya.",
-    "heroChipTrackedLabel": "rastreadas",
-    "heroChipActiveLabel": "activas",
-    "heroChipUpcomingLabel": "próximas",
-    "heroChipNewLabel": "Nuevas · últimos 30 días",
     "heroSourcesIntro": "Rastreadas del BOE oficial:",
     "heroSourceJudicial": "judiciales",
     "heroSourceHacienda": "Hacienda (AEAT)",
