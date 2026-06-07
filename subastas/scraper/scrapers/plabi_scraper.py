@@ -56,6 +56,7 @@ from bs4 import BeautifulSoup
 from .bank_base_scraper import BankBaseScraper
 from ..config.provinces import ALL_PROVINCES
 from ..config.categories import get_category_type
+from .vehicle_parser import set_vehicle_fields
 
 import logging
 
@@ -522,7 +523,7 @@ class PlabiScraper(BankBaseScraper):
 
         published = detail.get("published") or self._parse_fecha(card.get("date_raw"))
 
-        return {
+        record = {
             "boe_id": f"SUB-PLABI-{asset_id}",
             "title": title,
             "category": category,
@@ -553,6 +554,9 @@ class PlabiScraper(BankBaseScraper):
             "published_at": published or datetime.now(),
             "image_url": None,
         }
+        # Vehicle make/model/year (wave E2) — no-op on non-vehicle lotes.
+        set_vehicle_fields(record)
+        return record
 
     # ----- value parsers ----------------------------------------------------
 
