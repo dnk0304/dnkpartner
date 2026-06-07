@@ -987,6 +987,14 @@ class ScraperScheduler:
         # _run_category_update / _run_sync_scrape for uniform lifecycle + logging.
         self._run_category_update("segsocial_scraper", "SEGSOCIAL")
 
+    def run_plabi_update(self):
+        # PLABI (Ministerio de Justicia liquidation portal) — source="PLABI".
+        # The #1 off-BOE source: concursal microenterprise asset liquidations
+        # (Law 16/2022) that the BOE scrapers never see. requests-based, server-
+        # rendered Liferay walk (no Playwright), routed through the uniform
+        # _run_category_update / _run_sync_scrape lifecycle for logging parity.
+        self._run_category_update("plabi_scraper", "PLABI")
+
     # -----------------------------------------------------------------------
     # run_preauction_discovery — BOE "Próxima apertura" (PA) discovery pass
     # -----------------------------------------------------------------------
@@ -1170,6 +1178,14 @@ class ScraperScheduler:
         # (06:30+), and the 05:30 suspended-recheck.
         schedule.every().day.at("06:10").do(self.run_segsocial_update)
 
+        # PLABI (Ministerio de Justicia liquidation portal) — source="PLABI".
+        # Concursal microenterprise asset liquidations (Law 16/2022), ~479 lotes
+        # and growing, off-BOE. One daily server-rendered requests walk (result
+        # pages + one ficha GET each), no Playwright, light footprint. 06:20 sits
+        # clear of SegSocial (06:10), the category browsers (06:30+), and the
+        # 05:30 suspended-recheck.
+        schedule.every().day.at("06:20").do(self.run_plabi_update)
+
         # Pre-auction discovery (BOE SUBASTA.ESTADO=PA, "Próxima apertura") —
         # every 6h (4x/day). Fills the PROXIMA_APERTURA bucket the daily path
         # can't see; promote_pending_auctions flips each row live when its
@@ -1203,6 +1219,7 @@ class ScraperScheduler:
         self.log(f"  OtrasTrib update:     07:00, 13:00, 19:00, 00:00 (4x/day)")
         self.log(f"  Administrativas:      07:15, 13:15, 19:15, 00:15 (4x/day)")
         self.log(f"  SegSocial (TGSS):     06:10 daily (source='SEGSOCIAL', weekly-refreshed)")
+        self.log(f"  PLABI (MdJ liquid.):  06:20 daily (source='PLABI', off-BOE concursal)")
         self.log(f"  Pre-auction (PA):     Every 6h (PROXIMA_APERTURA discovery, ORIGEN=J)")
         self.log(f"  Dispatch outbox:      Every {DISPATCH_INTERVAL_MIN} min")
         self.log(f"  Geocode drain:        Every {geocode_interval} min (active rows only)")
@@ -1246,6 +1263,8 @@ def main():
                         help='Run one SUSPENDIDA reopen-recheck pass and exit')
     parser.add_argument('--segsocial-once', action='store_true',
                         help='Run one Seguridad Social (TGSS) national pull and exit')
+    parser.add_argument('--plabi-once', action='store_true',
+                        help='Run one PLABI (Ministerio de Justicia) national pull and exit')
 
     args = parser.parse_args()
     scheduler = ScraperScheduler()
@@ -1268,6 +1287,9 @@ def main():
     elif args.segsocial_once:
         scheduler.log("Running Seguridad Social (TGSS) national pull once...")
         scheduler.run_segsocial_update()
+    elif args.plabi_once:
+        scheduler.log("Running PLABI (Ministerio de Justicia) national pull once...")
+        scheduler.run_plabi_update()
     else:
         scheduler.run()
 
