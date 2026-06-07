@@ -45,6 +45,7 @@ import {
 import { AuctionType } from "@/types";
 import { cn } from "@/lib/utils";
 import { ProvinceTownTree } from "./ProvinceTownTree";
+import { getSourceLabel } from "@/lib/source-labels";
 
 /**
  * Which dimensions a parent page can LOCK so users can't widen out of them
@@ -139,6 +140,23 @@ export function FiltersSidebar({
     onChange({ types: next });
   };
 
+  // Fuente (scraper origin: BOE / Seguridad Social) — multi-select. Distinct
+  // from the BOE-family `Origen` block above (Judicial / Hacienda / …): that
+  // dimension splits BOE-portal rows by sub-family, this one splits by the
+  // PORTAL we scraped from. SEGSOCIAL rows live entirely under their own
+  // bucket and have no BOE-family sub-type.
+  const SOURCE_OPTIONS: Array<{ id: string; label: string }> = [
+    { id: "BOE", label: getSourceLabel("BOE") ?? "BOE" },
+    { id: "SEGSOCIAL", label: getSourceLabel("SEGSOCIAL") ?? "Seguridad Social" },
+  ];
+  const isSourceActive = (s: string) => filters.sources.includes(s);
+  const toggleSource = (s: string) => {
+    const next = filters.sources.includes(s)
+      ? filters.sources.filter((x) => x !== s)
+      : [...filters.sources, s];
+    onChange({ sources: next });
+  };
+
   const provinceLocked = Boolean(lockedFilter?.province);
   const categoryLocked = Boolean(lockedFilter?.category);
   const municipalityLocked = Boolean(lockedFilter?.municipality);
@@ -226,6 +244,32 @@ export function FiltersSidebar({
               );
             },
           )}
+        </div>
+      </FilterBlock>
+
+      {/* 2b. FUENTE — scraper origin (BOE vs Seguridad Social). Multi-select.
+            Distinct from the Origen block above (which splits BOE rows by
+            BOE-family sub-type). Whitelisted server-side; unknown values
+            are silently dropped. */}
+      <FilterBlock label="Fuente">
+        <div className="space-y-1">
+          {SOURCE_OPTIONS.map((opt) => {
+            const active = isSourceActive(opt.id);
+            return (
+              <label
+                key={opt.id}
+                className="flex items-center gap-2 cursor-pointer text-[var(--color-ink-primary)]"
+              >
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 accent-[var(--color-brand)]"
+                  checked={active}
+                  onChange={() => toggleSource(opt.id)}
+                />
+                <span>{opt.label}</span>
+              </label>
+            );
+          })}
         </div>
       </FilterBlock>
 

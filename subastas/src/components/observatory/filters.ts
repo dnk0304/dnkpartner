@@ -152,6 +152,12 @@ export type ObservatoryFilters = {
   statuses: AuctionStatus[];
   /** Auction type list. */
   types: AuctionType[];
+  /**
+   * Scraper-origin source list (BOE / SEGSOCIAL / TEJU). Empty array = no
+   * source restriction (all sources). Whitelisted server-side against
+   * KNOWN_SOURCES in `@/lib/source-labels`; unknown values are dropped.
+   */
+  sources: string[];
   /** Sort order — defaults to endsAt_asc (server default too). */
   sort: SortValue;
   /** When true, show the full SimpleFilters/AdvancedFilters surface; when false, only PresetRow + ActiveFilterChips. */
@@ -176,6 +182,7 @@ export const DEFAULT_FILTERS: ObservatoryFilters = {
   categories: [],
   statuses: [],
   types: [],
+  sources: [],
   sort: DEFAULT_SORT,
   advanced: false,
   pctTasacionMax: null,
@@ -203,6 +210,7 @@ export function filtersFromParams(p: URLSearchParams): ObservatoryFilters {
     categories: (p.get("categories")?.split(",").filter(Boolean) as AuctionCategory[]) ?? [],
     statuses: (p.get("statuses")?.split(",").filter(Boolean) as AuctionStatus[]) ?? [],
     types: (p.get("types")?.split(",").filter(Boolean) as AuctionType[]) ?? [],
+    sources: p.get("sources")?.split(",").filter(Boolean) ?? [],
     sort: ((): SortValue => {
       const raw = p.get("sort");
       return raw && (VALID_SORTS as string[]).includes(raw) ? (raw as SortValue) : DEFAULT_SORT;
@@ -227,6 +235,7 @@ export function paramsFromFilters(f: ObservatoryFilters): URLSearchParams {
   if (f.categories.length) p.set("categories", f.categories.join(","));
   if (f.statuses.length) p.set("statuses", f.statuses.join(","));
   if (f.types.length) p.set("types", f.types.join(","));
+  if (f.sources.length) p.set("sources", f.sources.join(","));
   if (f.sort && f.sort !== DEFAULT_SORT) p.set("sort", f.sort);
   if (f.advanced) p.set("advanced", "1");
   if (f.pctTasacionMax != null) p.set("pctTasacionMax", String(f.pctTasacionMax));
@@ -303,6 +312,13 @@ export function filtersToApiParams(f: ObservatoryFilters): URLSearchParams {
     p.set("auctionTypes", f.types.join(","));
   }
 
+  // Sources (scraper origin: BOE / SEGSOCIAL / TEJU). API accepts ?sources=
+  // as comma-separated; server whitelists. Empty array → omit param → no
+  // source restriction (all sources).
+  if (f.sources.length > 0) {
+    p.set("sources", f.sources.join(","));
+  }
+
   // P1 advanced filter params (Forge-backed). Skipping null/false keeps the URL clean.
   if (f.priceMax != null) p.set("priceMax", String(f.priceMax));
   if (f.pctTasacionMax != null) p.set("pctTasacionMax", String(f.pctTasacionMax));
@@ -338,6 +354,7 @@ export function isDefaultFilters(f: ObservatoryFilters): boolean {
     f.categories.length === 0 &&
     f.statuses.length === 0 &&
     f.types.length === 0 &&
+    f.sources.length === 0 &&
     f.sort === DEFAULT_SORT &&
     f.pctTasacionMax == null &&
     !f.endsBefore &&
@@ -394,6 +411,7 @@ export function presetFilters(id: PresetId, opts?: { province?: string; now?: Da
     categories: [],
     statuses: [],
     types: [],
+    sources: [],
     pctTasacionMax: null,
     endsBefore: null,
     hasImage: false,

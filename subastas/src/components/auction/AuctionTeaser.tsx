@@ -25,6 +25,7 @@ import { Calendar } from 'lucide-react';
 import { PROVINCE_DB_KEY_TO_SLUG } from '@/lib/seo/slugs';
 import { capitalize, titleCase, formatDateLong } from '@/components/observatory/format';
 import { StatusBadge } from '@/components/observatory/StatusBadge';
+import { SourceBadge } from '@/components/observatory/SourceBadge';
 import { effectiveStatus } from '@/components/observatory/status';
 import { pickTeaserSnippet } from '@/lib/teaser-snippet';
 
@@ -38,6 +39,12 @@ export interface AuctionTeaserData {
   status: string;
   auctionType: string | null;
   propertyType: string | null;
+  // Source (`Auction.source`) — public, NON-PII identifier of which portal
+  // we scraped the row from (BOE / Seguridad Social / …). Safe to surface
+  // in the SSR teaser; renders as a small SourceBadge alongside the type
+  // label. NEVER fed into pickTeaserSnippet (which only consumes the
+  // structured-safe fields).
+  source: string | null;
   appraisalValue: number | null;
   valorSubasta: number | null;
   // NOTE: propertyDescription / lotDescription / boeAnnouncement are NOT
@@ -183,6 +190,9 @@ export function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
               <span>{typeLabel}</span>
             </>
           )}
+          {/* SourceBadge — public identifier of scraper origin. Null-safe;
+              SSR-only. Inline in the meta row so it sits next to the type. */}
+          {data.source && <SourceBadge source={data.source} size="sm" />}
           {data.opensAt && (
             <>
               <span aria-hidden="true">·</span>

@@ -26,6 +26,7 @@ import {
   SORT_OPTIONS,
   DEFAULT_SORT,
 } from "./filters";
+import { getSourceLabel } from "@/lib/source-labels";
 import { cn } from "@/lib/utils";
 
 export type SimpleFiltersProps = {
@@ -336,6 +337,15 @@ export function ActiveFilterChips({
       key: `tp-${t}`,
       label: meta ? meta.label : t,
       onRemove: () => onChange({ types: filters.types.filter((x) => x !== t) }),
+    });
+  }
+  // Source chips (Fuente: BOE / Seguridad Social). One chip per selected
+  // source; label is the human display label from `getSourceLabel`.
+  for (const s of filters.sources) {
+    chips.push({
+      key: `src-${s}`,
+      label: `Fuente: ${getSourceLabel(s) ?? s}`,
+      onRemove: () => onChange({ sources: filters.sources.filter((x) => x !== s) }),
     });
   }
   if (filters.search) {

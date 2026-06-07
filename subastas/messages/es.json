@@ -58,6 +58,12 @@
     "footerAuctions": "Subastas",
     "footerPricing": "Precios"
   },
+  "filters": {
+    "sourceLabel": "Fuente",
+    "sourceBoe": "BOE",
+    "sourceSegsocial": "Seguridad Social",
+    "sourceTeju": "BOE"
+  },
   "footer": {
     "aria": "Pie del sitio",
     "brandAria": "SubastasActivas — inicio",

@@ -84,6 +84,9 @@ async function loadTeaserData(slug: string): Promise<AuctionTeaserData | null> {
       status: true,
       auctionType: true,
       propertyType: true,
+      // Source (`Auction.source`) — NON-PII scraper-origin identifier
+      // (BOE / SEGSOCIAL / …). Surfaced on the public teaser via SourceBadge.
+      source: true,
       appraisalValue: true,
       valorSubasta: true,
       // propertyDescription / lotDescription / boeAnnouncement are
