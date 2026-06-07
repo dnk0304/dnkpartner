@@ -26,10 +26,15 @@ export const SOURCE_LABEL_MAP: Readonly<Record<string, string>> = {
   TEJU: 'BOE',
   // Tesorería General de la Seguridad Social — the new source (2026-06).
   SEGSOCIAL: 'Seguridad Social',
+  // Plataforma de Liquidaciones / Administración Concursal — bankruptcy /
+  // insolvency liquidations (wave67, 2026-06). Short label for the badge;
+  // the longer "PLABI · Concursal" descriptor lives in the data-source
+  // explainer pages rather than the badge so the chip stays compact.
+  PLABI: 'PLABI',
 };
 
 /** Sources the public `?source=` filter param accepts. Closed set on purpose. */
-export const KNOWN_SOURCES = ['BOE', 'TEJU', 'SEGSOCIAL'] as const;
+export const KNOWN_SOURCES = ['BOE', 'TEJU', 'SEGSOCIAL', 'PLABI'] as const;
 export type KnownSource = (typeof KNOWN_SOURCES)[number];
 
 /** True when `s` is a value the public source-filter accepts. */

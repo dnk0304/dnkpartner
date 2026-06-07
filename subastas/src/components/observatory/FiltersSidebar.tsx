@@ -140,14 +140,15 @@ export function FiltersSidebar({
     onChange({ types: next });
   };
 
-  // Fuente (scraper origin: BOE / Seguridad Social) — multi-select. Distinct
-  // from the BOE-family `Origen` block above (Judicial / Hacienda / …): that
-  // dimension splits BOE-portal rows by sub-family, this one splits by the
-  // PORTAL we scraped from. SEGSOCIAL rows live entirely under their own
-  // bucket and have no BOE-family sub-type.
+  // Fuente (scraper origin: BOE / Seguridad Social / PLABI) — multi-select.
+  // Distinct from the BOE-family `Origen` block above (Judicial / Hacienda /
+  // …): that dimension splits BOE-portal rows by sub-family, this one splits
+  // by the PORTAL we scraped from. SEGSOCIAL + PLABI rows live entirely under
+  // their own buckets and have no BOE-family sub-type.
   const SOURCE_OPTIONS: Array<{ id: string; label: string }> = [
     { id: "BOE", label: getSourceLabel("BOE") ?? "BOE" },
     { id: "SEGSOCIAL", label: getSourceLabel("SEGSOCIAL") ?? "Seguridad Social" },
+    { id: "PLABI", label: getSourceLabel("PLABI") ?? "PLABI" },
   ];
   const isSourceActive = (s: string) => filters.sources.includes(s);
   const toggleSource = (s: string) => {
