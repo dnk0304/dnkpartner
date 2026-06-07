@@ -1,9 +1,68 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none">
-  <rect width="800" height="600" fill="#f8fafc"/>
-  <path d="M180 340 L520 340 L600 420 H200 L180 340 Z" fill="#94a3b8"/>
-  <rect x="320" y="260" width="120" height="60" rx="10" fill="#cbd5f5"/>
-  <rect x="360" y="210" width="40" height="50" rx="6" fill="#e2e8f0"/>
-  <path d="M160 450 Q260 480 360 450 Q460 420 560 450 Q640 470 720 450" stroke="#93c5fd" stroke-width="10" fill="none"/>
-  <path d="M140 480 Q260 520 380 490 Q500 460 620 490 Q700 510 760 490" stroke="#60a5fa" stroke-width="8" fill="none"/>
-  <text x="400" y="520" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" fill="#64748b">Barco</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none" role="img" aria-label="Barco">
+  <defs>
+    <linearGradient id="bgBoat" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#eaf5ef"/>
+      <stop offset="100%" stop-color="#cfe4d8"/>
+    </linearGradient>
+    <linearGradient id="hullBoat" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1f5d3a"/>
+      <stop offset="100%" stop-color="#0f3320"/>
+    </linearGradient>
+    <linearGradient id="hullStripe" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f7fbf8"/>
+      <stop offset="100%" stop-color="#dfeae3"/>
+    </linearGradient>
+    <linearGradient id="cabinBoat" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f7fbf8"/>
+      <stop offset="100%" stop-color="#d4e3da"/>
+    </linearGradient>
+    <linearGradient id="windowBoat" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9fc4b0"/>
+      <stop offset="100%" stop-color="#6f9d85"/>
+    </linearGradient>
+    <linearGradient id="waterBoat" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9fc4b0" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#3f7a5a" stop-opacity="0.85"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#bgBoat)"/>
+  <!-- distant water -->
+  <rect x="0" y="430" width="800" height="170" fill="url(#waterBoat)"/>
+  <!-- cabin -->
+  <path d="M310 252
+           H470
+           C490 252 504 268 504 286
+           V328
+           H290
+           V286
+           C290 268 300 252 310 252 Z"
+        fill="url(#cabinBoat)"/>
+  <!-- cabin windows -->
+  <rect x="318" y="276" width="58" height="34" rx="4" fill="url(#windowBoat)"/>
+  <rect x="384" y="276" width="58" height="34" rx="4" fill="url(#windowBoat)"/>
+  <rect x="448" y="276" width="40" height="34" rx="4" fill="url(#windowBoat)"/>
+  <!-- railings on cabin top -->
+  <line x1="300" y1="248" x2="500" y2="248" stroke="#2a3530" stroke-width="3"/>
+  <line x1="304" y1="232" x2="496" y2="232" stroke="#2a3530" stroke-width="2" opacity="0.6"/>
+  <!-- foredeck -->
+  <path d="M180 328 H600 L640 372 H160 Z" fill="url(#hullStripe)"/>
+  <!-- hull -->
+  <path d="M120 372
+           H660
+           L600 450
+           C570 470 510 478 400 478
+           C290 478 230 470 200 450 Z"
+        fill="url(#hullBoat)"/>
+  <!-- hull accent line -->
+  <path d="M150 400 H630" stroke="#2a7a4d" stroke-width="3" opacity="0.6"/>
+  <!-- bow detail -->
+  <path d="M120 372 L160 416" stroke="#0a2517" stroke-width="2"/>
+  <path d="M660 372 L620 416" stroke="#0a2517" stroke-width="2"/>
+  <!-- antenna mast -->
+  <line x1="404" y1="252" x2="404" y2="160" stroke="#2a3530" stroke-width="3"/>
+  <circle cx="404" cy="160" r="5" fill="#e15555"/>
+  <!-- water ripples -->
+  <path d="M40 502 Q120 492 200 502 T360 502 T520 502 T680 502 T780 502" stroke="#f7fbf8" stroke-width="2.5" fill="none" opacity="0.7"/>
+  <path d="M60 532 Q160 522 260 532 T460 532 T660 532 T780 532" stroke="#f7fbf8" stroke-width="2" fill="none" opacity="0.55"/>
+  <path d="M20 562 Q140 552 260 562 T500 562 T740 562" stroke="#f7fbf8" stroke-width="1.5" fill="none" opacity="0.4"/>
 </svg>

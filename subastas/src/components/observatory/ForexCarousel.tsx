@@ -51,6 +51,7 @@ import Image from "next/image";
 import { ChevronLeft, ChevronRight, ArrowRight, Loader2, MapPin } from "lucide-react";
 import { apiFetch } from "@/lib/api-path";
 import { StatusBadge } from "./StatusBadge";
+import { AuctionCardTypeBanner } from "./AuctionCardTypeBanner";
 import { resolveCardImage, fallbackImageFor, isVariosLotesTitle } from "@/lib/resolve-card-image";
 import { statusDateLabel } from "@/lib/auction-status";
 import { OFFICIAL_CATEGORIES } from "@/lib/constants";
@@ -805,19 +806,27 @@ function ExpandedCard({
   const dl = isActiveLabel ? daysLeft(endsAt) : null;
   const urgent = isActiveLabel && !ended && dl != null && dl <= 1;
 
-  // Headline = address-led title (Wave C1b, 2026-06-07). Dennis wants the
-  // card to read "{Tipo} en {dirección}" / "{Tipo} en {town}" — the same
-  // address-first phrasing the detail H1 uses but WITHOUT the "Subasta de "
-  // prefix (cards are tight; the prefix is implied by the surrounding row
-  // header "Últimos inmuebles / vehículos"). `auctionCardTitle` resolves
-  // tipo + address/municipality/province with a vehicle branch that skips
-  // the BOE depot-code "address" (wave-E will replace this with make/model).
-  // Fallback chain still routes through propertyType → auctionType →
-  // category → "Inmueble", so the headline is NEVER the BOE ref.
+  // Headline (Wave C3, 2026-06-07):
+  //   - PROPERTY: short-street mode — "{Tipo} – {Calle X}" via the C2
+  //     helper. Falls back to "{Tipo} en {town}" when the street parse
+  //     fails. No full address, no muni suffix on the short path.
+  //   - VEHICLE: "{Make} {Model}" only (e.g. "SEAT León") when make+model
+  //     are present. Otherwise the standard "{Tipo} en {town}" fallback.
+  //     The año subtitle appears as its own line below the headline.
   const typeOnly = prettifyAuctionType(
     auction.propertyType ?? auction.category ?? null,
   );
-  const cardHeadline = auctionCardTitle({
+  // Resolve the category group locally so the short-street + vehicle-title
+  // branches behave correctly even when `categoryGroup` prop is unset.
+  const inferredGroup: CategoryGroup | null =
+    categoryGroup ??
+    (auction.category && MOVABLE_SET.has(auction.category)
+      ? "movable"
+      : auction.category
+      ? "real_estate"
+      : null);
+  const isVehicleRow = inferredGroup === "movable";
+  const baseHeadline = auctionCardTitle({
     address: auction.address,
     propertyType: auction.propertyType,
     auctionType: auction.auctionType,
@@ -825,13 +834,17 @@ function ExpandedCard({
     municipality: auction.municipality,
     province: auction.province,
     title: auction.title,
-    categoryGroup,
-    // Wave E2 (2026-06-07) — vehicle fields forwarded so the headline reads
-    // "Turismo - SEAT León en Murcia" when make+model are present.
+    categoryGroup: inferredGroup,
     vehicleMake: auction.vehicleMake,
     vehicleModel: auction.vehicleModel,
     vehicleYear: auction.vehicleYear,
+    useShortStreet: !isVehicleRow,
   });
+  const vehicleMakeModel =
+    isVehicleRow && auction.vehicleMake && auction.vehicleModel
+      ? `${titleCase(auction.vehicleMake)} ${titleCase(auction.vehicleModel)}`
+      : null;
+  const cardHeadline = vehicleMakeModel ?? baseHeadline;
   // Compact "Termina en Nd Nh" string — short variant for the ACTIVE card
   // footer only. NEVER computed for PROXIMA / SUSPENDIDA (those rows render
   // their own status-branched date line below). Distinct from the floating
@@ -972,8 +985,12 @@ function ExpandedCard({
             Ubicación
           </span>
         )}
-        <span className="absolute top-1.5 left-1.5">
+        {/* Status + TYPE banner column (top-left). Vertical stack so the
+            type chip sits directly under the status badge — Wave C3,
+            2026-06-07. */}
+        <span className="absolute top-1.5 left-1.5 flex flex-col items-start gap-1">
           <StatusBadge status={effectiveStatus} size="sm" />
+          <AuctionCardTypeBanner item={auction} size="sm" />
         </span>
         {/* Days-left badge — ACTIVE only (Wave52, Pixel 2026-06-04). On a
             PROXIMA / SUSPENDIDA / terminal row this badge is suppressed
@@ -996,10 +1013,11 @@ function ExpandedCard({
         )}
       </div>
 
-      {/* Content padding tightened p-2.5 → p-2 (Wave C1b). Combined with the
-          16:10 image aspect above this yields a ~10% shorter compact card
-          without touching the price-grid font sizes (legibility wins). */}
-      <div className="p-2 flex flex-col gap-1 min-w-0">
+      {/* Wave C3b (2026-06-07): info area halved per Dennis. Padding tightened
+          (p-2 → px-2 py-1.5), gap (gap-1 → gap-0.5), vehicle year + location
+          folded onto a single caption row, price grid replaced with inline
+          rows. The whole block now lands at ~50% of the previous height. */}
+      <div className="px-2 py-1.5 flex flex-col gap-0.5 min-w-0">
         {/* Headline = "{Tipo} en {dirección}" / "{Tipo} en {town}" (address-
             led, Wave C1b 2026-06-07). The vehicle path uses municipality only
             (BOE depot codes aren't user-meaningful). Never the BOE ref. We
@@ -1007,13 +1025,17 @@ function ExpandedCard({
             line-clamp-2 keeps card height stable; truncated tail is shown on
             hover via the native title attribute. */}
         <div
-          className="text-[13px] font-semibold text-[--color-ink-primary] line-clamp-2 leading-snug"
+          className="text-[12.5px] font-semibold text-[--color-ink-primary] line-clamp-2 leading-snug"
           title={cardHeadline}
         >
           {cardHeadline}
         </div>
-        {where && (
-          <div className="text-[11px] text-[--color-ink-tertiary] truncate">
+        {/* Vehicle año + location collapse onto one caption row so the
+            post-title meta is a single short line. */}
+        {((isVehicleRow && auction.vehicleYear) || where) && (
+          <div className="text-[10px] text-[--color-ink-tertiary] tnum truncate">
+            {isVehicleRow && auction.vehicleYear ? auction.vehicleYear : null}
+            {isVehicleRow && auction.vehicleYear && where ? " · " : null}
             {where}
           </div>
         )}
@@ -1033,7 +1055,7 @@ function ExpandedCard({
           // PROXIMA: single "Próxima apertura …" line, NO countdown, NO end.
           if (dateLabel === "Próxima apertura") {
             return (
-              <div className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[10.5px] text-[--color-ink-secondary]">
+              <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0 text-[10px] text-[--color-ink-secondary]">
                 <span className="tnum">
                   <span className="text-[--color-ink-tertiary]">Próxima apertura</span>
                   {opensLabel ? (
@@ -1048,7 +1070,7 @@ function ExpandedCard({
           // SUSPENDIDA: single "Reanudación …" line.
           if (dateLabel === "Fecha prevista de reanudación") {
             return (
-              <div className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[10.5px] text-[--color-ink-secondary]">
+              <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0 text-[10px] text-[--color-ink-secondary]">
                 <span className="tnum">
                   <span className="text-[--color-ink-tertiary]">Reanudación</span>
                   {resumeLabel ? (
@@ -1099,65 +1121,51 @@ function ExpandedCard({
             </div>
           );
         })()}
-        <div className="grid grid-cols-2 gap-x-2 gap-y-1 pt-1 border-t border-[--color-hairline]">
+        {/* Wave C3b (2026-06-07): inline price rows replace the 2-col grid
+            so the price block is ~50% the previous height. Each present
+            value reads as a single short row: tiny label left, number right.
+            First line is the prominent number, the rest muted secondary. */}
+        <div className="pt-1 border-t border-[--color-hairline] flex flex-col gap-0.5">
           {noPriceData && (
-            <div className="col-span-2 min-w-0">
-              <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
+            <div className="flex items-baseline justify-between gap-2 min-w-0">
+              <span className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary] truncate">
                 {isVariosLotes ? "Varios lotes" : "Precio"}
-              </div>
-              <div className="text-[12px] font-medium text-[--color-ink-secondary]">
-                Precio no disponible
-              </div>
+              </span>
+              <span className="text-[11px] font-medium text-[--color-ink-secondary] shrink-0">
+                No disponible
+              </span>
             </div>
           )}
-          {/* Three labelled values — Tasación + Valor subasta + Cantidad
-              reclamada. Each cell is OMITTED when its field is null/≤0
-              (honest-NULL). With 1 value it spans the row; with 2 it shares
-              the 2-col grid; with 3 the third drops to a full-width row
-              underneath so labels never wrap. The first present line reads
-              as the prominent number; the rest are slightly muted. */}
           {priceLines.map((line, i) => {
-            // Layout: 1 line → col-span-2; 2 lines → left-aligned / right-
-            // aligned in 2-col grid; 3 lines → first two share row, third
-            // spans the row below.
-            const total = priceLines.length;
-            let cellClass = 'min-w-0';
-            if (total === 1) cellClass += ' col-span-2';
-            else if (total === 2 && i === 1) cellClass += ' text-right';
-            else if (total === 3 && i === 2) cellClass += ' col-span-2';
             const isHeadline = i === 0;
             return (
-              <div key={line.key} className={cellClass}>
-                <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
+              <div key={line.key} className="flex items-baseline justify-between gap-2 min-w-0">
+                <span className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary] truncate">
                   {line.label}
-                </div>
-                <div
+                </span>
+                <span
                   className={cn(
-                    'tnum font-semibold truncate',
+                    "tnum font-semibold shrink-0",
                     isHeadline
-                      ? 'text-[15px] text-[--color-ink-primary]'
-                      : 'text-[13px] text-[--color-ink-secondary]',
+                      ? "text-[13.5px] text-[--color-ink-primary]"
+                      : "text-[11.5px] text-[--color-ink-secondary]",
                   )}
                 >
                   {formatPrice(line.amount)}
-                </div>
+                </span>
               </div>
             );
           })}
           {deposit != null && (
-            <div className="min-w-0 col-span-2">
-              <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
+            <div className="flex items-baseline justify-between gap-2 min-w-0">
+              <span className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
                 Depósito
-              </div>
-              <div className="tnum text-[13px] font-semibold text-[--color-ink-primary] truncate">
+              </span>
+              <span className="tnum text-[12.5px] font-semibold text-[--color-ink-primary] shrink-0">
                 {formatPrice(deposit)}
-              </div>
+              </span>
             </div>
           )}
-          {/* Wave C1b (2026-06-07): the Ref. BOE row + Docs pill were removed
-              from the carousel card. Teaser cards = image + status + headline
-              + location + status-branched date + price grid. Reference codes
-              and document downloads live on the detail page. */}
         </div>
       </div>
     </>

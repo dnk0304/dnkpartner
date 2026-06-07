@@ -275,7 +275,16 @@ export function resolveCardImage(input: ResolveCardImageInput): ResolvedCardImag
   }
 
   // Rung 2 — static map-pin thumbnail.
+  //
+  // C3 (2026-06-07): VEHICLES skip rung-2 entirely. A vehicle row may
+  // accidentally carry coords (depot lat/lng, BOE typo, geocoder noise) — but
+  // a map tile is the wrong signal for a moveable bien with no permanent
+  // location. Vehicles fall straight to the rung-3 category mockup SVG
+  // (turismo / moto / barco / camión / industrial / generic) so the carousel
+  // shows the right visual cue per type even when coords are present.
+  const isVehicle = isVehicleCategory(category);
   const hasCoords =
+    !isVehicle &&
     typeof latitude === 'number' &&
     typeof longitude === 'number' &&
     Number.isFinite(latitude) &&

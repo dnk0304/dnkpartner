@@ -105,8 +105,26 @@ export default function SubastasListClient({
   // Parse URL → filters, then overlay any locked dimension from the parent
   // route. Locked dims take precedence so the user can never widen out via a
   // hand-edited querystring.
+  //
+  // C2 (2026-06-07): view-scoped `when` default. DEFAULT_FILTERS.when is now
+  // "todas" (list view default). On the MAP view, however, Dennis wants the
+  // initial seed to remain "activas" — a Todas map would render thousands of
+  // pins that overwhelm the cluster layer and bury the active-now signal.
+  // We honour this by overriding `when` to "activas" ONLY when:
+  //   (a) the URL is on the map view, AND
+  //   (b) the URL carries NO explicit `?when=` param (so a user-typed
+  //       `?view=map&when=todas` still wins).
+  // Single source of truth for the default lives in filters.ts; this is the
+  // sole per-view override and it's narrow on purpose.
   const rawFilters = React.useMemo(
-    () => filtersFromParams(searchParams),
+    () => {
+      const base = filtersFromParams(searchParams);
+      const view = searchParams.get("view");
+      if (view === "map" && !searchParams.has("when")) {
+        base.when = "activas";
+      }
+      return base;
+    },
     [searchParams],
   );
   const filters = React.useMemo<ObservatoryFilters>(() => {

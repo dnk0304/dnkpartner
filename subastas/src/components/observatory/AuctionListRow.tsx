@@ -28,6 +28,8 @@ import { getStatusMeta, effectiveStatus } from "./status";
 import { cn } from "@/lib/utils";
 import { resolveCardImage, fallbackImageFor, isVariosLotesTitle } from "@/lib/resolve-card-image";
 import { statusDateLabel } from "@/lib/auction-status";
+import { AuctionCardTypeBanner } from "./AuctionCardTypeBanner";
+import { OFFICIAL_CATEGORIES } from "@/lib/constants";
 
 export type AuctionListRowProps = {
   item: AuctionItem & { hasImage?: boolean | null };
@@ -42,9 +44,14 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
   const where = [item.municipality && titleCase(item.municipality), item.province && capitalize(item.province)]
     .filter(Boolean)
     .join(" · ");
-  // Address-led row title (Wave C1b, 2026-06-07). "{Tipo} en {dirección}"
-  // for properties, "{Tipo} en {town}" for vehicles. Never the BOE ref.
-  const title = auctionCardTitle({
+  // Row title (Wave C3, 2026-06-07):
+  //   - PROPERTY: short-street "{Tipo} – {Calle X}" (helper from C2),
+  //     fallback "{Tipo} en {town}" when street parse fails.
+  //   - VEHICLE: "{Make} {Model}" when present, else "{Tipo} en {town}".
+  const isVehicle = item.category
+    ? (OFFICIAL_CATEGORIES.MOVABLE as readonly string[]).includes(item.category)
+    : false;
+  const baseTitle = auctionCardTitle({
     address: item.address,
     propertyType: item.propertyType,
     auctionType: item.auctionType,
@@ -52,12 +59,17 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
     municipality: item.municipality,
     province: item.province,
     title: item.title,
-    // Wave E2 (2026-06-07) — vehicle make/model/year forwarded so vehicle
-    // rows can read "Turismo - SEAT León en Murcia" when present.
+    categoryGroup: isVehicle ? "movable" : "real_estate",
     vehicleMake: item.vehicleMake,
     vehicleModel: item.vehicleModel,
     vehicleYear: item.vehicleYear,
+    useShortStreet: !isVehicle,
   });
+  const vehicleMakeModel =
+    isVehicle && item.vehicleMake && item.vehicleModel
+      ? `${titleCase(item.vehicleMake)} ${titleCase(item.vehicleModel)}`
+      : null;
+  const title = vehicleMakeModel ?? baseTitle;
   const [imgFailed, setImgFailed] = React.useState(false);
   // Tiny row thumbnail: 64×48. Use 'thumbnail' size on rung 2 so the static
   // map fetch matches the rendered box.
@@ -184,10 +196,21 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
         >
           {title}
         </Link>
+        {/* Vehicle subtitle — año from primera matriculación. Sits under the
+            row title before the meta line. Vehicle-only. (Wave C3, 2026-06-07.) */}
+        {isVehicle && item.vehicleYear && (
+          <div className="mt-0.5 text-[11px] text-[--color-ink-tertiary] tnum">
+            {item.vehicleYear}
+          </div>
+        )}
         <div className="mt-0.5 flex items-center gap-2 text-xs text-[--color-ink-tertiary] tnum">
           <span className="uppercase tracking-wide" style={{ color: meta.color }}>
             {meta.label}
           </span>
+          {/* TYPE banner — Vivienda / Coche / Moto / … Sits with the status
+              meta line on the dense row (no room for a true under-status
+              chip — adjacent reads as the same intent). (Wave C3.) */}
+          <AuctionCardTypeBanner item={item} size="sm" />
           {where && (
             <>
               <span aria-hidden="true">·</span>

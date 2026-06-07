@@ -1,6 +1,9 @@
 // Wave C1a (2026-06-07). New keys for the DB-emitted labels widened into
 // `VEHICLE_CATEGORIES`:
-//   Camiones        → industrial SVG (heavy-vehicle visual cue)
+//   Camiones        → dedicated truck SVG (box-truck silhouette — distinct
+//                     from the heavy-vehicle Industrial mockup so a Camión
+//                     card doesn't visually collide with construction
+//                     equipment in the carousel). C3 (2026-06-07).
 //   Embarcaciones   → boat SVG (synonym of Barcos)
 //   Otros vehículos → generic vehicle SVG (catch-all — buses, aeronaves,
 //                     unspecified — falls through anyway via the `|| GENERIC`
@@ -10,7 +13,7 @@ const CATEGORY_IMAGES: Record<string, string> = {
   'Turismos': '/images/vehicle-car.svg',
   'Motocicletas': '/images/vehicle-motorcycle.svg',
   'Vehículos Industriales': '/images/vehicle-industrial.svg',
-  'Camiones': '/images/vehicle-industrial.svg',
+  'Camiones': '/images/vehicle-truck.svg',
   'Barcos': '/images/vehicle-boat.svg',
   'Embarcaciones': '/images/vehicle-boat.svg',
   'Otros vehículos': '/images/vehicle-generic.svg'

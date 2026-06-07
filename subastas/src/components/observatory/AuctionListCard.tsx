@@ -29,6 +29,8 @@ import { effectiveStatus } from "./status";
 import { cn } from "@/lib/utils";
 import { resolveCardImage, fallbackImageFor, isVariosLotesTitle } from "@/lib/resolve-card-image";
 import { statusDateLabel } from "@/lib/auction-status";
+import { AuctionCardTypeBanner } from "./AuctionCardTypeBanner";
+import { OFFICIAL_CATEGORIES } from "@/lib/constants";
 
 export type AuctionListCardProps = {
   item: AuctionItem & { hasImage?: boolean | null };
@@ -43,14 +45,19 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
     .filter(Boolean)
     .join(" · ");
 
-  // Address-led card title (Wave C1b, 2026-06-07). The card title now reads
-  // "{Tipo} en {dirección/town}" — matching the carousel + the detail page
-  // (which adds a "Subasta de " prefix on its H1). The reference code is
-  // never surfaced as a card title; `displayTitle` (the muni/province
-  // fallback) is implicit in `auctionCardTitle`'s ladder when address is
-  // missing. Vehicle category cards use municipality only (BOE depot codes
-  // aren't user-meaningful).
-  const title = auctionCardTitle({
+  // Category group hint — drives the dual-card-headline path (vehicle vs
+  // property) and the short-street wiring below.
+  const isVehicle = item.category
+    ? (OFFICIAL_CATEGORIES.MOVABLE as readonly string[]).includes(item.category)
+    : false;
+  // Card title (Wave C3, 2026-06-07):
+  //   - PROPERTY: short-street mode — "{Tipo} – {Calle X}" (helper from C2).
+  //     Falls back to "{Tipo} en {town}" when the street parse fails. NEVER
+  //     the full address, NEVER the BOE ref.
+  //   - VEHICLE: when make+model are present, render "{Make} {Model}" only
+  //     (no Tipo prefix, no town suffix — Dennis-locked). Otherwise fall
+  //     back to "{Tipo} en {town}" via the standard helper.
+  const baseTitle = auctionCardTitle({
     address: item.address,
     propertyType: item.propertyType,
     auctionType: item.auctionType,
@@ -58,13 +65,17 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
     municipality: item.municipality,
     province: item.province,
     title: item.title,
-    // Wave E2 (2026-06-07) — vehicle make/model/year. When make+model are
-    // present on a VEHICLE card the title becomes "{Tipo} - {make} {model}
-    // en {town}"; otherwise falls back to the existing "{Tipo} en {town}".
+    categoryGroup: isVehicle ? "movable" : "real_estate",
     vehicleMake: item.vehicleMake,
     vehicleModel: item.vehicleModel,
     vehicleYear: item.vehicleYear,
+    useShortStreet: !isVehicle,
   });
+  const vehicleMakeModel =
+    isVehicle && item.vehicleMake && item.vehicleModel
+      ? `${titleCase(item.vehicleMake)} ${titleCase(item.vehicleModel)}`
+      : null;
+  const title = vehicleMakeModel ?? baseTitle;
 
   // Imagery resolves through the 3-rung ladder: real photo → static map pin
   // → category SVG. Cards are NEVER blank. `imgFailed` only switches us to
@@ -206,13 +217,21 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             <ImageOff aria-hidden="true" /> Imagen no disponible
           </span>
         )}
-        <span className="pointer-events-none absolute top-2 left-2 flex flex-wrap items-center gap-1.5">
-          <StatusBadge status={effective} size="sm" />
-          {item.auctionType && <AuctionTypeBadge type={item.auctionType} size="sm" />}
-          {/* SourceBadge — sits with the other identity pills so users can
-              tell at a glance whether a row came from the BOE or Seguridad
-              Social. Null-safe (returns null for blank/unknown sources). */}
-          <SourceBadge source={item.source} size="sm" />
+        {/* Status / identity column (top-left). Vertical stack so the TYPE
+            banner sits directly UNDER the status badge cluster (Wave C3,
+            2026-06-07). Each row is its own flex group so badges wrap
+            independently when the card is narrow. */}
+        <span className="pointer-events-none absolute top-2 left-2 flex flex-col items-start gap-1.5">
+          <span className="flex flex-wrap items-center gap-1.5">
+            <StatusBadge status={effective} size="sm" />
+            {item.auctionType && <AuctionTypeBadge type={item.auctionType} size="sm" />}
+            {/* SourceBadge — sits with the other identity pills so users can
+                tell at a glance whether a row came from the BOE or Seguridad
+                Social. Null-safe (returns null for blank/unknown sources). */}
+            <SourceBadge source={item.source} size="sm" />
+          </span>
+          {/* TYPE banner — Vivienda / Garaje / Coche / Moto / … */}
+          <AuctionCardTypeBanner item={item} size="sm" />
         </span>
         {daysBadge && (
           <span
@@ -235,25 +254,37 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
         <FollowButton auctionId={item.id} variant="icon" />
       </div>
 
-      <div className="flex flex-col gap-3 p-4">
+      {/* Info area (Wave C3b, 2026-06-07): Dennis — halve the vertical
+          footprint of everything beneath the image. Tighter padding
+          (p-4 → px-3 py-2), tighter gaps (gap-3 → gap-1.5), inline price
+          rows (formerly multi-row grid, now a horizontal flex with smaller
+          type), inline date row. Type chip + countdown collapse into the
+          same compact meta strip so the card body reads as 2–3 short lines
+          rather than a tall column. */}
+      <div className="flex flex-col gap-1.5 px-3 py-2">
         <Link
           href={`/auction/${encodeURIComponent(item.id)}`}
           className="block focus-visible:outline-none"
         >
-          <h3 className="font-serif text-lg leading-tight text-[--color-ink-primary] line-clamp-2 hover:underline">
+          <h3 className="font-serif text-[15px] leading-tight text-[--color-ink-primary] line-clamp-2 hover:underline">
             {title}
           </h3>
-          {where && (
-            <p className="mt-1 text-xs text-[--color-ink-tertiary]">{where}</p>
-          )}
+          {/* Vehicle subtitle + location collapse onto one tnum caption when
+              both are present, so the post-title meta is a single line. */}
+          {(isVehicle && item.vehicleYear) || where ? (
+            <p className="mt-0.5 text-[11px] text-[--color-ink-tertiary] tnum truncate">
+              {isVehicle && item.vehicleYear ? item.vehicleYear : null}
+              {isVehicle && item.vehicleYear && where ? " · " : null}
+              {where}
+            </p>
+          ) : null}
         </Link>
 
-        {/* #16 / #17 — puja + occupancy chips. Each badge component is
-            null-safe (returns null when its field is null/unknown) so the
-            wrapper renders an empty flex row but no visible content when
-            neither field is populated — no layout shift. */}
+        {/* Puja + occupancy chips — only render when at least one field
+            present. Compact gap so the row doesn't add height when chips
+            wrap. */}
         {(item.pujaStatus || item.occupancy) && (
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1">
             <PujaBadge
               status={item.pujaStatus ?? null}
               amountEuros={item.currentBidAmount ?? null}
@@ -262,84 +293,74 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
           </div>
         )}
 
-        {/* No-price affordance for Ghost's split "Varios Lotes" rows (and any
-            other row missing every numeric price field). Avoids the
-            otherwise-empty space below the location line. */}
+        {/* No-price affordance — single inline caption (was a stacked
+            label+value block). */}
         {noPriceData && (
-          <div className="pt-2 hairline-t">
-            <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+          <div className="hairline-t pt-1 flex items-center justify-between gap-2 text-[11px]">
+            <span className="uppercase tracking-wide text-[10px] text-[--color-ink-tertiary]">
               {isVariosLotes ? "Varios lotes" : "Precio"}
-            </div>
-            <div className="text-sm font-medium text-[--color-ink-secondary]">
-              Precio no disponible
-            </div>
+            </span>
+            <span className="font-medium text-[--color-ink-secondary]">
+              No disponible
+            </span>
           </div>
         )}
 
-        {/* Three-value price block — Tasación · Valor subasta · Cantidad
-            reclamada. Each present value gets its own labelled cell; the
-            CSS grid reflows from 1→2→3 columns based on how many are
-            present so the card never shows a reserved empty cell. The first
-            present value reads as the prominent number (text-base, semibold);
-            the trailing values are slightly muted secondary readings.
-            Honest-NULL: an absent value is OMITTED — no "0 €", no em-dash. */}
+        {/* Three-value price block — compact inline rows (Wave C3b). Each
+            present value reads as a single row: tiny uppercase label on the
+            left, number on the right. The first row reads as the prominent
+            number (text-sm semibold); the rest are smaller secondary
+            readings. Honest-NULL: an absent value is OMITTED. This trades
+            the previous 1/2/3-column grid for a tighter stacked layout that
+            costs ~50% the vertical space without compromising legibility. */}
         {valueLines.length > 0 && (
-          <div
-            className={cn(
-              "pt-2 hairline-t grid gap-3",
-              valueLines.length === 1 && "grid-cols-1",
-              valueLines.length === 2 && "grid-cols-2",
-              valueLines.length === 3 && "grid-cols-3",
-            )}
-          >
+          <div className="hairline-t pt-1 flex flex-col gap-0.5">
             {valueLines.map((line, i) => (
-              <div
-                key={line.key}
-                className={cn(
-                  "min-w-0",
-                  // Last cell aligns to the right in multi-column layouts so
-                  // the secondary numbers don't crowd the left primary.
-                  i > 0 && valueLines.length === 2 && "text-right",
-                  i === valueLines.length - 1 && valueLines.length === 3 && "text-right",
-                )}
-              >
-                <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+              <div key={line.key} className="flex items-baseline justify-between gap-2 min-w-0">
+                <span className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary] truncate">
                   {line.label}
-                </div>
-                <div
+                </span>
+                <span
                   className={cn(
-                    "tnum font-semibold text-[--color-ink-primary]",
-                    // First value reads as the prominent headline; others are
-                    // slightly smaller so the visual hierarchy stays clear
-                    // even when three numbers share the same row.
-                    i === 0 ? "text-base" : "text-sm",
+                    "tnum font-semibold text-[--color-ink-primary] shrink-0",
+                    i === 0 ? "text-sm" : "text-[12px] text-[--color-ink-secondary]",
                   )}
                 >
                   {formatPrice(line.amount)}
-                </div>
+                </span>
               </div>
             ))}
+            {/* Current bid — folded into the price stack so it doesn't add
+                its own padded row. */}
+            {hasCurrentBid && (
+              <div className="flex items-baseline justify-between gap-2 min-w-0">
+                <span className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+                  Puja actual
+                </span>
+                <span className="tnum font-semibold text-[12px] text-[--color-ink-primary]">
+                  {formatPrice(item.currentBid)}
+                </span>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Secondary row: current bid (only when present — most active rows have none). */}
-        {hasCurrentBid && (
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-[--color-ink-tertiary] uppercase tracking-wide text-[10px]">
+        {/* Current bid as fallback when no other values exist (so it doesn't
+            sit alone in its own padded row). */}
+        {valueLines.length === 0 && hasCurrentBid && !noPriceData && (
+          <div className="hairline-t pt-1 flex items-baseline justify-between gap-2">
+            <span className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
               Puja actual
             </span>
-            <span className="tnum font-semibold text-[--color-ink-primary]">
+            <span className="tnum font-semibold text-sm text-[--color-ink-primary]">
               {formatPrice(item.currentBid)}
             </span>
           </div>
         )}
 
-        {/* Bottom meta strip: type label + live countdown.
-            propertyType (when present) supersedes category — it's the BOE
-            bien-heading type (Vivienda, Trastero, Garaje…). Viviendas keeps
-            the brand-tinted pill so the hero category stays recognisable;
-            other types use the plain caption style. */}
-        <div className="hairline-t pt-2 flex items-center justify-between gap-2">
+        {/* Bottom meta strip — type chip + countdown. Same row, no extra
+            vertical air. */}
+        <div className="hairline-t pt-1 flex items-center justify-between gap-2">
           {typeLabel && (
             typeLabel.toLowerCase() === "vivienda" || item.category === "Viviendas" ? (
               <span
@@ -419,14 +440,14 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
           // when the date line is null the whole row collapses.
           if (!dateNode) return null;
           return (
-            <div className="flex items-center gap-2 text-[11px] text-[--color-ink-tertiary]">
+            <div className="flex items-center gap-2 text-[10.5px] text-[--color-ink-tertiary]">
               {dateNode}
             </div>
           );
         })()}
 
-        {/* BOE direct link — primary differentiator: lets bidders act
-            without entering our detail page. */}
+        {/* BOE direct link — compact pill, smaller padding to keep the
+            info area short. */}
         {item.boeLink && (
           <a
             href={item.boeLink}
@@ -434,8 +455,8 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
             className={cn(
-              "mt-1 inline-flex items-center justify-center gap-1 rounded-md",
-              "border border-[--color-brand-soft]/30 px-2.5 py-1.5 text-xs font-medium",
+              "inline-flex items-center justify-center gap-1 rounded-md",
+              "border border-[--color-brand-soft]/30 px-2 py-1 text-[11px] font-medium",
               "text-[--color-brand-soft] hover:bg-[--color-info-soft]",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand-soft]/40",
             )}

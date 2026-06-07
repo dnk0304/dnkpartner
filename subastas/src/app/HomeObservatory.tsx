@@ -37,7 +37,6 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { HomeCarouselSection } from "@/components/observatory/HomeCarouselSection";
 import { MapCategorySidebar } from "@/components/observatory/MapCategorySidebar";
-import { ProvinceDropdown } from "@/components/observatory/ProvinceDropdown";
 import { apiFetch } from "@/lib/api-path";
 import { AuctionItem } from "@/types";
 import { PROVINCE_DB_KEY_TO_SLUG, slugify } from "@/lib/seo/slugs";
@@ -317,24 +316,19 @@ export default function HomeObservatory() {
             vehículos). Modal popup is OFF (cards link to detail page). */}
         <HomeCarouselSection limit={30} seeAllHref="/subastas?when=activas" />
 
-        {/* Province selector + grid */}
-        <section aria-labelledby="provinces-heading" className="space-y-4">
-          <h2 id="provinces-heading" className="font-display text-2xl text-[--color-ink-primary]">
-            {t("provincesHeading")}
-          </h2>
-          <div className="max-w-md">
-            <ProvinceDropdown />
-          </div>
-          <ProvinceGrid
-            provinceCounts={provinceCounts}
-            onProvinceClick={(province: string) =>
-              router.push(provinceHref(province))
-            }
-            onMunicipalityClick={(municipality: string, province: string) =>
-              router.push(townHref(province, municipality))
-            }
-          />
-        </section>
+        {/* Province grid — renders its own internal heading ("Buscar subastas
+            por provincia") inside a white card. Sits directly beneath the
+            carousel; the dropdown/selector block that previously sat between
+            the two was removed (Dennis, 2026-06-07). */}
+        <ProvinceGrid
+          provinceCounts={provinceCounts}
+          onProvinceClick={(province: string) =>
+            router.push(provinceHref(province))
+          }
+          onMunicipalityClick={(municipality: string, province: string) =>
+            router.push(townHref(province, municipality))
+          }
+        />
 
         {/* How it works — plain Spanish, no marketing fluff */}
         <section className="rounded-lg bg-[--color-surface-muted] p-6 md:p-8 max-w-readable">

@@ -1,12 +1,78 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none">
-  <rect width="800" height="600" fill="#f8fafc"/>
-  <path d="M140 360 L220 260 C240 235 270 220 300 220 H500 C530 220 560 235 580 260 L660 360" fill="#cbd5f5"/>
-  <rect x="120" y="360" width="560" height="90" rx="16" fill="#94a3b8"/>
-  <rect x="250" y="250" width="120" height="70" rx="8" fill="#e2e8f0"/>
-  <rect x="390" y="250" width="120" height="70" rx="8" fill="#e2e8f0"/>
-  <circle cx="240" cy="460" r="34" fill="#1f2937"/>
-  <circle cx="560" cy="460" r="34" fill="#1f2937"/>
-  <circle cx="240" cy="460" r="16" fill="#9ca3af"/>
-  <circle cx="560" cy="460" r="16" fill="#9ca3af"/>
-  <text x="400" y="520" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" fill="#64748b">Turismo</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none" role="img" aria-label="Coche">
+  <defs>
+    <linearGradient id="bgCar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#eef7f1"/>
+      <stop offset="100%" stop-color="#dbece2"/>
+    </linearGradient>
+    <linearGradient id="bodyCar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1f5d3a"/>
+      <stop offset="55%" stop-color="#16472c"/>
+      <stop offset="100%" stop-color="#0f3320"/>
+    </linearGradient>
+    <linearGradient id="glassCar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#cfe4d8"/>
+      <stop offset="100%" stop-color="#9fc4b0"/>
+    </linearGradient>
+    <linearGradient id="hubCar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e6efe9"/>
+      <stop offset="100%" stop-color="#b6c9be"/>
+    </linearGradient>
+    <radialGradient id="shadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#0f3320" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#0f3320" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#bgCar)"/>
+  <!-- ground shadow -->
+  <ellipse cx="400" cy="495" rx="280" ry="22" fill="url(#shadow)"/>
+  <!-- body silhouette: sedan/hatch profile -->
+  <path d="M120 410
+           C120 360 150 340 200 332
+           L260 268
+           C282 240 320 226 360 226
+           H470
+           C512 226 548 246 572 280
+           L612 332
+           C660 340 690 360 695 392
+           L700 432
+           C702 452 686 466 666 466
+           H140
+           C124 466 116 454 116 438 Z"
+        fill="url(#bodyCar)"/>
+  <!-- side strip highlight -->
+  <path d="M126 408 L690 408" stroke="#2a7a4d" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  <!-- windows -->
+  <path d="M280 320
+           C290 290 318 270 354 270
+           H440
+           C470 270 488 286 502 320
+           Z"
+        fill="url(#glassCar)"/>
+  <path d="M514 320
+           L580 320
+           C590 320 596 314 590 304
+           L568 274
+           C560 264 548 258 536 258
+           H510
+           Z"
+        fill="url(#glassCar)" opacity="0.92"/>
+  <!-- B-pillar -->
+  <rect x="498" y="270" width="6" height="50" rx="2" fill="#0f3320"/>
+  <!-- door handle -->
+  <rect x="360" y="380" width="46" height="6" rx="3" fill="#cde0d4" opacity="0.7"/>
+  <rect x="468" y="380" width="46" height="6" rx="3" fill="#cde0d4" opacity="0.7"/>
+  <!-- headlight -->
+  <path d="M126 388 H170 C180 388 184 392 184 400 V408 H120 V398 C120 392 122 388 126 388 Z" fill="#fff5c8"/>
+  <!-- tail light -->
+  <path d="M680 388 H636 C626 388 622 392 622 400 V408 H694 V398 C694 392 690 388 686 388 Z" fill="#e15555"/>
+  <!-- wheel arches -->
+  <path d="M170 466 A70 70 0 0 1 310 466 Z" fill="#0a2517"/>
+  <path d="M510 466 A70 70 0 0 1 650 466 Z" fill="#0a2517"/>
+  <!-- wheels -->
+  <circle cx="240" cy="472" r="50" fill="#0a2517"/>
+  <circle cx="580" cy="472" r="50" fill="#0a2517"/>
+  <circle cx="240" cy="472" r="28" fill="url(#hubCar)"/>
+  <circle cx="580" cy="472" r="28" fill="url(#hubCar)"/>
+  <circle cx="240" cy="472" r="8" fill="#475e52"/>
+  <circle cx="580" cy="472" r="8" fill="#475e52"/>
 </svg>
