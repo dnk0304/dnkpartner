@@ -25,8 +25,10 @@ own; we keep it in procedureNumber/courtReference for provenance.
 
 Dedupe key:  boeId = "SUB-SS-{EMB_ID}".
 Source tag:  source = "SEGSOCIAL"  (Auction.source column already exists + indexed; NO migration).
-Prices:      honest-NULL — appraisalValue = Importe de Tasación, minimumBid = Tipo de
-             enajenación; if a figure is absent we write NULL, never 0.
+Prices:      honest-NULL — appraisalValue = Importe de Tasación; valorSubasta and
+             minimumBid = Tipo de enajenación (the auction/sale value — valorSubasta
+             feeds the detail-page 5% deposit derivation). If a figure is absent we
+             write NULL, never 0; we NEVER copy Tasación into valorSubasta.
 Status:      future auction date -> PROXIMA_APERTURA (+ opensAt); today/now -> CELEBRANDOSE.
 """
 
@@ -365,11 +367,17 @@ class SegSocialScraper(BankBaseScraper):
         if title and re.search(r"\b\d{4}\s?[A-Z]{3}\b", title):
             category = "Turismos"
 
-        # Honest price mapping:
-        #   appraisalValue = Importe de Tasación (the appraisal)
-        #   minimumBid     = Tipo de enajenación (the starting / sale price)
-        # Both honest-NULL when the ficha omits the figure. We never fabricate.
+        # Honest price mapping (three DISTINCT card numbers, matching BOE/PLABI):
+        #   appraisalValue = Importe de Tasación (the appraisal / valuation)
+        #   valorSubasta   = Tipo de enajenación (the auction / sale value)
+        #   minimumBid     = Tipo de enajenación (the starting bid == sale value here)
+        # Tipo de enajenación is the TGSS auction value, so it flows to BOTH the
+        # valorSubasta column (used by the detail-page financial breakdown to
+        # derive the 5% deposit) AND minimumBid (kept for back-compat — same
+        # figure, mirrors the PLABI "Valor del lote" mapping). Each is honest-NULL
+        # when the ficha omits the figure; we NEVER copy Tasación into valorSubasta.
         appraisal_value = tasacion
+        valor_subasta = tipo_enajenacion
         minimum_bid = tipo_enajenacion
 
         # Status by auction date.
@@ -387,6 +395,7 @@ class SegSocialScraper(BankBaseScraper):
             "status": status,
             "source": self.get_source_name(),
             "appraisal_value": appraisal_value,
+            "valor_subasta": valor_subasta,
             "minimum_bid": minimum_bid,
             "current_bid": None,
             "claimed_amount": cargas_amount,  # charges figure if stated, else NULL
@@ -581,6 +590,7 @@ class SegSocialScraper(BankBaseScraper):
             "appraisal_value": f(data.get("appraisal_value")),
             "current_bid": f(data.get("current_bid")),
             "minimum_bid": f(data.get("minimum_bid")),
+            "valor_subasta": f(data.get("valor_subasta")),
             "claimed_amount": f(data.get("claimed_amount")),
             "deposit_amount": f(data.get("deposit_amount")),
             "court_name": data.get("court_name"),
