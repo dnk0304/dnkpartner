@@ -28,9 +28,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import Image from "next/image";
-import { ArrowLeft, ExternalLink, FileText, Landmark, MapPin, ImageOff, Download, Calendar } from "lucide-react";
+import { ArrowLeft, ExternalLink, FileText, Landmark, ImageOff, Download, Calendar, Phone, Building2 } from "lucide-react";
 import { apiFetch } from "@/lib/api-path";
 import { AuctionItem, AuctionDocument } from "@/types";
 import { resolveCardImage, isVehicleCategory } from "@/lib/resolve-card-image";
@@ -40,7 +39,6 @@ import { DetailStatusPanel } from "@/components/observatory/DetailStatusPanel";
 import { DetailTimeline } from "@/components/observatory/DetailTimeline";
 import { PROVINCE_DB_KEY_TO_SLUG } from "@/lib/seo/slugs";
 import { auctionDisplayTitle } from "@/lib/seo/display-title";
-import { StatusBadge } from "@/components/observatory/StatusBadge";
 import { FollowButton } from "@/components/notifications/FollowButton";
 // GatedField import dropped 2026-06-07 (wave-B): the detail page is fully
 // public now — map, address, expediente, and edicto no longer wrap in
@@ -53,16 +51,43 @@ import {
 } from "@/components/observatory/format";
 import { cn } from "@/lib/utils";
 
-// AuctionLocationMap touches `window` at import time — must be dynamic+ssr:false.
-const AuctionLocationMap = dynamic(
-  () => import("@/components/dashboard/AuctionLocationMap").then((m) => m.AuctionLocationMap),
-  { ssr: false, loading: () => <div className="h-72 bg-[--color-surface-muted] animate-pulse rounded-md" /> },
-);
+// Wave-C (2026-06-07) — new visual subcomponents that consume the server's
+// projected fields (financials[], sourceLinks[], endDate, bidStatus, seller,
+// cadastral, lastUpdated). Each is dynamic-safe and self-contained; the
+// detail page composes them, it does not own their rendering logic.
+import { AuctionFinancialsTable, type FinancialEntry } from "@/components/auction/AuctionFinancialsTable";
+import { AuctionCountdownBadge } from "@/components/auction/AuctionCountdownBadge";
+import { AuctionSourceLinks, type SourceLink } from "@/components/auction/AuctionSourceLinks";
+import { AuctionMapPanel } from "@/components/auction/AuctionMapPanel";
+import { CrearAlertaCTA } from "@/components/auction/CrearAlertaCTA";
+import { SimilarAuctionsCarousel } from "@/components/auction/SimilarAuctionsCarousel";
+
+// Wave-B fields added to the auction payload (server-side). All optional —
+// missing fields fall through gracefully to the existing UI rather than
+// throwing.
+type WaveBFields = {
+  sourceLinks?: SourceLink[];
+  financials?: FinancialEntry[];
+  endDate?: string | null;
+  bidStatus?: string | null;
+  lastUpdated?: string | null;
+  seller?: { name: string | null; contact: string | null } | null;
+  cadastral?: {
+    ref: string | null;
+    charges: string | null;
+    chargesDetail: string | null;
+    possession: string | null;
+    classification: string | null;
+    use: string | null;
+    area: string | null;
+    ownershipPct: string | null;
+  } | null;
+};
 
 type DetailResponse = {
   success: boolean;
   data?: {
-    auction: any; // raw Prisma row — we coerce below
+    auction: any & WaveBFields; // raw Prisma row + wave-B projection
     history: {
       statuses: Array<{
         id: string;
@@ -369,56 +394,93 @@ export default function AuctionDetailClient({
             fully public so the real street address can lead the headline;
             falls back to municipality/province for vehicles/land per the
             helper's fallback ladder. The reference code (raw.boeId) is shown
-            below as secondary metadata, NEVER as the H1. */}
-        <header className="mt-3 mb-6 md:mb-8">
-          <h1 className="font-serif text-2xl md:text-3xl lg:text-4xl leading-tight text-[--color-ink-primary]">
-            {auctionDisplayTitle({
-              address: raw.address,
-              propertyType: raw.propertyType,
-              auctionType: raw.auctionType,
-              category: raw.category,
-              municipality: raw.municipality,
-              province: raw.province,
-              title: raw.title,
-            })}
-          </h1>
-          {where && (
-            <p className="mt-1.5 text-sm text-[--color-ink-secondary]">{where}</p>
-          )}
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[--color-ink-tertiary] tnum">
-            <span className="font-mono">{raw.boeId}</span>
-            {/* propertyType (doc-archive backfill) — BOE bien-heading type.
-                Preferred over auctionType when both are present. */}
-            {raw.propertyType ? (
-              <>
-                <span aria-hidden="true">·</span>
-                <span>{capitalize(raw.propertyType)}</span>
-              </>
-            ) : raw.auctionType && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span>{capitalize(raw.auctionType.toLowerCase())}</span>
-              </>
-            )}
-            {raw.courtName && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span>{raw.courtName}</span>
-              </>
-            )}
-            {/* "Inicio …" — official start date (opensAt). Null-safe; the
-                row hides cleanly when the doc-archive backfill hasn't
-                reached this auction yet. */}
-            {raw.opensAt && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span className="inline-flex items-center gap-1">
-                  <Calendar className="h-3 w-3" aria-hidden="true" />
-                  Inicio {formatDateLong(raw.opensAt)}
-                </span>
-              </>
-            )}
+            below as secondary metadata, NEVER as the H1.
+
+            Wave-C (2026-06-07): the hero block now also carries the urgency
+            row (countdown + bid-status chip) AND the sticky "Crear alerta"
+            CTA. These sit immediately under the title so the user sees the
+            urgency lever AND the conversion path within the first viewport.
+            */}
+        <header className="mt-3 mb-6 md:mb-8 space-y-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <h1 className="font-serif text-2xl md:text-3xl lg:text-4xl leading-tight text-[--color-ink-primary]">
+                {auctionDisplayTitle({
+                  address: raw.address,
+                  propertyType: raw.propertyType,
+                  auctionType: raw.auctionType,
+                  category: raw.category,
+                  municipality: raw.municipality,
+                  province: raw.province,
+                  title: raw.title,
+                })}
+              </h1>
+              {where && (
+                <p className="text-sm text-[--color-ink-secondary]">{where}</p>
+              )}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[--color-ink-tertiary] tnum">
+                <span className="font-mono">{raw.boeId}</span>
+                {/* propertyType (doc-archive backfill) — BOE bien-heading type.
+                    Preferred over auctionType when both are present. */}
+                {raw.propertyType ? (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>{capitalize(raw.propertyType)}</span>
+                  </>
+                ) : raw.auctionType && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>{capitalize(raw.auctionType.toLowerCase())}</span>
+                  </>
+                )}
+                {raw.courtName && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>{raw.courtName}</span>
+                  </>
+                )}
+                {/* "Inicio …" — official start date (opensAt). Null-safe; the
+                    row hides cleanly when the doc-archive backfill hasn't
+                    reached this auction yet. */}
+                {raw.opensAt && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span className="inline-flex items-center gap-1">
+                      <Calendar className="h-3 w-3" aria-hidden="true" />
+                      Inicio {formatDateLong(raw.opensAt)}
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+            {/* Hero soft-ladder: primary alert CTA + heart sit alongside the
+                title so the conversion path is visible above the fold. The
+                CTA is also repeated below the financial table (M8). */}
+            <div className="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center md:flex-col md:items-stretch md:max-w-[220px]">
+              <CrearAlertaCTA auction={raw} hideHelper />
+              <div className="flex items-center gap-2">
+                <FollowButton
+                  auctionId={raw.id}
+                  initialFollowing={data.isFollowing}
+                  variant="compact"
+                />
+                <CrearAlertaCTA
+                  auction={raw}
+                  variant="ghost"
+                  label="Envíame similares"
+                  hideHelper
+                />
+              </div>
+            </div>
           </div>
+          {/* Countdown + bid-status row — the urgency block. Renders even
+              when endDate is null (the badge shows "Fecha por confirmar" so
+              the slot never collapses). */}
+          <AuctionCountdownBadge
+            endDate={raw.endDate ?? raw.endsAt ?? null}
+            bidStatus={raw.bidStatus ?? null}
+            effectiveStatus={status}
+          />
         </header>
         </>
         )}
@@ -427,55 +489,60 @@ export default function AuctionDetailClient({
         <div className="grid grid-cols-1 md:grid-cols-[1fr_360px] gap-6 md:gap-8 items-start">
           {/* Left: content */}
           <div className="space-y-8 min-w-0">
-            {/* Real photo (Catastro/Street View). Shown above the map so the
-                eye gets the property first; map provides spatial context after. */}
-            {photoUrl && !photoFailed && (
-              <section aria-labelledby="photo-heading">
-                <h2 id="photo-heading" className="sr-only">Foto del bien</h2>
-                <div className="relative aspect-[16/9] w-full overflow-hidden rounded-lg border border-[--color-hairline] bg-[--color-surface-muted]">
-                  <Image
-                    src={photoUrl}
-                    alt={`Foto de ${raw.title}`}
-                    fill
-                    sizes="(max-width: 768px) 100vw, 60vw"
-                    className="object-cover"
-                    priority
-                    onError={() => setPhotoFailed(true)}
-                  />
-                </div>
-                <p className="mt-1.5 text-[11px] text-[--color-ink-tertiary]">
-                  Foto generada a partir de la referencia catastral o Street View. Puede no reflejar el estado actual.
-                </p>
-              </section>
-            )}
+            {/* Imagery + location ladder (wave-C 2026-06-07):
+                  1. PHOTO available → render photo as hero, map as sectioned panel below.
+                  2. NO photo + COORDS → render MAP as hero (16/9). M7 fallback.
+                  3. Neither → neutral placeholder.
 
-            {/* Map — rung 2 of the imagery ladder. Renders an interactive
-                Leaflet map when coordinates exist. */}
-            {hasCoords ? (
-              <section aria-labelledby="map-heading">
-                <h2 id="map-heading" className="sr-only">Ubicación</h2>
-                {/* Wave-B (2026-06-07): the detail page is fully public —
-                    map + exact street address are now visible to everyone.
-                    The previous <GatedField level="register"> wrap is gone. */}
-                <div className="rounded-lg overflow-hidden border border-[--color-hairline]">
-                  <div className="h-72 md:h-96 relative">
-                    <AuctionLocationMap auction={auctionItem} />
+                The AuctionMapPanel composes the Leaflet map + Google Maps +
+                Street View affordances + ubicación-aproximada disclaimer. */}
+            {photoUrl && !photoFailed ? (
+              <>
+                <section aria-labelledby="photo-heading">
+                  <h2 id="photo-heading" className="sr-only">Foto del bien</h2>
+                  <div className="relative aspect-[16/9] w-full overflow-hidden rounded-lg border border-[--color-hairline] bg-[--color-surface-muted]">
+                    <Image
+                      src={photoUrl}
+                      alt={`Foto de ${raw.title}`}
+                      fill
+                      sizes="(max-width: 768px) 100vw, 60vw"
+                      className="object-cover"
+                      priority
+                      onError={() => setPhotoFailed(true)}
+                    />
                   </div>
-                </div>
-                {raw.address && (
-                  <p className="mt-2 text-xs text-[--color-ink-tertiary] flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5" aria-hidden="true" /> {raw.address}
+                  <p className="mt-1.5 text-[11px] text-[--color-ink-tertiary]">
+                    Foto generada a partir de la referencia catastral o Street View. Puede no reflejar el estado actual.
                   </p>
+                </section>
+                {hasCoords && (
+                  <section aria-labelledby="map-heading">
+                    <h2 id="map-heading" className="font-serif text-xl text-[--color-ink-primary]">
+                      Localización
+                    </h2>
+                    <p className="mt-0.5 text-xs text-[--color-ink-tertiary]">
+                      Punto aproximado del bien. Verifica la dirección en el edicto.
+                    </p>
+                    <div className="mt-3">
+                      <AuctionMapPanel auction={auctionItem} />
+                    </div>
+                  </section>
                 )}
+              </>
+            ) : hasCoords ? (
+              // M7 — map-as-hero for photo-less auctions. Same component,
+              // hero variant => 16/9 aspect ratio so the lead visual reads
+              // as intentional rather than fallback.
+              <section aria-labelledby="map-heading">
+                <h2 id="map-heading" className="sr-only">Localización del bien</h2>
+                <AuctionMapPanel auction={auctionItem} variant="hero" />
               </section>
-            ) : (!photoUrl || photoFailed) ? (
-              // Rung 3 — neither photo nor coords. The detail page must NEVER be
-              // blank, so render a placeholder at hero size. Per Dennis (2026-06-03)
-              // the category house cartoon is forbidden for property rows: a
+            ) : (
+              // Rung 3 — neither photo nor coords. Neutral placeholder so the
+              // page never reads as broken. Per Dennis (2026-06-03) the
+              // category house cartoon is forbidden for property rows: a
               // vehicle row legitimately shows its category icon (no location);
-              // a property without coords shows a NEUTRAL map placeholder
-              // ("located property, imagery pending") — the same resolver rule
-              // the card surfaces use.
+              // a property without coords shows a NEUTRAL map placeholder.
               <section aria-labelledby="hero-fallback-heading">
                 <h2 id="hero-fallback-heading" className="sr-only">
                   {isVehicleCategory(raw.category) ? "Imagen de la categoría" : "Ubicación pendiente"}
@@ -505,7 +572,63 @@ export default function AuctionDetailClient({
                   Aún no disponemos de foto ni ubicación geocodificada para esta subasta.
                 </p>
               </section>
-            ) : null}
+            )}
+
+            {/* Financial breakdown table (wave-C M1) — primary trust anchor,
+                placed high above documents. Consumes `financials[]` from the
+                server projection. Honest-NULL: rows render "No disponible"
+                rather than fabricate a 0. */}
+            {Array.isArray(raw.financials) && raw.financials.length > 0 && (
+              <section aria-labelledby="financials-heading">
+                <div className="flex items-baseline justify-between gap-3">
+                  <h2 id="financials-heading" className="font-serif text-xl text-[--color-ink-primary]">
+                    Desglose financiero
+                  </h2>
+                  <span className="text-[11px] text-[--color-ink-tertiary]">
+                    Valores en euros · fuente BOE
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <AuctionFinancialsTable financials={raw.financials} />
+                </div>
+                {/* M8 — repeat the alert CTA at the high-intent moment, right
+                    after the user has absorbed the money figures. */}
+                <div className="mt-4 rounded-lg border border-[--color-brand]/20 bg-[--color-brand]/5 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-serif text-base text-[--color-ink-primary]">
+                        ¿Te interesan subastas como esta?
+                      </p>
+                      <p className="mt-0.5 text-xs text-[--color-ink-secondary]">
+                        Te avisamos por email cuando se publiquen subastas similares
+                        en {raw.province ? capitalize(raw.province) : "tu zona"}.
+                      </p>
+                    </div>
+                    <div className="shrink-0">
+                      <CrearAlertaCTA auction={raw} hideHelper />
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* Source links — labelled set of "go to the official source"
+                buttons. Replaces the previous ad-hoc single boeLink/edictUrl/
+                pdfUrl rendering. Documents[] (cached files) stays separate
+                below. */}
+            {Array.isArray(raw.sourceLinks) && raw.sourceLinks.length > 0 && (
+              <section aria-labelledby="sources-heading">
+                <h2 id="sources-heading" className="font-serif text-xl text-[--color-ink-primary]">
+                  Fuente oficial
+                </h2>
+                <p className="mt-0.5 text-xs text-[--color-ink-tertiary]">
+                  Enlaces directos al BOE y otros orígenes oficiales. Se abren en una nueva pestaña.
+                </p>
+                <div className="mt-3">
+                  <AuctionSourceLinks links={raw.sourceLinks} />
+                </div>
+              </section>
+            )}
 
             {/* Mobile-only inline state panel */}
             <div className="md:hidden">
@@ -749,7 +872,94 @@ export default function AuctionDetailClient({
               </section>
             )}
 
-            {/* Source & verification */}
+            {/* Cadastral block (wave-C M3) — server-projected `cadastral{}`
+                object. Renders only the fields that resolve (NULL-safe).
+                Section is hidden entirely if every field is null. */}
+            {raw.cadastral && (raw.cadastral.ref ||
+              raw.cadastral.charges || raw.cadastral.chargesDetail ||
+              raw.cadastral.possession || raw.cadastral.classification ||
+              raw.cadastral.use || raw.cadastral.area ||
+              raw.cadastral.ownershipPct) && (
+              <section aria-labelledby="cadastral-heading">
+                <h2 id="cadastral-heading" className="font-serif text-xl text-[--color-ink-primary]">
+                  Información catastral y registral
+                </h2>
+                <dl className="mt-3 grid grid-cols-1 sm:grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
+                  {raw.cadastral.ref && (() => {
+                    const catastroUrl = buildCatastroUrl(raw.cadastral.ref);
+                    return (
+                      <KV
+                        label="Referencia catastral"
+                        value={
+                          catastroUrl ? (
+                            <span className="inline-flex flex-wrap items-center gap-2">
+                              <span className="font-mono">{raw.cadastral.ref}</span>
+                              <a
+                                href={catastroUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 rounded-full border border-[--color-hairline] bg-[--color-surface-muted] px-2 py-0.5 text-[11px] font-medium text-[--color-ink-secondary] hover:border-[--color-brand]/40 hover:text-[--color-ink-primary]"
+                              >
+                                <Landmark className="h-3 w-3" aria-hidden="true" />
+                                Ver en Catastro
+                                <ExternalLink className="h-3 w-3 opacity-70" aria-hidden="true" />
+                              </a>
+                            </span>
+                          ) : (
+                            raw.cadastral.ref
+                          )
+                        }
+                        mono={!catastroUrl}
+                      />
+                    );
+                  })()}
+                  {raw.cadastral.classification && (
+                    <KV label="Clasificación" value={raw.cadastral.classification} />
+                  )}
+                  {raw.cadastral.use && <KV label="Uso" value={raw.cadastral.use} />}
+                  {raw.cadastral.area && <KV label="Superficie" value={raw.cadastral.area} />}
+                  {raw.cadastral.ownershipPct && (
+                    <KV label="% titularidad" value={raw.cadastral.ownershipPct} />
+                  )}
+                  {raw.cadastral.charges && (
+                    <KV label="Cargas" value={raw.cadastral.charges} />
+                  )}
+                  {raw.cadastral.chargesDetail && (
+                    <KV label="Detalle de cargas" value={raw.cadastral.chargesDetail} />
+                  )}
+                  {raw.cadastral.possession && (
+                    <KV label="Situación posesoria" value={raw.cadastral.possession} />
+                  )}
+                </dl>
+              </section>
+            )}
+
+            {/* Seller / agency contact (wave-C M4). Null-safe: section is
+                fully hidden when both name and contact are absent. */}
+            {raw.seller && (raw.seller.name || raw.seller.contact) && (
+              <section aria-labelledby="contact-heading">
+                <h2 id="contact-heading" className="font-serif text-xl text-[--color-ink-primary]">
+                  Contacto del organismo
+                </h2>
+                <div className="mt-3 space-y-2 rounded-lg border border-[--color-hairline] bg-[--color-surface] p-4 text-sm">
+                  {raw.seller.name && (
+                    <p className="flex items-start gap-2 text-[--color-ink-primary]">
+                      <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-[--color-ink-tertiary]" aria-hidden="true" />
+                      <span className="font-medium">{raw.seller.name}</span>
+                    </p>
+                  )}
+                  {raw.seller.contact && (
+                    <p className="flex items-start gap-2 whitespace-pre-line text-[--color-ink-secondary]">
+                      <Phone className="mt-0.5 h-4 w-4 shrink-0 text-[--color-ink-tertiary]" aria-hidden="true" />
+                      <span className="break-words">{raw.seller.contact}</span>
+                    </p>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* Source & verification — trust strip. Wave-C: now includes the
+                last-updated line (M4) alongside published + last-verified. */}
             <section aria-labelledby="source-heading" className="rounded-lg bg-[--color-surface-muted] p-4">
               <h2
                 id="source-heading"
@@ -766,6 +976,14 @@ export default function AuctionDetailClient({
                   <dt>Publicada:</dt>
                   <dd className="text-[--color-ink-primary]">{formatDateLong(raw.publishedAt)}</dd>
                 </div>
+                {raw.lastUpdated && (
+                  <div className="flex gap-2 tnum">
+                    <dt>Actualizada:</dt>
+                    <dd className="text-[--color-ink-primary]">
+                      {formatRelativeEs(raw.lastUpdated)}
+                    </dd>
+                  </div>
+                )}
                 {raw.lastVerifiedAt && (
                   <div className="flex gap-2 tnum">
                     <dt>Última verificación:</dt>
@@ -784,6 +1002,18 @@ export default function AuctionDetailClient({
               <DetailStatusPanel auction={auctionItem} initialFollowing={data.isFollowing} />
             </div>
           </div>
+        </div>
+
+        {/* Similar auctions carousel (wave-C M6) — spans the full editorial
+            width, below the two-column grid. Self-fetches /api/auctions
+            filtered by province + category; hides entirely when zero
+            similar rows resolve so the section never reads empty. */}
+        <div className="mt-10 md:mt-12">
+          <SimilarAuctionsCarousel
+            seedId={raw.id}
+            seedProvince={raw.province}
+            seedCategory={raw.category}
+          />
         </div>
 
       {/* Mobile bottom action bar (position:fixed — escapes any ancestor) */}
