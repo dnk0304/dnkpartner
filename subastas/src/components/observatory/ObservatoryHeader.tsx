@@ -139,9 +139,6 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
           <Link href="/subastas" className="hover:text-[--color-brand] transition-colors">
             {t("navAuctions")}
           </Link>
-          <Link href="/" className="hover:text-[--color-brand] transition-colors">
-            {t("navLatest")}
-          </Link>
         </nav>
 
         {/* Search */}
