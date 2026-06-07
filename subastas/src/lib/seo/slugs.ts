@@ -110,14 +110,18 @@ export function provinceLabelForSlug(slug: string): string | null {
 /** Alias → canonical province slug. 301s. */
 export const PROVINCE_ALIAS_TO_CANONICAL: Readonly<Record<string, string>> = {
   'la-coruna': 'a-coruna',
+  'coruna': 'a-coruna',
   'alava': 'araba-alava',
+  'araba': 'araba-alava',
   'illes-balears': 'baleares',
+  'islas-baleares': 'baleares',
   'mallorca': 'baleares',
   'guipuzcoa': 'gipuzkoa',
   'vizcaya': 'bizkaia',
   'gerona': 'girona',
   'lerida': 'lleida',
   'orense': 'ourense',
+  'tenerife': 'santa-cruz-de-tenerife',
   'la-rioja': 'la-rioja',
 };
 

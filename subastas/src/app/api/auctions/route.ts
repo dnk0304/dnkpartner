@@ -21,6 +21,13 @@ import {
 import { normalizeText } from '@/lib/normalize';
 import { isKnownSource } from '@/lib/source-labels';
 import { toCanonicalProvince } from '@/lib/spain-provinces';
+import { resolveProvinceSlugToCanonical } from '@/lib/province-slug';
+import {
+  MAP_CATEGORY_OTROS,
+  mapCategoryToDbLabels,
+  isMapCategoryOtros,
+  MAP_CATEGORY_ALL_KNOWN_DB_LABELS,
+} from '@/lib/map-category';
 
 // Cached "SELECT DISTINCT province" \u2014 full scan against 229k rows on every
 // filtered request is wildly expensive. Provinces change rarely (Spain has 52);
@@ -682,6 +689,12 @@ export async function GET(request: NextRequest) {
     const municipiosList = parseCsvParam(municipiosRaw, MAX_MUNICIPIOS);
     const provinciasList = parseCsvParam(provinciasRaw, MAX_PROVINCIAS);
     const category = searchParams.get('category');
+    // Wave79 (2026-06-07): curated "map sidebar" filter. Optional + additive
+    // — single key (e.g. ?mapCategory=vivienda). Expands to the underlying DB
+    // labels via the single-source-of-truth `mapCategoryToDbLabels`. "otros"
+    // is the catch-all. Unknown key → ignored (no `1=0`) so a stale chip from
+    // an in-flight client doesn't collapse the result set.
+    const mapCategory = searchParams.get('mapCategory');
     const status = searchParams.get('status');
     const statuses = searchParams.get('statuses'); // Support multiple statuses
     const auctionType = searchParams.get('auctionType');
@@ -836,6 +849,7 @@ export async function GET(request: NextRequest) {
       municipios: municipiosList ? [...municipiosList].map((s) => normalizeText(s)).sort().join('|') : 'none',
       provincias: provinciasList ? [...provinciasList].map((s) => normalizeText(s)).sort().join('|') : 'none',
       category: category || 'all',
+      mapCategory: mapCategory || 'all',
       status: status || 'all',
       statuses: statuses || 'all',
       auctionType: auctionType || 'all',
@@ -1033,11 +1047,25 @@ export async function GET(request: NextRequest) {
       }
 
       if (provinciasList && provinciasList.length > 0) {
+        // Wave79 (2026-06-07): primary resolver is the SEO slug grammar
+        // (`resolveProvinceSlugToCanonical`), which round-trips every slug the
+        // ProvinceTownTree emits — including the overridden ones ("a-coruna",
+        // "baleares", "araba-alava", "gipuzkoa", "bizkaia",
+        // "santa-cruz-de-tenerife", "las-palmas") and the legacy aliases
+        // ("la-coruna", "illes-balears", "mallorca", "vizcaya", …) — to the
+        // canonical {label, key}. The previous resolver did only
+        // `normalizeText(slug)` which kept the slug hyphen-form and so
+        // multi-word / overridden-slug provinces returned 0 rows even though
+        // the count sidebar (which uses `toCanonicalProvince` on the raw DB
+        // label) correctly tallied them. The folded + raw-label fallbacks
+        // below are kept so a non-slug spelling on the wire (e.g. raw
+        // "Illes Balears") still resolves.
         const dbProvinces = await getCachedDistinctProvinces();
         const provDbCasings = new Set<string>();
         for (const slug of provinciasList) {
           const folded = normalizeText(slug);
-          const canonical = toCanonicalProvince(slug);
+          const canonical = resolveProvinceSlugToCanonical(slug)
+            ?? toCanonicalProvince(slug);
           for (const v of dbProvinces) {
             const vFolded = normalizeText(v);
             if (vFolded === folded) provDbCasings.add(v);
@@ -1071,6 +1099,27 @@ export async function GET(request: NextRequest) {
     } else if (category) {
       sql += ' AND category = ?';
       params.push(category);
+    }
+
+    // Wave79 (2026-06-07): curated `mapCategory` filter. Applied AFTER the
+    // free-form `category`/`categories` filters so a stricter chip
+    // ("vivienda") narrows further if the FE sent both. Placement sits
+    // BEFORE preStatusSqlLen so totalCount + teaserCounts both honor the
+    // narrowing — count=list invariant.
+    if (mapCategory) {
+      if (isMapCategoryOtros(mapCategory)) {
+        if (MAP_CATEGORY_ALL_KNOWN_DB_LABELS.length > 0) {
+          sql += ` AND (category IS NULL OR category NOT IN (${MAP_CATEGORY_ALL_KNOWN_DB_LABELS.map(() => '?').join(', ')}))`;
+          params.push(...MAP_CATEGORY_ALL_KNOWN_DB_LABELS);
+        }
+      } else {
+        const labels = mapCategoryToDbLabels(mapCategory);
+        if (labels && labels.length > 0) {
+          sql += ` AND category IN (${labels.map(() => '?').join(', ')})`;
+          params.push(...labels);
+        }
+        // Unknown key (not curated, not "otros") — ignore.
+      }
     }
 
     // --- P1 advanced filters (parameterized, never interpolated) ---------

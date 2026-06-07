@@ -8,6 +8,11 @@ import {
   ACTIVE_CLOCK_GUARD_SQL,
   DB_TO_FRONTEND_STATUS,
 } from '@/lib/auction-status';
+import {
+  mapCategoryToDbLabels,
+  isMapCategoryOtros,
+  MAP_CATEGORY_ALL_KNOWN_DB_LABELS,
+} from '@/lib/map-category';
 
 /**
  * API endpoint to fetch auction location data for map display
@@ -43,6 +48,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const province = searchParams.get('province');
     const category = searchParams.get('category');
+    // Wave79 (2026-06-07): curated map-sidebar category filter. Same lib +
+    // semantics as the listing route — single source of truth for the
+    // 8 curated keys + "otros" catch-all. Filters map pins in lockstep with
+    // the sidebar count for the selected key.
+    const mapCategory = searchParams.get('mapCategory');
     const status = searchParams.get('status');
     const statuses = searchParams.get('statuses')?.split(',').filter(Boolean) || [];
 
@@ -58,6 +68,26 @@ export async function GET(request: NextRequest) {
     if (category) {
       conditions.push('category = ?');
       params.push(category);
+    }
+
+    if (mapCategory) {
+      if (isMapCategoryOtros(mapCategory)) {
+        if (MAP_CATEGORY_ALL_KNOWN_DB_LABELS.length > 0) {
+          conditions.push(
+            `(category IS NULL OR category NOT IN (${MAP_CATEGORY_ALL_KNOWN_DB_LABELS.map(() => '?').join(', ')}))`,
+          );
+          params.push(...MAP_CATEGORY_ALL_KNOWN_DB_LABELS);
+        }
+      } else {
+        const labels = mapCategoryToDbLabels(mapCategory);
+        if (labels && labels.length > 0) {
+          conditions.push(
+            `category IN (${labels.map(() => '?').join(', ')})`,
+          );
+          params.push(...labels);
+        }
+        // Unknown key — ignore (don't collapse the pin set).
+      }
     }
 
     // Status filter — frontend status alias → canonical DB set, all sourced

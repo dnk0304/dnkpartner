@@ -12,6 +12,15 @@ import {
 } from '@/lib/auction-status';
 import { normalizeText } from '@/lib/normalize';
 import { toCanonicalProvince } from '@/lib/spain-provinces';
+import { resolveProvinceSlugToCanonical } from '@/lib/province-slug';
+import {
+  MAP_CATEGORY_KEYS,
+  MAP_CATEGORY_OTROS,
+  dbCategoryToMapKey,
+  mapCategoryToDbLabels,
+  isMapCategoryOtros,
+  MAP_CATEGORY_ALL_KNOWN_DB_LABELS,
+} from '@/lib/map-category';
 import { getSourceLabel } from '@/lib/source-labels';
 
 // FORGE 2026-06-07 (multi-town-api / Feature F1) — array-param caps + parser.
@@ -114,12 +123,17 @@ export async function GET(request: NextRequest) {
     const municipiosList = parseCsvParam(municipiosRaw, MAX_MUNICIPIOS);
     const provinciasList = parseCsvParam(provinciasRaw, MAX_PROVINCIAS);
     const category = searchParams.get('category'); // Filter by category
+    // Wave79 (2026-06-07): curated "map sidebar" filter — accepts one of the
+    // MAP_CATEGORY_KEYS (or "otros"). Expanded server-side to the underlying
+    // DB labels via `mapCategoryToDbLabels` so the filter agrees with the
+    // mapCategory aggregator below (count=list invariant).
+    const mapCategory = searchParams.get('mapCategory');
     const status = searchParams.get('status'); // Filter by status
-    
-    if (!groupBy || !['category', 'province', 'municipality', 'source'].includes(groupBy)) {
+
+    if (!groupBy || !['category', 'province', 'municipality', 'source', 'mapCategory'].includes(groupBy)) {
       return NextResponse.json({
         success: false,
-        error: 'Invalid or missing groupBy parameter. Must be: category, province, municipality, or source'
+        error: 'Invalid or missing groupBy parameter. Must be: category, province, municipality, source, or mapCategory'
       }, { status: 400 });
     }
     
@@ -131,6 +145,7 @@ export async function GET(request: NextRequest) {
       municipios: municipiosList ? [...municipiosList].map((s) => normalizeText(s)).sort().join('|') : 'none',
       provincias: provinciasList ? [...provinciasList].map((s) => normalizeText(s)).sort().join('|') : 'none',
       category: category || 'all',
+      mapCategory: mapCategory || 'all',
       status: status || 'all'
     };
     
@@ -141,13 +156,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(cached);
     }
     
-    // Build optimized SQL query with GROUP BY
+    // Build optimized SQL query with GROUP BY.
+    //
+    // Wave79 (2026-06-07): `groupBy=mapCategory` is the curated 8-key map
+    // sidebar grouping. Since mapCategory is NOT a DB column, we GROUP BY
+    // the underlying `category` and fold to the curated key in the JS
+    // aggregation pass below. The other groupBy values (category, province,
+    // municipality, source) remain SQL columns and group natively.
+    const sqlGroupCol = groupBy === 'mapCategory' ? 'category' : groupBy;
     let sql = `
-      SELECT 
-        ${groupBy},
+      SELECT
+        ${sqlGroupCol},
         status,
         COUNT(*) as count
-      FROM Auction 
+      FROM Auction
       WHERE 1=1
         AND province IS NOT NULL
         AND LOWER(province) NOT IN ('unknown', 'desconocida', 'mapa de la zona', 'mapa del municipio', 'null', 'undefined')
@@ -204,7 +226,17 @@ export async function GET(request: NextRequest) {
       }
 
       if (provinciasList && provinciasList.length > 0) {
-        // Reuse a distinct-province fetch. Cheap (52 provinces).
+        // Wave79 (2026-06-07): primary resolution path is the SEO slug grammar
+        // (`resolveProvinceSlugToCanonical`), which maps "a-coruna" /
+        // "baleares" / "araba-alava" / aliases ("la-coruna", "vizcaya") to
+        // the canonical {label, key}. Previously this branch did only
+        // `normalizeText(slug)` + a raw fallback to `toCanonicalProvince`,
+        // which kept the slug hyphen-form and never matched the DB label's
+        // space-form. Result: A Coruña + Illes Balears (and every multi-word
+        // / overridden-slug province) returned 0 rows despite the sidebar
+        // count being correct. The legacy fold paths are kept as additional
+        // OR clauses so a non-slug spelling on the wire (e.g. raw "Madrid")
+        // still resolves.
         const dbProvinceRows = await query<{ province: string }>(
           'SELECT DISTINCT province FROM Auction WHERE province IS NOT NULL',
           [],
@@ -213,7 +245,8 @@ export async function GET(request: NextRequest) {
         const provDbCasings = new Set<string>();
         for (const slug of provinciasList) {
           const folded = normalizeText(slug);
-          const canonical = toCanonicalProvince(slug);
+          const canonical = resolveProvinceSlugToCanonical(slug)
+            ?? toCanonicalProvince(slug);
           for (const v of dbProvinces) {
             const vFolded = normalizeText(v);
             if (vFolded === folded) provDbCasings.add(v);
@@ -242,6 +275,28 @@ export async function GET(request: NextRequest) {
       sql += ' AND category = ?';
       params.push(category);
     }
+
+    // Wave79 (2026-06-07): curated `mapCategory=<key>` filter. Resolves to
+    // the underlying DB labels via the single-source-of-truth map. "otros"
+    // is the catch-all bucket — implemented as NOT IN (all known labels) so
+    // it captures off-taxonomy + Maquinaria/Joyas/Arte without leaking back
+    // into the curated buckets. An unknown key (not in MAP_CATEGORY_KEYS and
+    // not "otros") is ignored so a stray probe never collapses the count to 0.
+    if (mapCategory) {
+      if (isMapCategoryOtros(mapCategory)) {
+        if (MAP_CATEGORY_ALL_KNOWN_DB_LABELS.length > 0) {
+          sql += ` AND (category IS NULL OR category NOT IN (${MAP_CATEGORY_ALL_KNOWN_DB_LABELS.map(() => '?').join(', ')}))`;
+          params.push(...MAP_CATEGORY_ALL_KNOWN_DB_LABELS);
+        }
+      } else {
+        const labels = mapCategoryToDbLabels(mapCategory);
+        if (labels && labels.length > 0) {
+          sql += ` AND category IN (${labels.map(() => '?').join(', ')})`;
+          params.push(...labels);
+        }
+      }
+    }
+
     if (status) {
       // Status sets + canonical clock guard come from the shared lib so the
       // counts endpoint and the list endpoint can never drift again. Clock
@@ -262,7 +317,7 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    sql += ` GROUP BY ${groupBy}, status`;
+    sql += ` GROUP BY ${sqlGroupCol}, status`;
     
     // Execute query
     const queryStart = Date.now();
@@ -318,14 +373,24 @@ export async function GET(request: NextRequest) {
     };
 
     results.forEach((row: any) => {
-      const rawKey = row[groupBy] as string | null;
+      // sqlGroupCol === groupBy for native column groupings; for
+      // groupBy=mapCategory the SQL grouped by `category` and we fold to the
+      // curated key here in JS.
+      const rawKey = row[sqlGroupCol] as string | null;
       const count = Number(row.count);
       const status = row.status as string;
 
       let normKey: string;
       let displayHint: string;
 
-      if (groupBy === 'municipality') {
+      if (groupBy === 'mapCategory') {
+        // Fold the raw DB category label to a curated map-sidebar key. Off-
+        // taxonomy / null / Maquinaria / Joyas / Arte → "otros" bucket so
+        // Σ(curated keys + otros) reconciles with the unfiltered total.
+        const mapKey = dbCategoryToMapKey(rawKey);
+        normKey = mapKey;
+        displayHint = mapKey;
+      } else if (groupBy === 'municipality') {
         // Null / blank / sentinel municipality -> single "Otros" bucket per
         // (province-filtered) call. The province scope is already constrained
         // upstream via the `province=...` query param.
