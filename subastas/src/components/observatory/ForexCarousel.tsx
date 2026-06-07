@@ -120,6 +120,14 @@ export type FeedAuction = {
   resumeAt?: string | null;
   lotNumber: string | null;
   imageUrl: string | null;
+  /**
+   * Wave B0 (2026-06-07) — authoritative "this URL is the resolver-served
+   * real photo" flag from `/api/auctions/carousel-mix`. Drives the rung-1
+   * choice inside `resolveCardImage`. Optional / nullable: pre-fix carousel
+   * payloads (older cached fetches) won't carry it, and the resolver falls
+   * back to URL-prefix inference in that case.
+   */
+  hasImage?: boolean | null;
   boeLink: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -811,6 +819,11 @@ function ExpandedCard({
   // raw upstream title (which might be "Unknown" or a SUB- ref).
   const resolved = resolveCardImage({
     imageUrl: auction.imageUrl,
+    // Wave B0 (2026-06-07): pass the server's authoritative `hasImage` flag
+    // so rung-1 fires for resolver-served real photos. Before the
+    // carousel-mix route projected this flag, the rung-1 check fell through
+    // and every card landed on the rung-3 branded placeholder.
+    hasImage: auction.hasImage,
     latitude: auction.latitude,
     longitude: auction.longitude,
     category: auction.category,
