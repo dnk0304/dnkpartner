@@ -47,10 +47,13 @@ export const SIMPLE_KIND_OPTIONS: Array<{
 
 /** Simple "¿Cuándo?" buckets — map onto the API's `statuses` param.
  *
- * `todas` (wave 80, Dennis brief) widens to active + upcoming so users can
- * SEE the Seguridad Social / PLABI inventory (which is upcoming-only today,
- * so an Activas-default listing hides it entirely). It intentionally excludes
- * concluded/cancelled — that's still the Finalizadas tab's job. */
+ * `todas` (Wave89, Dennis 2026-06-08) now means literally ALL user-facing
+ * states — activas (celebrándose) + próximas (próxima-apertura) + suspendidas
+ * + finalizadas (concluida-portal / finalizada-autoridad / cancelada). Earlier
+ * (wave 80) it was active+upcoming ONLY, which hid finished auctions; Dennis
+ * wants "Todas" to surface every state. With the "Publicadas recientes"
+ * default sort the active/recent rows still surface on top and finished fall
+ * below, which is the intended ordering. */
 export const SIMPLE_WHEN_OPTIONS: Array<{
   id: "activas" | "proximas" | "todas" | "finalizadas";
   label: string;
@@ -61,7 +64,15 @@ export const SIMPLE_WHEN_OPTIONS: Array<{
   {
     id: "todas",
     label: "Todas",
-    statuses: ["celebrandose", "proxima-apertura"],
+    // Wave89 — ALL user-facing states (active + upcoming + suspended + finished).
+    statuses: [
+      "celebrandose",
+      "proxima-apertura",
+      "suspendida",
+      "concluida-portal",
+      "finalizada-autoridad",
+      "cancelada",
+    ],
   },
   {
     id: "finalizadas",
@@ -406,16 +417,25 @@ export function filtersToApiParams(f: ObservatoryFilters): URLSearchParams {
   } else if (f.when === "activas") {
     p.set("status", "active");
   } else if (f.when === "todas") {
-    // wave 80 — "Todas" widens to active + upcoming so the SS / PLABI
-    // upcoming-only inventory is reachable in one tap. We send the canonical
-    // active predicate AND the proxima-apertura status alongside so the
-    // server's clock-guarded "active" set (542) keeps its semantics; the
-    // statuses[] CSV is unioned with `status=active` server-side via the
-    // `?statuses=` whitelist (see Forge §8B). If the API treats `status` and
-    // `statuses` as mutually exclusive on this build, the statuses[] CSV
-    // wins and we lose the SUSPENDIDA bucket from the 542 — flagged for a
-    // tiny Forge follow-up if Dennis notices the discrepancy.
-    p.set("statuses", ["celebrandose", "proxima-apertura"].join(","));
+    // Wave89 (Dennis 2026-06-08) — "Todas" now means ALL user-facing states:
+    // activas (celebrándose) + próximas (próxima-apertura) + suspendidas +
+    // finalizadas (concluida-portal / finalizada-autoridad / cancelada). The
+    // prior (wave 80) mapping sent only active+upcoming and so HID finished
+    // auctions from the "Todas" tab. We now send the full status CSV; the
+    // server's `?statuses=` whitelist unions them. With the "Publicadas
+    // recientes" default sort the active/recent rows surface on top and the
+    // finished ones fall below — Dennis's intended ordering.
+    p.set(
+      "statuses",
+      [
+        "celebrandose",
+        "proxima-apertura",
+        "suspendida",
+        "concluida-portal",
+        "finalizada-autoridad",
+        "cancelada",
+      ].join(","),
+    );
   } else {
     const bucket = SIMPLE_WHEN_OPTIONS.find((b) => b.id === f.when);
     if (bucket) p.set("statuses", bucket.statuses.join(","));
