@@ -36,6 +36,13 @@ import {
   Factory,
   Boxes,
   Car,
+  Bike,
+  Truck,
+  Ship,
+  CarFront,
+  Cog,
+  Gem,
+  Palette,
   HelpCircle,
   type LucideIcon,
 } from "lucide-react";
@@ -60,7 +67,16 @@ const ICONS: Record<MapCategoryKey | typeof MAP_CATEGORY_OTROS, LucideIcon> = {
   "finca-rustica": Tractor,
   "nave-industrial": Factory,
   "otros-inmuebles": Boxes,
-  vehiculos: Car,
+  // Vehículos — split out of the legacy single `vehiculos` key (Wave92+).
+  coche: Car,
+  moto: Bike,
+  camion: Truck,
+  barco: Ship,
+  "otros-vehiculos": CarFront,
+  // Otros bienes — promoted from the `otros` catch-all into named leaves.
+  maquinaria: Cog,
+  joyas: Gem,
+  arte: Palette,
   otros: HelpCircle,
 };
 
