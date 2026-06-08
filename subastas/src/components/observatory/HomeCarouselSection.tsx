@@ -1,16 +1,29 @@
 "use client";
 
 /**
- * HomeCarouselSection — TWO stacked carousels: latest properties + latest
- * vehicles. Replaces the previous single-row marquee + chip filters + modal
- * popup (2026-06-07, Pixel — Dennis brief "landing-map-carousel").
+ * HomeCarouselSection — TWO carousels: latest properties + latest vehicles.
+ * Side-by-side on desktop, stacked on mobile (2026-06-08, Pixel — Dennis:
+ * "carousels side by side"). Replaces the earlier single-row marquee + chip
+ * filters + modal popup (2026-06-07, brief "landing-map-carousel").
  *
+ *   Desktop (lg+, 2 columns ~50/50):
+ *   ┌─ Últimos inmuebles ──────────┐ ┌─ Últimos vehículos ──────────┐
+ *   │  [card] [card] [card] …       │ │  [card] [card] [card] …       │
+ *   └──────────────────────────────┘ └──────────────────────────────┘
+ *
+ *   Mobile (<lg, stacked):
  *   ┌─ Últimos inmuebles ──────────────────────────────────────┐
  *   │  [card] [card] [card] [card] [card] [card] [card] …      │
  *   └──────────────────────────────────────────────────────────┘
  *   ┌─ Últimos vehículos ──────────────────────────────────────┐
  *   │  [card] [card] [card] [card] [card] [card] [card] …      │
  *   └──────────────────────────────────────────────────────────┘
+ *
+ * Each carousel is now ~half width on desktop, so fewer cards are visible at
+ * once — the endless marquee is unaffected: ForexCarousel re-measures its own
+ * track via ResizeObserver and the modulo-wrap loop is width-agnostic, and the
+ * inner track sits in an `overflow-hidden` box so a narrower column simply
+ * clips the strip (no card-layout break, fixed 195px compact cards unchanged).
  *
  * Card-click behaviour (Pixel 2026-06-07, brief contrast-popup-c5):
  *  - LOGGED-OUT viewer → opens a floating register/log-in popup
@@ -93,8 +106,15 @@ export function HomeCarouselSection({
   const cardClickProp = shouldGate ? handleCardClick : undefined;
 
   return (
-    <div className={cn("flex flex-col gap-6", className)}>
+    // Side-by-side on desktop (lg+: 2 equal columns), stacked on mobile.
+    // `min-w-0` on each cell is load-bearing: the inner marquee track is a
+    // `w-max` flex row inside an `overflow-hidden` box — without min-w-0 the
+    // grid track would resolve to that intrinsic content width and blow the
+    // 50/50 split. With it, each column holds ~half the row and the track
+    // clips cleanly to the narrower viewport.
+    <div className={cn("grid grid-cols-1 gap-6 lg:grid-cols-2", className)}>
       <ForexCarousel
+        className="min-w-0"
         limit={limit}
         seeAllHref={seeAllHref}
         compact
@@ -104,6 +124,7 @@ export function HomeCarouselSection({
         pause={popupOpen}
       />
       <ForexCarousel
+        className="min-w-0"
         limit={limit}
         seeAllHref={seeAllHref}
         compact
