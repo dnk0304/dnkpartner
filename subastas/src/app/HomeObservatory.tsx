@@ -12,9 +12,10 @@
  *                  full-map view (the existing "Abrir mapa completo"
  *                  destination — `/subastas?view=map`). On mobile the card
  *                  stacks underneath the hero copy as a full-width card.
- *   3. HomeCarouselSection — now two stacked rows:
- *        - "Últimos inmuebles" (REAL_ESTATE-only feed).
- *        - "Últimos vehículos" (MOVABLE-only feed).
+ *   3. HomeCarouselSection — two carousels side-by-side on desktop, stacked
+ *      on mobile:
+ *        - "Últimos inmuebles" (REAL_ESTATE-only feed) — left on desktop.
+ *        - "Últimos vehículos" (MOVABLE-only feed) — right on desktop.
  *   4. ProvinceGrid (province → town tree).
  *   5. "Cómo funciona" plain-spoken explainer block.
  *
@@ -379,8 +380,9 @@ export default function HomeObservatory() {
           </div>
         </section>
 
-        {/* Endless marquee — split into two category rows (inmuebles +
-            vehículos). Modal popup is OFF (cards link to detail page). */}
+        {/* Endless marquee — two category carousels (inmuebles + vehículos)
+            side-by-side on desktop, stacked on mobile. Modal popup is OFF
+            (cards link to detail page). */}
         <HomeCarouselSection limit={30} seeAllHref="/subastas?when=activas" />
 
         {/* Province grid — renders its own internal heading ("Buscar subastas
