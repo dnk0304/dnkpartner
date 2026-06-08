@@ -1089,23 +1089,53 @@ class ScraperScheduler:
     # honours DATABASE_URL via DatabaseAdapter, so this writes to Postgres
     # in prod (not the dev SQLite file).
     def geocode_drain(self):
+        """Fast drain — ACTIVE rows only, every GEOCODE_INTERVAL_MIN (default 10).
+
+        Keeps live/just-landed rows pinned promptly. The slower
+        geocode_drain_all() below picks up finished rows so coverage doesn't
+        decay (finished rows would otherwise starve behind active priority).
+        """
+        self._geocode_drain_run(active_only=True, label="geocode_drain")
+
+    def geocode_drain_all(self):
+        """Slow drain — ALL statuses incl. finished/CONCLUIDA, every
+        GEOCODE_FINISHED_INTERVAL_MIN (default 30).
+
+        Closes the gap where the active-only cron never touched the ~11.7k
+        finished rows that have an address but no coords. Larger batch
+        (GEOCODE_FINISHED_BATCH_SIZE, default 50) so the backlog drains, but
+        less frequent than the active drain so active rows keep priority.
+        """
+        self._geocode_drain_run(active_only=False, label="geocode_drain_all")
+
+    def _geocode_drain_run(self, active_only: bool, label: str):
         if not DATABASE_URL or ('postgres' not in DATABASE_URL):
-            self.log("  geocode_drain: skipped (no Postgres DATABASE_URL)")
+            self.log(f"  {label}: skipped (no Postgres DATABASE_URL)")
             return
         try:
             sys.path.insert(0, '/')
             from app.tasks.backfill_tasks import geocode_missing_coordinates
 
-            batch = int(os.getenv("GEOCODE_BATCH_SIZE", "25"))
-            result = geocode_missing_coordinates(batch_size=batch, active_only=True)
+            if active_only:
+                batch = int(os.getenv("GEOCODE_BATCH_SIZE", "25"))
+            else:
+                batch = int(os.getenv("GEOCODE_FINISHED_BATCH_SIZE", "50"))
+            result = geocode_missing_coordinates(batch_size=batch, active_only=active_only)
+            # T3: always emit a heartbeat — even on zero work — so future Ken
+            # can SEE the cron ran. (result is a dict even when processed=0;
+            # only None on hard task failure.)
             if result:
+                tf = result.get('town_fallback') or {}
                 self.log(
-                    f"  geocode_drain: processed={result.get('processed')} "
+                    f"  {label}: processed={result.get('processed')} "
                     f"geocoded={result.get('geocoded')} failed={result.get('failed')} "
-                    f"precision={result.get('precision')}"
+                    f"precision={result.get('precision')} "
+                    f"town_fallback={{geocoded:{tf.get('geocoded', 0)}}}"
                 )
+            else:
+                self.log(f"  {label}: nothing to do (task returned None)")
         except Exception as e:
-            self.log(f"  geocode_drain: error {type(e).__name__}: {e}")
+            self.log(f"  {label}: error {type(e).__name__}: {e}")
             import traceback
             self.log(traceback.format_exc())
 
@@ -1203,11 +1233,17 @@ class ScraperScheduler:
         # Wave 2b: dispatcher drain — every DISPATCH_INTERVAL_MIN minutes
         schedule.every(DISPATCH_INTERVAL_MIN).minutes.do(self.dispatch_outbox)
 
-        # Geocode drain — every GEOCODE_INTERVAL_MIN minutes (default 10).
-        # Going-forward wiring for T3: new ACTIVE rows get coords without
-        # needing the manual backfill scripts.
+        # Geocode drain (fast) — every GEOCODE_INTERVAL_MIN minutes (default 10).
+        # ACTIVE rows only: new live rows get coords promptly.
         geocode_interval = int(os.getenv("GEOCODE_INTERVAL_MIN", "10"))
         schedule.every(geocode_interval).minutes.do(self.geocode_drain)
+
+        # Geocode drain (slow, ALL statuses incl. finished) — every
+        # GEOCODE_FINISHED_INTERVAL_MIN minutes (default 30). Drains the
+        # finished-with-address backlog so coverage doesn't decay as auctions
+        # conclude. Lower frequency keeps active rows prioritised.
+        geocode_finished_interval = int(os.getenv("GEOCODE_FINISHED_INTERVAL_MIN", "30"))
+        schedule.every(geocode_finished_interval).minutes.do(self.geocode_drain_all)
 
         self.log("Schedule configured:")
         self.log("  Pulse (bid updates):  Every 35 min")
@@ -1222,7 +1258,8 @@ class ScraperScheduler:
         self.log(f"  PLABI (MdJ liquid.):  06:20 daily (source='PLABI', off-BOE concursal)")
         self.log(f"  Pre-auction (PA):     Every 6h (PROXIMA_APERTURA discovery, ORIGEN=J)")
         self.log(f"  Dispatch outbox:      Every {DISPATCH_INTERVAL_MIN} min")
-        self.log(f"  Geocode drain:        Every {geocode_interval} min (active rows only)")
+        self.log(f"  Geocode drain (fast): Every {geocode_interval} min (active rows only)")
+        self.log(f"  Geocode drain (all):  Every {geocode_finished_interval} min (ALL statuses incl. finished)")
         self.log(f"  ending_soon window:   {ENDING_SOON_HOURS}h before endsAt")
         self.log(f"  dispatch endpoint:    {DISPATCH_ENDPOINT}")
         self.log("")
