@@ -38,6 +38,8 @@ import { buildSourceLinks } from '@/lib/source-links';
 import { buildFinancials } from '@/lib/financials';
 import { pickTeaserSnippet } from '@/lib/teaser-snippet';
 import { auctionDisplayTitle } from '@/lib/seo/display-title';
+import { sanitizeExtractedText } from '@/lib/sanitize-extracted-text';
+import { SNAPSHOT_ID_DOC_SENTINEL } from '@/lib/auction-docs/storage';
 
 const DB_TO_FRONTEND_STATUS: Record<string, string> = {
   PROXIMA_APERTURA: 'proxima-apertura',
@@ -225,14 +227,29 @@ export async function GET(
   }
 
   const { documents: rawDocuments, ...auctionScalars } = auction;
-  const documents = rawDocuments.map((d) => ({
-    id: d.id,
-    docType: d.docType,
-    title: d.title,
-    kind: d.kind,
-    officialUrl: d.officialUrl,
-    downloadUrl: d.storedPath ? publicPathForDocId(d.id) : null,
-  }));
+  // Drop the per-auction BOE snapshot row from the rendered Documentos
+  // oficiales list — Dennis 2026-06-08: the "Captura BOE (ver=3)" label
+  // adds no UX value alongside the canonical "Fuente BOE" link. We still
+  // keep the snapshot on disk (for support spot-checks) and we still
+  // surface every other download (Nota simple, Edicto, Anuncio BOE, etc.).
+  // Snapshots are tagged by Ghost with kind="snapshot" + the
+  // SNAPSHOT_ID_DOC_SENTINEL idDoc; matching on either fully covers the
+  // canonical write.
+  const documents = rawDocuments
+    .filter((d) => {
+      const k = (d.kind ?? '').toLowerCase();
+      if (k === 'snapshot') return false;
+      if ((d.docType ?? '').toUpperCase() === SNAPSHOT_ID_DOC_SENTINEL) return false;
+      return true;
+    })
+    .map((d) => ({
+      id: d.id,
+      docType: d.docType,
+      title: d.title,
+      kind: d.kind,
+      officialUrl: d.officialUrl,
+      downloadUrl: d.storedPath ? publicPathForDocId(d.id) : null,
+    }));
 
   const sourceLinks = buildSourceLinks({
     boeId: auction.boeId,
@@ -267,10 +284,21 @@ export async function GET(
     ? { name: sellerName, contact: sellerContact }
     : null;
 
+  // Defence-in-depth: run every scraper-extracted free-text field through
+  // sanitizeExtractedText() so a page-dump leak (BOE nav HTML / JS clock /
+  // "Iniciar sesión" chrome) can never reach the rendered UI even if a
+  // future scraper regression slips junk into a row. See:
+  // src/lib/sanitize-extracted-text.ts. Honest-NULL on rejection — the
+  // renderer treats null as "section omitted".
+  const safeChargesDetail = sanitizeExtractedText(auction.chargesDetail);
+  const safeLotDescription = sanitizeExtractedText(auction.lotDescription);
+  const safePropertyDescription = sanitizeExtractedText(auction.propertyDescription);
+  const safeRegistryInfo = sanitizeExtractedText(auction.registryInfo);
+
   const cadastral = {
     ref: auction.cadastralRef ?? null,
     charges: auction.charges ?? null,
-    chargesDetail: auction.chargesDetail ?? null,
+    chargesDetail: safeChargesDetail,
     possession: auction.possessionStatus ?? null,
     classification: null,
     use: null,
@@ -280,6 +308,13 @@ export async function GET(
 
   const projectedAuction = {
     ...auctionScalars,
+    // Overwrite the raw scalars with the sanitized values so any rendering
+    // path that reads `raw.chargesDetail` / `raw.lotDescription` / etc.
+    // also benefits from the rejection (not just consumers of `cadastral`).
+    chargesDetail: safeChargesDetail,
+    lotDescription: safeLotDescription,
+    propertyDescription: safePropertyDescription,
+    registryInfo: safeRegistryInfo,
     boeLink: boeLinkFor(auction.boeId, auction.boeLink),
     loteNumber: Number.isFinite(loteNumberSafe as number) ? loteNumberSafe : null,
     currentBidAmount: currentBidAmountSafe,

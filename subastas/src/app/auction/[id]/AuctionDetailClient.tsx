@@ -40,6 +40,7 @@ import { DetailTimeline } from "@/components/observatory/DetailTimeline";
 import { PROVINCE_DB_KEY_TO_SLUG } from "@/lib/seo/slugs";
 import { auctionDisplayTitle } from "@/lib/seo/display-title";
 import { getSourceLabel } from "@/lib/source-labels";
+import { sanitizeExtractedText } from "@/lib/sanitize-extracted-text";
 import { FollowButton } from "@/components/notifications/FollowButton";
 import { StatusBadge } from "@/components/observatory/StatusBadge";
 // GatedField import dropped 2026-06-07 (wave-B): the detail page is fully
@@ -681,17 +682,31 @@ export default function AuctionDetailClient({
               </div>
             </section>
 
-            {/* Description */}
-            {(raw.propertyDescription || raw.lotDescription || raw.boeAnnouncement) && (
-              <section aria-labelledby="desc-heading">
-                <h2 id="desc-heading" className="font-serif text-xl text-[--color-ink-primary]">
-                  Descripción del bien
-                </h2>
-                <div className="mt-3 max-w-readable text-[15px] leading-relaxed text-[--color-ink-secondary] whitespace-pre-line">
-                  {raw.propertyDescription || raw.lotDescription || raw.boeAnnouncement}
-                </div>
-              </section>
-            )}
+            {/* Description.
+                Defence-in-depth (2026-06-08): every free-text scraper field
+                runs through sanitizeExtractedText() before render so the
+                BOE page-dump leak (HTML/JS nav chrome) can never reach the
+                UI even if a future regression slips junk into the row.
+                The API already sanitizes too — the double-pass is intentional.
+                When all three sources reject as null, the section is omitted
+                entirely (no empty heading). */}
+            {(() => {
+              const desc =
+                sanitizeExtractedText(raw.propertyDescription) ??
+                sanitizeExtractedText(raw.lotDescription) ??
+                sanitizeExtractedText(raw.boeAnnouncement);
+              if (!desc) return null;
+              return (
+                <section aria-labelledby="desc-heading">
+                  <h2 id="desc-heading" className="font-serif text-xl text-[--color-ink-primary]">
+                    Descripción del bien
+                  </h2>
+                  <div className="mt-3 max-w-readable text-[15px] leading-relaxed text-[--color-ink-secondary] whitespace-pre-line">
+                    {desc}
+                  </div>
+                </section>
+              );
+            })()}
 
             {/* Datos del vehículo — wave E2 (2026-06-07).
                 Rendered only when at least one of make/model/year is
@@ -803,9 +818,10 @@ export default function AuctionDetailClient({
                     />
                   );
                 })()}
-                {raw.registryInfo && (
-                  <KV label="Registro" value={raw.registryInfo} />
-                )}
+                {(() => {
+                  const v = sanitizeExtractedText(raw.registryInfo);
+                  return v ? <KV label="Registro" value={v} /> : null;
+                })()}
                 {raw.charges && <KV label="Cargas" value={raw.charges} />}
                 {raw.possessionStatus && (
                   <KV label="Situación posesoria" value={raw.possessionStatus} />
@@ -833,17 +849,38 @@ export default function AuctionDetailClient({
                 <h2 id="docs-heading" className="font-serif text-xl text-[--color-ink-primary]">
                   Documentos oficiales
                 </h2>
-                {Array.isArray(raw.documents) && raw.documents.length > 0 && (
-                  <p className="mt-0.5 text-xs text-[--color-ink-tertiary]">
-                    {(raw.documents as AuctionDocument[]).map((d) => d.title?.trim() || prettifyDocType(d.docType)).join(" · ")}
-                  </p>
-                )}
+                {Array.isArray(raw.documents) && raw.documents.length > 0 && (() => {
+                  // Exclude SNAPSHOT rows from the subtitle docnames list so
+                  // the "Captura BOE (ver=3)" label doesn't leak in here
+                  // either. Same filter rule as the list below.
+                  const visible = (raw.documents as AuctionDocument[]).filter((d) => {
+                    const k = (d.kind ?? '').toLowerCase();
+                    if (k === 'snapshot') return false;
+                    if ((d.docType ?? '').toUpperCase() === 'SNAPSHOT') return false;
+                    return true;
+                  });
+                  if (visible.length === 0) return null;
+                  return (
+                    <p className="mt-0.5 text-xs text-[--color-ink-tertiary]">
+                      {visible.map((d) => d.title?.trim() || prettifyDocType(d.docType)).join(" · ")}
+                    </p>
+                  );
+                })()}
                 <ul className="mt-3 space-y-2 text-sm">
                   {/* Doc-archive wave: full list rendered first with both
                       "Descargar" (our cached copy) AND "Fuente BOE" (the
                       official URL). downloadUrl null → fall back to officialUrl
                       as the single primary action. */}
                   {Array.isArray(raw.documents) && (raw.documents as AuctionDocument[]).map((doc) => {
+                    // Drop the per-auction BOE snapshot row (the "Captura BOE
+                    // (ver=3)" label) — Dennis 2026-06-08: the canonical
+                    // "Fuente BOE" link covers the same surface; the snapshot
+                    // adds noise. API already filters these; this is the
+                    // belt-and-braces second-pass at render time so a stale
+                    // payload in the browser cache can't resurrect the row.
+                    const kind = (doc.kind ?? '').toLowerCase();
+                    const docTypeUpper = (doc.docType ?? '').toUpperCase();
+                    if (kind === 'snapshot' || docTypeUpper === 'SNAPSHOT') return null;
                     const label = doc.title?.trim() || prettifyDocType(doc.docType);
                     const primaryHref = doc.downloadUrl ?? doc.officialUrl;
                     if (!primaryHref) return null;
@@ -928,9 +965,14 @@ export default function AuctionDetailClient({
 
             {/* Cadastral block (wave-C M3) — server-projected `cadastral{}`
                 object. Renders only the fields that resolve (NULL-safe).
-                Section is hidden entirely if every field is null. */}
+                Section is hidden entirely if every field is null.
+                NOTE: chargesDetail goes through sanitizeExtractedText() below
+                AND when summing up "is anything renderable here" — so a row
+                whose ONLY non-null cadastral field is a page-dumped
+                chargesDetail collapses to "section hidden" rather than
+                "empty section with heading only". */}
             {raw.cadastral && (raw.cadastral.ref ||
-              raw.cadastral.charges || raw.cadastral.chargesDetail ||
+              raw.cadastral.charges || sanitizeExtractedText(raw.cadastral.chargesDetail) ||
               raw.cadastral.possession || raw.cadastral.classification ||
               raw.cadastral.use || raw.cadastral.area ||
               raw.cadastral.ownershipPct) && (
@@ -978,9 +1020,10 @@ export default function AuctionDetailClient({
                   {raw.cadastral.charges && (
                     <KV label="Cargas" value={raw.cadastral.charges} />
                   )}
-                  {raw.cadastral.chargesDetail && (
-                    <KV label="Detalle de cargas" value={raw.cadastral.chargesDetail} />
-                  )}
+                  {(() => {
+                    const v = sanitizeExtractedText(raw.cadastral.chargesDetail);
+                    return v ? <KV label="Detalle de cargas" value={v} /> : null;
+                  })()}
                   {raw.cadastral.possession && (
                     <KV label="Situación posesoria" value={raw.cadastral.possession} />
                   )}
