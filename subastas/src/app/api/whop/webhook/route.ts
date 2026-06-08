@@ -45,6 +45,15 @@ type WhopMembership = {
   email?: string;
   metadata?: Record<string, unknown> | null;
   user?: { id?: string; email?: string } | null;
+  // Period bounds — Whop membership payloads carry these under several names
+  // depending on event/plan shape. We read defensively and presence-guard each
+  // when persisting (see writeSubscriptionPeriod). Epoch SECONDS when numeric.
+  renewal_period_start?: number | string | null;
+  renewal_period_end?: number | string | null;
+  valid_until?: number | string | null;
+  expires_at?: number | string | null;
+  cancel_at_period_end?: boolean | null;
+  canceled_at?: number | string | null;
 };
 
 type WhopWebhookEnvelope = {
@@ -174,6 +183,66 @@ async function resolveLocalUserId(m: WhopMembership): Promise<string | null> {
   return null;
 }
 
+/**
+ * Coerce a Whop period field to a Date, or null if absent/unparseable.
+ * Whop sends epoch SECONDS as a number (or numeric string); we also accept an
+ * ISO string defensively. Returns null for any value we can't turn into a
+ * finite Date so the caller leaves the column unchanged.
+ */
+function toPeriodDate(v: number | string | null | undefined): Date | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number') {
+    // Epoch seconds (Whop) — guard against accidental millis just in case.
+    const ms = v < 1e12 ? v * 1000 : v;
+    const d = new Date(ms);
+    return Number.isFinite(d.getTime()) ? d : null;
+  }
+  const asNum = Number(v);
+  if (Number.isFinite(asNum) && /^\d+$/.test(v.trim())) {
+    return toPeriodDate(asNum);
+  }
+  const d = new Date(v);
+  return Number.isFinite(d.getTime()) ? d : null;
+}
+
+/**
+ * Build the ADDITIVE period-date patch from a membership payload. Each field is
+ * presence-guarded: if Whop didn't send it, the key is OMITTED so the upsert
+ * leaves that column unchanged (we never null-out a real value because a later
+ * event happened to omit the field). Returns {} when nothing is present.
+ *
+ * Period bounds:
+ *   currentPeriodStart ← renewal_period_start
+ *   currentPeriodEnd   ← renewal_period_end ?? valid_until ?? expires_at
+ *   cancelAtPeriodEnd  ← cancel_at_period_end (explicit boolean only)
+ */
+function buildPeriodPatch(m: WhopMembership): {
+  currentPeriodStart?: Date;
+  currentPeriodEnd?: Date;
+  cancelAtPeriodEnd?: boolean;
+} {
+  const patch: {
+    currentPeriodStart?: Date;
+    currentPeriodEnd?: Date;
+    cancelAtPeriodEnd?: boolean;
+  } = {};
+
+  const start = toPeriodDate(m.renewal_period_start);
+  if (start) patch.currentPeriodStart = start;
+
+  const end =
+    toPeriodDate(m.renewal_period_end) ??
+    toPeriodDate(m.valid_until) ??
+    toPeriodDate(m.expires_at);
+  if (end) patch.currentPeriodEnd = end;
+
+  if (typeof m.cancel_at_period_end === 'boolean') {
+    patch.cancelAtPeriodEnd = m.cancel_at_period_end;
+  }
+
+  return patch;
+}
+
 async function applyTierChange(args: {
   userId: string;
   tier: AppTier;
@@ -181,6 +250,11 @@ async function applyTierChange(args: {
   status: string;
 }): Promise<void> {
   const { userId, tier, membership, status } = args;
+
+  // ADDITIVE: persist subscription period bounds + cancel flag when the event
+  // carries them. Absent fields are omitted (column unchanged). Existing
+  // tier/status/whop* writes are untouched.
+  const period = buildPeriodPatch(membership);
 
   // Upsert Subscription so support/UI can see the latest Whop state. Single
   // row per user (Subscription.userId is @unique). Stripe columns are
@@ -199,6 +273,7 @@ async function applyTierChange(args: {
         whopMembershipId: membership.id ?? null,
         whopPlanId: membership.plan_id ?? null,
         whopUserId: membership.user_id ?? membership.user?.id ?? null,
+        ...period,
       },
       update: {
         tier: tier as 'FREE' | 'ACCESO' | 'GOLD' | 'DIAMOND',
@@ -206,6 +281,7 @@ async function applyTierChange(args: {
         whopMembershipId: membership.id ?? undefined,
         whopPlanId: membership.plan_id ?? undefined,
         whopUserId: membership.user_id ?? membership.user?.id ?? undefined,
+        ...period,
       },
     }),
   ]);
