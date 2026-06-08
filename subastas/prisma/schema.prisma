@@ -311,6 +311,11 @@ model User {
   trialStartDate    DateTime?
   trialEndDate      DateTime?
   hasUsedTrial      Boolean            @default(false)
+  // Email preferences (settings surface only — NOT yet wired to any send-path).
+  // Added 2026-06-08 (account panel wave 1). Default ON for all rows.
+  prefNewsletter    Boolean            @default(true) // boletín de novedades
+  prefWeeklyNoNew   Boolean            @default(true) // aviso semanal sin nuevas subastas
+  prefRadar         Boolean            @default(true) // radar de subastas
   alerts            Alert[]
   favorites         Favorite[]
   notifications     Notification[]

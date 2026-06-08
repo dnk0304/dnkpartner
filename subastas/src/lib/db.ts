@@ -177,6 +177,10 @@ const PG_IDENTIFIERS = [
   'hasUsedTrial',
   'trialStartDate',
   'trialEndDate',
+  // Email preferences (account panel wave 1, 2026-06-08)
+  'prefNewsletter',
+  'prefWeeklyNoNew',
+  'prefRadar',
   'stripeCustomerId',
   'stripeSubscriptionId',
   'stripePriceId',
