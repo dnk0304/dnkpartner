@@ -538,7 +538,7 @@ def _select_shard(cur, where, params, shard, shards):
     cur.execute(
         f'''
         WITH pool AS (
-          SELECT "boeId", source,
+          SELECT "boeId", source, "endsAt",
                  ntile(%(nbuckets)s) OVER (
                    ORDER BY "endsAt" NULLS LAST, "boeId"
                  ) AS bucket
