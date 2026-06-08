@@ -2431,6 +2431,17 @@ class BOEScraper(BaseScraper):
                 self._extract_section_text(page, 'Advertencia') or
                 self._extract_warning_banner(page)
             )
+            # Belt-and-braces: reject any page-dump leak (BOE nav + JS clock +
+            # login chrome) before it lands in chargesDetail. Honest-NULL on
+            # reject. This is the second line of defence even if a JS extractor
+            # regresses to capturing an outer wrapper's textContent.
+            warning = self._sanitize_extracted_text(warning)
+            # Same guard for the bien block (-> lot_description / lotDescription),
+            # which shares the leak pattern (~468 rows). enforce_length=False:
+            # a legit multi-property bien block can run long AND is consumed for
+            # cadastral/address extraction below — the page-dump token check
+            # alone catches the nav/JS leak without nuking long real blocks.
+            bienes = self._sanitize_extracted_text(bienes, enforce_length=False)
 
             cadastral_ref, cadastral_data = extract_cadastral_refs(bienes)
 
@@ -2622,19 +2633,105 @@ class BOEScraper(BaseScraper):
         except Exception:
             return None
 
+    # Page-chrome / script signatures that prove the extracted text is a raw
+    # BOE-page dump (site nav + the `var hoy = new Date()` clock script + login
+    # chrome) rather than the actual charges/cargas sentence. Matched
+    # case-insensitively. See _sanitize_extracted_text below.
+    _PAGE_DUMP_TOKENS = (
+        'var hoy',
+        'function reloj',
+        'new date(',
+        'iniciar sesi',      # "Iniciar sesión" login chrome
+        'buscar ayuda',      # nav: "Inicio Buscar Ayuda"
+        '<script',
+        '<style',
+        'document.querySelector',
+        'getelementbyid',
+    )
+    # Real charges/warning text is a sentence or two. Anything past this is the
+    # wrapper subtree being captured whole — reject it.
+    _SANITIZE_MAX_LEN = 2000
+
+    @classmethod
+    def _sanitize_extracted_text(
+        cls, text: Optional[str], enforce_length: bool = True
+    ) -> Optional[str]:
+        """
+        Belt-and-braces guard against the page-dump leak: REJECT any extracted
+        free-form text that carries page-chrome / inline-script signatures, or
+        (when enforce_length) that is absurdly long (the whole <body> wrapper).
+        Honest-NULL on reject — better an empty field than the BOE nav + JS
+        clock in chargesDetail / lotDescription. Applied at the assembly site to
+        every free-form BOE field that lands in the DB (warning ->
+        charges_detail, bienes -> lot_description).
+
+        enforce_length=False keeps the page-dump token rejection but DROPS the
+        size cap — used for the bien block, where a legitimate multi-property
+        description can run long and is also consumed for cadastral/address
+        extraction. The token check alone still catches the page dump there.
+        """
+        if not text:
+            return None
+        t = text.strip()
+        if not t:
+            return None
+        low = t.lower()
+        if any(tok in low for tok in cls._PAGE_DUMP_TOKENS):
+            return None
+        if enforce_length and len(t) > cls._SANITIZE_MAX_LEN:
+            return None
+        return t
+
     def _extract_warning_banner(self, page: Any) -> Optional[str]:
+        """
+        Heading-anchored Advertencias fallback. The previous implementation did
+        `querySelectorAll('body *')` filtered by "ADVERTENCIA" and returned
+        candidates[0].textContent — which is the outer <body> wrapper, dumping
+        the ENTIRE BOE page (nav + JS clock + login chrome) into chargesDetail.
+
+        This version anchors on a heading/label element whose OWN text is the
+        "Advertencia(s)" label, then returns ONLY the immediately following
+        sibling's text (the actual charges sentence) — never an ancestor's
+        textContent. Scoped, size-capped, and chrome-filtered in JS; the caller
+        additionally runs _sanitize_extracted_text as a second line of defence.
+        """
         try:
-            return page.evaluate(
+            raw = page.evaluate(
                 """
                 () => {
-                  const candidates = Array.from(document.querySelectorAll('body *'))
-                    .filter(el => el.textContent && el.textContent.trim().toUpperCase().includes('ADVERTENCIA'));
-                  if (!candidates.length) return null;
-                  const text = candidates[0].textContent.trim();
-                  return text.length ? text : null;
+                  const BAD = /iniciar sesi|var hoy|function reloj|new date\\(|buscar ayuda|<script|<style/i;
+                  // Anchor on a SMALL heading/label element whose own text is the
+                  // Advertencias label (not an ancestor wrapper). Cap own-text so
+                  // we never latch onto <body> or a big container.
+                  const headings = Array.from(document.querySelectorAll(
+                    'h2, h3, h4, h5, h6, strong, b, dt, .titulo, .heading, legend, caption'
+                  )).filter(h => {
+                    const t = (h.textContent || '').trim();
+                    return /ADVERTENC/i.test(t) && t.length < 120;
+                  });
+                  for (const h of headings) {
+                    // Walk forward over the immediate following siblings until the
+                    // next heading; collect their leaf text. This is the charges
+                    // sentence, NOT the whole page.
+                    let el = h.nextElementSibling;
+                    const parts = [];
+                    while (el) {
+                      const tag = (el.tagName || '').toUpperCase();
+                      if (['H2','H3','H4','H5','H6'].includes(tag)) break;
+                      const t = (el.innerText || el.textContent || '').trim();
+                      if (t) parts.push(t);
+                      el = el.nextElementSibling;
+                    }
+                    const text = parts.join('\\n').trim();
+                    if (text && text.length > 0 && text.length < 2000 && !BAD.test(text)) {
+                      return text;
+                    }
+                  }
+                  return null;
                 }
                 """
             )
+            return self._sanitize_extracted_text(raw)
         except Exception:
             return None
     
