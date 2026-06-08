@@ -41,6 +41,13 @@ interface HierarchicalMapProps {
   onProvinceClick?: (province: string) => void;
   onBackToProvinces?: () => void;
   onBackToMunicipalities?: () => void;
+  /**
+   * Compact preview mode (landing hero card). Frames the country one zoom
+   * level wider than the full `/subastas?view=map` page so the whole of
+   * mainland Spain + Baleares sits comfortably inside the small card without
+   * the north/east being cropped. Defaults to false (full-page framing).
+   */
+  compact?: boolean;
 }
 
 type ViewLevel = 'province' | 'municipality' | 'auction';
@@ -380,13 +387,14 @@ const getJitteredCenter = (base: [number, number], label: string, radius: number
 };
 
 // Map view controller
-const MapViewController: React.FC<{ 
+const MapViewController: React.FC<{
   viewLevel: ViewLevel;
   selectedProvince: string | null;
   selectedMunicipality: string | null;
   provinceData: ProvinceData[];
   municipalityData: MunicipalityData[];
-}> = ({ viewLevel, selectedProvince, selectedMunicipality, provinceData, municipalityData }) => {
+  compact?: boolean;
+}> = ({ viewLevel, selectedProvince, selectedMunicipality, provinceData, municipalityData, compact = false }) => {
   const map = useMap();
 
   useEffect(() => {
@@ -398,9 +406,16 @@ const MapViewController: React.FC<{
       // cutting off the north/east. maxZoom guard keeps a half-empty
       // container from zooming past country-level detail. Canarias lives
       // in the corner inset, so we deliberately don't include them.
+      //
+      // Pixel (2026-06-08): the compact landing card was framing one zoom
+      // level too tight — the country filled the card edge-to-edge and the
+      // outer provinces felt cropped. In compact mode we lower the maxZoom
+      // guard by one level and give the bounds more padding so the WHOLE of
+      // mainland Spain + Baleares sits comfortably inside the small card.
+      // The full `/subastas?view=map` page keeps its original framing.
       map.fitBounds(DEFAULT_SPAIN_BOUNDS, {
-        padding: [20, 20],
-        maxZoom: 6.5,
+        padding: compact ? [36, 36] : [20, 20],
+        maxZoom: compact ? 5.5 : 6.5,
         animate: true,
       });
     } else if (viewLevel === 'municipality' && selectedProvince) {
@@ -417,12 +432,12 @@ const MapViewController: React.FC<{
     }
     
     setTimeout(() => map.invalidateSize(), 100);
-  }, [viewLevel, selectedProvince, selectedMunicipality, map, provinceData, municipalityData]);
+  }, [viewLevel, selectedProvince, selectedMunicipality, map, provinceData, municipalityData, compact]);
 
   return null;
 };
 
-export const HierarchicalMap: React.FC<HierarchicalMapProps> = ({ items, onMarkerClick, onProvinceClick, onBackToProvinces, onBackToMunicipalities }) => {
+export const HierarchicalMap: React.FC<HierarchicalMapProps> = ({ items, onMarkerClick, onProvinceClick, onBackToProvinces, onBackToMunicipalities, compact = false }) => {
   const [viewLevel, setViewLevel] = useState<ViewLevel>('province');
   const [selectedProvince, setSelectedProvince] = useState<string | null>(null);
   const [selectedMunicipality, setSelectedMunicipality] = useState<string | null>(null);
@@ -676,7 +691,7 @@ export const HierarchicalMap: React.FC<HierarchicalMapProps> = ({ items, onMarke
     >
       <MapContainer
         center={DEFAULT_SPAIN_CENTER}
-        zoom={DEFAULT_SPAIN_ZOOM}
+        zoom={compact ? DEFAULT_SPAIN_ZOOM - 1 : DEFAULT_SPAIN_ZOOM}
         className="h-full w-full z-0"
         style={{ background: '#f8f9fa', height: '100%', width: '100%' }}
         zoomControl={true}
@@ -695,6 +710,7 @@ export const HierarchicalMap: React.FC<HierarchicalMapProps> = ({ items, onMarke
           selectedMunicipality={selectedMunicipality}
           provinceData={provinceData}
           municipalityData={municipalityData}
+          compact={compact}
         />
 
         {/* Province-level markers */}
