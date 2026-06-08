@@ -217,63 +217,62 @@ export default function HomeObservatory() {
               </p>
             </div>
 
-            {/* Source-portals grid (Pixel, 2026-06-08). Replaces the old plain
-                inline source line. Dennis: "undertitle in nice grid bulletpoints
-                pointing to what portals we get subastas from." We list ONLY the
-                sources that are live in the scraper today — BOE (with its four
-                sub-streams), Seguridad Social (TGSS) and PLABI. No banks / TEJU
-                (not running yet) so the claim stays honest.
+            {/* Official-sources block (Pixel, 2026-06-08 — boxes removed).
+                Dennis: "so text don't overlap and without boxes... write it in
+                a way that we can use it for SEO." The old 3-card grid (bordered
+                boxes, with the long "Boletín Oficial del Estado" wrapping and
+                overlapping inside its box) is gone. It's now clean flowing,
+                keyword-rich Spanish copy:
 
-                Each portal is a card: a winter-green dot + bold portal name on
-                one line, with the sub-streams as a quiet detail line beneath.
-                Rendered as a semantic <ul> so screen readers announce a
-                3-item list of sources; the dot is decorative (aria-hidden). */}
-            <div className="mt-6">
+                  • one SEO sentence enumerating the real auction keywords
+                    (subastas judiciales, de Hacienda/AEAT, notariales,
+                    administrativas, de la Seguridad Social, concursales) so the
+                    landing carries genuine keyword density that reads naturally;
+                  • beneath it, the three live source families as inline pills —
+                    bold name + decorative winter-green dot, NO borders/boxes —
+                    so BOE / Seguridad Social / PLABI stay prominent and
+                    scannable. We list ONLY sources live in the scraper today
+                    (no banks / TEJU) so the claim stays honest.
+
+                The inline list is a semantic <ul> so screen readers still
+                announce a 3-item list; the green dots are decorative. The bold
+                <strong>s in the prose carry the keywords for SEO without any
+                visual box chrome. */}
+            <div className="mt-6 max-w-2xl">
               <p
                 id="hero-sources-label"
                 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-ink-tertiary)]"
               >
                 {t("heroSourcesLabel")}
               </p>
+              <p className="mt-2.5 text-[15px] leading-relaxed text-[var(--color-ink-secondary)]">
+                {t.rich("heroSourcesSeo", {
+                  b: (chunks) => (
+                    <strong className="font-semibold text-[var(--color-ink-primary)]">
+                      {chunks}
+                    </strong>
+                  ),
+                })}
+              </p>
               <ul
                 aria-labelledby="hero-sources-label"
-                className="mt-3 grid gap-2.5 sm:grid-cols-3"
+                className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2"
               >
                 {[
-                  {
-                    name: t("heroSourceBoeName"),
-                    full: t("heroSourceBoeFull"),
-                    detail: t("heroSourceBoeDetail"),
-                  },
-                  {
-                    name: t("heroSourceSsName"),
-                    full: null,
-                    detail: t("heroSourceSsDetail"),
-                  },
-                  {
-                    name: t("heroSourcePlabiName"),
-                    full: null,
-                    detail: t("heroSourcePlabiDetail"),
-                  },
+                  { name: t("heroSourceBoeName"), detail: t("heroSourceBoeDetail") },
+                  { name: t("heroSourceSsName"), detail: t("heroSourceSsDetail") },
+                  { name: t("heroSourcePlabiName"), detail: t("heroSourcePlabiDetail") },
                 ].map((src) => (
-                  <li
-                    key={src.name}
-                    className="flex items-start gap-2.5 rounded-lg border border-[var(--color-hairline)] bg-white px-3.5 py-3 shadow-[var(--shadow-card)]"
-                  >
+                  <li key={src.name} className="flex items-center gap-2">
                     <span
                       aria-hidden="true"
-                      className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[var(--color-brand)]"
+                      className="h-2 w-2 shrink-0 rounded-full bg-[var(--color-brand)]"
                     />
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold leading-tight text-[var(--color-ink-primary)]">
+                    <span className="text-sm leading-tight">
+                      <strong className="font-semibold text-[var(--color-ink-primary)]">
                         {src.name}
-                        {src.full ? (
-                          <span className="ml-1 font-normal text-[var(--color-ink-tertiary)]">
-                            ({src.full})
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className="mt-0.5 block text-xs leading-snug text-[var(--color-ink-secondary)]">
+                      </strong>
+                      <span className="ml-1.5 text-[var(--color-ink-tertiary)]">
                         {src.detail}
                       </span>
                     </span>
@@ -361,6 +360,7 @@ export default function HomeObservatory() {
                   onProvinceClick={() => {}}
                   onBackToProvinces={() => {}}
                   onBackToMunicipalities={() => {}}
+                  compact
                 />
               </div>
 
