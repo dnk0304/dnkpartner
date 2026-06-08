@@ -217,20 +217,69 @@ export default function HomeObservatory() {
               </p>
             </div>
 
-            {/* Source-type inline row. */}
-            <div className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[var(--color-ink-tertiary)]">
-              <span className="font-medium text-[var(--color-ink-secondary)]">
-                {t("heroSourcesIntro")}
-              </span>
-              <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span>{t("heroSourceJudicial")}</span>
-                <span aria-hidden="true" className="text-[var(--color-hairline)]">·</span>
-                <span>{t("heroSourceHacienda")}</span>
-                <span aria-hidden="true" className="text-[var(--color-hairline)]">·</span>
-                <span>{t("heroSourceNotarial")}</span>
-                <span aria-hidden="true" className="text-[var(--color-hairline)]">·</span>
-                <span>{t("heroSourceAdministrativa")}</span>
-              </span>
+            {/* Source-portals grid (Pixel, 2026-06-08). Replaces the old plain
+                inline source line. Dennis: "undertitle in nice grid bulletpoints
+                pointing to what portals we get subastas from." We list ONLY the
+                sources that are live in the scraper today — BOE (with its four
+                sub-streams), Seguridad Social (TGSS) and PLABI. No banks / TEJU
+                (not running yet) so the claim stays honest.
+
+                Each portal is a card: a winter-green dot + bold portal name on
+                one line, with the sub-streams as a quiet detail line beneath.
+                Rendered as a semantic <ul> so screen readers announce a
+                3-item list of sources; the dot is decorative (aria-hidden). */}
+            <div className="mt-6">
+              <p
+                id="hero-sources-label"
+                className="text-xs font-semibold uppercase tracking-wide text-[var(--color-ink-tertiary)]"
+              >
+                {t("heroSourcesLabel")}
+              </p>
+              <ul
+                aria-labelledby="hero-sources-label"
+                className="mt-3 grid gap-2.5 sm:grid-cols-3"
+              >
+                {[
+                  {
+                    name: t("heroSourceBoeName"),
+                    full: t("heroSourceBoeFull"),
+                    detail: t("heroSourceBoeDetail"),
+                  },
+                  {
+                    name: t("heroSourceSsName"),
+                    full: null,
+                    detail: t("heroSourceSsDetail"),
+                  },
+                  {
+                    name: t("heroSourcePlabiName"),
+                    full: null,
+                    detail: t("heroSourcePlabiDetail"),
+                  },
+                ].map((src) => (
+                  <li
+                    key={src.name}
+                    className="flex items-start gap-2.5 rounded-lg border border-[var(--color-hairline)] bg-white px-3.5 py-3 shadow-[var(--shadow-card)]"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[var(--color-brand)]"
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold leading-tight text-[var(--color-ink-primary)]">
+                        {src.name}
+                        {src.full ? (
+                          <span className="ml-1 font-normal text-[var(--color-ink-tertiary)]">
+                            ({src.full})
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="mt-0.5 block text-xs leading-snug text-[var(--color-ink-secondary)]">
+                        {src.detail}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
 
             {/* CTA row. */}
