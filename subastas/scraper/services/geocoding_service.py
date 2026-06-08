@@ -2,13 +2,24 @@
 Geocoding Service
 Service for converting addresses to coordinates.
 
-Backend: Google Geocoding API (Spain-locked: region=es, components=country:ES).
+Backend: FREE OpenStreetMap / Nominatim (Spain-locked: countrycodes=es) by default.
+Google Geocoding API is RETAINED behind GEOCODER_BACKEND=google as an instant,
+rebuild-free rollback lever — but the DEFAULT is the free provider.
+
 Falls back to free Spanish Catastro coordinate API for cadastral references
 (geocode_from_cadastral — unchanged, still uses ovc.catastro.meh.es).
 
-Migrated 2026-05-31 from Nominatim to Google. Key resolution order:
-  1. env GOOGLE_MAPS_API_KEY
-  2. literal fallback (provided by Ken, works for this project)
+History:
+  - Originally Nominatim.
+  - Migrated 2026-05-31 Nominatim -> Google (paid).
+  - Reverted 2026-06-08 Google -> Nominatim (FREE) per Dennis directive
+    ("SWAP FOR FREE! NO PAYING FOR FINALIZED AUCTIONS!"). All the precision /
+    keep-APPROXIMATE / town-fallback improvements layered on since the Google
+    migration are PRESERVED — only the HTTP backend swapped back to free.
+
+Provider selection (GEOCODER_BACKEND env, default "nominatim"):
+  - "nominatim"  -> FREE OSM/Nominatim (DEFAULT)
+  - "google"     -> Google Geocoding API (rollback only; requires a key)
 
 Public surface preserved:
   - geocode_address(raw_address, province, municipality) -> Optional[(lat,lng)]
@@ -20,7 +31,9 @@ Added:
   - geocode_address_detailed(...) -> Optional[GeocodeResult]
       Same lookup, but also returns location_type (ROOFTOP / RANGE_INTERPOLATED /
       GEOMETRIC_CENTER / APPROXIMATE) and formatted_address. Used by the backfill
-      task to count centroid vs precise hits.
+      task to count centroid vs precise hits. Nominatim has no location_type enum,
+      so it is SYNTHESIZED from addresstype/class/type to keep the same four enum
+      strings the downstream precision_counts buckets depend on.
 """
 
 import os
@@ -36,9 +49,16 @@ logger = logging.getLogger(__name__)
 
 
 # Fallback key — Ken-provided, scoped to the lehubdelcreative GCP project.
-# Prefer env GOOGLE_MAPS_API_KEY in prod. Hardcoded so dev/test still work
-# without .env wiring, matching the brief.
+# Only used when GEOCODER_BACKEND=google (rollback). Prefer env GOOGLE_MAPS_API_KEY.
+# Kept solely so the Google rollback path still works without .env wiring.
 _FALLBACK_GOOGLE_KEY = "AIzaSyB7aN2B-DSqAMbRF_mLXMCdu-9vRKOqjfk"
+
+# Mandatory descriptive User-Agent for Nominatim. The OSM usage policy BANS
+# requests with a missing/empty/generic User-Agent — this string identifies the
+# app + a contact so OSM can reach us instead of silently IP-banning the box.
+_NOMINATIM_USER_AGENT = (
+    "SubastasActivas/1.0 (https://subastasactivas.com; dennis.kotlenko@gmail.com)"
+)
 
 
 @dataclass
@@ -52,18 +72,44 @@ class GeocodeResult:
 
 class GeocodingService:
     """
-    Geocoding service using Google Geocoding API.
+    Geocoding service. FREE OSM/Nominatim by default; Google behind an env flag.
 
-    Polite throttle (RATE_LIMIT_DELAY) is light — Google's per-second QPS is
-    high but we keep a tiny gap to avoid burst limits and to play nice with
-    downstream Street View calls that often share the key.
+    RATE LIMIT — LOAD-BEARING, DO NOT LOWER:
+      Nominatim's free usage policy permits at most ~1 request/second from a
+      single source. Exceeding it gets the box IP BANNED. RATE_LIMIT_DELAY is
+      therefore 1.1s (≈0.9 req/s, safely under the 1 req/s ceiling). The drain
+      and backfill run SINGLE-THREADED — never add concurrency to a Nominatim
+      path. Do not "optimize" this constant back down.
     """
 
+    NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
     GOOGLE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
-    RATE_LIMIT_DELAY = 0.05  # 20 req/s ceiling — well under Google's 50 QPS default
 
-    def __init__(self, user_agent: str = "SubastaPro/2.0", api_key: Optional[str] = None):
-        self.user_agent = user_agent
+    # 1.1s ≈ 0.9 req/s — Nominatim free-tier policy is ~1 req/s HARD CAP.
+    # This value is genuinely load-bearing (not cosmetic): faster than this and
+    # OSM bans the box IP. See class docstring.
+    RATE_LIMIT_DELAY = 1.1
+
+    def __init__(
+        self,
+        user_agent: str = _NOMINATIM_USER_AGENT,
+        api_key: Optional[str] = None,
+        backend: Optional[str] = None,
+    ):
+        # Default backend is the FREE provider. GEOCODER_BACKEND=google flips to
+        # the paid Google path (rollback lever — no rebuild needed, just recreate
+        # the container with the env set).
+        self.backend = (
+            backend
+            or os.getenv("GEOCODER_BACKEND")
+            or "nominatim"
+        ).strip().lower()
+
+        # Descriptive UA is mandatory for Nominatim. Guard against an empty/
+        # generic override leaking in and getting us banned.
+        self.user_agent = user_agent or _NOMINATIM_USER_AGENT
+
+        # Google key only resolved/needed for the rollback path.
         self.api_key = (
             api_key
             or os.getenv("GOOGLE_MAPS_API_KEY")
@@ -71,6 +117,8 @@ class GeocodingService:
         )
         self.last_request_time = 0.0
         self.cache = {}  # cache_key -> GeocodeResult (or None for known-miss)
+
+        logger.info(f"GeocodingService backend = '{self.backend}'")
 
     # ------------------------------------------------------------------
     # Public API
@@ -95,15 +143,18 @@ class GeocodingService:
         municipality: Optional[str] = None,
     ) -> Optional[GeocodeResult]:
         """
-        Convert address to coordinates via Google Geocoding API.
+        Convert address to coordinates.
 
-        Returns GeocodeResult including location_type so callers can distinguish:
-          - ROOFTOP            : exact street address
-          - RANGE_INTERPOLATED : interpolated between known points on a street
-          - GEOMETRIC_CENTER   : centre of a region (e.g. street, neighbourhood)
-          - APPROXIMATE        : town/city centroid — still usable per Ken
+        Routes to the configured backend (FREE Nominatim by default, Google only
+        when GEOCODER_BACKEND=google). Both return the same GeocodeResult contract
+        with a location_type drawn from:
+          - ROOFTOP            : exact street address / building
+          - RANGE_INTERPOLATED : a street / road
+          - GEOMETRIC_CENTER   : neighbourhood / district
+          - APPROXIMATE        : town/city centroid — still usable per Dennis
 
-        Returns None on hard failure (no results / network error / REQUEST_DENIED).
+        Returns None on hard failure (no results / network error). Shared cache,
+        shared address-building, shared rate limit across both backends.
         """
         if not raw_address:
             return None
@@ -116,6 +167,137 @@ class GeocodingService:
         full_address = self._build_full_address(raw_address, province, municipality)
         self._respect_rate_limit()
 
+        if self.backend == "google":
+            return self._geocode_google(full_address, cache_key)
+        return self._geocode_nominatim(full_address, cache_key)
+
+    # ------------------------------------------------------------------
+    # Nominatim backend (FREE — default)
+    # ------------------------------------------------------------------
+
+    def _geocode_nominatim(self, full_address: str, cache_key: str) -> Optional[GeocodeResult]:
+        """
+        Geocode via OpenStreetMap / Nominatim (free). Spain-locked via
+        countrycodes=es (the equivalent of Google's components=country:ES).
+        """
+        try:
+            params = {
+                "q": full_address,
+                "format": "jsonv2",
+                "addressdetails": 1,
+                "countrycodes": "es",
+                "limit": 1,
+                "accept-language": "es",
+            }
+            headers = {"User-Agent": self.user_agent}
+            logger.info(f"Geocoding (Nominatim): {full_address}")
+            response = requests.get(
+                self.NOMINATIM_URL, params=params, headers=headers, timeout=10
+            )
+            self.last_request_time = time.time()
+
+            # 429 / 503 = rate-limit / over-capacity. TRANSIENT — do NOT cache a
+            # None (it's not a real miss); caller retries on the next cron tick.
+            if response.status_code in (429, 503):
+                logger.warning(
+                    f"Nominatim throttled (HTTP {response.status_code}) for: {full_address} "
+                    f"— backing off, not caching as miss"
+                )
+                return None
+
+            if response.status_code != 200:
+                logger.error(
+                    f"Nominatim geocoding HTTP {response.status_code} for: {full_address}"
+                )
+                return None
+
+            data = response.json()
+
+            # Empty array = genuine soft miss. Cache the None so we don't re-query
+            # the same dud (matters more at 1 req/s).
+            if not isinstance(data, list) or not data:
+                logger.warning(f"No results for: {full_address}")
+                self.cache[cache_key] = None
+                return None
+
+            top = data[0]
+            lat_raw = top.get("lat")
+            lon_raw = top.get("lon")
+            if lat_raw is None or lon_raw is None:
+                logger.warning(f"Nominatim result missing lat/lon for: {full_address}")
+                self.cache[cache_key] = None
+                return None
+
+            try:
+                lat = float(lat_raw)
+                lng = float(lon_raw)
+            except (TypeError, ValueError):
+                logger.warning(f"Nominatim lat/lon not parseable for: {full_address}")
+                self.cache[cache_key] = None
+                return None
+
+            location_type = self._nominatim_precision(top)
+
+            result = GeocodeResult(
+                latitude=lat,
+                longitude=lng,
+                location_type=location_type,
+                formatted_address=top.get("display_name", full_address),
+                place_id=str(top["place_id"]) if top.get("place_id") is not None else None,
+            )
+            self.cache[cache_key] = result
+            logger.info(
+                f"Geocoded ({result.location_type}): ({result.latitude}, {result.longitude}) "
+                f"-> {result.formatted_address}"
+            )
+            return result
+
+        except Exception as e:
+            logger.error(f"Nominatim geocoding exception for {full_address}: {e}")
+            return None
+
+    @staticmethod
+    def _nominatim_precision(top: dict) -> str:
+        """
+        Synthesize a Google-style location_type from Nominatim jsonv2 fields so
+        the downstream precision_counts vocabulary stays {ROOFTOP,
+        RANGE_INTERPOLATED, GEOMETRIC_CENTER, APPROXIMATE}. Best-effort bucket —
+        exact Google parity is NOT required, only enum-string stability.
+
+        Mapping (per brief 3b):
+          addresstype in {house, building, address}  OR class=place & type=house
+              -> ROOFTOP
+          addresstype in {road, street}              OR class=highway
+              -> RANGE_INTERPOLATED
+          addresstype in {neighbourhood, suburb, quarter, city_district}
+              -> GEOMETRIC_CENTER
+          everything else (city/town/village/municipality/administrative/missing)
+              -> APPROXIMATE
+        """
+        addresstype = (top.get("addresstype") or "").strip().lower()
+        osm_class = (top.get("class") or "").strip().lower()
+        osm_type = (top.get("type") or "").strip().lower()
+
+        if addresstype in ("house", "building", "address") or (
+            osm_class == "place" and osm_type == "house"
+        ):
+            return "ROOFTOP"
+        if addresstype in ("road", "street") or osm_class == "highway":
+            return "RANGE_INTERPOLATED"
+        if addresstype in ("neighbourhood", "suburb", "quarter", "city_district"):
+            return "GEOMETRIC_CENTER"
+        return "APPROXIMATE"
+
+    # ------------------------------------------------------------------
+    # Google backend (PAID — rollback only, behind GEOCODER_BACKEND=google)
+    # ------------------------------------------------------------------
+
+    def _geocode_google(self, full_address: str, cache_key: str) -> Optional[GeocodeResult]:
+        """
+        Geocode via Google Geocoding API. RETAINED for rollback only — the
+        default backend is the free Nominatim path. Spain-locked (region=es,
+        components=country:ES). Native location_type enum, so no synthesis.
+        """
         try:
             params = {
                 "address": full_address,
@@ -206,7 +388,7 @@ class GeocodingService:
     def geocode_from_cadastral(self, cadastral_ref: str) -> Optional[Tuple[float, float]]:
         """
         Coords from cadastral reference via free Spanish Catastro API.
-        Unchanged across the Google migration.
+        Unchanged across both the Google migration and this free-revert.
         """
         if not self.parse_cadastral_ref(cadastral_ref):
             logger.warning(f"Invalid cadastral reference: {cadastral_ref}")
@@ -255,7 +437,7 @@ class GeocodingService:
             return None
 
     # ------------------------------------------------------------------
-    # Private helpers (normalization preserved verbatim from Nominatim impl)
+    # Private helpers (normalization preserved verbatim — written for Nominatim)
     # ------------------------------------------------------------------
 
     def _build_full_address(self, address: str, province: str, municipality: Optional[str]) -> str:
