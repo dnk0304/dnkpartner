@@ -37,6 +37,7 @@ import {
   TIPO_ALIAS_TO_CANONICAL,
   TIPO_SLUG_TO_DB_KEYS,
 } from '@/lib/seo/slugs';
+import { resolveProvinceSlugToCanonicalSlug } from '@/lib/province-slug';
 import { isLegacyCuid } from '@/lib/seo/legacy-rows';
 import { defaultLocale, isLocale, LOCALE_COOKIE, LOCALE_HEADER, type Locale } from '@/i18n/routing';
 
@@ -362,22 +363,49 @@ export function middleware(request: NextRequest) {
     const rawMuni = townMatch[2];
     if (!RESERVED_FIRST_SEGMENTS.has(rawProv)) {
       const provNorm = normaliseSlugToken(rawProv).replace(/\s+/g, '-');
-      let provCanon: string | null = null;
-      if (provNorm in PROVINCE_SLUG_TO_DB_KEY) provCanon = provNorm;
-      else {
-        const alias = PROVINCE_ALIAS_TO_CANONICAL[provNorm];
-        if (alias) provCanon = alias;
-      }
       const muniNorm = normaliseSlugToken(rawMuni).replace(/\s+/g, '-');
-      // Only emit a 301 when one of the segments is non-canonical AND we can
-      // confidently resolve the province. (If the province slug is unknown,
-      // let the page render its own 404 — middleware must not mask invalid
-      // URLs as redirects to a malformed canonical.)
-      if (provCanon && (provCanon !== rawProv || muniNorm !== rawMuni)) {
+
+      // Wave89 — province-slug recovery. Resolve seg-1 through the full
+      // canonical → alias → de-hyphenated grammar (so `laspalmas`,
+      // `santacruzdetenerife`, `acoruna`, `vizcaya`, … all map to their
+      // canonical province slug) rather than only the canonical+alias maps.
+      // This recovers no-hyphen / variant province slugs via a 301 instead of
+      // a dead 404, while preserving the town segment.
+      const provCanon = resolveProvinceSlugToCanonicalSlug(rawProv);
+
+      // Wave89 — municipio-segment-is-actually-a-PROVINCE smart redirect. If
+      // seg-2 resolves to a known province that is DIFFERENT from seg-1's
+      // province (e.g. /subastas/malaga/castellon — "castellon" is a province,
+      // not a Málaga town), the user clearly wants that province page: 301 to
+      // the clean 1-seg /subastas/{province} slot instead of a dead 404.
+      //
+      // The "different from seg-1" guard is what keeps a legit same-name
+      // town-in-its-own-province page alive: /subastas/barcelona/barcelona
+      // (Barcelona town in Barcelona province) — here seg-2 province ==
+      // seg-1 province, so we do NOT hijack it; it 200s as a town page. We
+      // only redirect the cross-province mismatch the user almost certainly
+      // mistyped as a town.
+      const muniAsProvince = resolveProvinceSlugToCanonicalSlug(rawMuni);
+      if (muniAsProvince && muniAsProvince !== provCanon) {
         const url = request.nextUrl.clone();
-        url.pathname = relocale(`/subastas/${provCanon}/${muniNorm}`, urlHadLocale);
+        url.pathname = relocale(`/subastas/${muniAsProvince}`, urlHadLocale);
         return NextResponse.redirect(url, 301);
       }
+
+      if (provCanon) {
+        // Province resolved (possibly after de-hyphen/alias rewrite). Emit a
+        // 301 only when one of the segments is non-canonical — the canonical
+        // valid town page (las-palmas/mogan, malaga/marbella, …) is left to
+        // 200 untouched.
+        if (provCanon !== rawProv || muniNorm !== rawMuni) {
+          const url = request.nextUrl.clone();
+          url.pathname = relocale(`/subastas/${provCanon}/${muniNorm}`, urlHadLocale);
+          return NextResponse.redirect(url, 301);
+        }
+      }
+      // Otherwise (province unknown AND seg-2 not a province): genuinely
+      // invalid town-in-province. Fall through and let the page render its own
+      // (already-Spanish) 404.
     }
   }
 

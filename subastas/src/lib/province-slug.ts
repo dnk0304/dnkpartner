@@ -30,6 +30,7 @@
 
 import {
   PROVINCE_SLUG_TO_DB_KEY,
+  PROVINCE_DB_KEY_TO_SLUG,
   PROVINCE_ALIAS_TO_CANONICAL,
   slugify,
 } from './seo/slugs';
@@ -45,6 +46,72 @@ const DB_KEY_TO_ROW: Map<string, CanonicalProvince> = (() => {
   for (const p of SPAIN_PROVINCES) m.set(p.key, p);
   return m;
 })();
+
+/**
+ * Hyphen-insensitive province-slug index (Wave89 — town-route slug recovery).
+ *
+ * Maps the DE-HYPHENATED form of every canonical AND alias province slug to its
+ * canonical slug. So `laspalmas` → `las-palmas`, `santacruzdetenerife` →
+ * `santa-cruz-de-tenerife`, `acoruna` → `a-coruna`, `illesbalears` → `baleares`
+ * (the alias `illes-balears` de-hyphenates to `illesbalears`). Lets a user who
+ * dropped the hyphens in a province slug still recover via a 301 instead of a
+ * dead 404. Built once at module load; canonical slugs win over alias slugs on
+ * key collision (insertion order: canonical first).
+ */
+const DEHYPHENATED_TO_CANONICAL_SLUG: Map<string, string> = (() => {
+  const m = new Map<string, string>();
+  // Canonical slugs first (they win any collision).
+  for (const slug of Object.keys(PROVINCE_SLUG_TO_DB_KEY)) {
+    const bare = slug.replace(/-/g, '');
+    if (!m.has(bare)) m.set(bare, slug);
+  }
+  // Then alias slugs → their canonical target.
+  for (const [alias, canonical] of Object.entries(PROVINCE_ALIAS_TO_CANONICAL)) {
+    const bare = alias.replace(/-/g, '');
+    if (!m.has(bare)) m.set(bare, canonical);
+  }
+  return m;
+})();
+
+/**
+ * Resolve any incoming "province"-shaped slug to its CANONICAL province SLUG
+ * (e.g. `laspalmas` → `las-palmas`, `vizcaya` → `bizkaia`, `Las Palmas` →
+ * `las-palmas`), or null if it can't be resolved to a known province.
+ *
+ * Resolution order (first match wins):
+ *  1. Already a canonical slug → return as-is.
+ *  2. Alias slug → canonical slug (legacy spellings: vizcaya, gerona, …).
+ *  3. De-hyphenated form of a canonical/alias slug (laspalmas, acoruna, …).
+ *  4. Raw-string fallback via the {label,key} resolver → its canonical slug
+ *     (handles bare DB labels like "Las Palmas" / "A Coruña").
+ *
+ * Returns the canonical slug string so the caller can build a redirect target.
+ * Distinct from `resolveProvinceSlugToCanonical` (which returns the DB row).
+ */
+export function resolveProvinceSlugToCanonicalSlug(
+  input: string | null | undefined,
+): string | null {
+  if (!input) return null;
+  const folded = foldToSlug(input);
+  if (folded) {
+    // 1. Canonical slug.
+    if (folded in PROVINCE_SLUG_TO_DB_KEY) return folded;
+    // 2. Alias slug.
+    const alias = PROVINCE_ALIAS_TO_CANONICAL[folded];
+    if (alias) return alias;
+    // 3. De-hyphenated form (no-hyphen province slug recovery).
+    const bare = folded.replace(/-/g, '');
+    const deHyphen = DEHYPHENATED_TO_CANONICAL_SLUG.get(bare);
+    if (deHyphen) return deHyphen;
+  }
+  // 4. Raw-label fallback → canonical slug via DB key.
+  const row = toCanonicalProvince(input);
+  if (row) {
+    const slug = PROVINCE_DB_KEY_TO_SLUG[row.key];
+    if (slug) return slug;
+  }
+  return null;
+}
 
 /**
  * Normalize an incoming slug-like token: trim, lowercase, accent-fold,
