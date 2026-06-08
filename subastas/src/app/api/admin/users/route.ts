@@ -1,76 +1,164 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { query } from '@/lib/db';
+import { isAdmin } from '@/lib/admin';
+import { query, queryOne } from '@/lib/db';
 
-const ADMIN_EMAIL = 'dennis.kotlenko@gmail.com';
+/**
+ * GET /api/admin/users — ADMIN-GATED registered-users list.
+ *
+ * SECURITY (the one thing to get right): the admin check is enforced
+ * SERVER-SIDE, here, before any user data is read. Three outcomes:
+ *   - no session (logged-out)             -> 403
+ *   - valid session, non-admin email      -> 403
+ *   - valid session, admin email          -> 200 + paginated list
+ * Never rely on the UI hiding the section — a non-admin hitting this URL
+ * directly gets 403 and zero rows. Admin-ness comes from lib/admin.ts
+ * (email allowlist), NOT a DB column — no migration.
+ *
+ * Safe fields only. Password hash is NEVER selected. trialEndDate (NOT
+ * trialEndsAt — pre-existing column name) carries the trial clock;
+ * stripe ids live on the Subscription table, joined in. Ordered newest-first.
+ */
+
+const DEFAULT_PAGE_SIZE = 25;
+const MAX_PAGE_SIZE = 100;
+
+function parsePositiveInt(raw: string | null, fallback: number): number {
+  if (!raw) return fallback;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 1) return fallback;
+  return n;
+}
+
+interface UserRow {
+  id: string;
+  email: string;
+  name: string | null;
+  tier: string;
+  createdAt: string | Date;
+  emailVerified: string | Date | null;
+  trialStartDate: string | Date | null;
+  trialEndDate: string | Date | null;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+}
 
 export async function GET(request: NextRequest) {
+  // --- Hard admin gate (server-side) ---------------------------------------
+  // auth() resolves the NextAuth session. isAdmin() is the email-allowlist
+  // check (case-insensitive). Logged-out OR normal user -> 403, no data.
+  let session;
   try {
-    const session = await auth();
-    
-    if (!session?.user?.email || session.user.email !== ADMIN_EMAIL) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-    }
+    session = await auth();
+  } catch {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  if (!isAdmin(session)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
-    // Get all users with their details.
-    // Note: trialEndDate (not trialEndsAt — pre-existing typo in old code) is the column name.
-    // stripeCustomerId / stripeSubscriptionId live on the Subscription table, not User — fetch via LEFT JOIN.
-    const users = await query<{
-      id: string;
-      email: string;
-      name: string | null;
-      tier: string;
-      createdAt: string | Date;
-      emailVerified: string | Date | null;
-      trialEndDate: string | Date | null;
-      stripeCustomerId: string | null;
-      stripeSubscriptionId: string | null;
-    }>(
+  // --- Pagination ----------------------------------------------------------
+  const { searchParams } = new URL(request.url);
+  const page = parsePositiveInt(searchParams.get('page'), 1);
+  const pageSize = Math.min(
+    parsePositiveInt(searchParams.get('pageSize'), DEFAULT_PAGE_SIZE),
+    MAX_PAGE_SIZE,
+  );
+  const offset = (page - 1) * pageSize;
+
+  try {
+    // Total count first so the UI can render pagination + the header summary.
+    const totalRow = await queryOne<{ count: string | number }>(
+      'SELECT COUNT(*) as count FROM User',
+    );
+    const total = Number(totalRow?.count ?? 0);
+
+    // Page of users (safe fields only — no password). Subscription LEFT JOIN
+    // for the stripe ids. Newest first, LIMIT/OFFSET paginated.
+    const users = await query<UserRow>(
       `SELECT
         u.id, u.email, u.name, u.tier, u.createdAt, u.emailVerified,
-        u.trialEndDate,
+        u.trialStartDate, u.trialEndDate,
         s.stripeCustomerId, s.stripeSubscriptionId
        FROM User u
        LEFT JOIN Subscription s ON s.userId = u.id
-       ORDER BY u.createdAt DESC`
+       ORDER BY u.createdAt DESC
+       LIMIT ? OFFSET ?`,
+      [pageSize, offset],
     );
 
-    // Get user counts by tier
+    // Alert counts for just this page's users (avoids scanning all alerts).
+    const userIds = users.map((u) => u.id);
+    const alertCounts =
+      userIds.length > 0
+        ? await query<{ userId: string; count: string | number }>(
+            `SELECT userId, COUNT(*) as count
+             FROM Alert
+             WHERE active = ? AND userId IN (${userIds.map(() => '?').join(',')})
+             GROUP BY userId`,
+            [true, ...userIds],
+          )
+        : [];
+
+    const now = Date.now();
+    const enrichedUsers = users.map((user) => {
+      const trialEnd = user.trialEndDate ? new Date(user.trialEndDate) : null;
+      const isTrialActive =
+        trialEnd !== null &&
+        Number.isFinite(trialEnd.getTime()) &&
+        trialEnd.getTime() > now;
+      const isPaid =
+        user.tier === 'ACCESO' || user.tier === 'GOLD' || user.tier === 'DIAMOND';
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        tier: user.tier,
+        createdAt: user.createdAt,
+        emailVerified: user.emailVerified,
+        trialStartDate: user.trialStartDate,
+        trialEndDate: user.trialEndDate,
+        alertCount: Number(
+          alertCounts.find((a) => a.userId === user.id)?.count ?? 0,
+        ),
+        hasSubscription: !!user.stripeSubscriptionId,
+        isTrialActive,
+        // status: paid | trial | expired — derived, for convenience.
+        status: isPaid ? 'paid' : isTrialActive ? 'trial' : 'expired',
+      };
+    });
+
+    // --- Summary (whole table, not just the page) --------------------------
     const tierCounts = await query<{ tier: string; count: string | number }>(
-      `SELECT tier, COUNT(*) as count
-       FROM User
-       GROUP BY tier`
+      `SELECT tier, COUNT(*) as count FROM User GROUP BY tier`,
     );
-
-    // Get alert counts by user
-    const alertCounts = await query<{ userId: string; count: string | number }>(
-      `SELECT userId, COUNT(*) as count
-       FROM Alert
-       WHERE active = ?
-       GROUP BY userId`,
-      [true]
+    const paidCount = await queryOne<{ count: string | number }>(
+      `SELECT COUNT(*) as count FROM User WHERE tier IN (?, ?, ?)`,
+      ['ACCESO', 'GOLD', 'DIAMOND'],
     );
-
-    // Enrich users with alert counts
-    const enrichedUsers = users.map(user => ({
-      ...user,
-      alertCount: Number(alertCounts.find(a => a.userId === user.id)?.count || 0),
-      hasSubscription: !!user.stripeSubscriptionId,
-      isTrialActive: user.trialEndDate ? new Date(user.trialEndDate) > new Date() : false
-    }));
+    const trialCount = await queryOne<{ count: string | number }>(
+      `SELECT COUNT(*) as count FROM User
+       WHERE tier = ? AND trialEndDate IS NOT NULL AND trialEndDate > ?`,
+      ['FREE', new Date(now).toISOString()],
+    );
 
     return NextResponse.json({
       users: enrichedUsers,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      },
       summary: {
-        total: users.length,
-        byTier: tierCounts.map(t => ({ ...t, count: Number(t.count) })),
-        withSubscriptions: users.filter(u => u.stripeSubscriptionId).length,
-        withActiveTrials: users.filter(u => u.trialEndDate && new Date(u.trialEndDate) > new Date()).length
-      }
+        total,
+        paid: Number(paidCount?.count ?? 0),
+        trial: Number(trialCount?.count ?? 0),
+        byTier: tierCounts.map((t) => ({ tier: t.tier, count: Number(t.count) })),
+      },
     });
-
-  } catch (error: any) {
+  } catch (error) {
     console.error('Users list error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to load users' }, { status: 500 });
   }
 }

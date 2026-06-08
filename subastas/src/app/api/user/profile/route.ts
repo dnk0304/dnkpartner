@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { queryOne, execute } from '@/lib/db';
+import { isAdmin } from '@/lib/admin';
 import bcrypt from 'bcryptjs';
 
 export async function PUT(request: NextRequest) {
@@ -102,9 +103,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // isAdmin flag (email allowlist, lib/admin.ts) lets the account dashboard
+    // conditionally render the admin section. UI-only — the /api/admin/users
+    // endpoint re-checks admin server-side, never trusting this flag.
     return NextResponse.json({
       success: true,
       user,
+      isAdmin: isAdmin(session),
     });
   } catch (error) {
     console.error('Error fetching profile:', error);
