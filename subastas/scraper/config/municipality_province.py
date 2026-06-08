@@ -735,3 +735,181 @@ def province_from_text(text: str) -> Optional[str]:
         if known_key in norm:
             return _RAW[known_key]
     return None
+
+
+# ===========================================================================
+# Canonical municipality NORMALIZER (single source of truth)
+# ---------------------------------------------------------------------------
+# Used by every active scraper (BOE / SEGSOCIAL / PLABI / vehicle path) and by
+# backfill_municipality_normalization.py so the stored `municipality` values
+# that feed the /subastas province->town filter hierarchy are:
+#   1. Title-cased with Spanish connectors lowercase ("las palmas de gran
+#      canaria" -> "Las Palmas de Gran Canaria", "telde" -> "Telde").
+#   2. De-duplicated across casing/accent variants ("las palmas" / "LAS PALMAS"
+#      / "Las Palmas" all collapse to ONE canonical display spelling).
+#   3. Free of LICENSE-PLATE / pure-numeric / other junk that vehicle auctions
+#      leaked into the town field (e.g. "6789jmg", "3875dvk", "12345").
+#      Junk -> None (honest "unknown"), NEVER kept as a town.
+# It NEVER fabricates a town.
+# ===========================================================================
+
+# Spanish connectors that stay lowercase unless they lead the name.
+_MUNI_MINOR = {"de", "del", "la", "las", "el", "los", "y", "i", "a", "da", "do",
+               "les", "dels", "e", "o"}
+
+# Spanish license-plate formats (must match the WHOLE trimmed value):
+#   - Post-2000 format:  4 digits + 3 letters       "6789 JMG" / "6789jmg"
+#   - Pre-2000 provincial: 1-2 letters + 4 digits + 1-2 letters  "M 1234 AB"
+#   - Bare matricula-ish:  letters+digits with no space and no real word
+_PLATE_RES = [
+    re.compile(r"^\d{4}\s*[A-Za-z]{3}$"),                     # 6789JMG
+    re.compile(r"^[A-Za-z]{1,2}\s*\d{4}\s*[A-Za-z]{1,2}$"),   # M1234AB / VA 1234 K
+    re.compile(r"^[A-Za-z]{1,3}-?\d{3,4}-?[A-Za-z]{0,3}$"),   # AB-1234 etc.
+]
+
+# Curated accent-correct / multi-word official display forms for the towns
+# whose plain title-case (or accent-stripped source) would otherwise produce a
+# wrong or duplicate spelling. Keyed by normalize_municipality() (lowercase, no
+# accent). This is the dedup ANCHOR: any variant that normalizes to one of these
+# keys is rewritten to the official display value, killing casing/accent dups.
+# Extend conservatively — an absent key just falls through to title-case, which
+# preserves accents already present in the raw BOE/portal value.
+_CANONICAL_DISPLAY: dict[str, str] = {
+    "las palmas de gran canaria": "Las Palmas de Gran Canaria",
+    "las palmas": "Las Palmas de Gran Canaria",
+    "palmas de gran canaria": "Las Palmas de Gran Canaria",
+    "palma": "Palma",
+    "palma de mallorca": "Palma",
+    "santa cruz de tenerife": "Santa Cruz de Tenerife",
+    "nijar": "Níjar",
+    "velez-malaga": "Vélez-Málaga",
+    "velez malaga": "Vélez-Málaga",
+    "huercal-overa": "Huércal-Overa",
+    "huercal overa": "Huércal-Overa",
+    "mojacar": "Mojácar",
+    "pulpi": "Pulpí",
+    "malaga": "Málaga",
+    "cadiz": "Cádiz",
+    "cordoba": "Córdoba",
+    "almeria": "Almería",
+    "jaen": "Jaén",
+    "leon": "León",
+    "caceres": "Cáceres",
+    "alava": "Álava",
+    "a coruna": "A Coruña",
+    "la coruna": "A Coruña",
+    "coruna": "A Coruña",
+    "alcala de henares": "Alcalá de Henares",
+    "alcazar de san juan": "Alcázar de San Juan",
+    "l'eliana": "l'Eliana",
+    "l eliana": "l'Eliana",
+    "l'hospitalet de llobregat": "l'Hospitalet de Llobregat",
+    "elx": "Elx",
+    "elche": "Elche",
+    "alacant": "Alicante",
+    "alicante": "Alicante",
+    "gijon": "Gijón",
+    "aviles": "Avilés",
+    "logrono": "Logroño",
+    "castello de la plana": "Castelló de la Plana",
+    "castellon de la plana": "Castelló de la Plana",
+    "donostia": "Donostia-San Sebastián",
+    "donostia-san sebastian": "Donostia-San Sebastián",
+    "san sebastian": "Donostia-San Sebastián",
+    "vitoria-gasteiz": "Vitoria-Gasteiz",
+    "vitoria": "Vitoria-Gasteiz",
+}
+
+
+def _title_case_municipality(name: str) -> str:
+    """Title-case with Spanish connectors lowercase; preserve hyphen compounds
+    (Vélez-Málaga, Huércal-Overa) and apostrophes (l'Eliana). Accents already in
+    the input are preserved (we only change casing)."""
+    cleaned = " ".join(str(name).split())
+    parts = cleaned.split(" ")
+    out = []
+    for idx, w in enumerate(parts):
+        low = w.lower()
+        if "-" in w:
+            out.append("-".join(seg[:1].upper() + seg[1:].lower() if seg else seg
+                                 for seg in w.split("-")))
+        elif "'" in w and len(w) > 1:
+            # l'Eliana, d'Aro: lowercase leading article, capitalize remainder.
+            head, _, tail = w.partition("'")
+            out.append(head.lower() + "'" + (tail[:1].upper() + tail[1:].lower() if tail else ""))
+        elif idx > 0 and low in _MUNI_MINOR:
+            out.append(low)
+        else:
+            out.append(w[:1].upper() + w[1:].lower() if w else w)
+    return " ".join(out)
+
+
+def is_plate_or_junk_municipality(name: Optional[str]) -> bool:
+    """True when `name` is a license plate, a pure number, or otherwise not a
+    real municipality (so the caller writes None instead of a fake town)."""
+    if not name:
+        return False
+    s = " ".join(str(name).split())
+    if not s:
+        return False
+    low = s.lower()
+    # Pure numeric (postal codes, lot ids leaked into the field)
+    if re.fullmatch(r"[\d\.\-\/]+", s):
+        return True
+    # License plate formats
+    compact = s.replace(" ", "")
+    for rx in _PLATE_RES:
+        if rx.match(s) or rx.match(compact):
+            return True
+    # Mixed digit+letter token with NO whitespace and NO real word vowel-run:
+    # plates like "6789jmg" survive above; this catches "1234ABCD5" style noise.
+    if " " not in s and re.search(r"\d", s) and re.search(r"[A-Za-z]", s) \
+            and not re.search(r"[A-Za-zÁÉÍÓÚÑÜáéíóúñü]{4,}", s):
+        return True
+    # Obvious non-town sentinels
+    if low in {"sin localidad", "no consta", "desconocido", "desconocida",
+               "n/a", "na", "-", "--", "varios", "varias", "espana", "españa"}:
+        return True
+    return False
+
+
+def canonical_municipality_name(name: Optional[str]) -> Optional[str]:
+    """
+    THE normalizer. Returns the canonical, deduplicated, title-cased municipality
+    DISPLAY string for the `municipality` column, or None when the value is a
+    plate / pure number / junk / empty (honest "unknown" — never a fake town).
+
+    Dedup: variants that normalize to the same key (case + accent insensitive)
+    collapse to ONE spelling — the curated official form when known, else the
+    title-cased input (which keeps accents already present in the source).
+    """
+    if not name:
+        return None
+    s = " ".join(str(name).split())
+    if not s:
+        return None
+    if is_plate_or_junk_municipality(s):
+        return None
+    key = normalize_municipality(s)
+    if not key:
+        return None
+    # 1) Curated official spelling (kills casing AND accent duplicates).
+    if key in _CANONICAL_DISPLAY:
+        return _CANONICAL_DISPLAY[key]
+    # 2) Otherwise title-case the source value (accents preserved from input).
+    return _title_case_municipality(s) or None
+
+
+def municipality_province_consistent(municipality: Optional[str],
+                                     province: Optional[str]) -> Optional[bool]:
+    """
+    Cross-check that a town belongs to its province in the hierarchy.
+    Returns True/False when the town is in the INE map, None when the town is
+    unknown to the map (cannot judge — caller should NOT act on None).
+    """
+    if not municipality or not province:
+        return None
+    mapped = municipality_to_province(municipality)
+    if mapped is None:
+        return None
+    return normalize_municipality(mapped) == normalize_municipality(province)

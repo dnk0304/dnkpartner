@@ -55,6 +55,7 @@ from bs4 import BeautifulSoup
 
 from .bank_base_scraper import BankBaseScraper
 from ..config.provinces import ALL_PROVINCES
+from ..config.municipality_province import canonical_municipality_name
 from ..config.categories import get_category_type
 from .vehicle_parser import set_vehicle_fields
 
@@ -498,8 +499,8 @@ class PlabiScraper(BankBaseScraper):
         municipality = detail.get("municipality")
         if municipality and _fold(municipality) in _PROVINCE_NOISE:
             municipality = None
-        if municipality:
-            municipality = municipality.title().strip() or None
+        # Shared normalizer: title-case + dedup vs INE + STRIP plate/junk.
+        municipality = canonical_municipality_name(municipality)
 
         # Category: PLABI's own Tipo-de-activo labels gate the keyword classifier.
         description = detail.get("description")
