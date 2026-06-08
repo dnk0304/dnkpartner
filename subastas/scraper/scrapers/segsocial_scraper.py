@@ -45,6 +45,7 @@ from bs4 import BeautifulSoup
 
 from .bank_base_scraper import BankBaseScraper
 from ..config.provinces import ALL_PROVINCES, get_province_by_code
+from ..config.municipality_province import canonical_municipality_name
 from ..config.categories import get_category_type
 from .vehicle_parser import set_vehicle_fields
 
@@ -507,8 +508,11 @@ class SegSocialScraper(BankBaseScraper):
         if not province and localizacion:
             province = _province_from_postal(localizacion)
 
-        if municipality:
-            municipality = municipality.title().strip() or None
+        # Shared normalizer: title-case + dedup + STRIP plate/junk. TGSS sells
+        # seized vehicles, so a plate occasionally lands in the parsed town slot
+        # (e.g. "(6789 JMG)"); canonical_municipality_name returns None for it,
+        # so we honestly store no town rather than a plate.
+        municipality = canonical_municipality_name(municipality)
         return province, municipality
 
     # ----- value parsers ----------------------------------------------------

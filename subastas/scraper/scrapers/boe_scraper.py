@@ -24,6 +24,7 @@ from ..config.categories import get_category_type
 from .vehicle_parser import is_vehicle_category, parse_vehicle_fields
 from ..config.municipality_province import (
     municipality_to_province, province_from_text, normalize_municipality,
+    canonical_municipality_name,
 )
 from ..config.settings import SCRAPE_MAX_PAGES, SCRAPE_MAX_ITEMS_PER_PAGE, BOE_REQUEST_DELAY_SECONDS
 from ..database.adapter import get_database_adapter
@@ -521,34 +522,19 @@ def parse_bien_fields(bien_text: Optional[str]) -> Dict[str, Any]:
 
 def canonical_municipality(name: Optional[str]) -> Optional[str]:
     """
-    Title-case a raw town name (BOE 'Localidad') for the `municipality` column,
-    accent-preserving. Returns None for an empty value so the adapter's
-    write-only-when-present guard leaves the column untouched.
+    Canonical, deduplicated, title-cased town name for the `municipality` column.
 
-    BOE renders localities in mixed case ('NIJAR', 'l'Eliana', 'Vélez-Málaga').
-    We do NOT strip accents here — the column is display text — only normalize
-    casing. `normalize_municipality()` (accent/lowercase) is still used for the
-    province LOOKUP, never for the stored display value.
+    Delegates to the single shared normalizer in config.municipality_province so
+    the scraper and the backfill never drift. The shared function:
+      - title-cases with Spanish connectors lowercase ("telde" -> "Telde",
+        "las palmas de gran canaria" -> "Las Palmas de Gran Canaria"),
+      - collapses casing/accent variants to ONE canonical spelling (dedup),
+      - STRIPS license plates ("6789jmg"), pure numbers, and junk -> None so the
+        adapter's write-only-when-present guard leaves the column alone rather
+        than persisting a plate as a town.
+    Returns None for empty/plate/junk (honest "unknown" — never a fake town).
     """
-    if not name:
-        return None
-    cleaned = " ".join(str(name).split())
-    if not cleaned:
-        return None
-    # Title-case but keep small Spanish connectors lowercase (de, del, la, ...)
-    minor = {"de", "del", "la", "las", "el", "los", "y", "a", "i", "da", "do"}
-    parts = cleaned.split(" ")
-    out_parts = []
-    for idx, w in enumerate(parts):
-        low = w.lower()
-        # Preserve hyphenated compounds (Vélez-Málaga, Huércal-Overa)
-        if "-" in w:
-            out_parts.append("-".join(seg.capitalize() for seg in w.split("-")))
-        elif idx > 0 and low in minor:
-            out_parts.append(low)
-        else:
-            out_parts.append(w[:1].upper() + w[1:].lower() if w else w)
-    return " ".join(out_parts)
+    return canonical_municipality_name(name)
 
 
 def derive_property_province(bien_provincia: Optional[str],
@@ -810,8 +796,11 @@ class BOEScraper(BaseScraper):
             current_bid = self._extract_currency(full_text, ['Puja actual', 'Puja', 'Licitación'])
             minimum_bid = self._extract_currency(full_text, ['Mínimo', 'Puja mínima'])
             
-            # Extract location
-            municipality = self._extract_municipality(full_text)
+            # Extract location (placeholder; the detail pass below replaces this
+            # with the real bienLocalidad). Normalize it through the shared
+            # canonicalizer so even this fallback value is title-cased/deduped
+            # and never a plate/junk token.
+            municipality = canonical_municipality(self._extract_municipality(full_text))
             
             # Categorize (title may be None at this point — pass empty string)
             category = get_category_type(title or '', full_text)
