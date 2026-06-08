@@ -1,60 +1,77 @@
 #!/usr/bin/env python3
 """
-Finished-auction TEST-BATCH re-scrape + recoverable-% report — 2026-06-08 (Forge, Ken brief Phase 1)
+Finished-auction FULL-RUN re-scrape — balanced sharding + 4 BOE tab-URL capture
+— 2026-06-08 (Forge, Ken brief: finished full-run windowing).
 
-Goal: re-scrape a RANDOM sample of FINISHED-pool auction ids through the EXACT
-fetch->enrich pipeline that `backfill_active_full.py --rescrape` uses, then
-report a HARD, per-field recoverable % BEFORE any multi-day full run. This is
-the gating test batch Dennis approved: representative recoverable %, not
-head-of-table.
+PRODUCTION full-run tool for backfilling all 221,615 BOE finished auctions via
+~28-30 parallel workers, each owning a BALANCED, EXHAUSTIVE, DISJOINT shard of
+the finished pool. Evolved from the 400-row test-batch (which proved the
+pipeline: 100% fetched-OK, 100% FULL tier, 11.89 s/card single-thread). The
+per-row fetch->enrich->upsert machinery (BOEScraper._fetch_detail_info, the
+updates dict, the idempotent UPDATE "Auction" SET ... WHERE "boeId"=%s with
+per-row commit and reconnect-on-OperationalError retry, time.sleep(0.5)
+politeness) is preserved VERBATIM. Two things change vs the test-batch:
 
-This is the finished-pool sibling of backfill_active_full.rescrape(). The
-per-row machinery (BOEScraper._fetch_detail_info, the updates dict, the
-idempotent UPDATE "Auction" SET ... WHERE "boeId"=%s with per-row commit and
-reconnect-on-OperationalError retry, the checkpoint) is replicated VERBATIM so
-the two can never drift. The ONLY differences are:
-  1. Row selection = the FINISHED pool (not the active pool).
-  2. RANDOM sample (ORDER BY random() LIMIT N), optional --source-filter.
-  3. Each fetched-OK row is CLASSIFIED for the report (the new part).
+  PART A — WINDOWING. The `ORDER BY random() LIMIT N` sampler is replaced by a
+  balanced shard selector keyed on `--shard I --shards N` (worker I of N, I in
+  0..N-1). Mechanism = NTILE(N) over the ORDERED cursor
+  `ORDER BY "endsAt" NULLS LAST, "boeId"`, partitioned in a CTE; worker I claims
+  bucket I+1. This is exhaustive + disjoint + balanced + deterministic by
+  construction (see _select_shard). Cursor within a shard is ORDERED (NOT
+  random) so a resumed worker re-selects the identical, identically-ordered set.
+  Checkpoint is per-shard (/tmp/finished_shard_{I}_of_{N}.checkpoint.json).
+
+  PART B — 4 BOE TAB-URL CAPTURE. 4 nullable columns on "Auction"
+  (urlInformacionGeneral ver=1 / urlBienes ver=3 / urlLotes split-lote /
+  urlPujas ver=5) are DERIVED from boe_id (no extra navigations, no re-scrape)
+  by _derive_boe_tab_urls() and merged into the same `updates` dict, riding the
+  same idempotent upsert. Honest-NULL: urlLotes is NULL on single-lot rows.
+  urlPujas is ALWAYS written (ver=5 resolves even when bidding is empty).
+
+The expensive classify/Report path (_classify_row, _count_docs_and_image,
+Report — 2 extra DB round-trips per row) is GATED behind --report (default OFF).
+At 221k x 30 workers that path is ~6.6M needless queries on a 100-connection PG,
+so the production run skips it; cheap fetch-outcome counters + a periodic
+progress log line are always kept for the monitor.
 
 Finished pool = status in the finished set AND "boeId" IS NOT NULL AND the
-legacy-row exclusion (database.legacy_rows.LEGACY_EXCLUSION_SQL), same guard the
-active backfill uses. The finished status labels are RESOLVED against the live
-enum at runtime (see _resolve_finished_statuses) so an unknown label can never
-crash the enum cast — a sibling once died on `"AuctionStatus" = text`. CONCLUIDA
-(the legacy ~234k bucket) is kept when present in the enum.
+legacy-row exclusion (database.legacy_rows.LEGACY_EXCLUSION_SQL). Finished status
+labels are RESOLVED against the live enum at runtime (_resolve_finished_statuses)
+so an unknown label can never crash the enum cast — a sibling once died on
+`"AuctionStatus" = text`.
 
-GEOCODING IS NOT DONE HERE. The free-geocode pass is a SEPARATE later step
-(Dennis: "First is to fetch the info"). The FULL tier deliberately does NOT
-require map coordinates — it is price + address + >=1 doc/photo. No Google /
-paid geocoding in this script. The existing backfill_geocode_finished.py owns
-the geocode leg; it is NOT touched here.
+GEOCODING IS NOT DONE HERE. Info-fetch ONLY. No Google / paid geocoding. The
+existing backfill_geocode_finished.py owns the geocode leg; it is NOT touched.
 
-NO migration. NO AI tokens in the runtime path (pure Python + Playwright +
-psycopg2). Idempotent (honest-NULL preserved; real backfill UPDATEs) and
-resumable (checkpoint mirrors active_full at /tmp/*.checkpoint.json), so the
-same file scales to the full run by raising --sample (or swapping the random
-sample for an id-cursor over the full finished pool).
+NO AI tokens in the runtime path (pure Python + Playwright + psycopg2).
+Idempotent (honest-NULL preserved; real backfill UPDATEs) and per-shard
+resumable.
 
-Run inside the scheduler container (has playwright + DATABASE_URL):
-  # dry run — count + 10-row preview + report skeleton, writes nothing
-  python3 -u backfill_finished_testbatch.py --dry-run --source-filter BOE
-  # the approved 400-row BOE batch
-  python3 -u backfill_finished_testbatch.py --sample 400 --source-filter BOE
+Run inside the scheduler container (has playwright + DATABASE_URL), one worker:
+  python3 -u backfill_finished_testbatch.py --shard 0 --shards 30 --source-filter BOE
+  python3 -u backfill_finished_testbatch.py --shard 1 --shards 30 --source-filter BOE
+  ... (worker I in 0..29)
+
+  # dry run — print shard size + 10-row preview, write nothing:
+  python3 -u backfill_finished_testbatch.py --dry-run --shard 0 --shards 30 --source-filter BOE
 
 Flags:
-  --sample N            random sample size (default 400)
+  --shard I             which shard this worker owns (0..N-1). REQUIRED for a run.
+  --shards N            total number of shards / parallel workers. REQUIRED.
   --source-filter SRC   BOE | SEGSOCIAL | PLABI (default: all sources)
-  --dry-run             count + 10-row preview + report skeleton, write nothing
+  --dry-run             count + 10-row preview of THIS shard, write nothing
   --max-rows N          cap rows processed THIS invocation (bounded batches;
-                        checkpoint resumes seamlessly — mirrors active_full)
+                        per-shard checkpoint resumes seamlessly)
+  --report              opt-in: keep the per-row classify + recoverable-% Report
+                        path (2 extra DB round-trips/row). DEFAULT OFF — the
+                        production full run does ZERO classification queries.
 """
 
 import os
 import sys
+import re
 import json
 import time
-import random
 import argparse
 import logging
 from datetime import datetime
@@ -117,10 +134,95 @@ def _is_no_existe(info):
         return False
     return not any(info.get(k) for k in _ENRICH_SIGNAL_KEYS)
 
-CHECKPOINT = os.environ.get(
-    "BACKFILL_CHECKPOINT", "/tmp/backfill_finished_testbatch.checkpoint.json"
-)
 REPORT_DIR = "/data/dnksubastas-deploy/scheduler-logs"
+
+# Canonical BOE detail base. Source of truth: BOEScraper.DETAIL_URL in
+# app/scrapers/boe_scraper.py (line ~598). Hardcoded here (instead of importing
+# the scraper at module load) so the pure URL-derivation helper has no Playwright
+# import dependency and the dry-run path stays import-light. If BOE ever changes
+# the host, update it in boe_scraper.py AND here.
+DETAIL_URL = "https://subastas.boe.es/detalleSubasta.php"
+
+# Mirror of boe_scraper._LOTE_COMPOSITE_RE (line 130). A composite split-lote
+# boeId is "<idSub>-L<N>". Kept local so the URL-derivation helper and the
+# dry-run path do NOT import the Playwright-heavy boe_scraper module. The real
+# parse_lote_boe_id is preferred when the scraper is already imported (run loop)
+# via _resolve_parse_lote_boe_id(); this local copy is the import-light fallback.
+_LOTE_COMPOSITE_RE = re.compile(r'^(?P<idsub>.+)-L(?P<lote>\d+)$')
+
+
+def _local_parse_lote_boe_id(boe_id):
+    """Import-light copy of boe_scraper.parse_lote_boe_id — recover
+    (idSub, lote_n:int) from a composite split-lote boeId, else None for a bare
+    idSub. Byte-equivalent semantics to the canonical function (same regex)."""
+    if not boe_id:
+        return None
+    m = _LOTE_COMPOSITE_RE.match(boe_id)
+    if not m:
+        return None
+    return (m.group('idsub'), int(m.group('lote')))
+
+
+# Resolved lazily to the canonical scraper function once the scraper is imported
+# (run loop); falls back to the local copy for the dry-run / no-Playwright path.
+parse_lote_boe_id = _local_parse_lote_boe_id
+
+
+def _bind_canonical_parse_lote():
+    """After the scraper is imported in the run loop, repoint parse_lote_boe_id
+    at the canonical boe_scraper implementation so the two can never drift. No-op
+    if the import is unavailable (keeps the local mirror)."""
+    global parse_lote_boe_id
+    try:
+        from app.scrapers.boe_scraper import parse_lote_boe_id as canonical
+        parse_lote_boe_id = canonical
+    except Exception:
+        pass  # keep the local mirror
+
+
+def _shard_checkpoint_path(shard, shards):
+    """Per-shard checkpoint path. A worker re-launched with the same
+    --shard I --shards N resumes exactly where it left off. BACKFILL_CHECKPOINT
+    env overrides (for manual relocation), else derive from shard/shards so 30
+    parallel workers never collide on one file."""
+    override = os.environ.get("BACKFILL_CHECKPOINT")
+    if override:
+        return override
+    return f"/tmp/finished_shard_{shard}_of_{shards}.checkpoint.json"
+
+
+def _derive_boe_tab_urls(boe_id):
+    """Derive the 4 BOE per-tab source URLs from boe_id ALONE — pure function, no
+    scraping, no navigation. Mirrors the canonical URL builders in
+    boe_scraper.py (_detail_url / v1_url / puja_url / the split-lote ver=3 URL)
+    so the two can never drift.
+
+    parse_lote_boe_id(boe_id) -> (src, lote_n) for a composite split-lote row,
+    else None for a bare single auction.
+
+    Honest-NULL:
+      * urlLotes  = the per-lote ver=3 page for split rows; NULL for single-lot
+                    (a bare idSub auction has no separate Lotes tab).
+      * urlPujas  = ALWAYS written (Ken's decision): the ver=5 URL resolves even
+                    when bidding is empty (it shows "no bids") — a valid BOE
+                    source page, so we do NOT gate it on whether bids exist.
+      * urlInformacionGeneral / urlBienes = always present for a fetched-OK row.
+    """
+    parsed = parse_lote_boe_id(boe_id)
+    if parsed:
+        src, n = parsed
+        return {
+            '"urlInformacionGeneral"': f"{DETAIL_URL}?idSub={src}&ver=1",
+            '"urlBienes"':             f"{DETAIL_URL}?idSub={src}&idLote={n}&ver=3",
+            '"urlLotes"':              f"{DETAIL_URL}?idSub={src}&idLote={n}&ver=3",
+            '"urlPujas"':              f"{DETAIL_URL}?idSub={src}&idLote={n}&ver=5",
+        }
+    return {
+        '"urlInformacionGeneral"': f"{DETAIL_URL}?idSub={boe_id}&ver=1",
+        '"urlBienes"':             f"{DETAIL_URL}?idSub={boe_id}&ver=3",
+        '"urlLotes"':              None,   # single-lot -> no Lotes tab -> honest-NULL
+        '"urlPujas"':              f"{DETAIL_URL}?idSub={boe_id}&ver=5",
+    }
 
 
 def _connect(retries: int = 30, delay: float = 5.0):
@@ -197,7 +299,7 @@ def _build_where(finished_statuses, source_filter):
     return where, params
 
 
-def _load_ckpt(path=CHECKPOINT):
+def _load_ckpt(path):
     try:
         with open(path) as f:
             return set(json.load(f).get("done", []))
@@ -205,7 +307,7 @@ def _load_ckpt(path=CHECKPOINT):
         return set()
 
 
-def _save_ckpt(done, path=CHECKPOINT):
+def _save_ckpt(done, path):
     try:
         with open(path, "w") as f:
             json.dump({"done": sorted(done)}, f)
@@ -389,25 +491,73 @@ def _classify_row(cur, boe_id, updates):
     return fields, tier
 
 
-def _select_sample(cur, where, params, sample_n):
-    """RANDOM sample of (boeId, source) from the finished pool. ORDER BY random()
-    LIMIT N — fine at N<=500 (brief). Random draw is load-bearing: a
-    representative recoverable %, not head-of-table."""
+def _select_shard(cur, where, params, shard, shards):
+    """Return (boeId, source) rows for worker `shard` of `shards`, as an ORDERED,
+    BALANCED, DISJOINT, EXHAUSTIVE slice of the finished pool.
+
+    Mechanism — NTILE over the ordered cursor:
+
+        WITH pool AS (
+          SELECT "boeId", source,
+                 ntile(N) OVER (ORDER BY "endsAt" NULLS LAST, "boeId") AS bucket
+          FROM "Auction" WHERE <finished-pool predicate>
+        )
+        SELECT "boeId", source FROM pool
+        WHERE bucket = shard + 1
+        ORDER BY "endsAt" NULLS LAST, "boeId"
+
+    Why this satisfies the contract by construction:
+      * EXHAUSTIVE + DISJOINT: ntile(N) assigns EVERY row in the window exactly
+        one bucket in 1..N. The union of buckets 1..N is the whole window with
+        zero overlap. Worker I claims bucket I+1, so the 30 workers partition the
+        221,615-row pool perfectly (SUM of the 30 counts == 221,615, no boeId in
+        two shards). The window predicate is byte-identical across all workers
+        (same `where`/`params`), so the partition is consistent run-to-run.
+      * BALANCED: ntile makes buckets differ in size by AT MOST 1 row. With
+        221,615 / 30, the first 221615 mod 30 = 5 buckets get 7,388 rows and the
+        rest get 7,387 — a spread of one row, far inside "±a few %".
+      * DETERMINISTIC: the ORDER BY ("endsAt" NULLS LAST, "boeId") is a TOTAL
+        order ("boeId" is unique here — UNIQUE in schema + the boeId IS NOT NULL
+        guard), so ntile is reproducible: same boeId -> same bucket every run. A
+        resumed worker re-selects the identical, identically-ordered set.
+      * The 4 endsAt-NULL rows sort to the very end (NULLS LAST) tie-broken by
+        boeId, so they land in the LAST bucket(s) deterministically — never
+        dropped, never duplicated.
+      * ORDERED CURSOR WITHIN SHARD: the outer ORDER BY walks each worker along a
+        contiguous date band (lighter on BOE caches, matches the "windowed"
+        mental model). NOT random().
+
+    Note: ntile() rescans/orders the whole finished window per worker. That is a
+    single indexed sort over ~221k rows on a fast box (one-time per worker
+    launch, sub-second to low-seconds), not per-row — acceptable for a launch
+    that then runs for hours.
+    """
     p = dict(params)
-    p["lim"] = sample_n
+    p["nbuckets"] = shards
+    p["bucket"] = shard + 1  # ntile is 1-based; --shard is 0-based
     cur.execute(
         f'''
-        SELECT "boeId", source FROM "Auction"
-        WHERE {where}
-        ORDER BY random()
-        LIMIT %(lim)s
+        WITH pool AS (
+          SELECT "boeId", source,
+                 ntile(%(nbuckets)s) OVER (
+                   ORDER BY "endsAt" NULLS LAST, "boeId"
+                 ) AS bucket
+          FROM "Auction"
+          WHERE {where}
+        )
+        SELECT "boeId", source
+        FROM pool
+        WHERE bucket = %(bucket)s
+        ORDER BY "endsAt" NULLS LAST, "boeId"
         ''',
         p,
     )
     return cur.fetchall()
 
 
-def run(sample_n, source_filter, dry_run, max_rows):
+def run(shard, shards, source_filter, dry_run, max_rows, do_report):
+    ckpt_path = _shard_checkpoint_path(shard, shards)
+
     conn = _connect()
     conn.autocommit = False
     cur = conn.cursor()
@@ -428,30 +578,32 @@ def run(sample_n, source_filter, dry_run, max_rows):
         f"Finished pool in scope (source={source_filter or 'ALL'}): {scope_total:,}"
     )
 
-    sampled = _select_sample(cur, where, params, sample_n)
-    logger.info(f"Random sample drawn: {len(sampled):,} rows (requested {sample_n})")
+    sharded = _select_shard(cur, where, params, shard, shards)
+    expected = scope_total / shards if shards else 0
+    logger.info(
+        f"Shard {shard}/{shards}: {len(sharded):,} rows "
+        f"(expected ~{expected:,.0f} = {scope_total:,}/{shards}; "
+        f"ntile balances to +-1 row). checkpoint={ckpt_path}"
+    )
 
     if dry_run:
-        logger.info("--- DRY RUN: 10-row preview (no fetch, no writes) ---")
-        for i, (boe_id, source) in enumerate(sampled[:10], 1):
+        logger.info("--- DRY RUN: 10-row preview of THIS shard (no fetch, no writes) ---")
+        for i, (boe_id, source) in enumerate(sharded[:10], 1):
             logger.info(f"  [dry] {i:>2}. boeId={boe_id}  source={source or 'UNKNOWN'}")
-        logger.info("--- DRY RUN: report skeleton ---")
-        skel = Report()
-        for _boe_id, source in sampled:
-            skel.attempt(source)
         logger.info(
-            "\n" + skel.render(scope_total, source_filter, None, None)
+            f"DRY RUN complete — shard {shard}/{shards} owns {len(sharded):,} rows; "
+            "0 fetches, 0 writes."
         )
-        logger.info("DRY RUN complete — 0 fetches, 0 writes.")
         cur.close()
         conn.close()
         return
 
-    # --- Real run: replicate backfill_active_full.rescrape() per-row machinery ---
-    done = _load_ckpt()
+    # --- Real run: per-shard cursor + verbatim per-row upsert machinery ---
+    done = _load_ckpt(ckpt_path)
     if done:
-        logger.info(f"  resuming: {len(done):,} already done per checkpoint")
-    queue = [(b, s) for (b, s) in sampled if b not in done]
+        logger.info(f"  resuming shard {shard}/{shards}: "
+                    f"{len(done):,} already done per checkpoint")
+    queue = [(b, s) for (b, s) in sharded if b not in done]
     if max_rows is not None:
         queue = queue[:max_rows]
     logger.info(f"  {len(queue):,} rows to process this run (cap={max_rows})")
@@ -479,20 +631,32 @@ def run(sample_n, source_filter, dry_run, max_rows):
     sys.path.insert(0, "/")
     from app.scrapers.boe_scraper import BOEScraper, extract_address
     scraper = BOEScraper()
+    # Repoint parse_lote_boe_id at the canonical scraper impl now that it is
+    # imported, so _derive_boe_tab_urls uses the source-of-truth parser (the
+    # import-light local mirror was only for the dry-run / no-Playwright path).
+    _bind_canonical_parse_lote()
 
-    report = Report()
+    # The classify/Report path costs 2 extra DB round-trips per row — dead weight
+    # at 221k x 30 workers. Only built when --report is passed (default OFF).
+    report = Report() if do_report else None
     started = datetime.utcnow()
     touched = failed = 0
+    # Cheap fetch-outcome counters — ALWAYS kept (the monitor reads these), even
+    # without --report.
+    fetched_ok = no_existe = transient_fail = 0
 
     for i, (boe_id, source) in enumerate(queue, 1):
-        report.attempt(source)
+        if report is not None:
+            report.attempt(source)
         try:
             info = scraper._fetch_detail_info(boe_id)
         except Exception as e:
             # Distinguish "no existe"/purged from transient. The detail fetch
             # raising is treated as transient; an empty/None info is purged.
             failed += 1
-            report.transient_fail += 1
+            transient_fail += 1
+            if report is not None:
+                report.transient_fail += 1
             logger.warning(f"  fetch failed (transient) for {boe_id}: {e}")
             done.add(boe_id)
             continue
@@ -500,9 +664,13 @@ def run(sample_n, source_filter, dry_run, max_rows):
         if _is_no_existe(info):
             # Empty/purged sentinel — page did not render ("no existe" / purged
             # upstream). Counted distinctly from transient fetch failures.
-            report.no_existe += 1
+            no_existe += 1
+            if report is not None:
+                report.no_existe += 1
             done.add(boe_id)
             continue
+
+        fetched_ok += 1
 
         # Build the SAME updates dict as backfill_active_full.rescrape().
         updates = {}
@@ -531,6 +699,13 @@ def run(sample_n, source_filter, dry_run, max_rows):
         if new_status:
             updates['status'] = new_status
 
+        # PART B — the 4 BOE per-tab source URLs, DERIVED from boe_id (no extra
+        # navigation, no re-scrape). Merge into the SAME updates dict so they
+        # ride the same idempotent UPDATE. Honest-NULL: urlLotes is None on
+        # single-lot rows and writes SQL NULL (not coerced to ''); urlPujas is
+        # always written. The keys are already SQL-quoted ('"urlBienes"' etc.).
+        updates.update(_derive_boe_tab_urls(boe_id))
+
         # WRITE the upsert — same UPDATE "Auction" SET ... WHERE "boeId"=%s,
         # per-row commit, reconnect-on-OperationalError retry verbatim.
         if updates:
@@ -552,63 +727,91 @@ def run(sample_n, source_filter, dry_run, max_rows):
                 conn.commit()
             touched += 1
 
-        # CLASSIFY the row for the report (reads post-write DB state).
-        fields, tier = _classify_row(cur, boe_id, updates)
-        report.classify(source, fields, tier)
+        # CLASSIFY the row for the report — ONLY when --report (2 extra DB
+        # round-trips/row; skipped on the production full run).
+        if report is not None:
+            fields, tier = _classify_row(cur, boe_id, updates)
+            report.classify(source, fields, tier)
 
         done.add(boe_id)
-        time.sleep(0.5)  # ~2/s — measures real throttled speed (brief)
+        time.sleep(0.5)  # ~2/s per-worker politeness throttle (brief — KEEP)
 
         if i % 25 == 0:
-            _save_ckpt(done)
+            _save_ckpt(done, ckpt_path)
             logger.info(
-                f"  {i}/{len(queue)} touched={touched} "
-                f"fetched-OK={report.fetched_ok} "
-                f"no-existe={report.no_existe} transient={report.transient_fail}"
+                f"  shard {shard}/{shards} {i}/{len(queue)} touched={touched} "
+                f"fetched-OK={fetched_ok} no-existe={no_existe} "
+                f"transient={transient_fail}"
             )
 
-    _save_ckpt(done)
+    _save_ckpt(done, ckpt_path)
     ended = datetime.utcnow()
     cur.close()
     conn.close()
 
-    # --- Emit the report: stdout + marker file ---
-    body = report.render(scope_total, source_filter, started, ended)
-    logger.info("\n" + body)
+    wall = (ended - started).total_seconds()
+    logger.info(
+        f"DONE shard {shard}/{shards}: processed={len(queue):,} touched={touched} "
+        f"fetched-OK={fetched_ok} no-existe={no_existe} transient={transient_fail} "
+        f"elapsed={wall:.1f}s "
+        f"({(len(queue)/wall) if wall > 0 else 0:.3f} rows/s)"
+    )
 
-    ts = ended.strftime("%Y%m%dT%H%M%SZ")
-    marker = os.path.join(REPORT_DIR, f"finished_testbatch_{ts}.report")
-    try:
-        os.makedirs(REPORT_DIR, exist_ok=True)
-        with open(marker, "w") as f:
-            f.write(body + "\n")
-        logger.info(f"Report marker written: {marker}")
-    except OSError as e:
-        logger.warning(f"Could not write report marker ({e}) — non-fatal; "
-                       "the report is printed above.")
+    # --- Optional report: stdout + marker file (only with --report) ---
+    if report is not None:
+        body = report.render(scope_total, source_filter, started, ended)
+        logger.info("\n" + body)
+
+        ts = ended.strftime("%Y%m%dT%H%M%SZ")
+        marker = os.path.join(
+            REPORT_DIR, f"finished_shard_{shard}_of_{shards}_{ts}.report"
+        )
+        try:
+            os.makedirs(REPORT_DIR, exist_ok=True)
+            with open(marker, "w") as f:
+                f.write(body + "\n")
+            logger.info(f"Report marker written: {marker}")
+        except OSError as e:
+            logger.warning(f"Could not write report marker ({e}) — non-fatal; "
+                           "the report is printed above.")
 
 
 def main():
     ap = argparse.ArgumentParser(
-        description="Finished-pool test-batch re-scrape + recoverable-% report."
+        description="Finished-pool full-run re-scrape — balanced sharding + "
+                    "4 BOE tab-URL capture."
     )
-    ap.add_argument("--sample", type=int, default=400,
-                    help="random sample size (default 400)")
+    ap.add_argument("--shard", type=int, required=True,
+                    help="which shard this worker owns (0..N-1)")
+    ap.add_argument("--shards", type=int, required=True,
+                    help="total number of shards / parallel workers (N)")
     ap.add_argument("--source-filter", choices=VALID_SOURCES, default=None,
                     help="restrict to one source (BOE|SEGSOCIAL|PLABI); default all")
     ap.add_argument("--dry-run", action="store_true",
-                    help="count + 10-row preview + report skeleton, write nothing")
+                    help="count + 10-row preview of this shard, write nothing")
     ap.add_argument("--max-rows", type=int, default=None,
-                    help="cap rows processed this invocation (checkpoint resumes)")
+                    help="cap rows processed this invocation (per-shard "
+                         "checkpoint resumes)")
+    ap.add_argument("--report", action="store_true",
+                    help="opt-in: keep the per-row classify + recoverable-%% "
+                         "Report path (2 extra DB round-trips/row). DEFAULT OFF "
+                         "— the production full run does ZERO classify queries.")
     args = ap.parse_args()
+
+    if args.shards < 1:
+        ap.error("--shards must be >= 1")
+    if not (0 <= args.shard < args.shards):
+        ap.error(f"--shard must be in 0..{args.shards - 1} (got {args.shard})")
 
     if args.dry_run:
         logger.info("DRY RUN mode — no fetches, no writes will occur")
     logger.info(
-        f"sample={args.sample} source-filter={args.source_filter or 'ALL'} "
-        f"max-rows={args.max_rows}"
+        f"shard={args.shard}/{args.shards} "
+        f"source-filter={args.source_filter or 'ALL'} "
+        f"max-rows={args.max_rows} report={'ON' if args.report else 'OFF'}"
     )
-    run(args.sample, args.source_filter, args.dry_run, args.max_rows)
+    run(args.shard, args.shards, args.source_filter, args.dry_run,
+        args.max_rows, args.report)
 
 
 if __name__ == "__main__":

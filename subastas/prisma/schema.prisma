@@ -55,6 +55,18 @@ model Auction {
   courtName       String?
   procedureNumber String?
   boeLink         String?
+  // BOE per-tab source URLs (SEO outbound links rendered on the auction card).
+  // Additive, nullable, honest-NULL: a tab that does not exist for this auction
+  // stays NULL (single-lot auctions have no Lotes tab; many auctions have no
+  // Pujas). boeLink (above) remains the canonical main ?idSub= link.
+  // All 4 are deterministically derivable from boeId + ver param — see the
+  // _derive_boe_tab_urls() block in backfill_finished_testbatch.py. No app
+  // deploy needed for the backend to WRITE these; Pixel's card-link UI is a
+  // separate later task.
+  urlInformacionGeneral String?   // ver=1  — "Información general" tab
+  urlBienes             String?   // ver=3  — "Bienes" / "Datos del bien" tab
+  urlLotes              String?   // lotes  — split-lote page (idLote); NULL for single-lot
+  urlPujas              String?   // ver=5  — "Pujas" tab; always written (ver=5 resolves even when empty)
   auctionId       String?
   lotNumber       String?
   boeAnnouncement String?
