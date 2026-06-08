@@ -93,7 +93,7 @@ export default async function ArticlePage(
   };
 
   return (
-    <div className="min-h-screen bg-[--color-page]">
+    <div className="min-h-screen bg-[var(--color-page)]">
       {/* JSON-LD */}
       <script
         type="application/ld+json"
@@ -107,11 +107,11 @@ export default async function ArticlePage(
         {/* Breadcrumb */}
         <nav
           aria-label="Migas de pan"
-          className="mb-6 text-xs text-[--color-ink-quiet]"
+          className="mb-6 text-xs text-[var(--color-ink-quiet)]"
         >
           <ol className="flex flex-wrap items-center gap-1.5">
             <li>
-              <Link href="/" className="hover:text-[--color-ink-primary]">
+              <Link href="/" className="hover:text-[var(--color-ink-primary)]">
                 Inicio
               </Link>
             </li>
@@ -119,30 +119,30 @@ export default async function ArticlePage(
             <li>
               <Link
                 href="/blog"
-                className="hover:text-[--color-ink-primary]"
+                className="hover:text-[var(--color-ink-primary)]"
               >
                 Guías
               </Link>
             </li>
             <li aria-hidden>/</li>
-            <li className="text-[--color-ink-secondary]" aria-current="page">
+            <li className="text-[var(--color-ink-secondary)]" aria-current="page">
               {article.title}
             </li>
           </ol>
         </nav>
 
         <article>
-          <header className="mb-8 border-b border-[--color-hairline-soft] pb-6">
-            <h1 className="font-display text-3xl font-semibold leading-tight tracking-tight text-[--color-ink-primary] sm:text-4xl">
+          <header className="mb-8 border-b border-[var(--color-hairline-soft)] pb-6">
+            <h1 className="font-display text-3xl font-semibold leading-tight tracking-tight text-[var(--color-ink-primary)] sm:text-4xl">
               {article.title}
             </h1>
             {article.metaDescription ? (
-              <p className="mt-3 text-base leading-relaxed text-[--color-ink-secondary]">
+              <p className="mt-3 text-base leading-relaxed text-[var(--color-ink-secondary)]">
                 {article.metaDescription}
               </p>
             ) : null}
             {article.publishedAt ? (
-              <p className="mt-4 text-xs text-[--color-ink-quiet]">
+              <p className="mt-4 text-xs text-[var(--color-ink-quiet)]">
                 <time dateTime={article.publishedAt.toISOString()}>
                   Publicado el{" "}
                   {article.publishedAt.toLocaleDateString("es-ES", {
@@ -165,10 +165,10 @@ export default async function ArticlePage(
           <ArticleContent body={article.bodyMarkdown} />
         </article>
 
-        <div className="mt-12 border-t border-[--color-hairline-soft] pt-6">
+        <div className="mt-12 border-t border-[var(--color-hairline-soft)] pt-6">
           <Link
             href="/blog"
-            className="text-sm text-[--color-action] hover:underline"
+            className="text-sm text-[var(--color-action)] hover:underline"
           >
             ← Ver todas las guías
           </Link>

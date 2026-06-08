@@ -36,7 +36,7 @@ export function StatusBadge({ status, size = "sm", className, hideDot = false }:
     <span
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border font-semibold uppercase tracking-wide whitespace-nowrap",
-        "text-[--color-ink-primary]",
+        "text-[var(--color-ink-primary)]",
         isSm ? "h-5 px-2 text-[10px]" : "h-7 px-3 text-xs",
         className,
       )}

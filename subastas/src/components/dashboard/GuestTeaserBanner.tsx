@@ -22,23 +22,23 @@ export const GuestTeaserBanner: React.FC<GuestTeaserBannerProps> = ({
   preAuctionCount,
 }) => {
   return (
-    <div className="bg-[--color-surface] hairline-b text-[--color-ink-primary] relative">
+    <div className="bg-[var(--color-surface)] hairline-b text-[var(--color-ink-primary)] relative">
       <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-4 min-w-0">
-          <div className="p-2 bg-[--color-warn-attention-soft] rounded-lg border border-[--color-warn-attention]/30">
-            <Lock className="w-5 h-5 text-[--color-warn-attention]" />
+          <div className="p-2 bg-[var(--color-warn-attention-soft)] rounded-lg border border-[var(--color-warn-attention)]/30">
+            <Lock className="w-5 h-5 text-[var(--color-warn-attention)]" />
           </div>
           <div className="min-w-0">
-            <p className="font-semibold text-sm sm:text-base text-[--color-ink-primary]">
+            <p className="font-semibold text-sm sm:text-base text-[var(--color-ink-primary)]">
               Estás viendo una versión limitada.
             </p>
-            <p className="text-xs sm:text-sm text-[--color-ink-secondary] tnum">
+            <p className="text-xs sm:text-sm text-[var(--color-ink-secondary)] tnum">
               Desbloquea{' '}
-              <span className="font-semibold text-[--color-ink-primary]">
+              <span className="font-semibold text-[var(--color-ink-primary)]">
                 {activeCount.toLocaleString('es-ES')} subastas activas
               </span>{' '}
               y{' '}
-              <span className="font-semibold text-[--color-ink-primary]">
+              <span className="font-semibold text-[var(--color-ink-primary)]">
                 {preAuctionCount.toLocaleString('es-ES')} pre-subastas
               </span>
               .
@@ -50,7 +50,7 @@ export const GuestTeaserBanner: React.FC<GuestTeaserBannerProps> = ({
           <Link href="/login" className="w-full sm:w-auto">
             <Button
               variant="ghost"
-              className="w-full text-[--color-ink-primary] hover:bg-[--color-surface-muted]"
+              className="w-full text-[var(--color-ink-primary)] hover:bg-[var(--color-surface-muted)]"
             >
               Iniciar sesión
             </Button>

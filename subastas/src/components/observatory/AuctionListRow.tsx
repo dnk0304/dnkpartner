@@ -142,7 +142,7 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
   return (
     <tr
       className={cn(
-        "group hover:bg-[--color-surface-muted] transition-colors",
+        "group hover:bg-[var(--color-surface-muted)] transition-colors",
         className,
       )}
     >
@@ -158,7 +158,7 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
             href={`/auction/${encodeURIComponent(item.id)}`}
             tabIndex={-1}
             aria-hidden="true"
-            className="relative shrink-0 w-16 h-12 rounded overflow-hidden bg-[--color-surface-muted] border border-[--color-hairline] hidden sm:block cursor-pointer"
+            className="relative shrink-0 w-16 h-12 rounded overflow-hidden bg-[var(--color-surface-muted)] border border-[var(--color-hairline)] hidden sm:block cursor-pointer"
           >
             <Image
               src={imageSrc}
@@ -185,25 +185,25 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
                 aria-hidden="true"
                 className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
               >
-                <span className="block h-2.5 w-2.5 rounded-full bg-[--color-warn-critical] ring-2 ring-white shadow-[0_1px_3px_rgba(0,0,0,0.4)]" />
+                <span className="block h-2.5 w-2.5 rounded-full bg-[var(--color-warn-critical)] ring-2 ring-white shadow-[0_1px_3px_rgba(0,0,0,0.4)]" />
               </span>
             )}
           </Link>
           <div className="min-w-0 flex-1">
         <Link
           href={`/auction/${encodeURIComponent(item.id)}`}
-          className="block text-sm font-medium text-[--color-ink-primary] hover:underline focus-visible:outline-none focus-visible:underline line-clamp-2"
+          className="block text-sm font-medium text-[var(--color-ink-primary)] hover:underline focus-visible:outline-none focus-visible:underline line-clamp-2"
         >
           {title}
         </Link>
         {/* Vehicle subtitle — año from primera matriculación. Sits under the
             row title before the meta line. Vehicle-only. (Wave C3, 2026-06-07.) */}
         {isVehicle && item.vehicleYear && (
-          <div className="mt-0.5 text-[11px] text-[--color-ink-tertiary] tnum">
+          <div className="mt-0.5 text-[11px] text-[var(--color-ink-tertiary)] tnum">
             {item.vehicleYear}
           </div>
         )}
-        <div className="mt-0.5 flex items-center gap-2 text-xs text-[--color-ink-tertiary] tnum">
+        <div className="mt-0.5 flex items-center gap-2 text-xs text-[var(--color-ink-tertiary)] tnum">
           <span className="uppercase tracking-wide" style={{ color: meta.color }}>
             {meta.label}
           </span>
@@ -238,14 +238,14 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
         </div>
       </td>
 
-      <td className="hidden md:table-cell align-top py-3 pr-3 text-xs text-[--color-ink-secondary] whitespace-nowrap">
+      <td className="hidden md:table-cell align-top py-3 pr-3 text-xs text-[var(--color-ink-secondary)] whitespace-nowrap">
         {/* propertyType (when projected) is the BOE bien-heading type and
             supersedes the row-level category. Viviendas keeps the brand
             pill; everything else stays plain. Pre-backfill rows fall back
             to category so this cell is never empty. */}
         {typeLabel.toLowerCase() === "vivienda" || item.category === "Viviendas" ? (
           <span
-            className="inline-flex items-center rounded-full border border-[--color-brand]/30 bg-[--color-brand]/[0.06] px-2 py-0.5 text-[11px] font-semibold text-[--color-brand]"
+            className="inline-flex items-center rounded-full border border-[var(--color-brand)]/30 bg-[var(--color-brand)]/[0.06] px-2 py-0.5 text-[11px] font-semibold text-[var(--color-brand)]"
             aria-label={`Tipo: ${typeLabel}`}
             title={typeLabel}
           >
@@ -260,7 +260,7 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
             date column already shows the opensAt as "Próx. apertura"
             (PROXIMA rows) — avoids printing the same date twice in one row. */}
         {opensLabel && dateLabel !== "Próxima apertura" && (
-          <div className="mt-0.5 flex items-center gap-2 text-[10px] text-[--color-ink-tertiary] font-normal tnum">
+          <div className="mt-0.5 flex items-center gap-2 text-[10px] text-[var(--color-ink-tertiary)] font-normal tnum">
             <span className="inline-flex items-center gap-1">
               <Calendar className="h-2.5 w-2.5" aria-hidden="true" />
               Inicio {opensLabel}
@@ -276,10 +276,10 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
       <td className="align-top py-3 pr-3 text-right whitespace-nowrap">
         {headlinePrice ? (
           <>
-            <div className="tnum text-sm font-semibold text-[--color-ink-primary]">
+            <div className="tnum text-sm font-semibold text-[var(--color-ink-primary)]">
               {formatPrice(headlinePrice.amount)}
             </div>
-            <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+            <div className="text-[10px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
               {headlinePrice.label}
             </div>
             {/* Below lg: the secondary cell is hidden — fold the extra
@@ -290,10 +290,10 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
               <div className="lg:hidden mt-1 space-y-0.5">
                 {secondaryStack.map((line) => (
                   <div key={line.key}>
-                    <div className="tnum text-xs text-[--color-ink-secondary]">
+                    <div className="tnum text-xs text-[var(--color-ink-secondary)]">
                       {formatPrice(line.amount)}
                     </div>
-                    <div className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
+                    <div className="text-[9px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
                       {line.label}
                     </div>
                   </div>
@@ -303,15 +303,15 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
           </>
         ) : noPriceData ? (
           <div className="text-right">
-            <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+            <div className="text-[10px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
               {isVariosLotes ? "Varios lotes" : "Sin datos"}
             </div>
-            <div className="text-[11px] text-[--color-ink-secondary]">
+            <div className="text-[11px] text-[var(--color-ink-secondary)]">
               Precio no disponible
             </div>
           </div>
         ) : (
-          <span className="text-[10px] text-[--color-ink-tertiary]">—</span>
+          <span className="text-[10px] text-[var(--color-ink-tertiary)]">—</span>
         )}
       </td>
 
@@ -324,17 +324,17 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
           <div className="space-y-1">
             {secondaryStack.map((line) => (
               <div key={line.key}>
-                <div className="tnum text-sm text-[--color-ink-secondary]">
+                <div className="tnum text-sm text-[var(--color-ink-secondary)]">
                   {formatPrice(line.amount)}
                 </div>
-                <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+                <div className="text-[10px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
                   {line.label}
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <span className="text-[10px] text-[--color-ink-tertiary]">—</span>
+          <span className="text-[10px] text-[var(--color-ink-tertiary)]">—</span>
         )}
       </td>
 
@@ -348,24 +348,24 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
           <LiveCountdown target={item.endDate} size="sm" effectiveStatus={effective} />
         ) : dateLabel === "Próxima apertura" ? (
           <span className="tnum">
-            <span className="block text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+            <span className="block text-[10px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
               Próx. apertura
             </span>
-            <span className="text-[--color-ink-primary]">
-              {opensLabel ?? <span className="text-[--color-ink-quiet]">Fecha por confirmar</span>}
+            <span className="text-[var(--color-ink-primary)]">
+              {opensLabel ?? <span className="text-[var(--color-ink-quiet)]">Fecha por confirmar</span>}
             </span>
           </span>
         ) : dateLabel === "Fecha prevista de reanudación" ? (
           <span className="tnum">
-            <span className="block text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+            <span className="block text-[10px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
               Reanudación
             </span>
-            <span className="text-[--color-ink-primary]">
-              {resumeDateStr ?? <span className="text-[--color-ink-quiet]">Fecha por confirmar</span>}
+            <span className="text-[var(--color-ink-primary)]">
+              {resumeDateStr ?? <span className="text-[var(--color-ink-quiet)]">Fecha por confirmar</span>}
             </span>
           </span>
         ) : (
-          <span className="tnum text-[--color-ink-quiet]">—</span>
+          <span className="tnum text-[var(--color-ink-quiet)]">—</span>
         )}
       </td>
 

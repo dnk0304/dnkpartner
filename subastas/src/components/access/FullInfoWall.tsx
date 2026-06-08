@@ -67,11 +67,11 @@ export function FullInfoWall({ headline }: FullInfoWallProps) {
         </div>
         <h2
           id="full-info-wall-heading"
-          className="font-serif text-xl md:text-2xl text-[--color-ink-primary]"
+          className="font-serif text-xl md:text-2xl text-[var(--color-ink-primary)]"
         >
           {title}
         </h2>
-        <p className="mx-auto mt-2.5 max-w-readable text-sm leading-relaxed text-[--color-ink-secondary]">
+        <p className="mx-auto mt-2.5 max-w-readable text-sm leading-relaxed text-[var(--color-ink-secondary)]">
           {sub}
         </p>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
@@ -79,7 +79,7 @@ export function FullInfoWall({ headline }: FullInfoWallProps) {
             <button
               type="button"
               onClick={() => setUpgradeOpen(true)}
-              className="inline-flex items-center justify-center rounded-md bg-[--color-action] px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[--color-action-hover] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-action]/40 focus-visible:ring-offset-2 transition-colors"
+              className="inline-flex items-center justify-center rounded-md bg-[var(--color-action)] px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--color-action-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/40 focus-visible:ring-offset-2 transition-colors"
               aria-label="Activar plan Acceso"
             >
               {cta}
@@ -87,7 +87,7 @@ export function FullInfoWall({ headline }: FullInfoWallProps) {
           ) : (
             <Link
               href={registerHref}
-              className="inline-flex items-center justify-center rounded-md bg-[--color-action] px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[--color-action-hover] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-action]/40 focus-visible:ring-offset-2 transition-colors"
+              className="inline-flex items-center justify-center rounded-md bg-[var(--color-action)] px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--color-action-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/40 focus-visible:ring-offset-2 transition-colors"
               aria-label="Crear una cuenta gratuita para ver la información completa"
             >
               {cta}
@@ -96,13 +96,13 @@ export function FullInfoWall({ headline }: FullInfoWallProps) {
           {!isAuthed && (
             <Link
               href={loginHref}
-              className="inline-flex items-center justify-center rounded-md border border-[--color-hairline] bg-[--color-surface] px-5 py-2.5 text-sm font-medium text-[--color-ink-primary] hover:bg-[--color-surface-muted] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-action]/30 transition-colors"
+              className="inline-flex items-center justify-center rounded-md border border-[var(--color-hairline)] bg-[var(--color-surface)] px-5 py-2.5 text-sm font-medium text-[var(--color-ink-primary)] hover:bg-[var(--color-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/30 transition-colors"
             >
               Ya tengo cuenta
             </Link>
           )}
         </div>
-        <p className="mt-5 text-[11px] text-[--color-ink-tertiary]">
+        <p className="mt-5 text-[11px] text-[var(--color-ink-tertiary)]">
           Buscar y navegar el catálogo es siempre gratis. La cuenta desbloquea el detalle completo de cada subasta.
         </p>
       </section>

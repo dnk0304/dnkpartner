@@ -222,40 +222,40 @@ export function AdminBlogEditor({ slugParam }: { slugParam: string }) {
 
   if (!loaded) {
     return (
-      <div className="min-h-screen bg-[--color-page] p-8 text-sm text-[--color-ink-quiet]">
+      <div className="min-h-screen bg-[var(--color-page)] p-8 text-sm text-[var(--color-ink-quiet)]">
         Cargando…
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[--color-page]">
-      <header className="sticky top-0 z-10 border-b border-[--color-hairline] bg-[--color-surface]/95 backdrop-blur">
+    <div className="min-h-screen bg-[var(--color-page)]">
+      <header className="sticky top-0 z-10 border-b border-[var(--color-hairline)] bg-[var(--color-surface)]/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3">
           <div className="flex min-w-0 items-center gap-3">
             <Link
               href="/admin/blog"
-              className="shrink-0 text-sm text-[--color-ink-secondary] hover:text-[--color-ink-primary]"
+              className="shrink-0 text-sm text-[var(--color-ink-secondary)] hover:text-[var(--color-ink-primary)]"
             >
               ← Guías
             </Link>
-            <h1 className="truncate font-display text-base font-semibold text-[--color-ink-primary]">
+            <h1 className="truncate font-display text-base font-semibold text-[var(--color-ink-primary)]">
               {isNew ? "Nueva guía" : state.title || slugParam}
             </h1>
             {!isNew ? (
               <span
                 className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${
                   status === "PUBLISHED"
-                    ? "bg-[--color-status-live-soft] text-[--color-ink-primary]"
-                    : "bg-[--color-surface-muted] text-[--color-ink-secondary]"
+                    ? "bg-[var(--color-status-live-soft)] text-[var(--color-ink-primary)]"
+                    : "bg-[var(--color-surface-muted)] text-[var(--color-ink-secondary)]"
                 }`}
               >
                 <span
                   aria-hidden
                   className={`h-1.5 w-1.5 rounded-full ${
                     status === "PUBLISHED"
-                      ? "bg-[--color-status-live]"
-                      : "bg-[--color-ink-quiet]"
+                      ? "bg-[var(--color-status-live)]"
+                      : "bg-[var(--color-ink-quiet)]"
                   }`}
                 />
                 {status === "PUBLISHED" ? "Publicado" : "Borrador"}
@@ -267,7 +267,7 @@ export function AdminBlogEditor({ slugParam }: { slugParam: string }) {
             <button
               type="button"
               onClick={() => setShowPreview((v) => !v)}
-              className="cursor-pointer rounded-md border border-[--color-hairline] px-3 py-1.5 text-xs font-medium text-[--color-ink-primary] hover:bg-[--color-surface-muted]"
+              className="cursor-pointer rounded-md border border-[var(--color-hairline)] px-3 py-1.5 text-xs font-medium text-[var(--color-ink-primary)] hover:bg-[var(--color-surface-muted)]"
             >
               {showPreview ? "Editar" : "Previsualizar"}
             </button>
@@ -275,7 +275,7 @@ export function AdminBlogEditor({ slugParam }: { slugParam: string }) {
               type="button"
               disabled={busy}
               onClick={save}
-              className="cursor-pointer rounded-md border border-[--color-hairline] bg-[--color-surface] px-3 py-1.5 text-xs font-medium text-[--color-ink-primary] hover:bg-[--color-surface-muted] disabled:opacity-50"
+              className="cursor-pointer rounded-md border border-[var(--color-hairline)] bg-[var(--color-surface)] px-3 py-1.5 text-xs font-medium text-[var(--color-ink-primary)] hover:bg-[var(--color-surface-muted)] disabled:opacity-50"
             >
               {busy ? "Guardando…" : isNew ? "Crear borrador" : "Guardar"}
             </button>
@@ -284,7 +284,7 @@ export function AdminBlogEditor({ slugParam }: { slugParam: string }) {
                 href={`/guia/${state.slug}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="cursor-pointer rounded-md border border-[--color-hairline] px-3 py-1.5 text-xs font-medium text-[--color-ink-primary] hover:bg-[--color-surface-muted]"
+                className="cursor-pointer rounded-md border border-[var(--color-hairline)] px-3 py-1.5 text-xs font-medium text-[var(--color-ink-primary)] hover:bg-[var(--color-surface-muted)]"
               >
                 Ver página en vivo ↗
               </Link>
@@ -296,9 +296,9 @@ export function AdminBlogEditor({ slugParam }: { slugParam: string }) {
                   disabled={busy}
                   onClick={togglePublish}
                   aria-label="Retirar artículo (despublicar)"
-                  className="cursor-pointer inline-flex items-center gap-1.5 rounded-md border-2 border-[--color-warn-critical] bg-[--color-surface] px-4 py-2 text-sm font-semibold text-[--color-ink-primary] hover:bg-[--color-warn-critical-soft] disabled:opacity-50"
+                  className="cursor-pointer inline-flex items-center gap-1.5 rounded-md border-2 border-[var(--color-warn-critical)] bg-[var(--color-surface)] px-4 py-2 text-sm font-semibold text-[var(--color-ink-primary)] hover:bg-[var(--color-warn-critical-soft)] disabled:opacity-50"
                 >
-                  <span aria-hidden className="h-2 w-2 rounded-full bg-[--color-warn-critical]" />
+                  <span aria-hidden className="h-2 w-2 rounded-full bg-[var(--color-warn-critical)]" />
                   Retirar (despublicar)
                 </button>
               ) : (
@@ -307,7 +307,7 @@ export function AdminBlogEditor({ slugParam }: { slugParam: string }) {
                   disabled={busy}
                   onClick={togglePublish}
                   aria-label="Aprobar y publicar artículo"
-                  className="cursor-pointer inline-flex items-center gap-1.5 rounded-md bg-[--color-action] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[--color-action-hover] disabled:opacity-50"
+                  className="cursor-pointer inline-flex items-center gap-1.5 rounded-md bg-[var(--color-action)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[var(--color-action-hover)] disabled:opacity-50"
                 >
                   <span aria-hidden>✓</span>
                   Aprobar y publicar
@@ -322,7 +322,7 @@ export function AdminBlogEditor({ slugParam }: { slugParam: string }) {
         {error ? (
           <div
             role="alert"
-            className="mb-4 rounded-md border border-[--color-warn-critical] bg-[--color-warn-critical-soft] px-3 py-2 text-sm text-[--color-ink-primary]"
+            className="mb-4 rounded-md border border-[var(--color-warn-critical)] bg-[var(--color-warn-critical-soft)] px-3 py-2 text-sm text-[var(--color-ink-primary)]"
           >
             {error}
           </div>
@@ -330,7 +330,7 @@ export function AdminBlogEditor({ slugParam }: { slugParam: string }) {
         {notice ? (
           <div
             role="status"
-            className="mb-4 rounded-md border border-[--color-warn-positive] bg-[--color-warn-positive-soft] px-3 py-2 text-sm text-[--color-ink-primary]"
+            className="mb-4 rounded-md border border-[var(--color-warn-positive)] bg-[var(--color-warn-positive-soft)] px-3 py-2 text-sm text-[var(--color-ink-primary)]"
           >
             {notice}
           </div>
@@ -338,16 +338,16 @@ export function AdminBlogEditor({ slugParam }: { slugParam: string }) {
 
         {!isNew ? (
           <div
-            className={`mb-4 flex items-center gap-2 rounded-md border px-3 py-2 text-sm text-[--color-ink-primary] ${
+            className={`mb-4 flex items-center gap-2 rounded-md border px-3 py-2 text-sm text-[var(--color-ink-primary)] ${
               status === "PUBLISHED"
-                ? "border-[--color-status-live] bg-[--color-status-live-soft]"
-                : "border-[--color-hairline] bg-[--color-surface-muted]"
+                ? "border-[var(--color-status-live)] bg-[var(--color-status-live-soft)]"
+                : "border-[var(--color-hairline)] bg-[var(--color-surface-muted)]"
             }`}
           >
             <span
               aria-hidden
               className={`h-2 w-2 rounded-full ${
-                status === "PUBLISHED" ? "bg-[--color-status-live]" : "bg-[--color-ink-quiet]"
+                status === "PUBLISHED" ? "bg-[var(--color-status-live)]" : "bg-[var(--color-ink-quiet)]"
               }`}
             />
             <span>
@@ -358,7 +358,7 @@ export function AdminBlogEditor({ slugParam }: { slugParam: string }) {
                     href={`/guia/${state.slug}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="cursor-pointer underline text-[--color-ink-primary] hover:no-underline"
+                    className="cursor-pointer underline text-[var(--color-ink-primary)] hover:no-underline"
                   >
                     /guia/{state.slug}
                   </Link>
@@ -400,7 +400,7 @@ export function AdminBlogEditor({ slugParam }: { slugParam: string }) {
                 // the public page's reading column (`max-w-3xl mx-auto px-6`)
                 // inside the admin panel so width/padding match too — true
                 // WYSIWYG, modulo the surrounding admin chrome.
-                <div className="min-h-[400px] rounded-md border border-[--color-hairline] bg-[--color-surface] py-10">
+                <div className="min-h-[400px] rounded-md border border-[var(--color-hairline)] bg-[var(--color-surface)] py-10">
                   <div className="mx-auto max-w-3xl px-6">
                     <ArticleContent
                       body={state.bodyMarkdown || "*Sin contenido aún.*"}
@@ -422,13 +422,13 @@ export function AdminBlogEditor({ slugParam }: { slugParam: string }) {
 
           {/* Sidebar: SEO + metadata */}
           <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
-            <div className="rounded-md border border-[--color-hairline] bg-[--color-surface] p-4">
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[--color-ink-quiet]">
+            <div className="rounded-md border border-[var(--color-hairline)] bg-[var(--color-surface)] p-4">
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-ink-quiet)]">
                 URL & estado
               </h2>
               <Field label="Slug" htmlFor="f-slug" hint="solo a-z, 0-9, guión" required>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-[--color-ink-quiet]">/guia/</span>
+                  <span className="text-xs text-[var(--color-ink-quiet)]">/guia/</span>
                   <input
                     id="f-slug"
                     type="text"
@@ -443,7 +443,7 @@ export function AdminBlogEditor({ slugParam }: { slugParam: string }) {
                 </div>
               </Field>
               {!isNew && publishedAt ? (
-                <p className="mt-2 text-xs text-[--color-ink-quiet]">
+                <p className="mt-2 text-xs text-[var(--color-ink-quiet)]">
                   Publicado: {new Date(publishedAt).toLocaleString("es-ES")}
                 </p>
               ) : null}
@@ -452,15 +452,15 @@ export function AdminBlogEditor({ slugParam }: { slugParam: string }) {
                   href={`/guia/${state.slug}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-2 inline-block text-xs text-[--color-action] hover:underline"
+                  className="mt-2 inline-block text-xs text-[var(--color-action)] hover:underline"
                 >
                   Abrir en el sitio público ↗
                 </Link>
               ) : null}
             </div>
 
-            <div className="rounded-md border border-[--color-hairline] bg-[--color-surface] p-4">
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[--color-ink-quiet]">
+            <div className="rounded-md border border-[var(--color-hairline)] bg-[var(--color-surface)] p-4">
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-ink-quiet)]">
                 SEO
               </h2>
               <div className="space-y-3">
@@ -551,7 +551,7 @@ export function AdminBlogEditor({ slugParam }: { slugParam: string }) {
 }
 
 const INPUT_CLS =
-  "w-full rounded-md border border-[--color-hairline] bg-[--color-surface] px-2.5 py-1.5 text-sm text-[--color-ink-primary] placeholder:text-[--color-ink-quiet] focus:border-[--color-action] focus:outline-none focus:ring-2 focus:ring-[--color-action]/30";
+  "w-full rounded-md border border-[var(--color-hairline)] bg-[var(--color-surface)] px-2.5 py-1.5 text-sm text-[var(--color-ink-primary)] placeholder:text-[var(--color-ink-quiet)] focus:border-[var(--color-action)] focus:outline-none focus:ring-2 focus:ring-[var(--color-action)]/30";
 
 function Field({
   label,
@@ -568,12 +568,12 @@ function Field({
 }) {
   return (
     <div>
-      <label htmlFor={htmlFor} className="mb-1 block text-xs font-medium text-[--color-ink-secondary]">
+      <label htmlFor={htmlFor} className="mb-1 block text-xs font-medium text-[var(--color-ink-secondary)]">
         {label}
-        {required ? <span className="ml-0.5 text-[--color-warn-critical]">*</span> : null}
+        {required ? <span className="ml-0.5 text-[var(--color-warn-critical)]">*</span> : null}
       </label>
       {children}
-      {hint ? <p className="mt-1 text-[11px] text-[--color-ink-quiet]">{hint}</p> : null}
+      {hint ? <p className="mt-1 text-[11px] text-[var(--color-ink-quiet)]">{hint}</p> : null}
     </div>
   );
 }
@@ -584,7 +584,7 @@ function CharCount({ value, limit }: { value: string; limit: number }) {
   return (
     <p
       className={`mt-1 text-[11px] tabular-nums ${
-        over ? "text-[--color-warn-critical]" : "text-[--color-ink-quiet]"
+        over ? "text-[var(--color-warn-critical)]" : "text-[var(--color-ink-quiet)]"
       }`}
     >
       {len}/{limit}

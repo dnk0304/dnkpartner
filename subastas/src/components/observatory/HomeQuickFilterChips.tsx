@@ -163,7 +163,7 @@ export function HomeQuickFilterChips({
                 // Viviendas gets a subtle emphasis ring when not active to signal
                 // "this is the hero category" — the properties-first thesis made
                 // visual without screaming.
-                !active && isViviendas && "ring-1 ring-[--color-brand-soft]/40",
+                !active && isViviendas && "ring-1 ring-[var(--color-brand-soft)]/40",
               )}
               title={cat.label}
             >
@@ -227,8 +227,8 @@ export function HomeQuickFilterChips({
             onClick={clearAll}
             className={cn(
               "inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-xs font-medium min-h-[36px]",
-              "text-[--color-ink-tertiary] hover:text-[--color-ink-primary] cursor-pointer",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40",
+              "text-[var(--color-ink-tertiary)] hover:text-[var(--color-ink-primary)] cursor-pointer",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40",
             )}
             aria-label="Limpiar filtros"
           >
@@ -273,10 +273,10 @@ export function HomeQuickFilterChips({
 function chipClass(active: boolean): string {
   return cn(
     "snap-start shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors min-h-[36px] cursor-pointer",
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40",
     active
-      ? "border-[--color-action] bg-[--color-action-soft] text-[--color-ink-primary] shadow-sm"
-      : "border-[--color-hairline] bg-[--color-surface] text-[--color-ink-primary] hover:border-[--color-action]/40 hover:bg-[--color-action-soft]/40",
+      ? "border-[var(--color-action)] bg-[var(--color-action-soft)] text-[var(--color-ink-primary)] shadow-sm"
+      : "border-[var(--color-hairline)] bg-[var(--color-surface)] text-[var(--color-ink-primary)] hover:border-[var(--color-action)]/40 hover:bg-[var(--color-action-soft)]/40",
   );
 }
 
@@ -284,7 +284,7 @@ function countPillClass(active: boolean): string {
   return cn(
     "tnum rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
     active
-      ? "bg-[--color-surface] text-[--color-ink-primary]"
-      : "bg-[--color-surface-muted] text-[--color-ink-secondary]",
+      ? "bg-[var(--color-surface)] text-[var(--color-ink-primary)]"
+      : "bg-[var(--color-surface-muted)] text-[var(--color-ink-secondary)]",
   );
 }

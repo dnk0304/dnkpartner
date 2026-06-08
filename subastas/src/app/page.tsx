@@ -12,7 +12,7 @@ import HomeObservatory from "./HomeObservatory";
  */
 export default function Home() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[--color-page]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-[var(--color-page)]" />}>
       <HomeObservatory />
     </Suspense>
   );

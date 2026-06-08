@@ -38,13 +38,13 @@ export function RegistroTable({ items, className }: Props) {
   return (
     <div
       className={cn(
-        "rounded-lg border border-[--color-hairline] bg-[--color-surface] overflow-hidden",
+        "rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] overflow-hidden",
         className
       )}
     >
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-[--color-surface-muted] text-[10px] uppercase tracking-wider text-[--color-ink-tertiary]">
+          <thead className="bg-[var(--color-surface-muted)] text-[10px] uppercase tracking-wider text-[var(--color-ink-tertiary)]">
             <tr className="text-left">
               <th className="py-2.5 pl-4 pr-3 font-semibold">Estado</th>
               <th className="py-2.5 pr-3 font-semibold">Subasta</th>
@@ -55,7 +55,7 @@ export function RegistroTable({ items, className }: Props) {
               <th className="hidden xl:table-cell py-2.5 pr-4 font-semibold">Avisos</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[--color-hairline-soft]">
+          <tbody className="divide-y divide-[var(--color-hairline-soft)]">
             {items.map((it) => (
               <RegistroRow key={it.id} item={it} />
             ))}
@@ -118,14 +118,14 @@ function RegistroRow({ item }: { item: AuctionItem }) {
   return (
     <tr
       className={cn(
-        "group transition-colors hover:bg-[--color-action-soft]/40",
+        "group transition-colors hover:bg-[var(--color-action-soft)]/40",
         critical && "warn-bar-critical"
       )}
     >
       <td className="py-3 pl-4 pr-3 align-top">
         <Link
           href={`/auction/${encodeURIComponent(item.id)}`}
-          className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[--color-ink-primary]"
+          className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-ink-primary)]"
           aria-label={`Estado: ${meta.label}`}
         >
           <StatusDot status={effective} size={8} />
@@ -135,28 +135,28 @@ function RegistroRow({ item }: { item: AuctionItem }) {
       <td className="py-3 pr-3 align-top min-w-0">
         <Link
           href={`/auction/${encodeURIComponent(item.id)}`}
-          className="block font-semibold text-[--color-ink-primary] hover:text-[--color-action] line-clamp-2"
+          className="block font-semibold text-[var(--color-ink-primary)] hover:text-[var(--color-action)] line-clamp-2"
         >
           {title}
         </Link>
-        <div className="lg:hidden mt-0.5 text-[12px] text-[--color-ink-tertiary] truncate">
+        <div className="lg:hidden mt-0.5 text-[12px] text-[var(--color-ink-tertiary)] truncate">
           {where || "Ubicación no disponible"}
         </div>
       </td>
-      <td className="hidden lg:table-cell py-3 pr-3 align-top text-[13px] text-[--color-ink-primary]">
-        {where || <span className="text-[--color-ink-quiet]">Ubicación no disponible</span>}
+      <td className="hidden lg:table-cell py-3 pr-3 align-top text-[13px] text-[var(--color-ink-primary)]">
+        {where || <span className="text-[var(--color-ink-quiet)]">Ubicación no disponible</span>}
       </td>
-      <td className="py-3 pr-3 align-top text-right tnum font-semibold text-[--color-ink-primary] whitespace-nowrap">
+      <td className="py-3 pr-3 align-top text-right tnum font-semibold text-[var(--color-ink-primary)] whitespace-nowrap">
         {formatPrice(item.appraisalValue)}
       </td>
-      <td className="py-3 pr-3 align-top text-right tnum font-semibold text-[--color-ink-primary] whitespace-nowrap">
+      <td className="py-3 pr-3 align-top text-right tnum font-semibold text-[var(--color-ink-primary)] whitespace-nowrap">
         {formatPrice(item.minimumBid)}
       </td>
-      <td className="hidden md:table-cell py-3 pr-3 align-top text-[12px] text-[--color-ink-primary] whitespace-nowrap">
+      <td className="hidden md:table-cell py-3 pr-3 align-top text-[12px] text-[var(--color-ink-primary)] whitespace-nowrap">
         {item.endDate ? (
           <LiveCountdown target={item.endDate} size="sm" effectiveStatus={effective} />
         ) : (
-          <span className="text-[--color-ink-quiet]">—</span>
+          <span className="text-[var(--color-ink-quiet)]">—</span>
         )}
       </td>
       <td className="hidden xl:table-cell py-3 pr-4 align-top">

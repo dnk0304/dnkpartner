@@ -110,21 +110,21 @@ export function DetailStatusPanel({
         </h2>
         <div>
           <StatusBadge status={resolvedStatus} size="lg" />
-          <p className="mt-2 text-xs text-[--color-ink-tertiary]">{meta.helper}</p>
+          <p className="mt-2 text-xs text-[var(--color-ink-tertiary)]">{meta.helper}</p>
         </div>
       </header>
 
       {/* Price hierarchy — BIG BOLD bid, muted tasación under. */}
       {headlinePrice != null && (
         <div>
-          <div className="text-[11px] uppercase tracking-wide text-[--color-ink-tertiary]">
+          <div className="text-[11px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
             {headlineLabel}
           </div>
-          <div className="mt-1 font-serif text-[2.25rem] md:text-[2.5rem] font-semibold leading-none tracking-tight tnum text-[--color-ink-primary]">
+          <div className="mt-1 font-serif text-[2.25rem] md:text-[2.5rem] font-semibold leading-none tracking-tight tnum text-[var(--color-ink-primary)]">
             {formatPrice(headlinePrice)}
           </div>
           {secondaryAppraisal != null && (
-            <div className="mt-1.5 text-xs text-[--color-ink-tertiary] tnum">
+            <div className="mt-1.5 text-xs text-[var(--color-ink-tertiary)] tnum">
               Tasación {formatPrice(secondaryAppraisal)}
             </div>
           )}
@@ -134,10 +134,10 @@ export function DetailStatusPanel({
       {/* Current bid — only when truly distinct (and present). */}
       {auction.currentBid != null && auction.currentBid > 0 && (
         <div className="hairline-t pt-4">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-[--color-ink-tertiary]">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-ink-tertiary)]">
             Puja actual
           </div>
-          <div className="mt-1 tnum text-2xl font-semibold text-[--color-ink-primary]">
+          <div className="mt-1 tnum text-2xl font-semibold text-[var(--color-ink-primary)]">
             {formatPrice(auction.currentBid)}
           </div>
         </div>
@@ -156,8 +156,8 @@ export function DetailStatusPanel({
           the entire block is suppressed when countdownTarget is null AND
           the row is live (no resumeAt either). */}
       {countdownTarget ? (
-        <div className="rounded-lg bg-[--color-surface-muted] px-4 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-[--color-ink-tertiary]">
+        <div className="rounded-lg bg-[var(--color-surface-muted)] px-4 py-3">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-ink-tertiary)]">
             {live ? "Tiempo restante" : "Abre en"}
           </div>
           <LiveCountdown
@@ -166,7 +166,7 @@ export function DetailStatusPanel({
             className="mt-1"
             effectiveStatus={resolvedStatus}
           />
-          <div className="mt-1.5 text-xs text-[--color-ink-tertiary] tnum">
+          <div className="mt-1.5 text-xs text-[var(--color-ink-tertiary)] tnum">
             {live
               ? auction.endsAt
                 ? `Termina el ${formatDateLong(auction.endsAt)}`
@@ -179,15 +179,15 @@ export function DetailStatusPanel({
       ) : suspended ? (
         // SUSPENDIDA — render resumeAt (or "Fecha por confirmar"), never a
         // countdown to endsAt.
-        <div className="rounded-lg bg-[--color-surface-muted] px-4 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-[--color-ink-tertiary]">
+        <div className="rounded-lg bg-[var(--color-surface-muted)] px-4 py-3">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-ink-tertiary)]">
             Fecha prevista de reanudación
           </div>
-          <div className="mt-1 text-base tnum text-[--color-ink-primary]">
+          <div className="mt-1 text-base tnum text-[var(--color-ink-primary)]">
             {auction.resumeAt ? (
               formatDateLong(auction.resumeAt)
             ) : (
-              <span className="text-[--color-ink-quiet]">Fecha por confirmar</span>
+              <span className="text-[var(--color-ink-quiet)]">Fecha por confirmar</span>
             )}
           </div>
         </div>
@@ -237,8 +237,8 @@ export function DetailStatusPanel({
               rel="noopener noreferrer"
               className={cn(
                 "flex w-full items-center justify-center gap-2 rounded-md px-4 py-3 text-sm font-semibold transition-colors",
-                "bg-[--color-action] text-white hover:bg-[--color-action-hover]",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-action]/40 focus-visible:ring-offset-2",
+                "bg-[var(--color-action)] text-white hover:bg-[var(--color-action-hover)]",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/40 focus-visible:ring-offset-2",
               )}
             >
               {label}
@@ -246,7 +246,7 @@ export function DetailStatusPanel({
             </a>
           );
         })()}
-        <p className="text-[11px] text-[--color-ink-tertiary] text-center">
+        <p className="text-[11px] text-[var(--color-ink-tertiary)] text-center">
           Las pujas se realizan únicamente en el portal oficial.
         </p>
 
@@ -276,8 +276,8 @@ export function DetailStatusPanel({
 function ValueRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <dt className="text-xs text-[--color-ink-secondary]">{label}</dt>
-      <dd className="tnum text-sm text-[--color-ink-primary]">{value}</dd>
+      <dt className="text-xs text-[var(--color-ink-secondary)]">{label}</dt>
+      <dd className="tnum text-sm text-[var(--color-ink-primary)]">{value}</dd>
     </div>
   );
 }

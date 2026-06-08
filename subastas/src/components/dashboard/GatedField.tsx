@@ -119,14 +119,14 @@ export const GatedField: React.FC<GatedFieldProps> = ({
                  bg-white/40 backdrop-blur-[2px]
                  hover:bg-white/55 focus-visible:bg-white/55
                  transition-colors
-                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/60
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/60
                  rounded-md"
     >
       <span className="inline-flex items-center gap-1.5 rounded-full
-                       bg-[--color-surface] border border-[--color-hairline]
-                       px-3 py-1 text-xs font-medium text-[--color-ink-primary]
+                       bg-[var(--color-surface)] border border-[var(--color-hairline)]
+                       px-3 py-1 text-xs font-medium text-[var(--color-ink-primary)]
                        shadow-[var(--shadow-lift,0_1px_2px_rgba(0,0,0,0.06))]">
-        <Lock className="h-3 w-3 text-[--color-ink-tertiary]" aria-hidden="true" />
+        <Lock className="h-3 w-3 text-[var(--color-ink-tertiary)]" aria-hidden="true" />
         {ctaText}
       </span>
     </button>
@@ -138,14 +138,14 @@ export const GatedField: React.FC<GatedFieldProps> = ({
                  bg-white/40 backdrop-blur-[2px]
                  hover:bg-white/55 focus-visible:bg-white/55
                  transition-colors
-                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/60
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/60
                  rounded-md"
     >
       <span className="inline-flex items-center gap-1.5 rounded-full
-                       bg-[--color-surface] border border-[--color-hairline]
-                       px-3 py-1 text-xs font-medium text-[--color-ink-primary]
+                       bg-[var(--color-surface)] border border-[var(--color-hairline)]
+                       px-3 py-1 text-xs font-medium text-[var(--color-ink-primary)]
                        shadow-[var(--shadow-lift,0_1px_2px_rgba(0,0,0,0.06))]">
-        <Lock className="h-3 w-3 text-[--color-ink-tertiary]" aria-hidden="true" />
+        <Lock className="h-3 w-3 text-[var(--color-ink-tertiary)]" aria-hidden="true" />
         {ctaText}
       </span>
     </Link>

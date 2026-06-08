@@ -68,7 +68,7 @@ function DashboardSecondaryNav({ items, onSignOut }: { items: DashNavItem[]; onS
   return (
     <nav
       aria-label="Navegación de cuenta"
-      className="flex flex-wrap items-center gap-1 rounded-lg border border-[--color-hairline] bg-[--color-surface] p-1 text-sm shadow-sm"
+      className="flex flex-wrap items-center gap-1 rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] p-1 text-sm shadow-sm"
     >
       {items.map(({ href, label, icon: Icon, active }) => (
         <Link
@@ -78,8 +78,8 @@ function DashboardSecondaryNav({ items, onSignOut }: { items: DashNavItem[]; onS
           className={cn(
             "inline-flex items-center gap-2 rounded-md px-3 py-1.5 transition-colors",
             active
-              ? "bg-[--color-action-soft] text-[--color-brand] font-medium"
-              : "text-[--color-ink-secondary] hover:bg-[--color-action-soft]/60 hover:text-[--color-brand]",
+              ? "bg-[var(--color-action-soft)] text-[var(--color-brand)] font-medium"
+              : "text-[var(--color-ink-secondary)] hover:bg-[var(--color-action-soft)]/60 hover:text-[var(--color-brand)]",
           )}
         >
           <Icon className="h-4 w-4" aria-hidden="true" />
@@ -89,7 +89,7 @@ function DashboardSecondaryNav({ items, onSignOut }: { items: DashNavItem[]; onS
       <button
         type="button"
         onClick={onSignOut}
-        className="ml-auto inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-[--color-ink-secondary] transition-colors hover:bg-[--color-warn-critical-soft]/50 hover:text-[--color-warn-critical]"
+        className="ml-auto inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-[var(--color-ink-secondary)] transition-colors hover:bg-[var(--color-warn-critical-soft)]/50 hover:text-[var(--color-warn-critical)]"
       >
         <LogOut className="h-4 w-4" aria-hidden="true" />
         <span>Cerrar sesión</span>
@@ -194,19 +194,19 @@ export default function FavoritesPage() {
   const count = favorites.length;
 
   return (
-    <div className="min-h-screen bg-[--color-page]">
+    <div className="min-h-screen bg-[var(--color-page)]">
       <div className="mx-auto max-w-editorial px-4 py-8 md:px-6 md:py-12">
         {/* Editorial header band */}
         <header className="mb-8 flex flex-col gap-4 md:mb-10">
-          <p className="font-mono text-xs uppercase tracking-[0.18em] text-[--color-ink-tertiary]">
+          <p className="font-mono text-xs uppercase tracking-[0.18em] text-[var(--color-ink-tertiary)]">
             Tu panel
           </p>
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h1 className="font-display text-3xl font-semibold leading-tight text-[--color-ink-primary] md:text-4xl">
+              <h1 className="font-display text-3xl font-semibold leading-tight text-[var(--color-ink-primary)] md:text-4xl">
                 Mis favoritas
               </h1>
-              <p className="mt-2 text-sm text-[--color-ink-secondary] tnum">
+              <p className="mt-2 text-sm text-[var(--color-ink-secondary)] tnum">
                 {isLoadingState
                   ? "Cargando…"
                   : count === 0
@@ -216,7 +216,7 @@ export default function FavoritesPage() {
             </div>
             <Link
               href="/subastas"
-              className="inline-flex items-center gap-2 rounded-md border border-[--color-hairline] bg-white px-3 py-2 text-sm font-medium text-[--color-ink-primary] transition-colors hover:border-[--color-brand]/30 hover:text-[--color-brand] focus:outline-none focus:ring-2 focus:ring-[--color-brand]/20"
+              className="inline-flex items-center gap-2 rounded-md border border-[var(--color-hairline)] bg-white px-3 py-2 text-sm font-medium text-[var(--color-ink-primary)] transition-colors hover:border-[var(--color-brand)]/30 hover:text-[var(--color-brand)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/20"
             >
               <Search className="h-4 w-4" aria-hidden="true" />
               Explorar subastas
@@ -228,29 +228,29 @@ export default function FavoritesPage() {
 
         {/* Body */}
         {isLoadingState ? (
-          <div className="flex items-center justify-center rounded-xl border border-[--color-hairline] bg-[--color-surface] p-16 text-[--color-ink-tertiary]">
+          <div className="flex items-center justify-center rounded-xl border border-[var(--color-hairline)] bg-[var(--color-surface)] p-16 text-[var(--color-ink-tertiary)]">
             <Loader2 className="mr-3 h-5 w-5 animate-spin" aria-hidden="true" />
             <span className="text-sm">Cargando favoritos…</span>
           </div>
         ) : count === 0 ? (
           <div
-            className="rounded-xl border border-[--color-hairline] p-12 text-center"
+            className="rounded-xl border border-[var(--color-hairline)] p-12 text-center"
             style={{ background: "var(--gradient-accent)" }}
           >
-            <div className="mx-auto mb-5 inline-flex h-14 w-14 items-center justify-center rounded-full bg-white/80 text-[--color-brand] shadow-sm">
+            <div className="mx-auto mb-5 inline-flex h-14 w-14 items-center justify-center rounded-full bg-white/80 text-[var(--color-brand)] shadow-sm">
               <Heart className="h-7 w-7" aria-hidden="true" />
             </div>
-            <h2 className="font-display text-2xl font-semibold text-[--color-ink-primary]">
+            <h2 className="font-display text-2xl font-semibold text-[var(--color-ink-primary)]">
               No tienes favoritas
             </h2>
-            <p className="mx-auto mt-2 max-w-md text-sm text-[--color-ink-secondary]">
+            <p className="mx-auto mt-2 max-w-md text-sm text-[var(--color-ink-secondary)]">
               Guarda subastas para seguir su evolución, dejar notas privadas y recibir avisos
               cuando cambie el estado o se acerque el cierre.
             </p>
             <div className="mt-6">
               <Link
                 href="/subastas"
-                className="inline-flex items-center gap-2 rounded-md bg-[--color-action] px-4 py-2 text-sm font-medium text-white shadow-[var(--shadow-cta)] transition-colors hover:bg-[--color-action-hover] focus:outline-none focus:ring-2 focus:ring-[--color-action]/30"
+                className="inline-flex items-center gap-2 rounded-md bg-[var(--color-action)] px-4 py-2 text-sm font-medium text-white shadow-[var(--shadow-cta)] transition-colors hover:bg-[var(--color-action-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--color-action)]/30"
               >
                 <Search className="h-4 w-4" aria-hidden="true" />
                 Explorar subastas
@@ -291,10 +291,10 @@ export default function FavoritesPage() {
               return (
                 <li
                   key={favorite.id}
-                  className="overflow-hidden rounded-xl border border-[--color-hairline] bg-[--color-surface] shadow-sm transition-shadow hover:shadow-[var(--shadow-card)]"
+                  className="overflow-hidden rounded-xl border border-[var(--color-hairline)] bg-[var(--color-surface)] shadow-sm transition-shadow hover:shadow-[var(--shadow-card)]"
                 >
                   <div className="grid gap-0 md:grid-cols-[320px_1fr]">
-                    <div className="border-b border-[--color-hairline] p-4 md:border-b-0 md:border-r">
+                    <div className="border-b border-[var(--color-hairline)] p-4 md:border-b-0 md:border-r">
                       <AuctionCard
                         item={auction}
                         userTier="gold"
@@ -304,7 +304,7 @@ export default function FavoritesPage() {
 
                     <div className="flex flex-col p-5">
                       <div className="mb-3 flex items-center justify-between gap-3">
-                        <h3 className="text-sm font-medium uppercase tracking-wide text-[--color-ink-tertiary]">
+                        <h3 className="text-sm font-medium uppercase tracking-wide text-[var(--color-ink-tertiary)]">
                           Notas privadas
                         </h3>
                         <div className="flex gap-2">
@@ -337,7 +337,7 @@ export default function FavoritesPage() {
                                 variant="outline"
                                 onClick={() => handleDelete(favorite.auctionId)}
                                 aria-label="Eliminar de favoritos"
-                                className="text-[--color-warn-critical] hover:bg-[--color-warn-critical-soft]/50 hover:text-[--color-warn-critical]"
+                                className="text-[var(--color-warn-critical)] hover:bg-[var(--color-warn-critical-soft)]/50 hover:text-[var(--color-warn-critical)]"
                               >
                                 <Trash2 className="h-4 w-4" aria-hidden="true" />
                               </Button>
@@ -354,18 +354,18 @@ export default function FavoritesPage() {
                           className="min-h-[140px]"
                         />
                       ) : (
-                        <div className="flex-1 rounded-lg bg-[--color-surface-muted] p-4 text-sm">
+                        <div className="flex-1 rounded-lg bg-[var(--color-surface-muted)] p-4 text-sm">
                           {favorite.notes ? (
-                            <p className="whitespace-pre-wrap text-[--color-ink-primary]">
+                            <p className="whitespace-pre-wrap text-[var(--color-ink-primary)]">
                               {favorite.notes}
                             </p>
                           ) : (
-                            <p className="italic text-[--color-ink-quiet]">Sin notas</p>
+                            <p className="italic text-[var(--color-ink-quiet)]">Sin notas</p>
                           )}
                         </div>
                       )}
 
-                      <p className="mt-3 text-xs text-[--color-ink-tertiary] tnum">
+                      <p className="mt-3 text-xs text-[var(--color-ink-tertiary)] tnum">
                         Guardado el{" "}
                         {new Date(favorite.createdAt).toLocaleDateString("es-ES", {
                           year: "numeric",

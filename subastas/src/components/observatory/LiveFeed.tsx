@@ -99,35 +99,35 @@ export function LiveFeed({ limit = 12, className }: LiveFeedProps) {
     <section
       aria-labelledby="livefeed-heading"
       className={cn(
-        "rounded-lg border border-[--color-hairline] bg-[--color-surface]",
+        "rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)]",
         className,
       )}
     >
       <header className="flex items-baseline justify-between px-4 py-3 hairline-b">
         <h2
           id="livefeed-heading"
-          className="font-serif text-lg md:text-xl text-[--color-ink-primary]"
+          className="font-serif text-lg md:text-xl text-[var(--color-ink-primary)]"
         >
           Últimas actualizaciones
         </h2>
-        <span className="text-xs text-[--color-ink-tertiary] tnum">
+        <span className="text-xs text-[var(--color-ink-tertiary)] tnum">
           Se actualiza automáticamente cada 60 s
         </span>
       </header>
 
       {loading && items.length === 0 ? (
-        <div className="flex items-center justify-center gap-2 py-12 text-sm text-[--color-ink-tertiary]">
+        <div className="flex items-center justify-center gap-2 py-12 text-sm text-[var(--color-ink-tertiary)]">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           Cargando las últimas actualizaciones…
         </div>
       ) : error && items.length === 0 ? (
-        <div className="px-4 py-6 text-sm text-[--color-gold]">{error}</div>
+        <div className="px-4 py-6 text-sm text-[var(--color-gold)]">{error}</div>
       ) : items.length === 0 ? (
-        <div className="px-4 py-10 text-center text-sm text-[--color-ink-tertiary]">
+        <div className="px-4 py-10 text-center text-sm text-[var(--color-ink-tertiary)]">
           Sin actualizaciones por ahora.
         </div>
       ) : (
-        <ul role="list" className="divide-y divide-[--color-hairline]">
+        <ul role="list" className="divide-y divide-[var(--color-hairline)]">
           {items.map((it) => (
             <FeedRow key={`${it.kind}-${it.id}`} item={it} />
           ))}
@@ -149,7 +149,7 @@ function FeedRow({ item }: { item: FeedItem }) {
     eventLine = (
       <>
         Nueva puja:{" "}
-        <span className="tnum font-semibold text-[--color-ink-primary]">
+        <span className="tnum font-semibold text-[var(--color-ink-primary)]">
           {formatPrice(item.payload.bid)}
         </span>
       </>
@@ -163,18 +163,18 @@ function FeedRow({ item }: { item: FeedItem }) {
           {to.label}
         </span>
         {item.payload.reason ? (
-          <span className="text-[--color-ink-tertiary]"> · {item.payload.reason}</span>
+          <span className="text-[var(--color-ink-tertiary)]"> · {item.payload.reason}</span>
         ) : null}
       </>
     );
   }
 
   return (
-    <li className="group relative flex items-start gap-3 px-4 py-3.5 hover:bg-[--color-surface-muted] transition-colors">
+    <li className="group relative flex items-start gap-3 px-4 py-3.5 hover:bg-[var(--color-surface-muted)] transition-colors">
       <StatusDot status={a.status} size={10} className="mt-1.5" />
 
       <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2 text-xs text-[--color-ink-tertiary] tnum">
+        <div className="flex items-baseline gap-2 text-xs text-[var(--color-ink-tertiary)] tnum">
           <span>{formatRelativeEs(item.at)}</span>
           <span aria-hidden="true">·</span>
           <span className="uppercase tracking-wide" style={{ color: meta.color }}>
@@ -190,14 +190,14 @@ function FeedRow({ item }: { item: FeedItem }) {
 
         <Link
           href={`/auction/${encodeURIComponent(a.id)}`}
-          className="mt-1 block text-sm text-[--color-ink-primary] line-clamp-2 hover:underline focus-visible:outline-none focus-visible:underline"
+          className="mt-1 block text-sm text-[var(--color-ink-primary)] line-clamp-2 hover:underline focus-visible:outline-none focus-visible:underline"
         >
           {eventLine}
-          <span className="text-[--color-ink-secondary]"> — {displayTitle(a)}</span>
+          <span className="text-[var(--color-ink-secondary)]"> — {displayTitle(a)}</span>
         </Link>
 
         {where && (
-          <div className="mt-0.5 text-xs text-[--color-ink-tertiary]">{where}</div>
+          <div className="mt-0.5 text-xs text-[var(--color-ink-tertiary)]">{where}</div>
         )}
       </div>
 

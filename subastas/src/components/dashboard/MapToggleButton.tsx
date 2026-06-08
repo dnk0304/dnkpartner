@@ -17,7 +17,7 @@ export const MapToggleButton: React.FC<MapToggleButtonProps> = ({
   return (
     <button
       onClick={onToggle}
-      className="fixed bottom-6 right-6 z-[100] flex items-center gap-2 px-4 py-3 bg-[--color-status-live-soft] border border-[--color-status-live] hover:bg-[--color-status-live-soft]/80 text-[--color-ink-primary] rounded-full shadow-lg transition-all duration-200 hover:scale-105 active:scale-95"
+      className="fixed bottom-6 right-6 z-[100] flex items-center gap-2 px-4 py-3 bg-[var(--color-status-live-soft)] border border-[var(--color-status-live)] hover:bg-[var(--color-status-live-soft)]/80 text-[var(--color-ink-primary)] rounded-full shadow-lg transition-all duration-200 hover:scale-105 active:scale-95"
       aria-label={isVisible ? 'Ocultar mapa' : 'Mostrar mapa'}
     >
       {isVisible ? (

@@ -39,15 +39,15 @@ export default async function BlogIndexPage() {
   const articles = await listPublishedArticles({ take: 200 });
 
   return (
-    <div className="min-h-screen bg-[--color-page]">
+    <div className="min-h-screen bg-[var(--color-page)]">
       {/* Header + footer come from SiteChrome in the root layout. */}
 
       <main className="mx-auto max-w-5xl px-6 py-10">
         <div className="mb-10 max-w-2xl">
-          <h1 className="font-display text-3xl font-semibold leading-tight tracking-tight text-[--color-ink-primary] sm:text-4xl">
+          <h1 className="font-display text-3xl font-semibold leading-tight tracking-tight text-[var(--color-ink-primary)] sm:text-4xl">
             Guías sobre subastas judiciales
           </h1>
-          <p className="mt-3 text-base leading-relaxed text-[--color-ink-secondary]">
+          <p className="mt-3 text-base leading-relaxed text-[var(--color-ink-secondary)]">
             Material práctico para pujar mejor: plazos, fiscalidad, riesgos y
             comparativas. Datos oficiales del BOE, redactado sin tecnicismos
             vacíos.
@@ -55,11 +55,11 @@ export default async function BlogIndexPage() {
         </div>
 
         {articles.length === 0 ? (
-          <div className="rounded-lg border border-[--color-hairline] bg-[--color-surface] p-8 text-center">
-            <p className="text-base font-medium text-[--color-ink-primary]">
+          <div className="rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] p-8 text-center">
+            <p className="text-base font-medium text-[var(--color-ink-primary)]">
               Próximamente.
             </p>
-            <p className="mt-2 text-sm text-[--color-ink-secondary]">
+            <p className="mt-2 text-sm text-[var(--color-ink-secondary)]">
               Estamos preparando las primeras guías. Vuelve pronto.
             </p>
           </div>
@@ -68,18 +68,18 @@ export default async function BlogIndexPage() {
             {articles.map((a) => (
               <li
                 key={a.slug}
-                className="group rounded-lg border border-[--color-hairline] bg-[--color-surface] p-5 transition hover:shadow-[var(--shadow-card)]"
+                className="group rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] p-5 transition hover:shadow-[var(--shadow-card)]"
               >
                 <Link href={`/guia/${a.slug}`} className="block">
-                  <h2 className="font-display text-lg font-semibold leading-snug tracking-tight text-[--color-ink-primary] group-hover:underline">
+                  <h2 className="font-display text-lg font-semibold leading-snug tracking-tight text-[var(--color-ink-primary)] group-hover:underline">
                     {a.title}
                   </h2>
                   {a.metaDescription ? (
-                    <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-[--color-ink-secondary]">
+                    <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-[var(--color-ink-secondary)]">
                       {a.metaDescription}
                     </p>
                   ) : null}
-                  <div className="mt-3 flex items-center gap-2 text-xs text-[--color-ink-quiet]">
+                  <div className="mt-3 flex items-center gap-2 text-xs text-[var(--color-ink-quiet)]">
                     {a.publishedAt ? (
                       <time dateTime={a.publishedAt.toISOString()}>
                         {a.publishedAt.toLocaleDateString("es-ES", {

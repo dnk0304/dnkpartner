@@ -67,32 +67,32 @@ export default function PreciosClient() {
   return (
     // Strong crisp WHITE canvas across the whole page — overrides
     // --color-page (#F7FAF8) deliberately for this layout per design lead.
-    <div className="min-h-screen bg-white text-[--color-ink-primary]">
+    <div className="min-h-screen bg-white text-[var(--color-ink-primary)]">
       <main className="mx-auto max-w-editorial px-4 py-12 md:px-6 md:py-20">
         {/* ──────────────────────────────────────────────────────────────
             1. HERO — centered. eyebrow, headline, subhead, trust pill.
             ────────────────────────────────────────────────────────────── */}
         <section className="mx-auto max-w-2xl text-center">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[--color-action]">
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--color-action)]">
             {t("heroEyebrow")}
           </p>
-          <h1 className="mt-4 font-display text-4xl font-semibold leading-[1.1] tracking-tight text-[--color-ink-primary] md:text-5xl">
+          <h1 className="mt-4 font-display text-4xl font-semibold leading-[1.1] tracking-tight text-[var(--color-ink-primary)] md:text-5xl">
             {t("heroTitle")}
           </h1>
-          <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-[--color-ink-secondary] md:text-[17px]">
+          <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-[var(--color-ink-secondary)] md:text-[17px]">
             {t("heroLead")}
           </p>
 
           {/* Trust pill — winter-green soft fill, gradient-aware icon. */}
-          <div className="mt-7 inline-flex items-center gap-2 rounded-full bg-[--color-action-soft] px-4 py-2">
+          <div className="mt-7 inline-flex items-center gap-2 rounded-full bg-[var(--color-action-soft)] px-4 py-2">
             <Sparkles
-              className="h-3.5 w-3.5 text-[--color-action]"
+              className="h-3.5 w-3.5 text-[var(--color-action)]"
               aria-hidden="true"
             />
-            <span className="text-xs font-semibold text-[--color-brand]">
+            <span className="text-xs font-semibold text-[var(--color-brand)]">
               {t("trialBadge")}
             </span>
-            <span className="text-xs text-[--color-ink-secondary]">
+            <span className="text-xs text-[var(--color-ink-secondary)]">
               · {t("trialSub")}
             </span>
           </div>
@@ -143,7 +143,7 @@ export default function PreciosClient() {
             ────────────────────────────────────────────────────────────── */}
         <section className="mt-10" aria-label={t("trustRowAria")}>
           <ul
-            className="mx-auto flex max-w-2xl flex-col items-center justify-center gap-3 text-sm text-[--color-ink-secondary] sm:flex-row sm:gap-8"
+            className="mx-auto flex max-w-2xl flex-col items-center justify-center gap-3 text-sm text-[var(--color-ink-secondary)] sm:flex-row sm:gap-8"
             role="list"
           >
             <TrustItem icon={XCircle} label={t("trustCancel")} />
@@ -158,13 +158,13 @@ export default function PreciosClient() {
             ────────────────────────────────────────────────────────────── */}
         <section className="mt-20 md:mt-24">
           <div className="mx-auto max-w-2xl text-center">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-[--color-action]">
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--color-action)]">
               {t("featuresEyebrow")}
             </p>
-            <h2 className="mt-3 font-display text-3xl font-semibold leading-tight tracking-tight text-[--color-ink-primary] md:text-4xl">
+            <h2 className="mt-3 font-display text-3xl font-semibold leading-tight tracking-tight text-[var(--color-ink-primary)] md:text-4xl">
               {t("featuresHeading")}
             </h2>
-            <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-[--color-ink-secondary]">
+            <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-[var(--color-ink-secondary)]">
               {t("featuresLead")}
             </p>
           </div>
@@ -209,18 +209,18 @@ export default function PreciosClient() {
             ────────────────────────────────────────────────────────────── */}
         <section id="checkout" className="mt-20 scroll-mt-24 md:mt-24">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="font-display text-2xl font-semibold text-[--color-ink-primary] md:text-3xl">
+            <h2 className="font-display text-2xl font-semibold text-[var(--color-ink-primary)] md:text-3xl">
               {t("checkoutHeading")}
             </h2>
-            <p className="mt-3 text-sm text-[--color-ink-secondary] md:text-base">
+            <p className="mt-3 text-sm text-[var(--color-ink-secondary)] md:text-base">
               {t("checkoutSub")}
             </p>
           </div>
 
           <div className="mx-auto mt-8 max-w-2xl">
             {hasAcceso ? (
-              <div className="rounded-2xl border border-[--color-hairline] bg-white p-6 text-center">
-                <p className="text-sm font-medium text-[--color-ink-primary]">
+              <div className="rounded-2xl border border-[var(--color-hairline)] bg-white p-6 text-center">
+                <p className="text-sm font-medium text-[var(--color-ink-primary)]">
                   {t("accesoCtaActive")}
                 </p>
               </div>
@@ -230,8 +230,8 @@ export default function PreciosClient() {
                 userEmail={user.email ?? null}
               />
             ) : (
-              <div className="rounded-2xl border border-dashed border-[--color-hairline] bg-white p-8 text-center">
-                <p className="mx-auto max-w-md text-sm text-[--color-ink-secondary]">
+              <div className="rounded-2xl border border-dashed border-[var(--color-hairline)] bg-white p-8 text-center">
+                <p className="mx-auto max-w-md text-sm text-[var(--color-ink-secondary)]">
                   {t("checkoutSignInPrompt")}
                 </p>
                 <Link
@@ -241,12 +241,12 @@ export default function PreciosClient() {
                   {t("checkoutSignInCta")}
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Link>
-                <p className="mt-3 text-xs text-[--color-ink-tertiary]">
+                <p className="mt-3 text-xs text-[var(--color-ink-tertiary)]">
                   {t("checkoutSignInThenReturn")}
                 </p>
               </div>
             )}
-            <p className="mt-3 text-center text-xs text-[--color-ink-tertiary]">
+            <p className="mt-3 text-center text-xs text-[var(--color-ink-tertiary)]">
               {t("trustNote")}
             </p>
           </div>
@@ -257,14 +257,14 @@ export default function PreciosClient() {
             ────────────────────────────────────────────────────────────── */}
         <section className="mx-auto mt-20 max-w-3xl md:mt-24">
           <div className="text-center">
-            <h2 className="font-display text-3xl font-semibold tracking-tight text-[--color-ink-primary] md:text-4xl">
+            <h2 className="font-display text-3xl font-semibold tracking-tight text-[var(--color-ink-primary)] md:text-4xl">
               {t("faqHeading")}
             </h2>
-            <p className="mx-auto mt-3 max-w-xl text-sm text-[--color-ink-secondary] md:text-base">
+            <p className="mx-auto mt-3 max-w-xl text-sm text-[var(--color-ink-secondary)] md:text-base">
               {t("faqLead")}
             </p>
           </div>
-          <dl className="mt-10 divide-y divide-[--color-hairline] rounded-2xl border border-[--color-hairline] bg-white">
+          <dl className="mt-10 divide-y divide-[var(--color-hairline)] rounded-2xl border border-[var(--color-hairline)] bg-white">
             <FaqItem q={t("faqQ1")} a={t("faqA1")} />
             <FaqItem q={t("faqQ2")} a={t("faqA2")} />
             <FaqItem q={t("faqQ3")} a={t("faqA3")} />
@@ -311,8 +311,8 @@ function PricingCard({
       className={cn(
         "relative flex flex-col rounded-2xl border bg-white p-7 md:p-8",
         featured
-          ? "border-[--color-action] ring-1 ring-[--color-action]/30 shadow-[var(--shadow-lift)]"
-          : "border-[--color-hairline] shadow-[var(--shadow-card)]",
+          ? "border-[var(--color-action)] ring-1 ring-[var(--color-action)]/30 shadow-[var(--shadow-lift)]"
+          : "border-[var(--color-hairline)] shadow-[var(--shadow-card)]",
       )}
     >
       {featured && badge && (
@@ -325,42 +325,42 @@ function PricingCard({
       )}
 
       <header className="text-center">
-        <h3 className="font-display text-xl font-semibold text-[--color-ink-primary]">
+        <h3 className="font-display text-xl font-semibold text-[var(--color-ink-primary)]">
           {name}
         </h3>
-        <p className="mx-auto mt-2 max-w-xs text-sm text-[--color-ink-secondary]">
+        <p className="mx-auto mt-2 max-w-xs text-sm text-[var(--color-ink-secondary)]">
           {tagline}
         </p>
       </header>
 
       <div className="mt-6 flex items-baseline justify-center gap-1.5">
-        <span className="font-display text-[44px] font-semibold leading-none tnum text-[--color-ink-primary]">
+        <span className="font-display text-[44px] font-semibold leading-none tnum text-[var(--color-ink-primary)]">
           {price}
         </span>
         {priceSuffix && (
-          <span className="text-sm text-[--color-ink-tertiary]">
+          <span className="text-sm text-[var(--color-ink-tertiary)]">
             {priceSuffix}
           </span>
         )}
       </div>
       {priceMeta && (
-        <p className="mt-1.5 text-center text-xs text-[--color-ink-tertiary]">
+        <p className="mt-1.5 text-center text-xs text-[var(--color-ink-tertiary)]">
           {priceMeta}
         </p>
       )}
       {trialNote && (
-        <p className="mt-3 text-center text-xs font-medium text-[--color-action]">
+        <p className="mt-3 text-center text-xs font-medium text-[var(--color-action)]">
           {trialNote}
         </p>
       )}
 
       <div className="mt-7">{cta}</div>
 
-      <ul className="mt-7 space-y-3 border-t border-[--color-hairline-soft] pt-6" role="list">
+      <ul className="mt-7 space-y-3 border-t border-[var(--color-hairline-soft)] pt-6" role="list">
         {features.map((feat) => (
           <li
             key={feat}
-            className="flex items-start gap-2.5 text-sm text-[--color-ink-primary]"
+            className="flex items-start gap-2.5 text-sm text-[var(--color-ink-primary)]"
           >
             {/* Contrast fix (Pixel 2026-06-07): the pale-mint --gradient-accent
                 made the white check disappear after the lighter-cold token
@@ -407,15 +407,15 @@ function CtaButton({ children, href, variant, disabled }: CtaButtonProps) {
 
   const classes = cn(
     "inline-flex w-full items-center justify-center rounded-md px-4 py-3 text-sm font-medium transition-colors",
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-action]/40",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/40",
     variant === "primary" && !disabled
-      ? "cursor-pointer bg-[var(--color-action)] text-white hover:bg-[--color-action-hover]"
+      ? "cursor-pointer bg-[var(--color-action)] text-white hover:bg-[var(--color-action-hover)]"
       : "",
     variant === "ghost" && !disabled
-      ? "cursor-pointer border border-[--color-hairline] bg-transparent text-[--color-ink-primary] hover:bg-[--color-surface-muted]"
+      ? "cursor-pointer border border-[var(--color-hairline)] bg-transparent text-[var(--color-ink-primary)] hover:bg-[var(--color-surface-muted)]"
       : "",
     disabled
-      ? "cursor-not-allowed border border-[--color-hairline] bg-[--color-surface-muted] text-[--color-ink-tertiary]"
+      ? "cursor-not-allowed border border-[var(--color-hairline)] bg-[var(--color-surface-muted)] text-[var(--color-ink-tertiary)]"
       : "",
   );
   if (disabled || !href) {
@@ -460,7 +460,7 @@ function FeatureCard({
   body: string;
 }) {
   return (
-    <div className="rounded-2xl border border-[--color-hairline] bg-white p-6">
+    <div className="rounded-2xl border border-[var(--color-hairline)] bg-white p-6">
       {/* Contrast fix (Pixel 2026-06-07): saturated --color-action keeps the
           white feature icon readable. Pale --gradient-accent + white failed
           AA after the cold-mint token refresh. */}
@@ -470,10 +470,10 @@ function FeatureCard({
       >
         <Icon className="h-5 w-5 text-white" aria-hidden={true} />
       </span>
-      <h3 className="mt-4 font-display text-base font-semibold text-[--color-ink-primary]">
+      <h3 className="mt-4 font-display text-base font-semibold text-[var(--color-ink-primary)]">
         {title}
       </h3>
-      <p className="mt-2 text-sm leading-relaxed text-[--color-ink-secondary]">
+      <p className="mt-2 text-sm leading-relaxed text-[var(--color-ink-secondary)]">
         {body}
       </p>
     </div>
@@ -483,10 +483,10 @@ function FeatureCard({
 function FaqItem({ q, a }: { q: string; a: string }) {
   return (
     <div className="px-5 py-5 md:px-7 md:py-6">
-      <dt className="text-sm font-semibold text-[--color-ink-primary] md:text-base">
+      <dt className="text-sm font-semibold text-[var(--color-ink-primary)] md:text-base">
         {q}
       </dt>
-      <dd className="mt-2 text-sm leading-relaxed text-[--color-ink-secondary]">
+      <dd className="mt-2 text-sm leading-relaxed text-[var(--color-ink-secondary)]">
         {a}
       </dd>
     </div>

@@ -99,27 +99,27 @@ export function AdminBlogList() {
   }
 
   return (
-    <div className="min-h-screen bg-[--color-page]">
-      <header className="border-b border-[--color-hairline] bg-[--color-surface]">
+    <div className="min-h-screen bg-[var(--color-page)]">
+      <header className="border-b border-[var(--color-hairline)] bg-[var(--color-surface)]">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
           <div>
-            <h1 className="font-display text-xl font-semibold tracking-tight text-[--color-ink-primary]">
+            <h1 className="font-display text-xl font-semibold tracking-tight text-[var(--color-ink-primary)]">
               Guías — administración
             </h1>
-            <p className="mt-0.5 text-xs text-[--color-ink-quiet]">
+            <p className="mt-0.5 text-xs text-[var(--color-ink-quiet)]">
               Editor de artículos publicados en /guia/&lt;slug&gt;
             </p>
           </div>
           <div className="flex items-center gap-3">
             <Link
               href="/admin"
-              className="text-sm text-[--color-ink-secondary] hover:text-[--color-ink-primary]"
+              className="text-sm text-[var(--color-ink-secondary)] hover:text-[var(--color-ink-primary)]"
             >
               ← Panel admin
             </Link>
             <Link
               href="/admin/blog/new"
-              className="inline-flex items-center rounded-md bg-[--color-brand] px-3 py-1.5 text-xs font-medium text-white hover:bg-[--color-brand-hover]"
+              className="inline-flex items-center rounded-md bg-[var(--color-brand)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[var(--color-brand-hover)]"
             >
               + Nueva guía
             </Link>
@@ -132,7 +132,7 @@ export function AdminBlogList() {
           <div
             role="tablist"
             aria-label="Filtrar por estado"
-            className="inline-flex overflow-hidden rounded-md border border-[--color-hairline] bg-[--color-surface] text-sm"
+            className="inline-flex overflow-hidden rounded-md border border-[var(--color-hairline)] bg-[var(--color-surface)] text-sm"
           >
             {(["ALL", "DRAFT", "PUBLISHED"] as const).map((s) => (
               <button
@@ -143,8 +143,8 @@ export function AdminBlogList() {
                 onClick={() => setStatus(s)}
                 className={`px-3 py-1.5 text-xs font-medium transition ${
                   status === s
-                    ? "bg-[--color-ink-primary] text-white"
-                    : "text-[--color-ink-secondary] hover:bg-[--color-surface-muted]"
+                    ? "bg-[var(--color-ink-primary)] text-white"
+                    : "text-[var(--color-ink-secondary)] hover:bg-[var(--color-surface-muted)]"
                 }`}
               >
                 {s === "ALL" ? "Todos" : s === "DRAFT" ? "Borradores" : "Publicados"}
@@ -159,7 +159,7 @@ export function AdminBlogList() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Buscar por título, slug o palabra clave…"
-              className="w-full rounded-md border border-[--color-hairline] bg-[--color-surface] px-3 py-1.5 text-sm text-[--color-ink-primary] placeholder:text-[--color-ink-quiet] focus:border-[--color-action] focus:outline-none focus:ring-2 focus:ring-[--color-action]/30"
+              className="w-full rounded-md border border-[var(--color-hairline)] bg-[var(--color-surface)] px-3 py-1.5 text-sm text-[var(--color-ink-primary)] placeholder:text-[var(--color-ink-quiet)] focus:border-[var(--color-action)] focus:outline-none focus:ring-2 focus:ring-[var(--color-action)]/30"
             />
           </label>
         </div>
@@ -167,22 +167,22 @@ export function AdminBlogList() {
         {error ? (
           <div
             role="alert"
-            className="mb-4 rounded-md border border-[--color-warn-critical] bg-[--color-warn-critical-soft] px-3 py-2 text-sm text-[--color-ink-primary]"
+            className="mb-4 rounded-md border border-[var(--color-warn-critical)] bg-[var(--color-warn-critical-soft)] px-3 py-2 text-sm text-[var(--color-ink-primary)]"
           >
             {error}
           </div>
         ) : null}
 
         {rows === null ? (
-          <p className="text-sm text-[--color-ink-quiet]">Cargando…</p>
+          <p className="text-sm text-[var(--color-ink-quiet)]">Cargando…</p>
         ) : rows.length === 0 ? (
-          <div className="rounded-md border border-[--color-hairline] bg-[--color-surface] p-6 text-center text-sm text-[--color-ink-secondary]">
+          <div className="rounded-md border border-[var(--color-hairline)] bg-[var(--color-surface)] p-6 text-center text-sm text-[var(--color-ink-secondary)]">
             No hay guías con esos filtros.
           </div>
         ) : (
-          <div className="overflow-hidden rounded-md border border-[--color-hairline] bg-[--color-surface]">
+          <div className="overflow-hidden rounded-md border border-[var(--color-hairline)] bg-[var(--color-surface)]">
             <table className="w-full text-sm">
-              <thead className="bg-[--color-surface-muted] text-left text-xs uppercase tracking-wide text-[--color-ink-quiet]">
+              <thead className="bg-[var(--color-surface-muted)] text-left text-xs uppercase tracking-wide text-[var(--color-ink-quiet)]">
                 <tr>
                   <th scope="col" className="px-4 py-2.5 font-medium">Título</th>
                   <th scope="col" className="px-4 py-2.5 font-medium">Slug</th>
@@ -195,28 +195,28 @@ export function AdminBlogList() {
                 {rows.map((a) => (
                   <tr
                     key={a.id}
-                    className="border-t border-[--color-hairline-soft] align-top hover:bg-[--color-surface-muted]/40"
+                    className="border-t border-[var(--color-hairline-soft)] align-top hover:bg-[var(--color-surface-muted)]/40"
                   >
                     <td className="px-4 py-3">
                       <Link
                         href={`/admin/blog/${a.slug}`}
-                        className="font-medium text-[--color-ink-primary] hover:underline"
+                        className="font-medium text-[var(--color-ink-primary)] hover:underline"
                       >
                         {a.title}
                       </Link>
                       {a.primaryKeyword ? (
-                        <p className="mt-0.5 text-xs text-[--color-ink-quiet]">
+                        <p className="mt-0.5 text-xs text-[var(--color-ink-quiet)]">
                           KW: {a.primaryKeyword}
                         </p>
                       ) : null}
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-[--color-ink-secondary]">
+                    <td className="px-4 py-3 font-mono text-xs text-[var(--color-ink-secondary)]">
                       /guia/{a.slug}
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={a.status} />
                     </td>
-                    <td className="px-4 py-3 text-xs text-[--color-ink-quiet]">
+                    <td className="px-4 py-3 text-xs text-[var(--color-ink-quiet)]">
                       {new Date(a.updatedAt).toLocaleDateString("es-ES", {
                         day: "numeric",
                         month: "short",
@@ -227,7 +227,7 @@ export function AdminBlogList() {
                       <div className="flex items-center justify-end gap-2">
                         <Link
                           href={`/admin/blog/${a.slug}`}
-                          className="rounded-md border border-[--color-hairline] px-2.5 py-1 text-xs text-[--color-ink-secondary] hover:bg-[--color-surface-muted]"
+                          className="rounded-md border border-[var(--color-hairline)] px-2.5 py-1 text-xs text-[var(--color-ink-secondary)] hover:bg-[var(--color-surface-muted)]"
                         >
                           Editar
                         </Link>
@@ -237,8 +237,8 @@ export function AdminBlogList() {
                           onClick={() => togglePublish(a)}
                           className={`rounded-md px-2.5 py-1 text-xs font-medium ${
                             a.status === "PUBLISHED"
-                              ? "border border-[--color-hairline] text-[--color-ink-secondary] hover:bg-[--color-surface-muted]"
-                              : "bg-[--color-action] text-white hover:bg-[--color-action-hover]"
+                              ? "border border-[var(--color-hairline)] text-[var(--color-ink-secondary)] hover:bg-[var(--color-surface-muted)]"
+                              : "bg-[var(--color-action)] text-white hover:bg-[var(--color-action-hover)]"
                           } disabled:opacity-50`}
                         >
                           {busySlug === a.slug
@@ -251,7 +251,7 @@ export function AdminBlogList() {
                           type="button"
                           disabled={busySlug === a.slug}
                           onClick={() => deleteArticle(a)}
-                          className="rounded-md border border-[--color-warn-critical]/30 px-2.5 py-1 text-xs text-[--color-warn-critical] hover:bg-[--color-warn-critical-soft] disabled:opacity-50"
+                          className="rounded-md border border-[var(--color-warn-critical)]/30 px-2.5 py-1 text-xs text-[var(--color-warn-critical)] hover:bg-[var(--color-warn-critical-soft)] disabled:opacity-50"
                         >
                           Eliminar
                         </button>
@@ -274,14 +274,14 @@ function StatusBadge({ status }: { status: Status }) {
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${
         isPub
-          ? "bg-[--color-status-live-soft] text-[--color-ink-primary]"
-          : "bg-[--color-surface-muted] text-[--color-ink-secondary]"
+          ? "bg-[var(--color-status-live-soft)] text-[var(--color-ink-primary)]"
+          : "bg-[var(--color-surface-muted)] text-[var(--color-ink-secondary)]"
       }`}
     >
       <span
         aria-hidden
         className={`h-1.5 w-1.5 rounded-full ${
-          isPub ? "bg-[--color-status-live]" : "bg-[--color-ink-quiet]"
+          isPub ? "bg-[var(--color-status-live)]" : "bg-[var(--color-ink-quiet)]"
         }`}
       />
       {isPub ? "Publicado" : "Borrador"}

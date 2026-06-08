@@ -24,17 +24,17 @@ export function SortDropdown({
   return (
     <label
       className={cn(
-        "inline-flex items-center gap-1.5 text-xs text-[--color-ink-secondary]",
+        "inline-flex items-center gap-1.5 text-xs text-[var(--color-ink-secondary)]",
         className,
       )}
     >
-      <ArrowUpDown className="h-3.5 w-3.5 text-[--color-ink-tertiary]" aria-hidden="true" />
+      <ArrowUpDown className="h-3.5 w-3.5 text-[var(--color-ink-tertiary)]" aria-hidden="true" />
       <span className="sr-only">Ordenar por</span>
       <span aria-hidden="true">Ordenar:</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as SortValue)}
-        className="rounded-md border border-[--color-hairline] bg-white px-2 py-1 text-xs text-[--color-ink-primary] focus:outline-none focus:border-[--color-brand] focus:ring-2 focus:ring-[--color-brand]/15"
+        className="rounded-md border border-[var(--color-hairline)] bg-white px-2 py-1 text-xs text-[var(--color-ink-primary)] focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15"
         aria-label="Ordenar resultados"
       >
         {SORT_OPTIONS.map((o) => (

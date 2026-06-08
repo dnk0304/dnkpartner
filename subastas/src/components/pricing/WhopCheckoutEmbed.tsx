@@ -104,7 +104,7 @@ export function WhopCheckoutEmbed({
   }, [userId, attempt]);
 
   const wrapperCls = [
-    "relative w-full overflow-hidden rounded-xl border border-[--color-hairline] bg-[--color-surface]",
+    "relative w-full overflow-hidden rounded-xl border border-[var(--color-hairline)] bg-[var(--color-surface)]",
     className ?? "",
   ].join(" ");
 
@@ -120,8 +120,8 @@ export function WhopCheckoutEmbed({
           aria-live="polite"
         >
           <div className="flex flex-col items-center gap-3">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[--color-hairline] border-t-[--color-ink-primary]" />
-            <p className="text-sm text-[--color-ink-tertiary]">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--color-hairline)] border-t-[var(--color-ink-primary)]" />
+            <p className="text-sm text-[var(--color-ink-tertiary)]">
               {t("checkoutLoading")}
             </p>
           </div>
@@ -139,14 +139,14 @@ export function WhopCheckoutEmbed({
         data-whop-checkout-error={state.message}
       >
         <div className="flex min-h-[260px] flex-col items-center justify-center gap-3 px-6 py-10 text-center">
-          <p className="text-sm font-medium text-[--color-ink-primary]">
+          <p className="text-sm font-medium text-[var(--color-ink-primary)]">
             {t("checkoutLoading")}
           </p>
-          <p className="text-xs text-[--color-ink-tertiary]">{state.message}</p>
+          <p className="text-xs text-[var(--color-ink-tertiary)]">{state.message}</p>
           <button
             type="button"
             onClick={() => setAttempt((n) => n + 1)}
-            className="cursor-pointer rounded-md border border-[--color-hairline] bg-transparent px-3 py-1.5 text-xs font-medium text-[--color-ink-primary] hover:bg-[--color-surface-muted]"
+            className="cursor-pointer rounded-md border border-[var(--color-hairline)] bg-transparent px-3 py-1.5 text-xs font-medium text-[var(--color-ink-primary)] hover:bg-[var(--color-surface-muted)]"
           >
             {t("checkoutHeading")}
           </button>
@@ -173,8 +173,8 @@ export function WhopCheckoutEmbed({
         fallback={
           <div className="flex min-h-[420px] items-center justify-center">
             <div className="flex flex-col items-center gap-3">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-[--color-hairline] border-t-[--color-ink-primary]" />
-              <p className="text-sm text-[--color-ink-tertiary]">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--color-hairline)] border-t-[var(--color-ink-primary)]" />
+              <p className="text-sm text-[var(--color-ink-tertiary)]">
                 {t("checkoutLoading")}
               </p>
             </div>

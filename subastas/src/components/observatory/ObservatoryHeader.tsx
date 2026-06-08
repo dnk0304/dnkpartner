@@ -102,7 +102,7 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
   return (
     <header
       className={cn(
-        "sticky top-0 z-40 bg-[--color-page]/95 backdrop-blur-sm hairline-b",
+        "sticky top-0 z-40 bg-[var(--color-page)]/95 backdrop-blur-sm hairline-b",
         className,
       )}
       role="banner"
@@ -112,7 +112,7 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
         <div className="flex items-baseline gap-3 min-w-0">
           <Link
             href="/"
-            className="font-serif text-xl text-[--color-brand] hover:text-[--color-brand-hover] transition-colors whitespace-nowrap"
+            className="font-serif text-xl text-[var(--color-brand)] hover:text-[var(--color-brand-hover)] transition-colors whitespace-nowrap"
             aria-label={t("wordmarkAria")}
           >
             <span className="font-semibold">Subastas</span>
@@ -120,11 +120,11 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
             {/* Verified tick — superscript, ™-position. Decorative; wordmark already has aria-label. */}
             <Check
               aria-hidden="true"
-              className="inline-block align-super ml-0.5 h-2.5 w-2.5 text-[--color-status-live]"
+              className="inline-block align-super ml-0.5 h-2.5 w-2.5 text-[var(--color-status-live)]"
               strokeWidth={3}
             />
           </Link>
-          <span className="hidden md:inline text-xs text-[--color-ink-tertiary] tnum truncate">
+          <span className="hidden md:inline text-xs text-[var(--color-ink-tertiary)] tnum truncate">
             {lastUpdate
               ? t("trustSignalUpdated", { when: formatUpdatedDayEs(lastUpdate) })
               : t("trustSignalSyncing")}
@@ -133,10 +133,10 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
 
         {/* Primary nav */}
         <nav
-          className="hidden md:flex items-center gap-5 text-sm text-[--color-ink-secondary]"
+          className="hidden md:flex items-center gap-5 text-sm text-[var(--color-ink-secondary)]"
           aria-label={t("navPrimaryAria")}
         >
-          <Link href="/subastas" className="hover:text-[--color-brand] transition-colors">
+          <Link href="/subastas" className="hover:text-[var(--color-brand)] transition-colors">
             {t("navAuctions")}
           </Link>
         </nav>
@@ -154,7 +154,7 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
             <div className="relative w-full">
               <Search
                 aria-hidden="true"
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[--color-ink-tertiary]"
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-ink-tertiary)]"
               />
               <input
                 id="obs-search"
@@ -164,8 +164,8 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
                 placeholder={t("searchPlaceholder")}
                 className={cn(
                   "tnum w-full rounded-md border bg-white py-2 pl-9 pr-3 text-sm",
-                  "border-[--color-hairline] text-[--color-ink-primary] placeholder:text-[--color-ink-tertiary]",
-                  "focus:outline-none focus:border-[--color-brand] focus:ring-2 focus:ring-[--color-brand]/15",
+                  "border-[var(--color-hairline)] text-[var(--color-ink-primary)] placeholder:text-[var(--color-ink-tertiary)]",
+                  "focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15",
                 )}
               />
             </div>
@@ -182,18 +182,18 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
                 aria-label={t("accountMenuAria")}
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm cursor-pointer",
-                  "text-[--color-ink-secondary] hover:text-[--color-brand] hover:bg-[--color-brand]/5",
-                  "transition-colors focus:outline-none focus:ring-2 focus:ring-[--color-brand]/30",
+                  "text-[var(--color-ink-secondary)] hover:text-[var(--color-brand)] hover:bg-[var(--color-brand)]/5",
+                  "transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/30",
                 )}
               >
                 <User className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">{t("myPanel")}</span>
-                <ChevronDown className="h-3.5 w-3.5 text-[--color-ink-tertiary]" aria-hidden="true" />
+                <ChevronDown className="h-3.5 w-3.5 text-[var(--color-ink-tertiary)]" aria-hidden="true" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" sideOffset={6} className="min-w-[14rem]">
                 {session.user.email && (
                   <>
-                    <DropdownMenuLabel className="text-xs font-normal text-[--color-ink-tertiary]">
+                    <DropdownMenuLabel className="text-xs font-normal text-[var(--color-ink-tertiary)]">
                       <span className="block truncate" title={session.user.email}>
                         {session.user.email}
                       </span>
@@ -203,19 +203,19 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
                 )}
                 <DropdownMenuItem asChild className="cursor-pointer">
                   <Link href={accountRoutes.favorites} className="flex items-center gap-2">
-                    <Heart className="h-4 w-4 text-[--color-ink-tertiary]" aria-hidden="true" />
+                    <Heart className="h-4 w-4 text-[var(--color-ink-tertiary)]" aria-hidden="true" />
                     <span>{t("accountFavorites")}</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild className="cursor-pointer">
                   <Link href={accountRoutes.alerts} className="flex items-center gap-2">
-                    <Bell className="h-4 w-4 text-[--color-ink-tertiary]" aria-hidden="true" />
+                    <Bell className="h-4 w-4 text-[var(--color-ink-tertiary)]" aria-hidden="true" />
                     <span>{t("accountAlerts")}</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild className="cursor-pointer">
                   <Link href={accountRoutes.account} className="flex items-center gap-2">
-                    <UserCircle2 className="h-4 w-4 text-[--color-ink-tertiary]" aria-hidden="true" />
+                    <UserCircle2 className="h-4 w-4 text-[var(--color-ink-tertiary)]" aria-hidden="true" />
                     <span>{t("accountSettings")}</span>
                   </Link>
                 </DropdownMenuItem>
@@ -224,7 +224,7 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
                   onSelect={() => {
                     void signOut({ callbackUrl: "/" });
                   }}
-                  className="cursor-pointer text-[--color-warn-critical] focus:text-[--color-warn-critical] focus:bg-[--color-warn-critical-soft]/40"
+                  className="cursor-pointer text-[var(--color-warn-critical)] focus:text-[var(--color-warn-critical)] focus:bg-[var(--color-warn-critical-soft)]/40"
                 >
                   <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
                   <span>{t("accountSignOut")}</span>
@@ -234,7 +234,7 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
           ) : (
             <Link
               href="/login"
-              className="inline-flex items-center rounded-md border border-[--color-brand]/30 px-3 py-1.5 text-sm font-medium text-[--color-brand] hover:bg-[--color-brand]/5 transition-colors"
+              className="inline-flex items-center rounded-md border border-[var(--color-brand)]/30 px-3 py-1.5 text-sm font-medium text-[var(--color-brand)] hover:bg-[var(--color-brand)]/5 transition-colors"
             >
               {t("signIn")}
             </Link>
@@ -252,14 +252,14 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
           <div className="relative w-full">
             <Search
               aria-hidden="true"
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[--color-ink-tertiary]"
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-ink-tertiary)]"
             />
             <input
               type="search"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder={t("searchPlaceholder")}
-              className="tnum w-full rounded-md border border-[--color-hairline] bg-white py-2 pl-9 pr-3 text-sm focus:outline-none focus:border-[--color-brand] focus:ring-2 focus:ring-[--color-brand]/15"
+              className="tnum w-full rounded-md border border-[var(--color-hairline)] bg-white py-2 pl-9 pr-3 text-sm focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15"
             />
           </div>
         </form>

@@ -153,21 +153,21 @@ export default function DiamondDashboard() {
     switch (status) {
       case 'judicial_process':
         return (
-          <Badge className="bg-[--color-action-soft] text-[--color-ink-primary] border border-[--color-action]/40">
+          <Badge className="bg-[var(--color-action-soft)] text-[var(--color-ink-primary)] border border-[var(--color-action)]/40">
             <Clock className="w-3 h-3 mr-1" />
             En tramitación
           </Badge>
         );
       case 'pending_publish':
         return (
-          <Badge className="bg-[--color-warn-attention-soft] text-[--color-ink-primary] border border-[--color-warn-attention]/40">
+          <Badge className="bg-[var(--color-warn-attention-soft)] text-[var(--color-ink-primary)] border border-[var(--color-warn-attention)]/40">
             <AlertCircle className="w-3 h-3 mr-1" />
             Pendiente BOE
           </Badge>
         );
       case 'announced':
         return (
-          <Badge className="bg-[--color-status-live-soft] text-[--color-ink-primary] border border-[--color-status-live]/40">
+          <Badge className="bg-[var(--color-status-live-soft)] text-[var(--color-ink-primary)] border border-[var(--color-status-live)]/40">
             <CheckCircle2 className="w-3 h-3 mr-1" />
             Anunciada
           </Badge>
@@ -178,24 +178,24 @@ export default function DiamondDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[--color-page]">
+    <div className="min-h-screen bg-[var(--color-page)]">
       {/* Header — white surface, all-black ink */}
-      <div className="hairline-b bg-[--color-surface]">
+      <div className="hairline-b bg-[var(--color-surface)]">
         <div className="container mx-auto px-6 py-6">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-3">
-                <Crown className="w-8 h-8 text-[--color-gold]" />
+                <Crown className="w-8 h-8 text-[var(--color-gold)]" />
                 <div>
-                  <h1 className="font-display text-2xl font-bold text-[--color-ink-primary]">
+                  <h1 className="font-display text-2xl font-bold text-[var(--color-ink-primary)]">
                     Panel Diamond
                   </h1>
-                  <p className="text-sm text-[--color-ink-secondary]">
+                  <p className="text-sm text-[var(--color-ink-secondary)]">
                     Acceso exclusivo a subastas pre-BOE
                   </p>
                 </div>
               </div>
-              <Badge className="bg-[--color-warn-attention-soft] text-[--color-ink-primary] border border-[--color-warn-attention] font-bold">
+              <Badge className="bg-[var(--color-warn-attention-soft)] text-[var(--color-ink-primary)] border border-[var(--color-warn-attention)] font-bold">
                 DIAMOND
               </Badge>
             </div>
@@ -203,12 +203,12 @@ export default function DiamondDashboard() {
               <Link href="/">
                 <Button
                   variant="outline"
-                  className="border-[--color-hairline] text-[--color-ink-primary] hover:bg-[--color-surface-muted]"
+                  className="border-[var(--color-hairline)] text-[var(--color-ink-primary)] hover:bg-[var(--color-surface-muted)]"
                 >
                   Ver subastas activas
                 </Button>
               </Link>
-              <Button className="bg-[--color-action-soft] border border-[--color-action] text-[--color-ink-primary] hover:bg-[--color-action-soft]/80">
+              <Button className="bg-[var(--color-action-soft)] border border-[var(--color-action)] text-[var(--color-ink-primary)] hover:bg-[var(--color-action-soft)]/80">
                 <Phone className="w-4 h-4 mr-2" />
                 Contactar concierge
               </Button>
@@ -247,24 +247,24 @@ export default function DiamondDashboard() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="bg-[--color-surface] border border-[--color-hairline]">
+          <TabsList className="bg-[var(--color-surface)] border border-[var(--color-hairline)]">
             <TabsTrigger
               value="pipeline"
-              className="data-[state=active]:bg-[--color-surface-muted] text-[--color-ink-primary]"
+              className="data-[state=active]:bg-[var(--color-surface-muted)] text-[var(--color-ink-primary)]"
             >
               <TrendingUp className="w-4 h-4 mr-2" />
               Pipeline exclusivo
             </TabsTrigger>
             <TabsTrigger
               value="removed"
-              className="data-[state=active]:bg-[--color-surface-muted] text-[--color-ink-primary]"
+              className="data-[state=active]:bg-[var(--color-surface-muted)] text-[var(--color-ink-primary)]"
             >
               <AlertCircle className="w-4 h-4 mr-2" />
               Retiradas
             </TabsTrigger>
             <TabsTrigger
               value="timeline"
-              className="data-[state=active]:bg-[--color-surface-muted] text-[--color-ink-primary]"
+              className="data-[state=active]:bg-[var(--color-surface-muted)] text-[var(--color-ink-primary)]"
             >
               <Calendar className="w-4 h-4 mr-2" />
               Línea temporal
@@ -275,8 +275,8 @@ export default function DiamondDashboard() {
           <TabsContent value="pipeline" className="space-y-4 mt-6">
             {loading ? (
               <div className="text-center py-12">
-                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[--color-ink-primary] border-r-transparent" />
-                <p className="mt-4 text-[--color-ink-secondary]">
+                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[var(--color-ink-primary)] border-r-transparent" />
+                <p className="mt-4 text-[var(--color-ink-secondary)]">
                   Cargando datos exclusivos…
                 </p>
               </div>
@@ -284,56 +284,56 @@ export default function DiamondDashboard() {
               preAuctions.map((item) => (
                 <Card
                   key={item.id}
-                  className="bg-[--color-surface] border border-[--color-hairline] hover:shadow-[var(--shadow-card)] transition-shadow"
+                  className="bg-[var(--color-surface)] border border-[var(--color-hairline)] hover:shadow-[var(--shadow-card)] transition-shadow"
                 >
                   <CardHeader>
                     <div className="flex items-start justify-between flex-wrap gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
-                          <CardTitle className="text-xl text-[--color-ink-primary]">
+                          <CardTitle className="text-xl text-[var(--color-ink-primary)]">
                             {item.title}
                           </CardTitle>
                           {getStatusBadge(item.status)}
                           {item.daysUntilAuction <= 30 && (
-                            <Badge className="bg-[--color-warn-critical-soft] text-[--color-ink-primary] border border-[--color-warn-critical]">
+                            <Badge className="bg-[var(--color-warn-critical-soft)] text-[var(--color-ink-primary)] border border-[var(--color-warn-critical)]">
                               <Clock className="w-3 h-3 mr-1" />
                               {item.daysUntilAuction} días
                             </Badge>
                           )}
                         </div>
-                        <CardDescription className="text-[--color-ink-secondary]">
+                        <CardDescription className="text-[var(--color-ink-secondary)]">
                           {item.category} · {item.province}
                         </CardDescription>
                       </div>
                       <div className="text-right">
-                        <p className="text-2xl font-bold text-[--color-ink-primary] tnum">
+                        <p className="text-2xl font-bold text-[var(--color-ink-primary)] tnum">
                           €{item.appraisalValue.toLocaleString('es-ES')}
                         </p>
-                        <p className="text-sm text-[--color-ink-tertiary]">
+                        <p className="text-sm text-[var(--color-ink-tertiary)]">
                           Tasación
                         </p>
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-[--color-surface-muted] rounded-lg">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-[var(--color-surface-muted)] rounded-lg">
                       <DetailRow
-                        icon={<Building2 className="w-4 h-4 text-[--color-ink-tertiary] mt-1" />}
+                        icon={<Building2 className="w-4 h-4 text-[var(--color-ink-tertiary)] mt-1" />}
                         label="Juzgado"
                         value={item.courtName}
                       />
                       <DetailRow
-                        icon={<FileText className="w-4 h-4 text-[--color-ink-tertiary] mt-1" />}
+                        icon={<FileText className="w-4 h-4 text-[var(--color-ink-tertiary)] mt-1" />}
                         label="Procedimiento"
                         value={item.procedureNumber}
                       />
                       <DetailRow
-                        icon={<MapPin className="w-4 h-4 text-[--color-ink-tertiary] mt-1" />}
+                        icon={<MapPin className="w-4 h-4 text-[var(--color-ink-tertiary)] mt-1" />}
                         label="Dirección"
                         value={item.address}
                       />
                       <DetailRow
-                        icon={<Calendar className="w-4 h-4 text-[--color-ink-tertiary] mt-1" />}
+                        icon={<Calendar className="w-4 h-4 text-[var(--color-ink-tertiary)] mt-1" />}
                         label="Fecha estimada BOE"
                         value={new Date(item.estimatedDate).toLocaleDateString(
                           'es-ES'
@@ -345,14 +345,14 @@ export default function DiamondDashboard() {
                     <div className="space-y-3">
                       {item.cargasAnteriores &&
                         item.cargasAnteriores.length > 0 && (
-                          <div className="p-3 bg-[--color-warn-attention-soft] border border-[--color-warn-attention]/40 rounded-lg">
-                            <p className="text-xs font-semibold text-[--color-ink-primary] mb-2">
+                          <div className="p-3 bg-[var(--color-warn-attention-soft)] border border-[var(--color-warn-attention)]/40 rounded-lg">
+                            <p className="text-xs font-semibold text-[var(--color-ink-primary)] mb-2">
                               Cargas anteriores
                             </p>
                             {item.cargasAnteriores.map((carga, idx) => (
                               <div
                                 key={idx}
-                                className="flex justify-between text-sm text-[--color-ink-primary]"
+                                className="flex justify-between text-sm text-[var(--color-ink-primary)]"
                               >
                                 <span>{carga.type}</span>
                                 <span className="font-semibold tnum">
@@ -365,14 +365,14 @@ export default function DiamondDashboard() {
 
                       {item.cargasPreferentes &&
                         item.cargasPreferentes.length > 0 && (
-                          <div className="p-3 bg-[--color-action-soft] border border-[--color-action]/40 rounded-lg">
-                            <p className="text-xs font-semibold text-[--color-ink-primary] mb-2">
+                          <div className="p-3 bg-[var(--color-action-soft)] border border-[var(--color-action)]/40 rounded-lg">
+                            <p className="text-xs font-semibold text-[var(--color-ink-primary)] mb-2">
                               Cargas preferentes
                             </p>
                             {item.cargasPreferentes.map((carga, idx) => (
                               <div
                                 key={idx}
-                                className="flex justify-between text-sm text-[--color-ink-primary]"
+                                className="flex justify-between text-sm text-[var(--color-ink-primary)]"
                               >
                                 <span>{carga.type}</span>
                                 <span className="font-semibold tnum">
@@ -387,14 +387,14 @@ export default function DiamondDashboard() {
                         <div
                           className={`p-3 rounded-lg border ${
                             item.occupancyStatus === 'Desocupado'
-                              ? 'bg-[--color-status-live-soft] border-[--color-status-live]/40'
-                              : 'bg-[--color-status-cancelled-soft] border-[--color-status-cancelled]/40'
+                              ? 'bg-[var(--color-status-live-soft)] border-[var(--color-status-live)]/40'
+                              : 'bg-[var(--color-status-cancelled-soft)] border-[var(--color-status-cancelled)]/40'
                           }`}
                         >
-                          <p className="text-xs font-semibold mb-1 text-[--color-ink-primary]">
+                          <p className="text-xs font-semibold mb-1 text-[var(--color-ink-primary)]">
                             Estado de ocupación
                           </p>
-                          <p className="text-sm text-[--color-ink-primary]">
+                          <p className="text-sm text-[var(--color-ink-primary)]">
                             {item.occupancyStatus}
                           </p>
                         </div>
@@ -402,12 +402,12 @@ export default function DiamondDashboard() {
                     </div>
 
                     <div className="flex gap-3">
-                      <Button className="flex-1 bg-[--color-action-soft] border border-[--color-action] text-[--color-ink-primary] hover:bg-[--color-action-soft]/80">
+                      <Button className="flex-1 bg-[var(--color-action-soft)] border border-[var(--color-action)] text-[var(--color-ink-primary)] hover:bg-[var(--color-action-soft)]/80">
                         Ver detalles completos
                       </Button>
                       <Button
                         variant="outline"
-                        className="border-[--color-hairline] text-[--color-ink-primary] hover:bg-[--color-surface-muted]"
+                        className="border-[var(--color-hairline)] text-[var(--color-ink-primary)] hover:bg-[var(--color-surface-muted)]"
                       >
                         <Phone className="w-4 h-4" />
                       </Button>
@@ -423,19 +423,19 @@ export default function DiamondDashboard() {
             {removedAuctions.map((item) => (
               <Card
                 key={item.id}
-                className="bg-[--color-surface] border border-[--color-hairline]"
+                className="bg-[var(--color-surface)] border border-[var(--color-hairline)]"
               >
                 <CardHeader>
                   <div className="flex items-start justify-between flex-wrap gap-3">
                     <div>
-                      <CardTitle className="text-lg text-[--color-ink-primary]">
+                      <CardTitle className="text-lg text-[var(--color-ink-primary)]">
                         {item.title}
                       </CardTitle>
-                      <CardDescription className="text-[--color-ink-secondary]">
+                      <CardDescription className="text-[var(--color-ink-secondary)]">
                         {item.province}
                       </CardDescription>
                     </div>
-                    <Badge className="bg-[--color-status-cancelled-soft] text-[--color-ink-primary] border border-[--color-status-cancelled]/40">
+                    <Badge className="bg-[var(--color-status-cancelled-soft)] text-[var(--color-ink-primary)] border border-[var(--color-status-cancelled)]/40">
                       Retirada
                     </Badge>
                   </div>
@@ -443,20 +443,20 @@ export default function DiamondDashboard() {
                 <CardContent>
                   <div className="grid grid-cols-3 gap-4 text-sm">
                     <div>
-                      <p className="text-[--color-ink-tertiary]">Tasación</p>
-                      <p className="text-[--color-ink-primary] font-semibold tnum">
+                      <p className="text-[var(--color-ink-tertiary)]">Tasación</p>
+                      <p className="text-[var(--color-ink-primary)] font-semibold tnum">
                         €{item.appraisalValue.toLocaleString('es-ES')}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[--color-ink-tertiary]">Retirada</p>
-                      <p className="text-[--color-ink-primary] font-semibold tnum">
+                      <p className="text-[var(--color-ink-tertiary)]">Retirada</p>
+                      <p className="text-[var(--color-ink-primary)] font-semibold tnum">
                         {new Date(item.removedDate).toLocaleDateString('es-ES')}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[--color-ink-tertiary]">Motivo</p>
-                      <p className="text-[--color-ink-primary] font-semibold">
+                      <p className="text-[var(--color-ink-tertiary)]">Motivo</p>
+                      <p className="text-[var(--color-ink-primary)] font-semibold">
                         {item.reason}
                       </p>
                     </div>
@@ -468,12 +468,12 @@ export default function DiamondDashboard() {
 
           {/* Timeline */}
           <TabsContent value="timeline" className="mt-6">
-            <Card className="bg-[--color-surface] border border-[--color-hairline]">
+            <Card className="bg-[var(--color-surface)] border border-[var(--color-hairline)]">
               <CardHeader>
-                <CardTitle className="text-[--color-ink-primary]">
+                <CardTitle className="text-[var(--color-ink-primary)]">
                   Proceso judicial típico
                 </CardTitle>
-                <CardDescription className="text-[--color-ink-secondary]">
+                <CardDescription className="text-[var(--color-ink-secondary)]">
                   Línea temporal desde embargo hasta subasta
                 </CardDescription>
               </CardHeader>
@@ -484,36 +484,36 @@ export default function DiamondDashboard() {
                       phase: 'Embargo',
                       duration: '1-2 meses',
                       icon: AlertCircle,
-                      tint: 'bg-[--color-warn-critical-soft]',
-                      ink: 'text-[--color-warn-critical]',
+                      tint: 'bg-[var(--color-warn-critical-soft)]',
+                      ink: 'text-[var(--color-warn-critical)]',
                     },
                     {
                       phase: 'Tasación pericial',
                       duration: '2-3 meses',
                       icon: FileText,
-                      tint: 'bg-[--color-warn-attention-soft]',
-                      ink: 'text-[--color-warn-attention]',
+                      tint: 'bg-[var(--color-warn-attention-soft)]',
+                      ink: 'text-[var(--color-warn-attention)]',
                     },
                     {
                       phase: 'Publicación TEJU',
                       duration: '1 mes',
                       icon: Building2,
-                      tint: 'bg-[--color-action-soft]',
-                      ink: 'text-[--color-action]',
+                      tint: 'bg-[var(--color-action-soft)]',
+                      ink: 'text-[var(--color-action)]',
                     },
                     {
                       phase: 'Anuncio BOE',
                       duration: '20 días',
                       icon: Calendar,
-                      tint: 'bg-[--color-surface-muted]',
-                      ink: 'text-[--color-ink-secondary]',
+                      tint: 'bg-[var(--color-surface-muted)]',
+                      ink: 'text-[var(--color-ink-secondary)]',
                     },
                     {
                       phase: 'Subasta',
                       duration: 'Día fijado',
                       icon: TrendingUp,
-                      tint: 'bg-[--color-status-live-soft]',
-                      ink: 'text-[--color-status-live]',
+                      tint: 'bg-[var(--color-status-live-soft)]',
+                      ink: 'text-[var(--color-status-live)]',
                     },
                   ].map((step, idx) => {
                     const Icon = step.icon;
@@ -525,10 +525,10 @@ export default function DiamondDashboard() {
                           <Icon className={`w-6 h-6 ${step.ink}`} />
                         </div>
                         <div className="flex-1">
-                          <p className="font-semibold text-[--color-ink-primary]">
+                          <p className="font-semibold text-[var(--color-ink-primary)]">
                             {step.phase}
                           </p>
-                          <p className="text-sm text-[--color-ink-tertiary]">
+                          <p className="text-sm text-[var(--color-ink-tertiary)]">
                             {step.duration}
                           </p>
                         </div>
@@ -555,17 +555,17 @@ function StatCard({
   footnote: string;
 }) {
   return (
-    <Card className="bg-[--color-surface] border border-[--color-hairline]">
+    <Card className="bg-[var(--color-surface)] border border-[var(--color-hairline)]">
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-medium text-[--color-ink-secondary]">
+        <CardTitle className="text-sm font-medium text-[var(--color-ink-secondary)]">
           {label}
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="text-3xl font-bold text-[--color-ink-primary] tnum">
+        <div className="text-3xl font-bold text-[var(--color-ink-primary)] tnum">
           {value}
         </div>
-        <p className="text-xs text-[--color-ink-tertiary] mt-1">{footnote}</p>
+        <p className="text-xs text-[var(--color-ink-tertiary)] mt-1">{footnote}</p>
       </CardContent>
     </Card>
   );
@@ -584,8 +584,8 @@ function DetailRow({
     <div className="flex items-start gap-2">
       {icon}
       <div className="min-w-0">
-        <p className="text-xs text-[--color-ink-tertiary]">{label}</p>
-        <p className="text-sm text-[--color-ink-primary] font-medium truncate">
+        <p className="text-xs text-[var(--color-ink-tertiary)]">{label}</p>
+        <p className="text-sm text-[var(--color-ink-primary)] font-medium truncate">
           {value ?? '—'}
         </p>
       </div>

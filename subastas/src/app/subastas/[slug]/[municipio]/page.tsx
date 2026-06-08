@@ -173,10 +173,10 @@ export default async function MunicipioPage({ params }: PageProps) {
       <section className="mt-2">
         <Link
           href={`/subastas/${data.provinceSlug}`}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[--color-border] text-sm font-medium hover:bg-[--color-surface-muted]"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--color-border)] text-sm font-medium hover:bg-[var(--color-surface-muted)]"
         >
           <span>Ver todas las subastas en {data.provinceLabel}</span>
-          <span className="text-[--color-text-muted] tnum">
+          <span className="text-[var(--color-text-muted)] tnum">
             ({data.provinceTotal.toLocaleString('es-ES')})
           </span>
         </Link>
@@ -195,10 +195,10 @@ export default async function MunicipioPage({ params }: PageProps) {
               <li key={m.municipioSlug}>
                 <Link
                   href={`/subastas/${data.provinceSlug}/${m.municipioSlug}`}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[--color-border] text-xs hover:bg-[--color-surface-muted]"
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[var(--color-border)] text-xs hover:bg-[var(--color-surface-muted)]"
                 >
                   <span>{capitalizeLocation(m.name)}</span>
-                  <span className="text-[--color-text-muted] tnum">
+                  <span className="text-[var(--color-text-muted)] tnum">
                     ({m.count.toLocaleString('es-ES')})
                   </span>
                 </Link>
@@ -218,7 +218,7 @@ export default async function MunicipioPage({ params }: PageProps) {
             <li key={t}>
               <Link
                 href={`/subastas/tipo/${t}`}
-                className="inline-block px-3 py-1 rounded-full border border-[--color-border] text-xs hover:bg-[--color-surface-muted]"
+                className="inline-block px-3 py-1 rounded-full border border-[var(--color-border)] text-xs hover:bg-[var(--color-surface-muted)]"
               >
                 {TIPO_LABEL_PLURAL[t]}
               </Link>
@@ -239,7 +239,7 @@ export default async function MunicipioPage({ params }: PageProps) {
   );
 
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[--color-page]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-[var(--color-page)]" />}>
       <SubastasListClient
         lockedFilter={{
           province: data.provinceDbKey,

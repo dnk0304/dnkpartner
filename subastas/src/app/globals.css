@@ -43,6 +43,18 @@
   --color-hairline: #E5EAEC;        /* defined card edges, cool grey */
   --color-hairline-soft: #EEF2F4;   /* table dividers */
 
+  /* Card TYPE banner — a dedicated, high-contrast pill that reads on top of
+   * ANY card background (photo, map tile, branded placeholder, plain surface).
+   * Near-opaque white background + deep ink + soft hairline border. This is
+   * the chip that says "Vivienda" / "Coche" / "Garaje" under the status badge
+   * cluster. Wave86 (Pixel 2026-06-08): introduced because the prior
+   * surface/ink-secondary pair washed out on photo cards. Independent token
+   * triple so future colour tweaks to --color-surface don't regress banner
+   * legibility. */
+  --color-banner-bg: rgba(255, 255, 255, 0.96);
+  --color-banner-ink: #0A0F1A;
+  --color-banner-border: rgba(10, 15, 26, 0.18);
+
   /* Ink — ALL TEXT BLACK (unchanged) */
   --color-ink-primary: #0A0F1A;     /* near-black */
   --color-ink-secondary: #1F2937;

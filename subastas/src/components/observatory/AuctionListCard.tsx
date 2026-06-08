@@ -156,8 +156,8 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
   return (
     <article
       className={cn(
-        "relative flex flex-col rounded-xl border border-[--color-hairline] bg-[--color-surface] overflow-hidden",
-        "shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-lift)] hover:border-[--color-brand-soft]/40 transition-shadow",
+        "relative flex flex-col rounded-xl border border-[var(--color-hairline)] bg-[var(--color-surface)] overflow-hidden",
+        "shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-lift)] hover:border-[var(--color-brand-soft)]/40 transition-shadow",
         className,
       )}
     >
@@ -166,7 +166,7 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
       <Link
         href={`/auction/${encodeURIComponent(item.id)}`}
         aria-label={`Ver detalle de ${item.title}`}
-        className="relative block aspect-[16/9] w-full bg-[--color-surface-muted] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40"
+        className="relative block aspect-[16/9] w-full bg-[var(--color-surface-muted)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40"
       >
         <Image
           src={imageSrc}
@@ -196,7 +196,7 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             aria-hidden="true"
             className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full"
           >
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[--color-warn-critical] text-white shadow-[0_2px_6px_rgba(0,0,0,0.35)] ring-2 ring-white">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-warn-critical)] text-white shadow-[0_2px_6px_rgba(0,0,0,0.35)] ring-2 ring-white">
               <MapPin className="h-4 w-4" strokeWidth={2.5} />
             </span>
           </span>
@@ -206,7 +206,7 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
         {resolved.isMap && !imgFailed && (
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full border border-[--color-hairline] bg-[--color-surface]/90 px-1.5 py-0.5 text-[10px] font-medium text-[--color-ink-secondary] backdrop-blur-sm"
+            className="pointer-events-none absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full border border-[var(--color-hairline)] bg-[var(--color-surface)]/90 px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-ink-secondary)] backdrop-blur-sm"
           >
             <MapPin className="h-3 w-3" />
             Ubicación
@@ -237,10 +237,10 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
           <span
             className={cn(
               "pointer-events-none absolute bottom-2 left-2 tnum rounded-full px-2 py-0.5 text-[11px] font-semibold border",
-              "text-[--color-ink-primary]",
+              "text-[var(--color-ink-primary)]",
               daysBadge === "Hoy" || daysBadge === "1 d"
-                ? "bg-[--color-warn-critical-soft] border-[--color-warn-critical]/40"
-                : "bg-[--color-surface] border-[--color-hairline]",
+                ? "bg-[var(--color-warn-critical-soft)] border-[var(--color-warn-critical)]/40"
+                : "bg-[var(--color-surface)] border-[var(--color-hairline)]",
             )}
           >
             {daysBadge}
@@ -266,13 +266,13 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
           href={`/auction/${encodeURIComponent(item.id)}`}
           className="block focus-visible:outline-none"
         >
-          <h3 className="font-serif text-[15px] leading-tight text-[--color-ink-primary] line-clamp-2 hover:underline">
+          <h3 className="font-serif text-[15px] leading-tight text-[var(--color-ink-primary)] line-clamp-2 hover:underline">
             {title}
           </h3>
           {/* Vehicle subtitle + location collapse onto one tnum caption when
               both are present, so the post-title meta is a single line. */}
           {(isVehicle && item.vehicleYear) || where ? (
-            <p className="mt-0.5 text-[11px] text-[--color-ink-tertiary] tnum truncate">
+            <p className="mt-0.5 text-[11px] text-[var(--color-ink-tertiary)] tnum truncate">
               {isVehicle && item.vehicleYear ? item.vehicleYear : null}
               {isVehicle && item.vehicleYear && where ? " · " : null}
               {where}
@@ -297,10 +297,10 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             label+value block). */}
         {noPriceData && (
           <div className="hairline-t pt-1 flex items-center justify-between gap-2 text-[11px]">
-            <span className="uppercase tracking-wide text-[10px] text-[--color-ink-tertiary]">
+            <span className="uppercase tracking-wide text-[10px] text-[var(--color-ink-tertiary)]">
               {isVariosLotes ? "Varios lotes" : "Precio"}
             </span>
-            <span className="font-medium text-[--color-ink-secondary]">
+            <span className="font-medium text-[var(--color-ink-secondary)]">
               No disponible
             </span>
           </div>
@@ -317,13 +317,13 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
           <div className="hairline-t pt-1 flex flex-col gap-0.5">
             {valueLines.map((line, i) => (
               <div key={line.key} className="flex items-baseline justify-between gap-2 min-w-0">
-                <span className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary] truncate">
+                <span className="text-[10px] uppercase tracking-wide text-[var(--color-ink-tertiary)] truncate">
                   {line.label}
                 </span>
                 <span
                   className={cn(
-                    "tnum font-semibold text-[--color-ink-primary] shrink-0",
-                    i === 0 ? "text-sm" : "text-[12px] text-[--color-ink-secondary]",
+                    "tnum font-semibold text-[var(--color-ink-primary)] shrink-0",
+                    i === 0 ? "text-sm" : "text-[12px] text-[var(--color-ink-secondary)]",
                   )}
                 >
                   {formatPrice(line.amount)}
@@ -334,10 +334,10 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
                 its own padded row. */}
             {hasCurrentBid && (
               <div className="flex items-baseline justify-between gap-2 min-w-0">
-                <span className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+                <span className="text-[10px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
                   Puja actual
                 </span>
-                <span className="tnum font-semibold text-[12px] text-[--color-ink-primary]">
+                <span className="tnum font-semibold text-[12px] text-[var(--color-ink-primary)]">
                   {formatPrice(item.currentBid)}
                 </span>
               </div>
@@ -349,10 +349,10 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             sit alone in its own padded row). */}
         {valueLines.length === 0 && hasCurrentBid && !noPriceData && (
           <div className="hairline-t pt-1 flex items-baseline justify-between gap-2">
-            <span className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+            <span className="text-[10px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
               Puja actual
             </span>
-            <span className="tnum font-semibold text-sm text-[--color-ink-primary]">
+            <span className="tnum font-semibold text-sm text-[var(--color-ink-primary)]">
               {formatPrice(item.currentBid)}
             </span>
           </div>
@@ -364,7 +364,7 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
           {typeLabel && (
             typeLabel.toLowerCase() === "vivienda" || item.category === "Viviendas" ? (
               <span
-                className="inline-flex items-center rounded-full border border-[--color-brand]/30 bg-[--color-brand]/[0.06] px-2 py-0.5 text-[10px] uppercase tracking-wide font-semibold text-[--color-brand] truncate"
+                className="inline-flex items-center rounded-full border border-[var(--color-brand)]/30 bg-[var(--color-brand)]/[0.06] px-2 py-0.5 text-[10px] uppercase tracking-wide font-semibold text-[var(--color-brand)] truncate"
                 aria-label={`Tipo: ${typeLabel}`}
                 title={typeLabel}
               >
@@ -372,7 +372,7 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
               </span>
             ) : (
               <span
-                className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary] truncate"
+                className="text-[10px] uppercase tracking-wide text-[var(--color-ink-tertiary)] truncate"
                 title={typeLabel}
               >
                 {typeLabel}
@@ -404,11 +404,11 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             dateNode = (
               <span className="inline-flex items-center gap-1 tnum">
                 <Calendar className="h-3 w-3" aria-hidden="true" />
-                <span className="text-[--color-ink-secondary]">Próxima apertura</span>
+                <span className="text-[var(--color-ink-secondary)]">Próxima apertura</span>
                 {opensLabel ? (
-                  <>: <span className="text-[--color-ink-primary]">{opensLabel}</span></>
+                  <>: <span className="text-[var(--color-ink-primary)]">{opensLabel}</span></>
                 ) : (
-                  <> · <span className="text-[--color-ink-quiet]">Fecha por confirmar</span></>
+                  <> · <span className="text-[var(--color-ink-quiet)]">Fecha por confirmar</span></>
                 )}
               </span>
             );
@@ -416,11 +416,11 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             dateNode = (
               <span className="inline-flex items-center gap-1 tnum">
                 <Calendar className="h-3 w-3" aria-hidden="true" />
-                <span className="text-[--color-ink-secondary]">Fecha prevista de reanudación</span>
+                <span className="text-[var(--color-ink-secondary)]">Fecha prevista de reanudación</span>
                 {resumeDateStr ? (
-                  <>: <span className="text-[--color-ink-primary]">{resumeDateStr}</span></>
+                  <>: <span className="text-[var(--color-ink-primary)]">{resumeDateStr}</span></>
                 ) : (
-                  <> · <span className="text-[--color-ink-quiet]">Fecha por confirmar</span></>
+                  <> · <span className="text-[var(--color-ink-quiet)]">Fecha por confirmar</span></>
                 )}
               </span>
             );
@@ -429,8 +429,8 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             dateNode = (
               <span className="inline-flex items-center gap-1 tnum">
                 <Calendar className="h-3 w-3" aria-hidden="true" />
-                <span className="text-[--color-ink-quiet]">Inicio </span>
-                <span className="text-[--color-ink-secondary]">{opensLabel}</span>
+                <span className="text-[var(--color-ink-quiet)]">Inicio </span>
+                <span className="text-[var(--color-ink-secondary)]">{opensLabel}</span>
               </span>
             );
           }
@@ -440,7 +440,7 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
           // when the date line is null the whole row collapses.
           if (!dateNode) return null;
           return (
-            <div className="flex items-center gap-2 text-[10.5px] text-[--color-ink-tertiary]">
+            <div className="flex items-center gap-2 text-[10.5px] text-[var(--color-ink-tertiary)]">
               {dateNode}
             </div>
           );
@@ -456,9 +456,9 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             onClick={(e) => e.stopPropagation()}
             className={cn(
               "inline-flex items-center justify-center gap-1 rounded-md",
-              "border border-[--color-brand-soft]/30 px-2 py-1 text-[11px] font-medium",
-              "text-[--color-brand-soft] hover:bg-[--color-info-soft]",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand-soft]/40",
+              "border border-[var(--color-brand-soft)]/30 px-2 py-1 text-[11px] font-medium",
+              "text-[var(--color-brand-soft)] hover:bg-[var(--color-info-soft)]",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-soft)]/40",
             )}
           >
             Ir al BOE oficial →

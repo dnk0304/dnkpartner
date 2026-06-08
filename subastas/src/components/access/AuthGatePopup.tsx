@@ -109,7 +109,7 @@ export function AuthGatePopup({
           </DialogDescription>
 
           <div className="mt-6 flex flex-col gap-2.5">
-            {/* The bracket-shortcut syntax `bg-[--color-action]` emits
+            {/* The bracket-shortcut syntax `bg-[var(--color-action)]` emits
                 invalid CSS in Tailwind 4 (`background-color:--color-action`),
                 which fails silently and renders the button transparent. The
                 `bg-[var(--…)]` form wraps the var() call and works. We use

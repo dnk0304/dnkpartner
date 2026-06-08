@@ -90,9 +90,15 @@ export function AuctionCardTypeBanner({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-md border px-2 py-0.5 font-medium uppercase tracking-wide",
-        "border-[--color-hairline] bg-[--color-surface]/90 text-[--color-ink-secondary]",
-        "backdrop-blur-sm",
+        "inline-flex items-center rounded-md border px-2 py-0.5 font-semibold uppercase tracking-wide",
+        // Wave86 (Pixel 2026-06-08): dedicated banner token triple. The prior
+        // surface/ink-secondary pair washed out on photo + map cards; the new
+        // pair is a near-opaque white pill with deep ink + a soft border +
+        // small shadow so the chip stands off ANY underlying image. WCAG-AA
+        // ≥7:1 (deep ink on white). Longhand `var(...)` because Tailwind 4
+        // drops bare-token arbitrary values.
+        "border-[var(--color-banner-border)] bg-[var(--color-banner-bg)] text-[var(--color-banner-ink)]",
+        "shadow-sm backdrop-blur-sm",
         size === "sm" ? "text-[10px]" : "text-xs",
         className,
       )}

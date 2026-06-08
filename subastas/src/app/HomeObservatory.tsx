@@ -79,12 +79,12 @@ const LANDING_MAP_COUNTS_PARAMS = new URLSearchParams({ status: "active" });
 
 const HierarchicalMap = dynamic(
   () => import("@/components/dashboard/HierarchicalMap").then((m) => m.HierarchicalMap),
-  { ssr: false, loading: () => <div className="h-full w-full bg-[--color-surface-muted] animate-pulse" /> },
+  { ssr: false, loading: () => <div className="h-full w-full bg-[var(--color-surface-muted)] animate-pulse" /> },
 );
 
 const ProvinceGrid = dynamic(
   () => import("@/components/dashboard/ProvinceGrid").then((m) => m.ProvinceGrid),
-  { ssr: false, loading: () => <div className="h-40 bg-[--color-surface-muted] animate-pulse rounded-lg" /> },
+  { ssr: false, loading: () => <div className="h-40 bg-[var(--color-surface-muted)] animate-pulse rounded-lg" /> },
 );
 
 /** Destination of the click-to-expand affordance on the compact map. */
@@ -187,7 +187,7 @@ export default function HomeObservatory() {
   );
 
   return (
-    <div className="min-h-screen bg-[--color-page]">
+    <div className="min-h-screen bg-[var(--color-page)]">
       {/* Header + footer are rendered site-wide by SiteChrome in the root layout. */}
 
       <main className="mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8 space-y-6 md:space-y-8">
@@ -208,27 +208,27 @@ export default function HomeObservatory() {
             <div className="space-y-3 max-w-2xl">
               <h1
                 id="hero-headline"
-                className="font-display text-[28px] sm:text-4xl lg:text-[44px] leading-[1.1] tracking-tight text-[--color-ink-primary]"
+                className="font-display text-[28px] sm:text-4xl lg:text-[44px] leading-[1.1] tracking-tight text-[var(--color-ink-primary)]"
               >
                 {t("heroHeadline")}
               </h1>
-              <p className="text-[15px] md:text-base leading-relaxed text-[--color-ink-secondary]">
+              <p className="text-[15px] md:text-base leading-relaxed text-[var(--color-ink-secondary)]">
                 {t("heroSubhead")}
               </p>
             </div>
 
             {/* Source-type inline row. */}
-            <div className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[--color-ink-tertiary]">
-              <span className="font-medium text-[--color-ink-secondary]">
+            <div className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[var(--color-ink-tertiary)]">
+              <span className="font-medium text-[var(--color-ink-secondary)]">
                 {t("heroSourcesIntro")}
               </span>
               <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span>{t("heroSourceJudicial")}</span>
-                <span aria-hidden="true" className="text-[--color-hairline]">·</span>
+                <span aria-hidden="true" className="text-[var(--color-hairline)]">·</span>
                 <span>{t("heroSourceHacienda")}</span>
-                <span aria-hidden="true" className="text-[--color-hairline]">·</span>
+                <span aria-hidden="true" className="text-[var(--color-hairline)]">·</span>
                 <span>{t("heroSourceNotarial")}</span>
-                <span aria-hidden="true" className="text-[--color-hairline]">·</span>
+                <span aria-hidden="true" className="text-[var(--color-hairline)]">·</span>
                 <span>{t("heroSourceAdministrativa")}</span>
               </span>
             </div>
@@ -244,7 +244,7 @@ export default function HomeObservatory() {
               </Link>
               <Link
                 href="/subastas?when=activas"
-                className="inline-flex items-center text-sm font-medium text-[--color-action] hover:text-[--color-brand] hover:underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-action]/40 rounded px-2 py-2"
+                className="inline-flex items-center text-sm font-medium text-[var(--color-action)] hover:text-[var(--color-brand)] hover:underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/40 rounded px-2 py-2"
               >
                 {t("heroCtaSecondary")}
               </Link>
@@ -261,7 +261,7 @@ export default function HomeObservatory() {
               (compact, horizontally narrow), map underneath. */}
           <div
             className={[
-              "w-full rounded-xl overflow-hidden border border-[--color-hairline]",
+              "w-full rounded-xl overflow-hidden border border-[var(--color-hairline)]",
               "bg-white shadow-[var(--shadow-card)]",
               "grid grid-cols-1 sm:grid-cols-[160px_1fr]",
             ].join(" ")}
@@ -280,7 +280,7 @@ export default function HomeObservatory() {
               variant="compact"
               heading={t("mapHeading")}
               apiSearchParams={LANDING_MAP_COUNTS_PARAMS}
-              className="border-0 sm:border-r sm:border-[--color-hairline] rounded-none"
+              className="border-0 sm:border-r sm:border-[var(--color-hairline)] rounded-none"
             />
 
             {/* Map preview — pointer events killed so any click is the
@@ -301,7 +301,7 @@ export default function HomeObservatory() {
                 "group relative",
                 "h-[260px] sm:h-[300px] lg:h-[320px]",
                 "cursor-pointer transition-shadow hover:shadow-lg",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-action]/50",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/50",
               ].join(" ")}
               title={t("compactMapAria")}
             >
@@ -320,7 +320,7 @@ export default function HomeObservatory() {
                   the click bubbles to the wrapper so behavior is identical. */}
               <div className="absolute bottom-2 right-2 z-10">
                 <span
-                  className="inline-flex items-center gap-1 rounded-full bg-[--color-ink-primary] px-3 py-1.5 text-[11px] font-semibold text-white shadow-md group-hover:bg-[--color-action] transition-colors"
+                  className="inline-flex items-center gap-1 rounded-full bg-[var(--color-ink-primary)] px-3 py-1.5 text-[11px] font-semibold text-white shadow-md group-hover:bg-[var(--color-action)] transition-colors"
                   aria-hidden="true"
                 >
                   {t("openFullMap")}
@@ -349,19 +349,19 @@ export default function HomeObservatory() {
         />
 
         {/* How it works — plain Spanish, no marketing fluff */}
-        <section className="rounded-lg bg-[--color-surface-muted] p-6 md:p-8 max-w-readable">
-          <h2 className="font-display text-xl text-[--color-ink-primary]">
+        <section className="rounded-lg bg-[var(--color-surface-muted)] p-6 md:p-8 max-w-readable">
+          <h2 className="font-display text-xl text-[var(--color-ink-primary)]">
             {t("howItWorksHeading")}
           </h2>
-          <p className="mt-3 text-[15px] leading-relaxed text-[--color-ink-secondary]">
+          <p className="mt-3 text-[15px] leading-relaxed text-[var(--color-ink-secondary)]">
             {t("howItWorksP1")}
           </p>
-          <p className="mt-3 text-[15px] leading-relaxed text-[--color-ink-secondary]">
+          <p className="mt-3 text-[15px] leading-relaxed text-[var(--color-ink-secondary)]">
             {t("howItWorksP2")}
           </p>
           <Link
             href="/subastas"
-            className="mt-4 inline-flex items-center text-sm font-medium text-[--color-brand] hover:underline"
+            className="mt-4 inline-flex items-center text-sm font-medium text-[var(--color-brand)] hover:underline"
           >
             {t("startExploring")}
           </Link>

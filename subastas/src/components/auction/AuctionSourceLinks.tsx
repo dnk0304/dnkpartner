@@ -68,9 +68,9 @@ export function AuctionSourceLinks({ links, className }: AuctionSourceLinksProps
               target="_blank"
               rel="noopener noreferrer"
               className={cn(
-                "inline-flex items-center gap-2 rounded-md border border-[--color-hairline] bg-[--color-surface] px-3 py-2 text-sm font-medium text-[--color-ink-secondary] transition-colors",
-                "hover:border-[--color-brand]/40 hover:bg-[--color-brand]/5 hover:text-[--color-ink-primary]",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40",
+                "inline-flex items-center gap-2 rounded-md border border-[var(--color-hairline)] bg-[var(--color-surface)] px-3 py-2 text-sm font-medium text-[var(--color-ink-secondary)] transition-colors",
+                "hover:border-[var(--color-brand)]/40 hover:bg-[var(--color-brand)]/5 hover:text-[var(--color-ink-primary)]",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40",
               )}
               aria-label={`${link.label} (se abre en nueva pestaña)`}
             >

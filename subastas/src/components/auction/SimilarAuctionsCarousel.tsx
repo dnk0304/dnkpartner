@@ -119,17 +119,17 @@ export function SimilarAuctionsCarousel({
   if (items === null && !error) {
     return (
       <section aria-labelledby="similar-heading" className={className}>
-        <h2 id="similar-heading" className="font-serif text-xl text-[--color-ink-primary]">
+        <h2 id="similar-heading" className="font-serif text-xl text-[var(--color-ink-primary)]">
           Subastas parecidas
         </h2>
-        <p className="mt-0.5 text-xs text-[--color-ink-tertiary]">
+        <p className="mt-0.5 text-xs text-[var(--color-ink-tertiary)]">
           Otras subastas activas en la misma provincia y categoría.
         </p>
         <div className="mt-4 flex gap-3 overflow-hidden">
           {Array.from({ length: 4 }).map((_, i) => (
             <div
               key={i}
-              className="h-56 w-56 shrink-0 animate-pulse rounded-lg bg-[--color-surface-muted]"
+              className="h-56 w-56 shrink-0 animate-pulse rounded-lg bg-[var(--color-surface-muted)]"
             />
           ))}
         </div>
@@ -141,10 +141,10 @@ export function SimilarAuctionsCarousel({
 
   return (
     <section aria-labelledby="similar-heading" className={className}>
-      <h2 id="similar-heading" className="font-serif text-xl text-[--color-ink-primary]">
+      <h2 id="similar-heading" className="font-serif text-xl text-[var(--color-ink-primary)]">
         Subastas parecidas
       </h2>
-      <p className="mt-0.5 text-xs text-[--color-ink-tertiary]">
+      <p className="mt-0.5 text-xs text-[var(--color-ink-tertiary)]">
         Otras subastas activas en la misma provincia y categoría.
       </p>
       <div
@@ -199,12 +199,12 @@ function SimilarCard({ auction }: { auction: SimilarAuction }) {
     <Link
       href={`/subastas/subasta/${slug}`}
       className={cn(
-        "group relative flex w-56 shrink-0 snap-start flex-col overflow-hidden rounded-lg border border-[--color-hairline] bg-[--color-surface] transition-colors",
-        "hover:border-[--color-brand]/40 hover:shadow-sm",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40",
+        "group relative flex w-56 shrink-0 snap-start flex-col overflow-hidden rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] transition-colors",
+        "hover:border-[var(--color-brand)]/40 hover:shadow-sm",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40",
       )}
     >
-      <div className="relative aspect-[4/3] w-full overflow-hidden bg-[--color-surface-muted]">
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-[var(--color-surface-muted)]">
         {showImage ? (
           <Image
             src={resolved.src}
@@ -216,7 +216,7 @@ function SimilarCard({ auction }: { auction: SimilarAuction }) {
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
-            <ImageOff className="h-8 w-8 text-[--color-ink-tertiary]" aria-hidden="true" />
+            <ImageOff className="h-8 w-8 text-[var(--color-ink-tertiary)]" aria-hidden="true" />
           </div>
         )}
         <div className="absolute left-2 top-2">
@@ -224,17 +224,17 @@ function SimilarCard({ auction }: { auction: SimilarAuction }) {
         </div>
       </div>
       <div className="flex flex-1 flex-col gap-1.5 p-3">
-        <p className="line-clamp-2 text-sm font-medium text-[--color-ink-primary]">
+        <p className="line-clamp-2 text-sm font-medium text-[var(--color-ink-primary)]">
           {auction.title}
         </p>
         {where && (
-          <p className="flex items-center gap-1 text-[11px] text-[--color-ink-tertiary]">
+          <p className="flex items-center gap-1 text-[11px] text-[var(--color-ink-tertiary)]">
             <MapPin className="h-3 w-3" aria-hidden="true" />
             <span className="truncate">{where}</span>
           </p>
         )}
         <div className="mt-auto flex items-baseline justify-between gap-2 pt-1">
-          <span className="tnum text-sm font-semibold text-[--color-ink-primary]">
+          <span className="tnum text-sm font-semibold text-[var(--color-ink-primary)]">
             {formatPrice(headlinePrice)}
           </span>
           <LiveCountdown

@@ -73,7 +73,7 @@ export function AuctionFinancialsTable({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-lg border border-[--color-hairline] bg-[--color-surface]",
+        "overflow-hidden rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)]",
         className,
       )}
     >
@@ -90,18 +90,18 @@ export function AuctionFinancialsTable({
               <tr
                 key={entry.key}
                 className={cn(
-                  idx > 0 && "border-t border-[--color-hairline]",
+                  idx > 0 && "border-t border-[var(--color-hairline)]",
                 )}
               >
                 <th
                   scope="row"
-                  className="px-4 py-3 text-left font-normal text-[--color-ink-secondary]"
+                  className="px-4 py-3 text-left font-normal text-[var(--color-ink-secondary)]"
                 >
                   <span className="inline-flex items-center gap-1.5">
                     <span>{entry.label}</span>
                     {entry.derived && (
                       <span
-                        className="inline-flex items-center gap-1 rounded-full bg-[--color-surface-muted] px-1.5 py-0.5 text-[10px] font-medium text-[--color-ink-tertiary]"
+                        className="inline-flex items-center gap-1 rounded-full bg-[var(--color-surface-muted)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-ink-tertiary)]"
                         title={entry.note ?? "Valor estimado"}
                         aria-describedby={noteId}
                       >
@@ -120,8 +120,8 @@ export function AuctionFinancialsTable({
                   className={cn(
                     "px-4 py-3 text-right tnum",
                     isUnknown
-                      ? "text-[--color-ink-quiet]"
-                      : "font-medium text-[--color-ink-primary]",
+                      ? "text-[var(--color-ink-quiet)]"
+                      : "font-medium text-[var(--color-ink-primary)]",
                   )}
                 >
                   {formatEuro(entry.value)}

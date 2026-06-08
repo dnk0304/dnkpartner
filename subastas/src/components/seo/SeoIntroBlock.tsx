@@ -31,7 +31,7 @@ export function SeoIntroBlock({ count, noun, location, minPrice, guideHref, guid
       ? `El precio de salida más bajo ahora mismo es de ${EUR.format(minPrice)}.`
       : `Cada ficha enlaza directamente al BOE oficial para verificar precios y plazos.`;
   return (
-    <section className="prose prose-sm max-w-none text-[--color-text] mb-6">
+    <section className="prose prose-sm max-w-none text-[var(--color-text)] mb-6">
       <p>
         En SubastasActivas seguimos <strong>{count.toLocaleString('es-ES')} {noun}{where}</strong> y
         te mostramos el estado en vivo de cada una: si está abierta,

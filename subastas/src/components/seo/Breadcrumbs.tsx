@@ -22,7 +22,7 @@ export function Breadcrumbs({ items }: { items: Crumb[] }) {
   };
   return (
     <>
-      <nav aria-label="Breadcrumb" className="text-xs text-[--color-text-muted] mb-3">
+      <nav aria-label="Breadcrumb" className="text-xs text-[var(--color-text-muted)] mb-3">
         <ol className="flex flex-wrap items-center gap-1">
           {items.map((c, i) => (
             <li key={c.href} className="flex items-center gap-1">
@@ -30,7 +30,7 @@ export function Breadcrumbs({ items }: { items: Crumb[] }) {
               {i < items.length - 1 ? (
                 <Link href={c.href} className="hover:underline">{c.label}</Link>
               ) : (
-                <span aria-current="page" className="text-[--color-text]">{c.label}</span>
+                <span aria-current="page" className="text-[var(--color-text)]">{c.label}</span>
               )}
             </li>
           ))}
