@@ -32,13 +32,13 @@ type Size = "xs" | "sm";
  * with the same all-black text per the project rule.
  */
 const SOURCE_TINT: Record<string, string> = {
-  BOE: "bg-[--color-info-soft] border-[--color-brand-soft]/30",
-  TEJU: "bg-[--color-info-soft] border-[--color-brand-soft]/30",
-  SEGSOCIAL: "bg-[--color-action-soft] border-[--color-action]/30",
+  BOE: "bg-[var(--color-info-soft)] border-[var(--color-brand-soft)]/30",
+  TEJU: "bg-[var(--color-info-soft)] border-[var(--color-brand-soft)]/30",
+  SEGSOCIAL: "bg-[var(--color-action-soft)] border-[var(--color-action)]/30",
   // PLABI (Plataforma de Liquidaciones / concursal). Distinct soft tint from
   // BOE (info-soft) and SegSocial (action-soft) so the three are
   // distinguishable in the same card row. All-black text per the project rule.
-  PLABI: "bg-[--color-warn-soft] border-[--color-warn-soft]/40",
+  PLABI: "bg-[var(--color-warn-soft)] border-[var(--color-warn-soft)]/40",
 };
 
 export type SourceBadgeProps = {
@@ -51,12 +51,12 @@ export function SourceBadge({ source, size = "xs", className }: SourceBadgeProps
   const label = getSourceLabel(source);
   if (!label) return null;
   const upper = source ? source.trim().toUpperCase() : "";
-  const tint = SOURCE_TINT[upper] ?? "bg-[--color-surface-muted] border-[--color-hairline]";
+  const tint = SOURCE_TINT[upper] ?? "bg-[var(--color-surface-muted)] border-[var(--color-hairline)]";
 
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border font-medium text-[--color-ink-primary] whitespace-nowrap",
+        "inline-flex items-center rounded-full border font-medium text-[var(--color-ink-primary)] whitespace-nowrap",
         tint,
         size === "xs" ? "px-2 py-0.5 text-[10px] tracking-wide" : "px-2.5 py-0.5 text-[11px]",
         className,

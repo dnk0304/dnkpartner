@@ -116,7 +116,7 @@ export function DetailTimeline({
 
   if (events.length === 0) {
     return (
-      <div className={cn("text-sm text-[--color-ink-tertiary]", className)}>
+      <div className={cn("text-sm text-[var(--color-ink-tertiary)]", className)}>
         Sin eventos registrados todavía. Esta subasta empezará a generar
         historial en cuanto el portal del BOE publique cambios.
       </div>
@@ -136,7 +136,7 @@ export function DetailTimeline({
           <button
             type="button"
             onClick={() => setExpanded((x) => !x)}
-            className="text-sm font-medium text-[--color-brand] hover:underline focus-visible:outline-none focus-visible:underline"
+            className="text-sm font-medium text-[var(--color-brand)] hover:underline focus-visible:outline-none focus-visible:underline"
           >
             {expanded ? "Mostrar menos" : `Ver todos los cambios (${events.length})`}
           </button>
@@ -156,16 +156,16 @@ function TimelineRow({ event }: { event: Event }) {
           style={{ backgroundColor: "#B08A3E" }}
         />
         <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-2 text-xs text-[--color-ink-tertiary] tnum">
+          <div className="flex items-baseline gap-2 text-xs text-[var(--color-ink-tertiary)] tnum">
             <time dateTime={event.at}>{formatRelativeEs(event.at)}</time>
             <span aria-hidden="true">·</span>
             <span>{formatDateLong(event.at)}</span>
           </div>
-          <div className="text-sm text-[--color-ink-primary]">
+          <div className="text-sm text-[var(--color-ink-primary)]">
             Nueva puja:{" "}
             <span className="tnum font-semibold">{formatPrice(event.bid)}</span>
             {event.bidType === "final" && (
-              <span className="ml-2 text-[10px] uppercase tracking-wide text-[--color-gold]">
+              <span className="ml-2 text-[10px] uppercase tracking-wide text-[var(--color-gold)]">
                 Adjudicación
               </span>
             )}
@@ -181,12 +181,12 @@ function TimelineRow({ event }: { event: Event }) {
     <li className="flex items-start gap-3">
       <StatusDot status={event.toStatus} size={10} className="mt-1.5" />
       <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2 text-xs text-[--color-ink-tertiary] tnum">
+        <div className="flex items-baseline gap-2 text-xs text-[var(--color-ink-tertiary)] tnum">
           <time dateTime={event.at}>{formatRelativeEs(event.at)}</time>
           <span aria-hidden="true">·</span>
           <span>{formatDateLong(event.at)}</span>
         </div>
-        <div className="text-sm text-[--color-ink-primary]">
+        <div className="text-sm text-[var(--color-ink-primary)]">
           {from ? (
             <>
               <span style={{ color: from.color }}>{from.label}</span>{" "}
@@ -201,7 +201,7 @@ function TimelineRow({ event }: { event: Event }) {
             </span>
           )}
           {event.reason && (
-            <span className="text-[--color-ink-tertiary]"> · {event.reason}</span>
+            <span className="text-[var(--color-ink-tertiary)]"> · {event.reason}</span>
           )}
         </div>
       </div>

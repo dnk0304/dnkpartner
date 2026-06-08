@@ -81,13 +81,13 @@ export function AdvancedFiltersSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="left"
-        className="w-full sm:max-w-md bg-[--color-page] border-r border-[--color-hairline] p-0 flex flex-col"
+        className="w-full sm:max-w-md bg-[var(--color-page)] border-r border-[var(--color-hairline)] p-0 flex flex-col"
       >
         <SheetHeader className="px-5 py-4 hairline-b">
-          <SheetTitle className="font-serif text-lg text-[--color-ink-primary]">
+          <SheetTitle className="font-serif text-lg text-[var(--color-ink-primary)]">
             Filtros avanzados
           </SheetTitle>
-          <SheetDescription className="text-xs text-[--color-ink-tertiary]">
+          <SheetDescription className="text-xs text-[var(--color-ink-tertiary)]">
             Refina el resultado con criterios precisos.
           </SheetDescription>
         </SheetHeader>
@@ -133,7 +133,7 @@ export function AdvancedFiltersSheet({
           </Section>
 
           <Section title="Próximamente" hint="Las características avanzadas se añadirán según se completen los datos del scraper.">
-            <ul className="text-xs text-[--color-ink-tertiary] space-y-1.5 list-disc ml-4">
+            <ul className="text-xs text-[var(--color-ink-tertiary)] space-y-1.5 list-disc ml-4">
               <li>Rango de fechas (termina entre, publicada entre)</li>
               <li>Rangos de tasación y % sobre tasación</li>
               <li>Solo visitables / sin cargas / desocupadas / con foto</li>
@@ -142,12 +142,12 @@ export function AdvancedFiltersSheet({
           </Section>
         </div>
 
-        <SheetFooter className="px-5 py-4 hairline-t bg-[--color-surface]">
+        <SheetFooter className="px-5 py-4 hairline-t bg-[var(--color-surface)]">
           <div className="flex items-center justify-between w-full gap-3">
             <button
               type="button"
               onClick={onClear}
-              className="text-xs text-[--color-ink-tertiary] hover:text-[--color-brand] focus-visible:outline-none focus-visible:underline"
+              className="text-xs text-[var(--color-ink-tertiary)] hover:text-[var(--color-brand)] focus-visible:outline-none focus-visible:underline"
             >
               Limpiar todo
             </button>
@@ -157,7 +157,7 @@ export function AdvancedFiltersSheet({
                 onSave?.();
                 onOpenChange(false);
               }}
-              className="bg-[--color-action-soft] border border-[--color-action] text-[--color-ink-primary] hover:bg-[--color-action-soft]/80"
+              className="bg-[var(--color-action-soft)] border border-[var(--color-action)] text-[var(--color-ink-primary)] hover:bg-[var(--color-action-soft)]/80"
             >
               {resultCount != null ? `Ver ${resultCount.toLocaleString("es-ES")} resultados` : "Aplicar"}
             </Button>
@@ -179,8 +179,8 @@ function Section({
 }) {
   return (
     <section>
-      <h3 className="font-serif text-sm text-[--color-ink-primary]">{title}</h3>
-      {hint && <p className="mt-0.5 text-xs text-[--color-ink-tertiary]">{hint}</p>}
+      <h3 className="font-serif text-sm text-[var(--color-ink-primary)]">{title}</h3>
+      {hint && <p className="mt-0.5 text-xs text-[var(--color-ink-tertiary)]">{hint}</p>}
       <div className="mt-2.5">{children}</div>
     </section>
   );
@@ -204,14 +204,14 @@ function CheckRow({
       className={cn(
         "flex items-center gap-2 rounded-md border px-2.5 py-1.5 cursor-pointer transition-colors text-sm",
         checked
-          ? "border-[--color-brand]/40 bg-[--color-brand]/5 text-[--color-brand]"
-          : "border-[--color-hairline] text-[--color-ink-primary] hover:border-[--color-brand]/40",
+          ? "border-[var(--color-brand)]/40 bg-[var(--color-brand)]/5 text-[var(--color-brand)]"
+          : "border-[var(--color-hairline)] text-[var(--color-ink-primary)] hover:border-[var(--color-brand)]/40",
       )}
     >
       <Checkbox
         checked={checked}
         onCheckedChange={onCheckedChange}
-        className="border-[--color-hairline] data-[state=checked]:bg-[--color-brand] data-[state=checked]:border-[--color-brand]"
+        className="border-[var(--color-hairline)] data-[state=checked]:bg-[var(--color-brand)] data-[state=checked]:border-[var(--color-brand)]"
       />
       <span>{label}</span>
     </label>

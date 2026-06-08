@@ -764,7 +764,7 @@ export const HierarchicalMap: React.FC<HierarchicalMapProps> = ({ items, onMarke
                 
                 <button
                   onClick={() => handleProvinceClick(province.name)}
-                  className="w-full px-3 py-2 bg-[--color-action-soft] border border-[--color-action] hover:bg-[--color-action-soft]/80 text-[--color-ink-primary] text-sm font-medium rounded-lg transition-colors"
+                  className="w-full px-3 py-2 bg-[var(--color-action-soft)] border border-[var(--color-action)] hover:bg-[var(--color-action-soft)]/80 text-[var(--color-ink-primary)] text-sm font-medium rounded-lg transition-colors"
                 >
                   Ver municipios
                 </button>
@@ -840,7 +840,7 @@ export const HierarchicalMap: React.FC<HierarchicalMapProps> = ({ items, onMarke
                 
                 <button
                   onClick={() => handleMunicipalityClick(municipality.name)}
-                  className="w-full px-3 py-2 bg-[--color-action-soft] border border-[--color-action] hover:bg-[--color-action-soft]/80 text-[--color-ink-primary] text-sm font-medium rounded-lg transition-colors"
+                  className="w-full px-3 py-2 bg-[var(--color-action-soft)] border border-[var(--color-action)] hover:bg-[var(--color-action-soft)]/80 text-[var(--color-ink-primary)] text-sm font-medium rounded-lg transition-colors"
                 >
                   Ver subastas
                 </button>
@@ -880,7 +880,7 @@ export const HierarchicalMap: React.FC<HierarchicalMapProps> = ({ items, onMarke
                     </p>
                     <button
                       onClick={() => onMarkerClick?.(auction)}
-                      className="w-full px-3 py-2 bg-[--color-action-soft] border border-[--color-action] hover:bg-[--color-action-soft]/80 text-[--color-ink-primary] text-xs font-medium rounded-lg transition-colors"
+                      className="w-full px-3 py-2 bg-[var(--color-action-soft)] border border-[var(--color-action)] hover:bg-[var(--color-action-soft)]/80 text-[var(--color-ink-primary)] text-xs font-medium rounded-lg transition-colors"
                     >
                       Ver subasta
                     </button>

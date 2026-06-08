@@ -55,14 +55,14 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ onUpgradeClick
     switch (userTier) {
       case 'diamond':
         return (
-          <Badge className="bg-[--color-action-soft] text-[--color-ink-primary] border border-[--color-action]">
+          <Badge className="bg-[var(--color-action-soft)] text-[var(--color-ink-primary)] border border-[var(--color-action)]">
             <Crown className="h-3 w-3 mr-1" />
             Diamond
           </Badge>
         );
       case 'gold':
         return (
-          <Badge className="bg-[--color-warn-attention-soft] text-[--color-ink-primary] border border-[--color-warn-attention]">
+          <Badge className="bg-[var(--color-warn-attention-soft)] text-[var(--color-ink-primary)] border border-[var(--color-warn-attention)]">
             <Crown className="h-3 w-3 mr-1" />
             Gold
           </Badge>
@@ -109,7 +109,7 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ onUpgradeClick
                 className="h-10 w-10 rounded-full object-cover border-2 border-gray-300"
               />
             ) : (
-              <div className="h-10 w-10 rounded-full bg-[--color-brand] flex items-center justify-center text-[--color-ink-inverse] font-semibold text-sm border-2 border-[--color-hairline]">
+              <div className="h-10 w-10 rounded-full bg-[var(--color-brand)] flex items-center justify-center text-[var(--color-ink-inverse)] font-semibold text-sm border-2 border-[var(--color-hairline)]">
                 {getInitials()}
               </div>
             )}
@@ -139,7 +139,7 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ onUpgradeClick
                   className="h-12 w-12 rounded-full object-cover"
                 />
               ) : (
-                <div className="h-12 w-12 rounded-full bg-[--color-brand] flex items-center justify-center text-[--color-ink-inverse] font-bold text-lg">
+                <div className="h-12 w-12 rounded-full bg-[var(--color-brand)] flex items-center justify-center text-[var(--color-ink-inverse)] font-bold text-lg">
                   {getInitials()}
                 </div>
               )}

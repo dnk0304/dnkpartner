@@ -19,7 +19,14 @@ export const SIMPLE_KIND_OPTIONS: Array<{
   {
     id: "vivienda",
     label: "Vivienda",
-    categories: ["Viviendas", "Otros inmuebles"],
+    // Wave86 (Pixel 2026-06-08): TIGHTENED to strict "Viviendas" only.
+    // The prior loose set (`["Viviendas", "Otros inmuebles"]`) was bleeding
+    // SEGSOCIAL vehicles + niche non-residential rows into the kind=vivienda
+    // listing because Ghost stamps mislabeled SEGSOCIAL stock as
+    // "Otros inmuebles". Strict equality here returns ONLY true Viviendas.
+    // If the underlying data layer reclassifies any of those misfiles back
+    // into "Otros inmuebles" later we can widen — until then, strict.
+    categories: ["Viviendas"],
   },
   {
     id: "vehiculo",

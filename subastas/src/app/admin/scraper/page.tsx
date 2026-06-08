@@ -564,7 +564,7 @@ export default function EnhancedAdminScraperPage() {
                 <Button
                   onClick={startComprehensiveScraper}
                   disabled={loading}
-                  className="w-full bg-[--color-action-soft] border border-[--color-action] hover:bg-[--color-action-soft]/80 text-[--color-ink-primary] h-12 text-lg font-semibold"
+                  className="w-full bg-[var(--color-action-soft)] border border-[var(--color-action)] hover:bg-[var(--color-action-soft)]/80 text-[var(--color-ink-primary)] h-12 text-lg font-semibold"
                 >
                   {loading ? <Loader2 className="animate-spin mr-2" /> : <Play className="mr-2" />}
                   Launch {comprehensiveBatches} Parallel Comprehensive Scrapers

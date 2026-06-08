@@ -60,25 +60,25 @@ export default async function NotFound() {
       className="mx-auto flex max-w-editorial flex-col items-start gap-6 px-4 py-16 md:px-6 md:py-24"
       role="main"
     >
-      <p className="font-mono text-xs uppercase tracking-[0.18em] text-[--color-ink-tertiary]">
+      <p className="font-mono text-xs uppercase tracking-[0.18em] text-[var(--color-ink-tertiary)]">
         {copy.eyebrow}
       </p>
-      <h1 className="font-display text-3xl font-semibold leading-tight text-[--color-ink-primary] md:text-4xl">
+      <h1 className="font-display text-3xl font-semibold leading-tight text-[var(--color-ink-primary)] md:text-4xl">
         {copy.heading}
       </h1>
-      <p className="max-w-prose text-base text-[--color-ink-secondary]">
+      <p className="max-w-prose text-base text-[var(--color-ink-secondary)]">
         {copy.body}
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-3">
         <Link
           href={homeHref}
-          className="inline-flex items-center rounded-md bg-[--color-action] px-4 py-2 text-sm font-medium text-white shadow-[var(--shadow-cta)] transition-colors hover:bg-[--color-action-hover] focus:outline-none focus:ring-2 focus:ring-[--color-action]/30"
+          className="inline-flex items-center rounded-md bg-[var(--color-action)] px-4 py-2 text-sm font-medium text-white shadow-[var(--shadow-cta)] transition-colors hover:bg-[var(--color-action-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--color-action)]/30"
         >
           {copy.ctaHome}
         </Link>
         <Link
           href={listHref}
-          className="inline-flex items-center rounded-md border border-[--color-hairline] bg-white px-4 py-2 text-sm font-medium text-[--color-ink-primary] transition-colors hover:border-[--color-brand]/30 hover:text-[--color-brand] focus:outline-none focus:ring-2 focus:ring-[--color-brand]/20"
+          className="inline-flex items-center rounded-md border border-[var(--color-hairline)] bg-white px-4 py-2 text-sm font-medium text-[var(--color-ink-primary)] transition-colors hover:border-[var(--color-brand)]/30 hover:text-[var(--color-brand)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/20"
         >
           {copy.ctaList}
         </Link>

@@ -26,7 +26,7 @@ import remarkGfm from "remark-gfm";
 
 export function ArticleContent({ body }: { body: string }) {
   return (
-    <div className="article-prose text-[--color-ink-primary]">
+    <div className="article-prose text-[var(--color-ink-primary)]">
       <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
     </div>
   );

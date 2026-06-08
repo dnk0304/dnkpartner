@@ -84,17 +84,17 @@ export function SimpleFilters({
   return (
     <aside
       className={cn(
-        "rounded-lg border border-[--color-hairline] bg-[--color-surface] p-4 md:p-5 space-y-5",
+        "rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] p-4 md:p-5 space-y-5",
         className,
       )}
       aria-label="Filtros"
     >
       <div className="flex items-baseline justify-between">
-        <h2 className="font-serif text-base text-[--color-ink-primary]">Filtros</h2>
+        <h2 className="font-serif text-base text-[var(--color-ink-primary)]">Filtros</h2>
         <button
           type="button"
           onClick={onClear}
-          className="text-xs text-[--color-ink-tertiary] hover:text-[--color-brand] focus-visible:outline-none focus-visible:underline transition-colors"
+          className="text-xs text-[var(--color-ink-tertiary)] hover:text-[var(--color-brand)] focus-visible:outline-none focus-visible:underline transition-colors"
         >
           Limpiar
         </button>
@@ -112,10 +112,10 @@ export function SimpleFilters({
                 onClick={() => onChange({ kind: opt.id, categories: [] })}
                 className={cn(
                   "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40",
                   active
-                    ? "border-[--color-action] bg-[--color-action-soft] text-[--color-ink-primary]"
-                    : "border-[--color-hairline] text-[--color-ink-primary] hover:border-[--color-action]/40 hover:bg-[--color-action-soft]/40",
+                    ? "border-[var(--color-action)] bg-[var(--color-action-soft)] text-[var(--color-ink-primary)]"
+                    : "border-[var(--color-hairline)] text-[var(--color-ink-primary)] hover:border-[var(--color-action)]/40 hover:bg-[var(--color-action-soft)]/40",
                 )}
                 aria-pressed={active}
               >
@@ -132,7 +132,7 @@ export function SimpleFilters({
           <select
             value={filters.province}
             onChange={(e) => onChange({ province: e.target.value, municipality: "" })}
-            className="tnum w-full rounded-md border border-[--color-hairline] bg-white px-3 py-2 text-sm text-[--color-ink-primary] focus:outline-none focus:border-[--color-brand] focus:ring-2 focus:ring-[--color-brand]/15"
+            className="tnum w-full rounded-md border border-[var(--color-hairline)] bg-white px-3 py-2 text-sm text-[var(--color-ink-primary)] focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15"
             aria-label="Provincia"
           >
             <option value="">Todas las provincias</option>
@@ -147,7 +147,7 @@ export function SimpleFilters({
             <select
               value={filters.municipality}
               onChange={(e) => onChange({ municipality: e.target.value })}
-              className="tnum w-full rounded-md border border-[--color-hairline] bg-white px-3 py-2 text-sm text-[--color-ink-primary] focus:outline-none focus:border-[--color-brand] focus:ring-2 focus:ring-[--color-brand]/15"
+              className="tnum w-full rounded-md border border-[var(--color-hairline)] bg-white px-3 py-2 text-sm text-[var(--color-ink-primary)] focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15"
               aria-label="Municipio"
               disabled={municipalities.length === 0}
             >
@@ -170,7 +170,7 @@ export function SimpleFilters({
             return (
               <label
                 key={opt.id}
-                className="flex items-center gap-2 cursor-pointer text-sm text-[--color-ink-primary]"
+                className="flex items-center gap-2 cursor-pointer text-sm text-[var(--color-ink-primary)]"
               >
                 <input
                   type="radio"
@@ -178,7 +178,7 @@ export function SimpleFilters({
                   value={opt.id}
                   checked={active}
                   onChange={() => onChange({ when: opt.id, statuses: [] })}
-                  className="h-3.5 w-3.5 accent-[--color-brand]"
+                  className="h-3.5 w-3.5 accent-[var(--color-brand)]"
                 />
                 {opt.label}
               </label>
@@ -198,10 +198,10 @@ export function SimpleFilters({
             onChange={(e) => setMinStr(e.target.value)}
             onBlur={commitPrice}
             placeholder="Min €"
-            className="tnum w-full rounded-md border border-[--color-hairline] bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:border-[--color-brand] focus:ring-2 focus:ring-[--color-brand]/15"
+            className="tnum w-full rounded-md border border-[var(--color-hairline)] bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15"
             aria-label="Precio mínimo"
           />
-          <span aria-hidden="true" className="text-[--color-ink-tertiary]">
+          <span aria-hidden="true" className="text-[var(--color-ink-tertiary)]">
             –
           </span>
           <input
@@ -212,7 +212,7 @@ export function SimpleFilters({
             onChange={(e) => setMaxStr(e.target.value)}
             onBlur={commitPrice}
             placeholder="Max €"
-            className="tnum w-full rounded-md border border-[--color-hairline] bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:border-[--color-brand] focus:ring-2 focus:ring-[--color-brand]/15"
+            className="tnum w-full rounded-md border border-[var(--color-hairline)] bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15"
             aria-label="Precio máximo"
           />
         </div>
@@ -223,14 +223,14 @@ export function SimpleFilters({
         <button
           type="button"
           onClick={onMoreClick}
-          className="inline-flex items-center gap-2 text-sm font-medium text-[--color-brand] hover:underline focus-visible:outline-none focus-visible:underline"
+          className="inline-flex items-center gap-2 text-sm font-medium text-[var(--color-brand)] hover:underline focus-visible:outline-none focus-visible:underline"
         >
           <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
           Más filtros
         </button>
         {resultCount != null && (
-          <p className="mt-3 text-xs text-[--color-ink-tertiary] tnum">
-            <span className="font-semibold text-[--color-ink-primary]">
+          <p className="mt-3 text-xs text-[var(--color-ink-tertiary)] tnum">
+            <span className="font-semibold text-[var(--color-ink-primary)]">
               {resultCount.toLocaleString("es-ES")}
             </span>{" "}
             subastas coinciden
@@ -250,7 +250,7 @@ function FilterBlock({
 }) {
   return (
     <div>
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[--color-ink-tertiary]">
+      <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-ink-tertiary)]">
         {label}
       </div>
       {children}
@@ -431,7 +431,7 @@ export function ActiveFilterChips({
         <span
           key={c.key}
           // Wave 80 — switched the chip background from the bare-token shorthand
-          // (`bg-[--color-surface-muted]`) to the `bg-[var(--...)]` form so the
+          // (`bg-[var(--color-surface-muted)]`) to the `bg-[var(--...)]` form so the
           // CSS variable actually paints in Tailwind v4 (see the same fix
           // documented at the top of FiltersSidebar.tsx). The previous version
           // emitted `background-color: --color-surface-muted;` which paints

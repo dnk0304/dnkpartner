@@ -75,7 +75,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onOpenChange }
           {/* 2. Gold Tier (Basic) */}
           <div className="p-8 flex flex-col h-full bg-white relative z-10 shadow-xl shadow-gray-200/50 md:scale-105 md:-mt-4 md:mb-4 md:rounded-2xl md:border border-gray-100">
             <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2">
-              <Badge className="bg-[--color-surface] border-2 border-[--color-ink-primary] text-[--color-ink-primary] px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide">
+              <Badge className="bg-[var(--color-surface)] border-2 border-[var(--color-ink-primary)] text-[var(--color-ink-primary)] px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide">
                 Most Popular
               </Badge>
             </div>
@@ -92,7 +92,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onOpenChange }
             </div>
             <Button 
               onClick={() => handleCheckout('gold')}
-              className="w-full rounded-xl h-12 bg-[--color-surface] border-2 border-[--color-ink-primary] hover:bg-[--color-surface-muted] text-[--color-ink-primary] font-semibold mb-4 shadow-sm"
+              className="w-full rounded-xl h-12 bg-[var(--color-surface)] border-2 border-[var(--color-ink-primary)] hover:bg-[var(--color-surface-muted)] text-[var(--color-ink-primary)] font-semibold mb-4 shadow-sm"
             >
               Start 15-Day Free Trial
             </Button>

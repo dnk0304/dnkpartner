@@ -258,7 +258,7 @@ export default async function SubastaDetailPage({ params }: PageProps) {
   })();
 
   return (
-    <div className="min-h-screen bg-[--color-page] pb-12">
+    <div className="min-h-screen bg-[var(--color-page)] pb-12">
       {jsonLd && (
         <script
           type="application/ld+json"

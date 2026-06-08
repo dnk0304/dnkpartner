@@ -28,8 +28,8 @@ export const MapPlaceholder: React.FC<MapPlaceholderProps> = ({ items }) => {
       
       {/* Map Content Overlay */}
       <div className="absolute inset-0 p-4">
-        <div className="absolute top-4 right-4 z-10 rounded-md bg-[--color-surface]/95 px-3 py-2 text-xs text-[--color-ink-secondary] backdrop-blur-sm border border-[--color-hairline]">
-           <span className="font-bold text-[--color-ink-primary]">Zona Canarias</span>
+        <div className="absolute top-4 right-4 z-10 rounded-md bg-[var(--color-surface)]/95 px-3 py-2 text-xs text-[var(--color-ink-secondary)] backdrop-blur-sm border border-[var(--color-hairline)]">
+           <span className="font-bold text-[var(--color-ink-primary)]">Zona Canarias</span>
         </div>
       </div>
 
@@ -68,8 +68,8 @@ export const MapPlaceholder: React.FC<MapPlaceholderProps> = ({ items }) => {
 
       {/* Map Controls Mockup */}
       <div className="absolute bottom-6 right-6 flex flex-col gap-2">
-         <div className="h-8 w-8 rounded bg-[--color-surface] border border-[--color-hairline] flex items-center justify-center text-[--color-ink-primary] hover:bg-[--color-surface-muted] cursor-pointer">+</div>
-         <div className="h-8 w-8 rounded bg-[--color-surface] border border-[--color-hairline] flex items-center justify-center text-[--color-ink-primary] hover:bg-[--color-surface-muted] cursor-pointer">-</div>
+         <div className="h-8 w-8 rounded bg-[var(--color-surface)] border border-[var(--color-hairline)] flex items-center justify-center text-[var(--color-ink-primary)] hover:bg-[var(--color-surface-muted)] cursor-pointer">+</div>
+         <div className="h-8 w-8 rounded bg-[var(--color-surface)] border border-[var(--color-hairline)] flex items-center justify-center text-[var(--color-ink-primary)] hover:bg-[var(--color-surface-muted)] cursor-pointer">-</div>
       </div>
     </div>
   );

@@ -184,7 +184,7 @@ export default function AuctionDetailClient({
     hideHeader ? (
       <div className={dense ? 'py-6' : 'py-16 text-center'}>{children}</div>
     ) : (
-      <div className="min-h-screen bg-[--color-page]">
+      <div className="min-h-screen bg-[var(--color-page)]">
         <main className={`mx-auto max-w-editorial px-4 md:px-6 ${dense ? 'py-8 space-y-6' : 'py-16 text-center'}`}>
           {children}
         </main>
@@ -194,14 +194,14 @@ export default function AuctionDetailClient({
   if (loading) {
     return (
       <StatusShell dense>
-        <div className="h-7 w-1/3 bg-[--color-surface-muted] rounded animate-pulse" />
-        <div className="h-12 w-2/3 bg-[--color-surface-muted] rounded animate-pulse" />
+        <div className="h-7 w-1/3 bg-[var(--color-surface-muted)] rounded animate-pulse" />
+        <div className="h-12 w-2/3 bg-[var(--color-surface-muted)] rounded animate-pulse" />
         <div className="grid grid-cols-1 md:grid-cols-[1fr_360px] gap-6">
           <div className="space-y-3">
-            <div className="h-64 bg-[--color-surface-muted] rounded animate-pulse" />
-            <div className="h-32 bg-[--color-surface-muted] rounded animate-pulse" />
+            <div className="h-64 bg-[var(--color-surface-muted)] rounded animate-pulse" />
+            <div className="h-32 bg-[var(--color-surface-muted)] rounded animate-pulse" />
           </div>
-          <div className="h-96 bg-[--color-surface-muted] rounded animate-pulse" />
+          <div className="h-96 bg-[var(--color-surface-muted)] rounded animate-pulse" />
         </div>
       </StatusShell>
     );
@@ -210,13 +210,13 @@ export default function AuctionDetailClient({
   if (error === "not_found") {
     return (
       <StatusShell>
-        <h1 className="font-serif text-2xl text-[--color-ink-primary]">Subasta no encontrada</h1>
-        <p className="mt-2 text-sm text-[--color-ink-tertiary]">
+        <h1 className="font-serif text-2xl text-[var(--color-ink-primary)]">Subasta no encontrada</h1>
+        <p className="mt-2 text-sm text-[var(--color-ink-tertiary)]">
           La subasta solicitada no existe o ha sido retirada del Portal del BOE.
         </p>
         <Link
           href="/subastas"
-          className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-[--color-brand] hover:underline"
+          className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-[var(--color-brand)] hover:underline"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Ver todas las subastas
@@ -228,10 +228,10 @@ export default function AuctionDetailClient({
   if (error || !data) {
     return (
       <StatusShell>
-        <h1 className="font-serif text-xl text-[--color-ink-primary]">
+        <h1 className="font-serif text-xl text-[var(--color-ink-primary)]">
           No pudimos cargar esta subasta.
         </h1>
-        <p className="mt-2 text-sm text-[--color-ink-tertiary]">
+        <p className="mt-2 text-sm text-[var(--color-ink-tertiary)]">
           Reintenta en unos segundos o vuelve a la lista.
         </p>
       </StatusShell>
@@ -349,7 +349,7 @@ export default function AuctionDetailClient({
   const OuterShell = hideHeader
     ? ({ children }: { children: React.ReactNode }) => <>{children}</>
     : ({ children }: { children: React.ReactNode }) => (
-        <div className="min-h-screen bg-[--color-page] pb-24 md:pb-12">
+        <div className="min-h-screen bg-[var(--color-page)] pb-24 md:pb-12">
           <main className="mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8">
             {children}
           </main>
@@ -364,12 +364,12 @@ export default function AuctionDetailClient({
         {!hideHeader && (
         <>
         {/* Breadcrumb */}
-        <nav className="text-xs text-[--color-ink-tertiary] tnum" aria-label="Migas de pan">
-          <Link href="/" className="hover:text-[--color-brand]">
+        <nav className="text-xs text-[var(--color-ink-tertiary)] tnum" aria-label="Migas de pan">
+          <Link href="/" className="hover:text-[var(--color-brand)]">
             Inicio
           </Link>
           <span aria-hidden="true" className="mx-2">·</span>
-          <Link href="/subastas" className="hover:text-[--color-brand]">
+          <Link href="/subastas" className="hover:text-[var(--color-brand)]">
             Subastas
           </Link>
           {raw.province && (
@@ -384,7 +384,7 @@ export default function AuctionDetailClient({
                     ? `/subastas/${PROVINCE_DB_KEY_TO_SLUG[raw.province]}`
                     : `/subastas?province=${encodeURIComponent(raw.province)}`
                 }
-                className="hover:text-[--color-brand]"
+                className="hover:text-[var(--color-brand)]"
               >
                 {capitalize(raw.province)}
               </Link>
@@ -406,7 +406,7 @@ export default function AuctionDetailClient({
             */}
         <header className="mt-3 mb-7 md:mb-9 space-y-4">
           <div className="min-w-0 space-y-2">
-            <h1 className="font-serif text-2xl md:text-3xl lg:text-4xl leading-tight text-[--color-ink-primary]">
+            <h1 className="font-serif text-2xl md:text-3xl lg:text-4xl leading-tight text-[var(--color-ink-primary)]">
               {auctionDisplayTitle({
                 address: raw.address,
                 propertyType: raw.propertyType,
@@ -418,9 +418,9 @@ export default function AuctionDetailClient({
               })}
             </h1>
             {where && (
-              <p className="text-sm text-[--color-ink-secondary]">{where}</p>
+              <p className="text-sm text-[var(--color-ink-secondary)]">{where}</p>
             )}
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[--color-ink-tertiary] tnum">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--color-ink-tertiary)] tnum">
               <span className="font-mono">{raw.boeId}</span>
               {/* propertyType (doc-archive backfill) — BOE bien-heading type.
                   Preferred over auctionType when both are present. */}
@@ -506,16 +506,16 @@ export default function AuctionDetailClient({
                       />
                     </div>
                   </div>
-                  <p className="mt-2 text-[11px] text-[--color-ink-tertiary]">
+                  <p className="mt-2 text-[11px] text-[var(--color-ink-tertiary)]">
                     Foto generada a partir de la referencia catastral o Street View. Puede no reflejar el estado actual.
                   </p>
                 </section>
                 {hasCoords && (
                   <section aria-labelledby="map-heading">
-                    <h2 id="map-heading" className="font-serif text-xl text-[--color-ink-primary]">
+                    <h2 id="map-heading" className="font-serif text-xl text-[var(--color-ink-primary)]">
                       Localización
                     </h2>
-                    <p className="mt-0.5 text-xs text-[--color-ink-tertiary]">
+                    <p className="mt-0.5 text-xs text-[var(--color-ink-tertiary)]">
                       Punto aproximado del bien. Verifica la dirección en el edicto.
                     </p>
                     <div className="mt-3">
@@ -591,7 +591,7 @@ export default function AuctionDetailClient({
                     />
                   </div>
                 </div>
-                <p className="mt-2 text-[11px] text-[--color-ink-tertiary] flex items-center gap-1.5">
+                <p className="mt-2 text-[11px] text-[var(--color-ink-tertiary)] flex items-center gap-1.5">
                   <ImageOff className="h-3 w-3" aria-hidden="true" />
                   Aún no disponemos de foto ni ubicación geocodificada para esta subasta.
                 </p>
@@ -605,10 +605,10 @@ export default function AuctionDetailClient({
             {Array.isArray(raw.financials) && raw.financials.length > 0 && (
               <section aria-labelledby="financials-heading">
                 <div className="flex items-baseline justify-between gap-3">
-                  <h2 id="financials-heading" className="font-serif text-xl text-[--color-ink-primary]">
+                  <h2 id="financials-heading" className="font-serif text-xl text-[var(--color-ink-primary)]">
                     Desglose financiero
                   </h2>
-                  <span className="text-[11px] text-[--color-ink-tertiary]">
+                  <span className="text-[11px] text-[var(--color-ink-tertiary)]">
                     Valores en euros · fuente BOE
                   </span>
                 </div>
@@ -623,10 +623,10 @@ export default function AuctionDetailClient({
                 <div className="mt-5 accent-band p-5">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0 flex-1">
-                      <p className="font-serif text-base text-[--color-ink-primary]">
+                      <p className="font-serif text-base text-[var(--color-ink-primary)]">
                         ¿Te interesan subastas como esta?
                       </p>
-                      <p className="mt-0.5 text-xs text-[--color-ink-secondary]">
+                      <p className="mt-0.5 text-xs text-[var(--color-ink-secondary)]">
                         Activa el plan Acceso y te avisamos por email cuando se publiquen
                         subastas similares en {raw.province ? capitalize(raw.province) : "tu zona"}.
                       </p>
@@ -645,10 +645,10 @@ export default function AuctionDetailClient({
                 below. */}
             {Array.isArray(raw.sourceLinks) && raw.sourceLinks.length > 0 && (
               <section aria-labelledby="sources-heading">
-                <h2 id="sources-heading" className="font-serif text-xl text-[--color-ink-primary]">
+                <h2 id="sources-heading" className="font-serif text-xl text-[var(--color-ink-primary)]">
                   Fuente oficial
                 </h2>
-                <p className="mt-0.5 text-xs text-[--color-ink-tertiary]">
+                <p className="mt-0.5 text-xs text-[var(--color-ink-tertiary)]">
                   Enlaces directos al BOE y otros orígenes oficiales. Se abren en una nueva pestaña.
                 </p>
                 <div className="mt-3">
@@ -666,11 +666,11 @@ export default function AuctionDetailClient({
             <section aria-labelledby="timeline-heading">
               <h2
                 id="timeline-heading"
-                className="font-serif text-xl text-[--color-ink-primary]"
+                className="font-serif text-xl text-[var(--color-ink-primary)]"
               >
                 Línea de tiempo
               </h2>
-              <p className="mt-0.5 text-xs text-[--color-ink-tertiary]">
+              <p className="mt-0.5 text-xs text-[var(--color-ink-tertiary)]">
                 Cambios detectados por nuestro tracker, en orden cronológico.
               </p>
               <div className="mt-4">
@@ -698,10 +698,10 @@ export default function AuctionDetailClient({
               if (!desc) return null;
               return (
                 <section aria-labelledby="desc-heading">
-                  <h2 id="desc-heading" className="font-serif text-xl text-[--color-ink-primary]">
+                  <h2 id="desc-heading" className="font-serif text-xl text-[var(--color-ink-primary)]">
                     Descripción del bien
                   </h2>
-                  <div className="mt-3 max-w-readable text-[15px] leading-relaxed text-[--color-ink-secondary] whitespace-pre-line">
+                  <div className="mt-3 max-w-readable text-[15px] leading-relaxed text-[var(--color-ink-secondary)] whitespace-pre-line">
                     {desc}
                   </div>
                 </section>
@@ -724,7 +724,7 @@ export default function AuctionDetailClient({
               if (!make && !model && year == null) return null;
               return (
                 <section aria-labelledby="vehiculo-heading">
-                  <h2 id="vehiculo-heading" className="font-serif text-xl text-[--color-ink-primary]">
+                  <h2 id="vehiculo-heading" className="font-serif text-xl text-[var(--color-ink-primary)]">
                     Datos del vehículo
                   </h2>
                   <dl className="mt-3 grid grid-cols-1 sm:grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
@@ -752,7 +752,7 @@ export default function AuctionDetailClient({
               if (!anyBien) return null;
               return (
                 <section aria-labelledby="bien-heading">
-                  <h2 id="bien-heading" className="font-serif text-xl text-[--color-ink-primary]">
+                  <h2 id="bien-heading" className="font-serif text-xl text-[var(--color-ink-primary)]">
                     Datos del bien
                   </h2>
                   <dl className="mt-3 grid grid-cols-1 sm:grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
@@ -780,7 +780,7 @@ export default function AuctionDetailClient({
 
             {/* Legal data */}
             <section aria-labelledby="legal-heading">
-              <h2 id="legal-heading" className="font-serif text-xl text-[--color-ink-primary]">
+              <h2 id="legal-heading" className="font-serif text-xl text-[var(--color-ink-primary)]">
                 Datos legales
               </h2>
               <dl className="mt-3 grid grid-cols-1 sm:grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
@@ -803,7 +803,7 @@ export default function AuctionDetailClient({
                               target="_blank"
                               rel="noopener noreferrer"
                               aria-label="Ver en la Sede Electrónica del Catastro (se abre en nueva pestaña)"
-                              className="inline-flex items-center gap-1 rounded-full border border-[--color-hairline] bg-[--color-surface-muted] px-2 py-0.5 text-[11px] font-medium text-[--color-ink-secondary] hover:border-[--color-brand]/40 hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40"
+                              className="inline-flex items-center gap-1 rounded-full border border-[var(--color-hairline)] bg-[var(--color-surface-muted)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-ink-secondary)] hover:border-[var(--color-brand)]/40 hover:text-[var(--color-ink-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40"
                             >
                               <Landmark className="h-3 w-3" aria-hidden="true" />
                               Ver en Catastro
@@ -846,7 +846,7 @@ export default function AuctionDetailClient({
             {(raw.pdfUrl || raw.edictUrl || raw.boeLink ||
               (Array.isArray(raw.documents) && raw.documents.length > 0)) && (
               <section aria-labelledby="docs-heading">
-                <h2 id="docs-heading" className="font-serif text-xl text-[--color-ink-primary]">
+                <h2 id="docs-heading" className="font-serif text-xl text-[var(--color-ink-primary)]">
                   Documentos oficiales
                 </h2>
                 {Array.isArray(raw.documents) && raw.documents.length > 0 && (() => {
@@ -861,7 +861,7 @@ export default function AuctionDetailClient({
                   });
                   if (visible.length === 0) return null;
                   return (
-                    <p className="mt-0.5 text-xs text-[--color-ink-tertiary]">
+                    <p className="mt-0.5 text-xs text-[var(--color-ink-tertiary)]">
                       {visible.map((d) => d.title?.trim() || prettifyDocType(d.docType)).join(" · ")}
                     </p>
                   );
@@ -885,13 +885,13 @@ export default function AuctionDetailClient({
                     const primaryHref = doc.downloadUrl ?? doc.officialUrl;
                     if (!primaryHref) return null;
                     return (
-                      <li key={doc.id} className="rounded-md border border-[--color-hairline] bg-[--color-surface] p-3">
+                      <li key={doc.id} className="rounded-md border border-[var(--color-hairline)] bg-[var(--color-surface)] p-3">
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
-                            <div className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+                            <div className="text-[10px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
                               {prettifyDocType(doc.docType)}
                             </div>
-                            <div className="font-medium text-[--color-ink-primary] break-words">
+                            <div className="font-medium text-[var(--color-ink-primary)] break-words">
                               {label}
                             </div>
                           </div>
@@ -901,7 +901,7 @@ export default function AuctionDetailClient({
                               {...(doc.downloadUrl
                                 ? { download: "" }
                                 : { target: "_blank", rel: "noopener noreferrer" })}
-                              className="inline-flex items-center gap-1.5 rounded-md bg-[--color-brand] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40 cursor-pointer"
+                              className="inline-flex items-center gap-1.5 rounded-md bg-[var(--color-brand)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40 cursor-pointer"
                               aria-label={
                                 doc.downloadUrl
                                   ? `Descargar ${label}`
@@ -925,7 +925,7 @@ export default function AuctionDetailClient({
                                 href={doc.officialUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 rounded-md border border-[--color-hairline] bg-[--color-surface] px-3 py-1.5 text-xs font-medium text-[--color-ink-secondary] hover:bg-[--color-surface-muted] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-ink-tertiary]/30 cursor-pointer"
+                                className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-hairline)] bg-[var(--color-surface)] px-3 py-1.5 text-xs font-medium text-[var(--color-ink-secondary)] hover:bg-[var(--color-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ink-tertiary)]/30 cursor-pointer"
                                 aria-label={`Ver ${label} en el BOE`}
                               >
                                 <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
@@ -948,7 +948,7 @@ export default function AuctionDetailClient({
                         href={raw.edictUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 text-[--color-brand] hover:underline focus-visible:outline-none focus-visible:underline cursor-pointer"
+                        className="inline-flex items-center gap-2 text-[var(--color-brand)] hover:underline focus-visible:outline-none focus-visible:underline cursor-pointer"
                       >
                         <FileText className="h-4 w-4" aria-hidden="true" />
                         Edicto del juzgado (PDF)
@@ -977,7 +977,7 @@ export default function AuctionDetailClient({
               raw.cadastral.use || raw.cadastral.area ||
               raw.cadastral.ownershipPct) && (
               <section aria-labelledby="cadastral-heading">
-                <h2 id="cadastral-heading" className="font-serif text-xl text-[--color-ink-primary]">
+                <h2 id="cadastral-heading" className="font-serif text-xl text-[var(--color-ink-primary)]">
                   Información catastral y registral
                 </h2>
                 <dl className="mt-3 grid grid-cols-1 sm:grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
@@ -994,7 +994,7 @@ export default function AuctionDetailClient({
                                 href={catastroUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 rounded-full border border-[--color-hairline] bg-[--color-surface-muted] px-2 py-0.5 text-[11px] font-medium text-[--color-ink-secondary] hover:border-[--color-brand]/40 hover:text-[--color-ink-primary]"
+                                className="inline-flex items-center gap-1 rounded-full border border-[var(--color-hairline)] bg-[var(--color-surface-muted)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-ink-secondary)] hover:border-[var(--color-brand)]/40 hover:text-[var(--color-ink-primary)]"
                               >
                                 <Landmark className="h-3 w-3" aria-hidden="true" />
                                 Ver en Catastro
@@ -1035,19 +1035,19 @@ export default function AuctionDetailClient({
                 fully hidden when both name and contact are absent. */}
             {raw.seller && (raw.seller.name || raw.seller.contact) && (
               <section aria-labelledby="contact-heading">
-                <h2 id="contact-heading" className="font-serif text-xl text-[--color-ink-primary]">
+                <h2 id="contact-heading" className="font-serif text-xl text-[var(--color-ink-primary)]">
                   Contacto del organismo
                 </h2>
-                <div className="mt-3 space-y-2 rounded-lg border border-[--color-hairline] bg-[--color-surface] p-4 text-sm">
+                <div className="mt-3 space-y-2 rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] p-4 text-sm">
                   {raw.seller.name && (
-                    <p className="flex items-start gap-2 text-[--color-ink-primary]">
-                      <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-[--color-ink-tertiary]" aria-hidden="true" />
+                    <p className="flex items-start gap-2 text-[var(--color-ink-primary)]">
+                      <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-ink-tertiary)]" aria-hidden="true" />
                       <span className="font-medium">{raw.seller.name}</span>
                     </p>
                   )}
                   {raw.seller.contact && (
-                    <p className="flex items-start gap-2 whitespace-pre-line text-[--color-ink-secondary]">
-                      <Phone className="mt-0.5 h-4 w-4 shrink-0 text-[--color-ink-tertiary]" aria-hidden="true" />
+                    <p className="flex items-start gap-2 whitespace-pre-line text-[var(--color-ink-secondary)]">
+                      <Phone className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-ink-tertiary)]" aria-hidden="true" />
                       <span className="break-words">{raw.seller.contact}</span>
                     </p>
                   )}
@@ -1057,32 +1057,32 @@ export default function AuctionDetailClient({
 
             {/* Source & verification — trust strip. Wave-C: now includes the
                 last-updated line (M4) alongside published + last-verified. */}
-            <section aria-labelledby="source-heading" className="rounded-lg bg-[--color-surface-muted] p-4">
+            <section aria-labelledby="source-heading" className="rounded-lg bg-[var(--color-surface-muted)] p-4">
               <h2
                 id="source-heading"
-                className="font-serif text-base text-[--color-ink-primary]"
+                className="font-serif text-base text-[var(--color-ink-primary)]"
               >
                 Fuente y verificación
               </h2>
-              <dl className="mt-2 grid grid-cols-1 gap-y-1 text-xs text-[--color-ink-secondary]">
+              <dl className="mt-2 grid grid-cols-1 gap-y-1 text-xs text-[var(--color-ink-secondary)]">
                 <div className="flex gap-2">
                   <dt>Origen:</dt>
                   {/* QC P1 (2026-06-07): always render through SOURCE_LABEL_MAP
                       so a row whose `source='PLABI'` displays as "PLABI", not
                       raw-source-stringified-then-titlecased "Plabi" elsewhere
                       and "PLABI" in the badge. Single label source = no dup. */}
-                  <dd className="text-[--color-ink-primary]">
+                  <dd className="text-[var(--color-ink-primary)]">
                     {getSourceLabel(raw.source) ?? "BOE"}
                   </dd>
                 </div>
                 <div className="flex gap-2 tnum">
                   <dt>Publicada:</dt>
-                  <dd className="text-[--color-ink-primary]">{formatDateLong(raw.publishedAt)}</dd>
+                  <dd className="text-[var(--color-ink-primary)]">{formatDateLong(raw.publishedAt)}</dd>
                 </div>
                 {raw.lastUpdated && (
                   <div className="flex gap-2 tnum">
                     <dt>Actualizada:</dt>
-                    <dd className="text-[--color-ink-primary]">
+                    <dd className="text-[var(--color-ink-primary)]">
                       {formatRelativeEs(raw.lastUpdated)}
                     </dd>
                   </div>
@@ -1090,7 +1090,7 @@ export default function AuctionDetailClient({
                 {raw.lastVerifiedAt && (
                   <div className="flex gap-2 tnum">
                     <dt>Última verificación:</dt>
-                    <dd className="text-[--color-ink-primary]">
+                    <dd className="text-[var(--color-ink-primary)]">
                       {formatRelativeEs(raw.lastVerifiedAt)}
                     </dd>
                   </div>
@@ -1132,7 +1132,7 @@ export default function AuctionDetailClient({
           ? "Ir al BOE"
           : `Ir a ${getSourceLabel(raw.source) ?? "la fuente"}`;
         return (
-          <div className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-[--color-surface] hairline-t p-3 flex gap-2">
+          <div className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-[var(--color-surface)] hairline-t p-3 flex gap-2">
             <FollowButton
               auctionId={auctionItem.id}
               initialFollowing={data.isFollowing}
@@ -1143,7 +1143,7 @@ export default function AuctionDetailClient({
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-1 inline-flex items-center justify-center gap-2 rounded-md bg-[--color-action-soft] border border-[--color-action] text-[--color-ink-primary] px-4 py-2 text-sm font-semibold hover:bg-[--color-action-soft]/80"
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-md bg-[var(--color-action-soft)] border border-[var(--color-action)] text-[var(--color-ink-primary)] px-4 py-2 text-sm font-semibold hover:bg-[var(--color-action-soft)]/80"
               >
                 {label}
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -1173,8 +1173,8 @@ function DetailHeroStatusBadge({ status }: { status: string }) {
 function KV({ label, value, mono = false }: { label: string; value: React.ReactNode; mono?: boolean }) {
   return (
     <>
-      <dt className="text-[--color-ink-tertiary]">{label}</dt>
-      <dd className={cn("text-[--color-ink-primary]", mono && "font-mono text-xs")}>{value}</dd>
+      <dt className="text-[var(--color-ink-tertiary)]">{label}</dt>
+      <dd className={cn("text-[var(--color-ink-primary)]", mono && "font-mono text-xs")}>{value}</dd>
     </>
   );
 }
@@ -1186,7 +1186,7 @@ function DocLink({ href, label }: { href: string; label: string }) {
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-2 text-[--color-brand] hover:underline focus-visible:outline-none focus-visible:underline cursor-pointer"
+        className="inline-flex items-center gap-2 text-[var(--color-brand)] hover:underline focus-visible:outline-none focus-visible:underline cursor-pointer"
       >
         <FileText className="h-4 w-4" aria-hidden="true" />
         {label}

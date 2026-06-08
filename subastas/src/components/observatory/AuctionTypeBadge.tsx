@@ -29,16 +29,16 @@ type Size = "xs" | "sm";
  * project rule (never colored text on badges).
  */
 const TYPE_TINT: Record<string, string> = {
-  judicial:          "bg-[--color-info-soft] border-[--color-brand-soft]/30",
-  aeat:              "bg-[--color-warn-soft] border-[--color-warn]/30",
-  otras_tributarias: "bg-[--color-warn-soft] border-[--color-warn]/30",
-  notarial:          "bg-[--color-action-soft] border-[--color-action]/30",
-  administrativas:   "bg-[--color-surface-muted] border-[--color-hairline]",
-  bancaria:          "bg-[--color-surface-muted] border-[--color-hairline]",
+  judicial:          "bg-[var(--color-info-soft)] border-[var(--color-brand-soft)]/30",
+  aeat:              "bg-[var(--color-warn-soft)] border-[var(--color-warn)]/30",
+  otras_tributarias: "bg-[var(--color-warn-soft)] border-[var(--color-warn)]/30",
+  notarial:          "bg-[var(--color-action-soft)] border-[var(--color-action)]/30",
+  administrativas:   "bg-[var(--color-surface-muted)] border-[var(--color-hairline)]",
+  bancaria:          "bg-[var(--color-surface-muted)] border-[var(--color-hairline)]",
   // Legacy singular ids — same tint as their canonical plural so any stale
   // payload still renders consistently.
-  tributaria:        "bg-[--color-warn-soft] border-[--color-warn]/30",
-  administrativa:    "bg-[--color-surface-muted] border-[--color-hairline]",
+  tributaria:        "bg-[var(--color-warn-soft)] border-[var(--color-warn)]/30",
+  administrativa:    "bg-[var(--color-surface-muted)] border-[var(--color-hairline)]",
 };
 
 export type AuctionTypeBadgeProps = {
@@ -60,12 +60,12 @@ export function AuctionTypeBadge({
   if (!meta) return null;
 
   const label = short || size === "xs" ? meta.shortLabel : meta.label;
-  const tint = TYPE_TINT[type as string] ?? "bg-[--color-surface-muted] border-[--color-hairline]";
+  const tint = TYPE_TINT[type as string] ?? "bg-[var(--color-surface-muted)] border-[var(--color-hairline)]";
 
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border font-medium text-[--color-ink-primary] whitespace-nowrap",
+        "inline-flex items-center rounded-full border font-medium text-[var(--color-ink-primary)] whitespace-nowrap",
         tint,
         size === "xs" ? "px-2 py-0.5 text-[10px] tracking-wide" : "px-2.5 py-0.5 text-[11px]",
         className,

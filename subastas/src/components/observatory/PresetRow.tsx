@@ -256,7 +256,7 @@ export function PresetRow({
         className,
       )}
     >
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[--color-ink-tertiary]">
+      <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-ink-tertiary)]">
         Elecciones rápidas
       </div>
       <div
@@ -293,7 +293,7 @@ export function PresetRow({
           in the data. Reuses the PresetCard primitive for visual consistency,
           but indented below the headline 4 so hierarchy still reads. */}
       <div className="mt-4">
-        <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[--color-ink-tertiary]">
+        <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-ink-tertiary)]">
           Por tipo de subasta
         </div>
         <div
@@ -318,7 +318,7 @@ export function PresetRow({
       {/* P1 — advanced presets band. All free, all visible. Compact chip styling
           so the main 4 remain the primary entry point. */}
       <div className="mt-4">
-        <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[--color-ink-tertiary]">
+        <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-ink-tertiary)]">
           Filtros avanzados
         </div>
         <div
@@ -357,13 +357,13 @@ function AdvancedPresetChip({
       aria-pressed={active}
       className={cn(
         "snap-start shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all min-h-[36px]",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40",
         active
-          ? "border-[--color-action] bg-[--color-action-soft] text-[--color-ink-primary] shadow-sm"
-          : "border-[--color-hairline] bg-[--color-surface] text-[--color-ink-primary] hover:border-[--color-action]/40 hover:bg-[--color-action-soft]/40",
+          ? "border-[var(--color-action)] bg-[var(--color-action-soft)] text-[var(--color-ink-primary)] shadow-sm"
+          : "border-[var(--color-hairline)] bg-[var(--color-surface)] text-[var(--color-ink-primary)] hover:border-[var(--color-action)]/40 hover:bg-[var(--color-action-soft)]/40",
       )}
     >
-      <span className={cn(active ? "text-[--color-ink-primary]" : "text-[--color-ink-tertiary]")}>{spec.icon}</span>
+      <span className={cn(active ? "text-[var(--color-ink-primary)]" : "text-[var(--color-ink-tertiary)]")}>{spec.icon}</span>
       <span>{spec.label}</span>
     </button>
   );
@@ -403,14 +403,14 @@ function PresetCard({
     return (
       <div
         className={cn(
-          "snap-start shrink-0 w-[180px] md:w-auto rounded-lg border bg-[--color-surface] p-3 transition-all",
+          "snap-start shrink-0 w-[180px] md:w-auto rounded-lg border bg-[var(--color-surface)] p-3 transition-all",
           active
-            ? "border-[--color-brand] bg-[--color-brand]/5 shadow-sm"
-            : "border-[--color-hairline] hover:border-[--color-brand]/40 hover:-translate-y-0.5 hover:shadow-sm",
+            ? "border-[var(--color-brand)] bg-[var(--color-brand)]/5 shadow-sm"
+            : "border-[var(--color-hairline)] hover:border-[var(--color-brand)]/40 hover:-translate-y-0.5 hover:shadow-sm",
         )}
       >
-        <div className="flex items-center gap-2 text-[--color-ink-primary]">
-          <span className={cn(active ? "text-[--color-brand]" : "text-[--color-ink-tertiary]")}>
+        <div className="flex items-center gap-2 text-[var(--color-ink-primary)]">
+          <span className={cn(active ? "text-[var(--color-brand)]" : "text-[var(--color-ink-tertiary)]")}>
             {spec.icon}
           </span>
           <span className="text-sm font-medium">{spec.label}</span>
@@ -422,7 +422,7 @@ function PresetCard({
             if (v) onProvincePick(v);
           }}
           aria-label="Selecciona una provincia"
-          className="mt-2 w-full rounded-md border border-[--color-hairline] bg-white px-2 py-1.5 text-xs text-[--color-ink-primary] focus:outline-none focus:border-[--color-brand] focus:ring-2 focus:ring-[--color-brand]/15 min-h-[36px]"
+          className="mt-2 w-full rounded-md border border-[var(--color-hairline)] bg-white px-2 py-1.5 text-xs text-[var(--color-ink-primary)] focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15 min-h-[36px]"
         >
           <option value="">Elegir provincia…</option>
           {(provinces ?? []).map((p) => (
@@ -432,8 +432,8 @@ function PresetCard({
           ))}
         </select>
         {spec.count != null && currentProvince && (
-          <div className="mt-1.5 text-[11px] tnum text-[--color-ink-tertiary]">
-            <span className="font-semibold text-[--color-ink-primary]">
+          <div className="mt-1.5 text-[11px] tnum text-[var(--color-ink-tertiary)]">
+            <span className="font-semibold text-[var(--color-ink-primary)]">
               {spec.count.toLocaleString("es-ES")}
             </span>{" "}
             activas
@@ -453,31 +453,31 @@ function PresetCard({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "snap-start shrink-0 w-[160px] md:w-auto text-left rounded-lg border bg-[--color-surface] p-3 transition-all min-h-[80px] relative",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40",
+        "snap-start shrink-0 w-[160px] md:w-auto text-left rounded-lg border bg-[var(--color-surface)] p-3 transition-all min-h-[80px] relative",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40",
         active
-          ? "border-[--color-brand] bg-[--color-brand]/5 shadow-sm"
+          ? "border-[var(--color-brand)] bg-[var(--color-brand)]/5 shadow-sm"
           : isFeatured
-            ? "border-[--color-brand]/40 bg-[--color-brand]/[0.03] hover:border-[--color-brand] hover:-translate-y-0.5 hover:shadow-sm"
-            : "border-[--color-hairline] hover:border-[--color-brand]/40 hover:-translate-y-0.5 hover:shadow-sm",
+            ? "border-[var(--color-brand)]/40 bg-[var(--color-brand)]/[0.03] hover:border-[var(--color-brand)] hover:-translate-y-0.5 hover:shadow-sm"
+            : "border-[var(--color-hairline)] hover:border-[var(--color-brand)]/40 hover:-translate-y-0.5 hover:shadow-sm",
       )}
     >
       {isFeatured && !active && (
         <span
-          className="absolute top-1.5 right-2 text-[9px] font-semibold uppercase tracking-wider text-[--color-brand]"
+          className="absolute top-1.5 right-2 text-[9px] font-semibold uppercase tracking-wider text-[var(--color-brand)]"
           aria-hidden="true"
         >
           Destacado
         </span>
       )}
       <div className="flex items-center gap-2">
-        <span className={cn(active || isFeatured ? "text-[--color-brand]" : "text-[--color-ink-tertiary]")}>
+        <span className={cn(active || isFeatured ? "text-[var(--color-brand)]" : "text-[var(--color-ink-tertiary)]")}>
           {spec.icon}
         </span>
-        <span className="text-sm font-medium text-[--color-ink-primary]">{spec.label}</span>
+        <span className="text-sm font-medium text-[var(--color-ink-primary)]">{spec.label}</span>
       </div>
       {spec.count != null ? (
-        <div className="mt-2 tnum text-xl font-semibold text-[--color-ink-primary] leading-none">
+        <div className="mt-2 tnum text-xl font-semibold text-[var(--color-ink-primary)] leading-none">
           {spec.count.toLocaleString("es-ES")}
         </div>
       ) : (

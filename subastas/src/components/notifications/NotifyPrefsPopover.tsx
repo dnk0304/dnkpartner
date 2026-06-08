@@ -313,7 +313,7 @@ export function NotifyPrefsPopover({
             type="button"
             onClick={handleSave}
             disabled={loadState === "loading" || loadState === "saving"}
-            className="bg-[--color-action-soft] border border-[--color-action] text-[--color-ink-primary] hover:bg-[--color-action-soft]/80"
+            className="bg-[var(--color-action-soft)] border border-[var(--color-action)] text-[var(--color-ink-primary)] hover:bg-[var(--color-action-soft)]/80"
           >
             {loadState === "saving" ? (
               <>

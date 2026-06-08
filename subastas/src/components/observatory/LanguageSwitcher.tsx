@@ -116,9 +116,9 @@ export function LanguageSwitcher({ className }: LanguageSwitcherProps) {
         aria-label={t("languageSwitcherAria")}
         className={cn(
           "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm",
-          "text-[--color-ink-primary] hover:bg-[--color-brand]/5 hover:text-[--color-brand]",
+          "text-[var(--color-ink-primary)] hover:bg-[var(--color-brand)]/5 hover:text-[var(--color-brand)]",
           "transition-colors cursor-pointer",
-          "focus:outline-none focus:ring-2 focus:ring-[--color-brand]/30",
+          "focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/30",
           // Lock minimum width so ES/EN swap doesn't reflow neighbours.
           "min-w-[3.75rem] justify-center",
           className,
@@ -147,14 +147,14 @@ export function LanguageSwitcher({ className }: LanguageSwitcherProps) {
               )}
             >
               <span className="flex items-center gap-2">
-                <span className="tnum text-xs text-[--color-ink-tertiary] w-6">
+                <span className="tnum text-xs text-[var(--color-ink-tertiary)] w-6">
                   {LOCALE_LABELS[loc]}
                 </span>
                 <span>{LOCALE_LONG_LABELS[loc]}</span>
               </span>
               {isActive && (
                 <Check
-                  className="h-4 w-4 text-[--color-brand]"
+                  className="h-4 w-4 text-[var(--color-brand)]"
                   aria-hidden="true"
                 />
               )}

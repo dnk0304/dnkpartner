@@ -586,7 +586,7 @@ export function ForexCarousel({
     <section
       aria-labelledby={headingId}
       className={cn(
-        "rounded-xl border border-[--color-hairline] bg-[--color-surface]",
+        "rounded-xl border border-[var(--color-hairline)] bg-[var(--color-surface)]",
         "shadow-[var(--shadow-card)]",
         className,
       )}
@@ -595,7 +595,7 @@ export function ForexCarousel({
         <div className="min-w-0 flex items-baseline gap-3">
           <h2
             id={headingId}
-            className="font-display text-base md:text-lg text-[--color-ink-primary] whitespace-nowrap"
+            className="font-display text-base md:text-lg text-[var(--color-ink-primary)] whitespace-nowrap"
           >
             {heading}
           </h2>
@@ -612,12 +612,12 @@ export function ForexCarousel({
               the visible window of an `overflow-hidden` track, surprising the
               user). */}
           {useStaticScroller && (
-            <div className="hidden sm:inline-flex rounded-md border border-[--color-hairline] overflow-hidden">
+            <div className="hidden sm:inline-flex rounded-md border border-[var(--color-hairline)] overflow-hidden">
               <button
                 type="button"
                 onClick={() => scrollBy(-1)}
                 aria-label="Anterior"
-                className="h-8 w-8 inline-flex items-center justify-center text-[--color-ink-secondary] hover:bg-[--color-surface-muted] focus-visible:outline-none focus-visible:bg-[--color-surface-muted] cursor-pointer"
+                className="h-8 w-8 inline-flex items-center justify-center text-[var(--color-ink-secondary)] hover:bg-[var(--color-surface-muted)] focus-visible:outline-none focus-visible:bg-[var(--color-surface-muted)] cursor-pointer"
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -625,7 +625,7 @@ export function ForexCarousel({
                 type="button"
                 onClick={() => scrollBy(1)}
                 aria-label="Siguiente"
-                className="h-8 w-8 inline-flex items-center justify-center text-[--color-ink-secondary] hover:bg-[--color-surface-muted] focus-visible:outline-none focus-visible:bg-[--color-surface-muted] cursor-pointer"
+                className="h-8 w-8 inline-flex items-center justify-center text-[var(--color-ink-secondary)] hover:bg-[var(--color-surface-muted)] focus-visible:outline-none focus-visible:bg-[var(--color-surface-muted)] cursor-pointer"
               >
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -635,10 +635,10 @@ export function ForexCarousel({
           <Link
             href={seeAllHref}
             className={cn(
-              "inline-flex h-8 items-center gap-1 rounded-md border border-[--color-ink-primary] bg-[--color-surface] px-3 text-xs font-semibold cursor-pointer",
-              "text-[--color-ink-primary]",
-              "hover:bg-[--color-surface-muted] transition-colors",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-action]/40",
+              "inline-flex h-8 items-center gap-1 rounded-md border border-[var(--color-ink-primary)] bg-[var(--color-surface)] px-3 text-xs font-semibold cursor-pointer",
+              "text-[var(--color-ink-primary)]",
+              "hover:bg-[var(--color-surface-muted)] transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/40",
             )}
           >
             Ver todas
@@ -648,12 +648,12 @@ export function ForexCarousel({
       </header>
 
       {loading && items.length === 0 ? (
-        <div className="flex items-center justify-center gap-2 py-8 text-sm text-[--color-ink-tertiary]">
+        <div className="flex items-center justify-center gap-2 py-8 text-sm text-[var(--color-ink-tertiary)]">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           Cargando subastas activas…
         </div>
       ) : items.length === 0 ? (
-        <div className="px-4 py-8 text-center text-sm text-[--color-ink-tertiary]">
+        <div className="px-4 py-8 text-center text-sm text-[var(--color-ink-tertiary)]">
           Sin subastas activas con este filtro.
         </div>
       ) : useStaticScroller ? (
@@ -667,7 +667,7 @@ export function ForexCarousel({
             "flex gap-2 overflow-x-auto overflow-y-hidden px-3 py-3",
             "snap-x snap-mandatory scroll-px-3 scroll-smooth",
             "[scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5",
-            "[&::-webkit-scrollbar-thumb]:bg-[--color-hairline] [&::-webkit-scrollbar-thumb]:rounded-full",
+            "[&::-webkit-scrollbar-thumb]:bg-[var(--color-hairline)] [&::-webkit-scrollbar-thumb]:rounded-full",
           )}
         >
           {items.map((a) => (
@@ -932,12 +932,12 @@ function ExpandedCard({
   // Card width: full 260px in default mode; ~25 % smaller (195px) in compact
   // mode for the home page properties + vehicles two-row layout.
   const cardClass = cn(
-    "snap-start shrink-0 rounded-lg border bg-[--color-surface] overflow-hidden",
+    "snap-start shrink-0 rounded-lg border bg-[var(--color-surface)] overflow-hidden",
     compact ? "w-[195px]" : "w-[260px]",
     "flex flex-col transition-colors text-left cursor-pointer",
-    "hover:border-[--color-brand-soft]/50 hover:shadow-[var(--shadow-card)]",
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand-soft]/40",
-    urgent ? "border-[--color-warn-critical]/60" : "border-[--color-hairline]",
+    "hover:border-[var(--color-brand-soft)]/50 hover:shadow-[var(--shadow-card)]",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-soft)]/40",
+    urgent ? "border-[var(--color-warn-critical)]/60" : "border-[var(--color-hairline)]",
   );
 
   const innerBody = (
@@ -946,7 +946,7 @@ function ExpandedCard({
           Combined with the tighter content padding below this lands the
           rendered card at ~90% of the previous compact height — the −10%
           Dennis asked for, without shrinking type into illegibility. */}
-      <div className="relative aspect-[16/10] bg-[--color-surface-muted]">
+      <div className="relative aspect-[16/10] bg-[var(--color-surface-muted)]">
         <Image
           src={imageSrc}
           alt={resolved.alt}
@@ -971,7 +971,7 @@ function ExpandedCard({
             aria-hidden="true"
             className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full"
           >
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[--color-warn-critical] text-white shadow-[0_2px_6px_rgba(0,0,0,0.35)] ring-2 ring-white">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--color-warn-critical)] text-white shadow-[0_2px_6px_rgba(0,0,0,0.35)] ring-2 ring-white">
               <MapPin className="h-3.5 w-3.5" strokeWidth={2.5} />
             </span>
           </span>
@@ -979,7 +979,7 @@ function ExpandedCard({
         {showMapPin && (
           <span
             aria-hidden="true"
-            className="absolute bottom-1 right-1 inline-flex items-center gap-1 rounded-full border border-[--color-hairline] bg-[--color-surface]/90 px-1.5 py-0.5 text-[9px] font-medium text-[--color-ink-secondary]"
+            className="absolute bottom-1 right-1 inline-flex items-center gap-1 rounded-full border border-[var(--color-hairline)] bg-[var(--color-surface)]/90 px-1.5 py-0.5 text-[9px] font-medium text-[var(--color-ink-secondary)]"
           >
             <MapPin className="h-2.5 w-2.5" />
             Ubicación
@@ -1002,10 +1002,10 @@ function ExpandedCard({
           <span
             className={cn(
               "absolute top-1.5 right-1.5 tnum rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
-              "text-[--color-ink-primary] border",
+              "text-[var(--color-ink-primary)] border",
               urgent
-                ? "bg-[--color-warn-critical-soft] border-[--color-warn-critical]/40"
-                : "bg-[--color-surface] border-[--color-hairline]",
+                ? "bg-[var(--color-warn-critical-soft)] border-[var(--color-warn-critical)]/40"
+                : "bg-[var(--color-surface)] border-[var(--color-hairline)]",
             )}
           >
             {ended ? "Finalizada" : formatDaysLeft(endsAt)}
@@ -1025,7 +1025,7 @@ function ExpandedCard({
             line-clamp-2 keeps card height stable; truncated tail is shown on
             hover via the native title attribute. */}
         <div
-          className="text-[12.5px] font-semibold text-[--color-ink-primary] line-clamp-2 leading-snug"
+          className="text-[12.5px] font-semibold text-[var(--color-ink-primary)] line-clamp-2 leading-snug"
           title={cardHeadline}
         >
           {cardHeadline}
@@ -1033,7 +1033,7 @@ function ExpandedCard({
         {/* Vehicle año + location collapse onto one caption row so the
             post-title meta is a single short line. */}
         {((isVehicleRow && auction.vehicleYear) || where) && (
-          <div className="text-[10px] text-[--color-ink-tertiary] tnum truncate">
+          <div className="text-[10px] text-[var(--color-ink-tertiary)] tnum truncate">
             {isVehicleRow && auction.vehicleYear ? auction.vehicleYear : null}
             {isVehicleRow && auction.vehicleYear && where ? " · " : null}
             {where}
@@ -1055,13 +1055,13 @@ function ExpandedCard({
           // PROXIMA: single "Próxima apertura …" line, NO countdown, NO end.
           if (dateLabel === "Próxima apertura") {
             return (
-              <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0 text-[10px] text-[--color-ink-secondary]">
+              <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0 text-[10px] text-[var(--color-ink-secondary)]">
                 <span className="tnum">
-                  <span className="text-[--color-ink-tertiary]">Próxima apertura</span>
+                  <span className="text-[var(--color-ink-tertiary)]">Próxima apertura</span>
                   {opensLabel ? (
-                    <> · <span className="text-[--color-ink-primary]">{opensLabel}</span></>
+                    <> · <span className="text-[var(--color-ink-primary)]">{opensLabel}</span></>
                   ) : (
-                    <> · <span className="text-[--color-ink-quiet]">Fecha por confirmar</span></>
+                    <> · <span className="text-[var(--color-ink-quiet)]">Fecha por confirmar</span></>
                   )}
                 </span>
               </div>
@@ -1070,13 +1070,13 @@ function ExpandedCard({
           // SUSPENDIDA: single "Reanudación …" line.
           if (dateLabel === "Fecha prevista de reanudación") {
             return (
-              <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0 text-[10px] text-[--color-ink-secondary]">
+              <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0 text-[10px] text-[var(--color-ink-secondary)]">
                 <span className="tnum">
-                  <span className="text-[--color-ink-tertiary]">Reanudación</span>
+                  <span className="text-[var(--color-ink-tertiary)]">Reanudación</span>
                   {resumeLabel ? (
-                    <> · <span className="text-[--color-ink-primary]">{resumeLabel}</span></>
+                    <> · <span className="text-[var(--color-ink-primary)]">{resumeLabel}</span></>
                   ) : (
-                    <> · <span className="text-[--color-ink-quiet]">Fecha por confirmar</span></>
+                    <> · <span className="text-[var(--color-ink-quiet)]">Fecha por confirmar</span></>
                   )}
                 </span>
               </div>
@@ -1088,32 +1088,32 @@ function ExpandedCard({
           if (opensLabel) {
             parts.push(
               <span key="opens" className="tnum">
-                <span className="text-[--color-ink-tertiary]">Inicio </span>
-                <span className="text-[--color-ink-primary]">{opensLabel}</span>
+                <span className="text-[var(--color-ink-tertiary)]">Inicio </span>
+                <span className="text-[var(--color-ink-primary)]">{opensLabel}</span>
               </span>,
             );
           }
           if (terminaEn) {
             parts.push(
               <span key="ends" className="tnum">
-                <span className="text-[--color-ink-tertiary]">Termina en </span>
-                <span className="font-semibold text-[--color-ink-primary]">{terminaEn}</span>
+                <span className="text-[var(--color-ink-tertiary)]">Termina en </span>
+                <span className="font-semibold text-[var(--color-ink-primary)]">{terminaEn}</span>
               </span>,
             );
           }
           if (endDateLabel !== "—") {
             parts.push(
-              <span key="enddate" className="tnum text-[--color-ink-tertiary]">
+              <span key="enddate" className="tnum text-[var(--color-ink-tertiary)]">
                 {endDateLabel}
               </span>,
             );
           }
           return (
-            <div className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[10.5px] text-[--color-ink-secondary]">
+            <div className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[10.5px] text-[var(--color-ink-secondary)]">
               {parts.map((p, i) => (
                 <React.Fragment key={i}>
                   {i > 0 && (
-                    <span className="text-[--color-ink-quiet]" aria-hidden="true">·</span>
+                    <span className="text-[var(--color-ink-quiet)]" aria-hidden="true">·</span>
                   )}
                   {p}
                 </React.Fragment>
@@ -1125,13 +1125,13 @@ function ExpandedCard({
             so the price block is ~50% the previous height. Each present
             value reads as a single short row: tiny label left, number right.
             First line is the prominent number, the rest muted secondary. */}
-        <div className="pt-1 border-t border-[--color-hairline] flex flex-col gap-0.5">
+        <div className="pt-1 border-t border-[var(--color-hairline)] flex flex-col gap-0.5">
           {noPriceData && (
             <div className="flex items-baseline justify-between gap-2 min-w-0">
-              <span className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary] truncate">
+              <span className="text-[9px] uppercase tracking-wide text-[var(--color-ink-tertiary)] truncate">
                 {isVariosLotes ? "Varios lotes" : "Precio"}
               </span>
-              <span className="text-[11px] font-medium text-[--color-ink-secondary] shrink-0">
+              <span className="text-[11px] font-medium text-[var(--color-ink-secondary)] shrink-0">
                 No disponible
               </span>
             </div>
@@ -1140,15 +1140,15 @@ function ExpandedCard({
             const isHeadline = i === 0;
             return (
               <div key={line.key} className="flex items-baseline justify-between gap-2 min-w-0">
-                <span className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary] truncate">
+                <span className="text-[9px] uppercase tracking-wide text-[var(--color-ink-tertiary)] truncate">
                   {line.label}
                 </span>
                 <span
                   className={cn(
                     "tnum font-semibold shrink-0",
                     isHeadline
-                      ? "text-[13.5px] text-[--color-ink-primary]"
-                      : "text-[11.5px] text-[--color-ink-secondary]",
+                      ? "text-[13.5px] text-[var(--color-ink-primary)]"
+                      : "text-[11.5px] text-[var(--color-ink-secondary)]",
                   )}
                 >
                   {formatPrice(line.amount)}
@@ -1158,10 +1158,10 @@ function ExpandedCard({
           })}
           {deposit != null && (
             <div className="flex items-baseline justify-between gap-2 min-w-0">
-              <span className="text-[9px] uppercase tracking-wide text-[--color-ink-tertiary]">
+              <span className="text-[9px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
                 Depósito
               </span>
-              <span className="tnum text-[12.5px] font-semibold text-[--color-ink-primary] shrink-0">
+              <span className="tnum text-[12.5px] font-semibold text-[var(--color-ink-primary)] shrink-0">
                 {formatPrice(deposit)}
               </span>
             </div>

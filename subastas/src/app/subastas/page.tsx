@@ -7,7 +7,7 @@ import SubastasListClient from "./SubastasListClient";
  */
 export default function SubastasListPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[--color-page]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-[var(--color-page)]" />}>
       <SubastasListClient />
     </Suspense>
   );

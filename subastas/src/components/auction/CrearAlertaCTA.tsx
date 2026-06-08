@@ -123,14 +123,14 @@ export function CrearAlertaCTA({
         disabled={navigating}
         className={cn(
           "inline-flex items-center justify-center gap-2 rounded-md font-semibold transition-colors",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40 focus-visible:ring-offset-2",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40 focus-visible:ring-offset-2",
           isPrimary
             ? // Primary — solid action-green CTA (saturated; the gradient
               // is intentionally absent here so the call to action stays
               // strong after the site-wide gradient was toned down).
-              "bg-[--color-action] px-4 py-2.5 text-sm text-white shadow-sm hover:bg-[--color-action-hover] focus-visible:ring-[--color-action]/40"
+              "bg-[var(--color-action)] px-4 py-2.5 text-sm text-white shadow-sm hover:bg-[var(--color-action-hover)] focus-visible:ring-[var(--color-action)]/40"
             : // Ghost — quieter pill for the soft ladder
-              "border border-[--color-action]/30 bg-[--color-action]/5 px-3 py-2 text-xs text-[--color-ink-primary] hover:bg-[--color-action]/10 focus-visible:ring-[--color-action]/40",
+              "border border-[var(--color-action)]/30 bg-[var(--color-action)]/5 px-3 py-2 text-xs text-[var(--color-ink-primary)] hover:bg-[var(--color-action)]/10 focus-visible:ring-[var(--color-action)]/40",
           navigating && "opacity-70 cursor-progress",
         )}
         aria-label={
@@ -149,7 +149,7 @@ export function CrearAlertaCTA({
         <span>{effectiveLabel}</span>
       </button>
       {!hideHelper && isPrimary && (
-        <p className="text-[11px] text-[--color-ink-tertiary]">
+        <p className="text-[11px] text-[var(--color-ink-tertiary)]">
           {isLoggedOut
             ? "Crea tu cuenta gratis para gestionar tus alertas (plan Acceso)."
             : supportCopy}

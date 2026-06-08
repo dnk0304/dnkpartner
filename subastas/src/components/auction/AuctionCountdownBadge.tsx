@@ -98,11 +98,11 @@ export function AuctionCountdownBadge({
       : tier === "soon"
         ? "border-amber-300 bg-amber-50 text-amber-900"
         : isPast
-          ? "border-[--color-hairline] bg-[--color-surface-muted] text-[--color-ink-tertiary]"
+          ? "border-[var(--color-hairline)] bg-[var(--color-surface-muted)] text-[var(--color-ink-tertiary)]"
           : tier === "missing"
-            ? "border-[--color-hairline] bg-[--color-surface-muted] text-[--color-ink-tertiary]"
+            ? "border-[var(--color-hairline)] bg-[var(--color-surface-muted)] text-[var(--color-ink-tertiary)]"
             : // calm — the winter-green default
-              "border-[--color-brand]/20 bg-[--color-brand]/5 text-[--color-ink-primary]";
+              "border-[var(--color-brand)]/20 bg-[var(--color-brand)]/5 text-[var(--color-ink-primary)]";
 
   const label = isPast
     ? "Finalizada"
@@ -138,7 +138,7 @@ export function AuctionCountdownBadge({
         )}
       </span>
       {bidStatus && (
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-[--color-hairline] bg-[--color-surface] px-3 py-1.5 text-xs font-medium text-[--color-ink-secondary]">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-hairline)] bg-[var(--color-surface)] px-3 py-1.5 text-xs font-medium text-[var(--color-ink-secondary)]">
           <Gavel className="h-3 w-3" aria-hidden="true" />
           {bidStatus}
         </span>

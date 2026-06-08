@@ -102,7 +102,7 @@ export function TypeFilterChips({
       aria-label="Filtrar por tipo de subasta"
       className={cn("w-full", className)}
     >
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[--color-ink-tertiary]">
+      <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-ink-tertiary)]">
         Tipo de subasta
       </div>
       <div
@@ -119,10 +119,10 @@ export function TypeFilterChips({
           aria-pressed={allActive}
           className={cn(
             "snap-start shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all min-h-[36px]",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40",
             allActive
-              ? "border-[--color-action] bg-[--color-action-soft] text-[--color-ink-primary] shadow-sm"
-              : "border-[--color-hairline] bg-[--color-surface] text-[--color-ink-primary] hover:border-[--color-action]/40 hover:bg-[--color-action-soft]/40",
+              ? "border-[var(--color-action)] bg-[var(--color-action-soft)] text-[var(--color-ink-primary)] shadow-sm"
+              : "border-[var(--color-hairline)] bg-[var(--color-surface)] text-[var(--color-ink-primary)] hover:border-[var(--color-action)]/40 hover:bg-[var(--color-action-soft)]/40",
           )}
         >
           Todos
@@ -140,10 +140,10 @@ export function TypeFilterChips({
               aria-pressed={active}
               className={cn(
                 "snap-start shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all min-h-[36px]",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40",
                 active
-                  ? "border-[--color-action] bg-[--color-action-soft] text-[--color-ink-primary] shadow-sm"
-                  : "border-[--color-hairline] bg-[--color-surface] text-[--color-ink-primary] hover:border-[--color-action]/40 hover:bg-[--color-action-soft]/40",
+                  ? "border-[var(--color-action)] bg-[var(--color-action-soft)] text-[var(--color-ink-primary)] shadow-sm"
+                  : "border-[var(--color-hairline)] bg-[var(--color-surface)] text-[var(--color-ink-primary)] hover:border-[var(--color-action)]/40 hover:bg-[var(--color-action-soft)]/40",
               )}
             >
               <span>{meta.label}</span>
@@ -152,8 +152,8 @@ export function TypeFilterChips({
                   className={cn(
                     "tnum rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
                     active
-                      ? "bg-[--color-surface] text-[--color-ink-primary]"
-                      : "bg-[--color-surface-muted] text-[--color-ink-secondary]",
+                      ? "bg-[var(--color-surface)] text-[var(--color-ink-primary)]"
+                      : "bg-[var(--color-surface-muted)] text-[var(--color-ink-secondary)]",
                   )}
                   aria-label={`${count} activas`}
                 >

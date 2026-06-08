@@ -121,7 +121,7 @@ async function renderCategoryPage(slugUrl: string, r: {
   );
 
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[--color-page]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-[var(--color-page)]" />}>
       <SubastasListClient
         lockedFilter={{ category: dbLabel }}
         seoTitle={`Subastas de ${plural}`}
@@ -189,10 +189,10 @@ async function renderProvincePage(slugUrl: string, r: {
               <li key={m.municipioSlug}>
                 <Link
                   href={`/subastas/${slugUrl}/${m.municipioSlug}`}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[--color-border] text-xs hover:bg-[--color-surface-muted]"
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[var(--color-border)] text-xs hover:bg-[var(--color-surface-muted)]"
                 >
                   <span>{capitalizeLocation(m.name)}</span>
-                  <span className="text-[--color-text-muted] tnum">({m.count.toLocaleString('es-ES')})</span>
+                  <span className="text-[var(--color-text-muted)] tnum">({m.count.toLocaleString('es-ES')})</span>
                 </Link>
               </li>
             ))}
@@ -207,7 +207,7 @@ async function renderProvincePage(slugUrl: string, r: {
             <li key={t}>
               <Link
                 href={`/subastas/tipo/${t}`}
-                className="inline-block px-3 py-1 rounded-full border border-[--color-border] text-xs hover:bg-[--color-surface-muted]"
+                className="inline-block px-3 py-1 rounded-full border border-[var(--color-border)] text-xs hover:bg-[var(--color-surface-muted)]"
               >
                 {TIPO_LABEL_PLURAL[t]}
               </Link>
@@ -221,7 +221,7 @@ async function renderProvincePage(slugUrl: string, r: {
   );
 
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[--color-page]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-[var(--color-page)]" />}>
       <SubastasListClient
         lockedFilter={{ province: dbKey }}
         seoTitle={`Subastas públicas en ${label}`}

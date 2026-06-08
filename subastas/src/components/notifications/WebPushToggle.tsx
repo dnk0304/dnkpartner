@@ -145,7 +145,7 @@ export function WebPushToggle({ onChange, compact = false }: WebPushToggleProps)
         ].join(" ")}
       />
       {busy && (
-        <Loader2 className="absolute inset-0 m-auto h-3.5 w-3.5 animate-spin text-[--color-ink-primary]" aria-hidden="true" />
+        <Loader2 className="absolute inset-0 m-auto h-3.5 w-3.5 animate-spin text-[var(--color-ink-primary)]" aria-hidden="true" />
       )}
     </button>
   );

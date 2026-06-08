@@ -50,13 +50,26 @@ const MAP_URL_FRAGMENTS = [
 
 /**
  * Path fragments that identify a category-placeholder SVG (the rung-3
- * fallback). These must never be mis-promoted to rung 1 either — a card with
+ * fallback) or the branded raster placeholder used by the server-side image
+ * projection. These must never be mis-promoted to rung 1 — a card with
  * `imageUrl: "/images/property-viviendas.svg"` is rung 3, not rung 1.
+ *
+ * Wave86 (Pixel 2026-06-08): `/images/email-placeholder` added. The server's
+ * `siteFallbackImageUrl` writes this path into the `imageUrl` slot for
+ * geocoded rows when the Google Static Maps API is disabled OR has no key —
+ * which means the same URL flows through to the client, where (without this
+ * fragment in the deny-list) the rung-1 "untagged real photo" guard would
+ * promote it to a real photo, freezing the card at the bare placeholder
+ * even when the row has valid coords. With the fragment listed, the client
+ * resolver correctly falls through to rung 2 and synthesizes the Static
+ * Maps URL itself (which works for the user-agent path even when the
+ * server's projection couldn't fire — e.g. Coolify env not yet set).
  */
 const PLACEHOLDER_PATH_FRAGMENTS = [
   '/images/property-',
   '/images/vehicle-',
   '/images/map-placeholder',
+  '/images/email-placeholder',
 ] as const;
 
 const PROPERTY_CATEGORIES = new Set([
@@ -291,8 +304,21 @@ export function resolveCardImage(input: ResolveCardImageInput): ResolvedCardImag
     Number.isFinite(longitude);
   if (hasCoords) {
     const zoom = getOptimalZoom(category ?? 'default');
+    // Wave86 (Pixel 2026-06-08): when the server already projected a
+    // map-tile URL into `imageUrl` (via the server-side
+    // getAppropriateImageUrl → siteFallbackImageUrl path), USE IT VERBATIM
+    // instead of rebuilding from the client. Why: GOOGLE_MAPS_API_KEY is
+    // a server-only env var; on the client, `process.env.GOOGLE_MAPS_API_KEY`
+    // is undefined, so `googleStaticMapUrl` always returns null and
+    // `generateMapImageUrl` degrades to the branded placeholder path —
+    // which means the *correct* Static Maps URL the server already
+    // produced would get silently thrown away, and the card would
+    // render the bare branded placeholder even when the row has valid
+    // coords AND the server's projection succeeded. The fix is: trust
+    // the server's projected URL when it's a recognized map-tile URL.
     const sized = generateResponsiveMapImages(latitude!, longitude!, zoom);
-    const src = sized[size] ?? generateMapImageUrl(latitude!, longitude!, 400, 300, zoom);
+    const clientBuilt = sized[size] ?? generateMapImageUrl(latitude!, longitude!, 400, 300, zoom);
+    const src = looksLikeMapUrl ? (imageUrl as string) : clientBuilt;
     return {
       src,
       alt: title

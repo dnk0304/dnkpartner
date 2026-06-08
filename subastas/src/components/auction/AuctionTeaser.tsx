@@ -167,12 +167,12 @@ export function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
   return (
     <section aria-labelledby="auction-teaser-heading" className="space-y-6">
       {/* Breadcrumb */}
-      <nav className="text-xs text-[--color-ink-tertiary] tnum" aria-label="Migas de pan">
-        <Link href="/" className="hover:text-[--color-brand]">
+      <nav className="text-xs text-[var(--color-ink-tertiary)] tnum" aria-label="Migas de pan">
+        <Link href="/" className="hover:text-[var(--color-brand)]">
           Inicio
         </Link>
         <span aria-hidden="true" className="mx-2">·</span>
-        <Link href="/subastas" className="hover:text-[--color-brand]">
+        <Link href="/subastas" className="hover:text-[var(--color-brand)]">
           Subastas
         </Link>
         {data.province && (
@@ -184,7 +184,7 @@ export function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
                   ? `/subastas/${PROVINCE_DB_KEY_TO_SLUG[data.province]}`
                   : `/subastas?province=${encodeURIComponent(data.province)}`
               }
-              className="hover:text-[--color-brand]"
+              className="hover:text-[var(--color-brand)]"
             >
               {capitalize(data.province)}
             </Link>
@@ -212,7 +212,7 @@ export function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
             </div>
           </div>
           {hero.rung === 'map' && (
-            <p className="text-[11px] text-[--color-ink-tertiary] flex items-center gap-1.5">
+            <p className="text-[11px] text-[var(--color-ink-tertiary)] flex items-center gap-1.5">
               <MapPin className="h-3 w-3" aria-hidden="true" />
               Ubicación aproximada. La dirección exacta requiere cuenta.
             </p>
@@ -224,14 +224,14 @@ export function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
           <header>
             <h1
               id="auction-teaser-heading"
-              className="font-serif text-2xl md:text-3xl lg:text-[2rem] leading-tight text-[--color-ink-primary]"
+              className="font-serif text-2xl md:text-3xl lg:text-[2rem] leading-tight text-[var(--color-ink-primary)]"
             >
               {data.title || data.category}
             </h1>
             {where && (
-              <p className="mt-2 text-sm text-[--color-ink-secondary]">{where}</p>
+              <p className="mt-2 text-sm text-[var(--color-ink-secondary)]">{where}</p>
             )}
-            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[--color-ink-tertiary] tnum">
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--color-ink-tertiary)] tnum">
               <span className="font-mono">{data.boeId}</span>
               {typeLabel && (
                 <>
@@ -253,14 +253,14 @@ export function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
               <div>
                 {startingBid ? (
                   <>
-                    <div className="text-[11px] uppercase tracking-wide text-[--color-ink-tertiary]">
+                    <div className="text-[11px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
                       Valor subasta
                     </div>
-                    <div className="mt-1 font-serif text-3xl md:text-[2.25rem] font-semibold leading-none tracking-tight text-[--color-ink-primary] tnum">
+                    <div className="mt-1 font-serif text-3xl md:text-[2.25rem] font-semibold leading-none tracking-tight text-[var(--color-ink-primary)] tnum">
                       {startingBid}
                     </div>
                     {valuation && (
-                      <div className="mt-1.5 text-xs text-[--color-ink-tertiary] tnum">
+                      <div className="mt-1.5 text-xs text-[var(--color-ink-tertiary)] tnum">
                         Tasación {valuation}
                       </div>
                     )}
@@ -268,10 +268,10 @@ export function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
                 ) : (
                   // No bid — just valuation
                   <>
-                    <div className="text-[11px] uppercase tracking-wide text-[--color-ink-tertiary]">
+                    <div className="text-[11px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
                       Tasación
                     </div>
-                    <div className="mt-1 font-serif text-3xl md:text-[2.25rem] font-semibold leading-none tracking-tight text-[--color-ink-primary] tnum">
+                    <div className="mt-1 font-serif text-3xl md:text-[2.25rem] font-semibold leading-none tracking-tight text-[var(--color-ink-primary)] tnum">
                       {valuation}
                     </div>
                   </>
@@ -285,17 +285,17 @@ export function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
               <dl className="space-y-1.5 hairline-t pt-3 text-xs tnum">
                 {data.opensAt && (
                   <div className="flex items-baseline justify-between gap-3">
-                    <dt className="text-[--color-ink-tertiary]">
+                    <dt className="text-[var(--color-ink-tertiary)]">
                       <Calendar className="inline h-3 w-3 mr-1 align-[-0.05em]" aria-hidden="true" />
                       Inicio
                     </dt>
-                    <dd className="text-[--color-ink-primary]">{formatDateLong(data.opensAt)}</dd>
+                    <dd className="text-[var(--color-ink-primary)]">{formatDateLong(data.opensAt)}</dd>
                   </div>
                 )}
                 {data.endsAt && (
                   <div className="flex items-baseline justify-between gap-3">
-                    <dt className="text-[--color-ink-tertiary]">Fin</dt>
-                    <dd className="text-[--color-ink-primary]">{formatDateLong(data.endsAt)}</dd>
+                    <dt className="text-[var(--color-ink-tertiary)]">Fin</dt>
+                    <dd className="text-[var(--color-ink-primary)]">{formatDateLong(data.endsAt)}</dd>
                   </div>
                 )}
               </dl>
@@ -307,10 +307,10 @@ export function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
       {/* Description snippet (teaser) */}
       {snippet && (
         <div>
-          <h2 className="font-serif text-lg text-[--color-ink-primary]">
+          <h2 className="font-serif text-lg text-[var(--color-ink-primary)]">
             Descripción
           </h2>
-          <p className="mt-2 max-w-readable text-[15px] leading-relaxed text-[--color-ink-secondary] whitespace-pre-line">
+          <p className="mt-2 max-w-readable text-[15px] leading-relaxed text-[var(--color-ink-secondary)] whitespace-pre-line">
             {snippet}
           </p>
         </div>

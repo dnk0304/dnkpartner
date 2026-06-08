@@ -225,8 +225,8 @@ export const ProvinceHierarchy: React.FC<ProvinceHierarchyProps> = ({
                   className={`
                     group flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all
                     ${isProvinceSelected
-                      ? 'bg-[--color-action-soft] text-[--color-ink-primary] font-semibold ring-1 ring-[--color-action]'
-                      : 'hover:bg-[--color-surface-muted] text-[--color-ink-primary]'
+                      ? 'bg-[var(--color-action-soft)] text-[var(--color-ink-primary)] font-semibold ring-1 ring-[var(--color-action)]'
+                      : 'hover:bg-[var(--color-surface-muted)] text-[var(--color-ink-primary)]'
                     }
                   `}
                 >
@@ -238,7 +238,7 @@ export const ProvinceHierarchy: React.FC<ProvinceHierarchyProps> = ({
                     }}
                     className={`
                       p-0.5 rounded transition-transform
-                      ${isProvinceSelected ? 'text-[--color-ink-primary] hover:bg-[--color-action]/20' : 'text-[--color-ink-tertiary] hover:bg-[--color-surface-muted]'}
+                      ${isProvinceSelected ? 'text-[var(--color-ink-primary)] hover:bg-[var(--color-action)]/20' : 'text-[var(--color-ink-tertiary)] hover:bg-[var(--color-surface-muted)]'}
                     `}
                   >
                     {isExpanded ? (
@@ -278,8 +278,8 @@ export const ProvinceHierarchy: React.FC<ProvinceHierarchyProps> = ({
                       className={`
                         text-xs px-2 py-0.5 rounded-full font-medium
                         ${isProvinceSelected
-                          ? 'bg-[--color-surface] text-[--color-ink-primary] border border-[--color-action]/30'
-                          : 'bg-[--color-surface-muted] text-[--color-ink-primary]'
+                          ? 'bg-[var(--color-surface)] text-[var(--color-ink-primary)] border border-[var(--color-action)]/30'
+                          : 'bg-[var(--color-surface-muted)] text-[var(--color-ink-primary)]'
                         }
                       `}
                     >
@@ -306,8 +306,8 @@ export const ProvinceHierarchy: React.FC<ProvinceHierarchyProps> = ({
                             className={`
                               group flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all text-sm
                               ${isMunicipalitySelected
-                                ? 'bg-[--color-status-live-soft] text-[--color-ink-primary] font-semibold ring-1 ring-[--color-status-live]'
-                                : 'hover:bg-[--color-surface-muted] text-[--color-ink-primary]'
+                                ? 'bg-[var(--color-status-live-soft)] text-[var(--color-ink-primary)] font-semibold ring-1 ring-[var(--color-status-live)]'
+                                : 'hover:bg-[var(--color-surface-muted)] text-[var(--color-ink-primary)]'
                               }
                             `}
                           >
@@ -330,8 +330,8 @@ export const ProvinceHierarchy: React.FC<ProvinceHierarchyProps> = ({
                                 className={`
                                   text-[10px] px-1.5 py-0.5 rounded-full font-medium
                                   ${isMunicipalitySelected
-                                    ? 'bg-[--color-surface] text-[--color-ink-primary] border border-[--color-status-live]/30'
-                                    : 'bg-[--color-surface-muted] text-[--color-ink-primary]'
+                                    ? 'bg-[var(--color-surface)] text-[var(--color-ink-primary)] border border-[var(--color-status-live)]/30'
+                                    : 'bg-[var(--color-surface-muted)] text-[var(--color-ink-primary)]'
                                   }
                                 `}
                               >

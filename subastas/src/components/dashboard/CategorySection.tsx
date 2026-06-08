@@ -65,7 +65,7 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
               {count}
             </span>
             {isPremiumFeature && (
-              <Badge className="bg-[--color-action-soft] text-[--color-ink-primary] border border-[--color-action] gap-1">
+              <Badge className="bg-[var(--color-action-soft)] text-[var(--color-ink-primary)] border border-[var(--color-action)] gap-1">
                 <Crown className="h-3 w-3" />
                 {premiumBadgeText}
               </Badge>

@@ -61,7 +61,7 @@ function valueLinesFor(r: Row): ValueLine[] {
 export function SeoAuctionGrid({ auctions, emptyMessage }: { auctions: Row[]; emptyMessage?: string }) {
   if (!auctions.length) {
     return (
-      <div className="rounded-md border border-[--color-border] p-6 text-sm text-[--color-text-muted]">
+      <div className="rounded-md border border-[var(--color-border)] p-6 text-sm text-[var(--color-text-muted)]">
         {emptyMessage ?? 'No hay subastas activas ahora mismo. Crea una alerta y te avisamos en cuanto haya novedades.'}
       </div>
     );
@@ -92,13 +92,13 @@ export function SeoAuctionGrid({ auctions, emptyMessage }: { auctions: Row[]; em
               ? { key: 'currentBid', label: 'Puja actual', amount: a.currentBid }
               : null;
           return (
-            <li key={a.id} className="rounded-md border border-[--color-border] p-4 hover:shadow-md transition-shadow">
+            <li key={a.id} className="rounded-md border border-[var(--color-border)] p-4 hover:shadow-md transition-shadow">
               <Link href={`/subastas/subasta/${slug}`} className="block">
-                <div className="text-[10px] uppercase tracking-wider text-[--color-text-muted]">{a.category}</div>
+                <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">{a.category}</div>
                 <h3 className="text-sm font-semibold mt-1 line-clamp-2">
                   {a.title || `${a.category} en ${a.province ?? 'España'}`}
                 </h3>
-                {where ? <div className="text-xs text-[--color-text-muted] mt-1">{where}</div> : null}
+                {where ? <div className="text-xs text-[var(--color-text-muted)] mt-1">{where}</div> : null}
                 {/* Three-value labelled stack — first value is the SEO card's
                     headline, others render as compact secondary captions.
                     Honest-NULL: each line is OMITTED when absent. */}
@@ -110,12 +110,12 @@ export function SeoAuctionGrid({ auctions, emptyMessage }: { auctions: Row[]; em
                           className={
                             i === 0
                               ? 'text-sm font-semibold'
-                              : 'text-xs font-medium text-[--color-text-muted]'
+                              : 'text-xs font-medium text-[var(--color-text-muted)]'
                           }
                         >
                           {EUR.format(line.amount)}
                         </span>
-                        <span className="text-[10px] uppercase tracking-wide text-[--color-text-muted]">
+                        <span className="text-[10px] uppercase tracking-wide text-[var(--color-text-muted)]">
                           {line.label}
                         </span>
                       </div>
@@ -124,12 +124,12 @@ export function SeoAuctionGrid({ auctions, emptyMessage }: { auctions: Row[]; em
                 ) : fallbackBid ? (
                   <div className="mt-2 flex items-baseline gap-1.5">
                     <span className="text-sm font-semibold">{EUR.format(fallbackBid.amount)}</span>
-                    <span className="text-[10px] uppercase tracking-wide text-[--color-text-muted]">
+                    <span className="text-[10px] uppercase tracking-wide text-[var(--color-text-muted)]">
                       {fallbackBid.label}
                     </span>
                   </div>
                 ) : (
-                  <div className="mt-2 text-sm text-[--color-text-muted]">Sin precio publicado</div>
+                  <div className="mt-2 text-sm text-[var(--color-text-muted)]">Sin precio publicado</div>
                 )}
               </Link>
             </li>

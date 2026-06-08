@@ -41,16 +41,16 @@ export const PremiumGuard: React.FC<PremiumGuardProps> = ({
       </div>
 
       {/* The Premium Overlay — light variant, all-black text */}
-      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[--color-surface]/70 backdrop-blur-[2px]">
-        <div className="bg-[--color-surface] border border-[--color-gold] p-4 rounded-2xl shadow-[var(--shadow-lift)] flex flex-col items-center text-center max-w-[80%]">
-          <Lock className={`w-8 h-8 mb-2 ${tierRequired === 'DIAMOND' ? 'text-[--color-action]' : 'text-[--color-gold]'}`} />
-          <h4 className="text-sm font-bold text-[--color-ink-primary] uppercase tracking-wider">
+      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[var(--color-surface)]/70 backdrop-blur-[2px]">
+        <div className="bg-[var(--color-surface)] border border-[var(--color-gold)] p-4 rounded-2xl shadow-[var(--shadow-lift)] flex flex-col items-center text-center max-w-[80%]">
+          <Lock className={`w-8 h-8 mb-2 ${tierRequired === 'DIAMOND' ? 'text-[var(--color-action)]' : 'text-[var(--color-gold)]'}`} />
+          <h4 className="text-sm font-bold text-[var(--color-ink-primary)] uppercase tracking-wider">
             Contenido {tierRequired}
           </h4>
-          <p className="text-xs text-[--color-ink-secondary] mt-1 mb-4">
+          <p className="text-xs text-[var(--color-ink-secondary)] mt-1 mb-4">
             Desbloquea esta subasta y otras 45+ en tu zona.
           </p>
-          <Button size="sm" className="bg-[--color-gold] hover:bg-[--color-gold-hover] text-[--color-ink-primary] font-bold w-full">
+          <Button size="sm" className="bg-[var(--color-gold)] hover:bg-[var(--color-gold-hover)] text-[var(--color-ink-primary)] font-bold w-full">
             Mejorar plan
           </Button>
         </div>

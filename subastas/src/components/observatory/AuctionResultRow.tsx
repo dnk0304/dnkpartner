@@ -194,9 +194,9 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
   return (
     <article
       className={cn(
-        "relative flex gap-4 rounded-lg border border-[--color-hairline] bg-[--color-surface] p-3 md:p-4",
+        "relative flex gap-4 rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] p-3 md:p-4",
         "transition-shadow hover:shadow-[var(--shadow-card)]",
-        "focus-within:ring-2 focus-within:ring-[--color-brand]/30",
+        "focus-within:ring-2 focus-within:ring-[var(--color-brand)]/30",
         className,
       )}
     >
@@ -207,11 +207,11 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
         href={`/auction/${encodeURIComponent(item.id)}`}
         aria-label={`Ver detalle de ${title}`}
         className={cn(
-          "relative shrink-0 overflow-hidden rounded-md bg-[--color-surface-muted]",
-          "border border-[--color-hairline]",
+          "relative shrink-0 overflow-hidden rounded-md bg-[var(--color-surface-muted)]",
+          "border border-[var(--color-hairline)]",
           // ~square tile. ~120px on tablet+, smaller on mobile.
           "h-24 w-24 sm:h-28 sm:w-28 md:h-32 md:w-32",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--color-brand]/40",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40",
         )}
       >
         <Image
@@ -236,7 +236,7 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
             aria-hidden="true"
             className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full"
           >
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[--color-warn-critical] text-white shadow-[0_2px_5px_rgba(0,0,0,0.35)] ring-2 ring-white">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--color-warn-critical)] text-white shadow-[0_2px_5px_rgba(0,0,0,0.35)] ring-2 ring-white">
               <MapPin className="h-3.5 w-3.5" strokeWidth={2.5} />
             </span>
           </span>
@@ -250,10 +250,10 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
           <span
             className={cn(
               "pointer-events-none absolute bottom-1 left-1 tnum rounded-full px-1.5 py-0.5 text-[10px] font-semibold border",
-              "text-[--color-ink-primary]",
+              "text-[var(--color-ink-primary)]",
               daysBadge === "Hoy" || daysBadge === "1 d"
-                ? "bg-[--color-warn-critical-soft] border-[--color-warn-critical]/40"
-                : "bg-[--color-surface]/95 border-[--color-hairline] backdrop-blur-sm",
+                ? "bg-[var(--color-warn-critical-soft)] border-[var(--color-warn-critical)]/40"
+                : "bg-[var(--color-surface)]/95 border-[var(--color-hairline)] backdrop-blur-sm",
             )}
           >
             {daysBadge}
@@ -272,17 +272,17 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
             href={`/auction/${encodeURIComponent(item.id)}`}
             className="block min-w-0 flex-1 focus-visible:outline-none"
           >
-            <h3 className="font-serif text-base md:text-lg leading-snug text-[--color-ink-primary] line-clamp-2 hover:underline">
+            <h3 className="font-serif text-base md:text-lg leading-snug text-[var(--color-ink-primary)] line-clamp-2 hover:underline">
               {title}
             </h3>
             {/* Vehicle subtitle — año from primera matriculación. (Wave C3.) */}
             {isVehicle && item.vehicleYear && (
-              <p className="mt-0.5 text-xs text-[--color-ink-tertiary] tnum">
+              <p className="mt-0.5 text-xs text-[var(--color-ink-tertiary)] tnum">
                 {item.vehicleYear}
               </p>
             )}
             {where && (
-              <p className="mt-0.5 text-xs text-[--color-ink-tertiary] truncate">{where}</p>
+              <p className="mt-0.5 text-xs text-[var(--color-ink-tertiary)] truncate">{where}</p>
             )}
           </Link>
         </div>
@@ -295,24 +295,24 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
         {primaryPrice ? (
           <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <div className="flex items-baseline gap-1.5">
-              <span className="tnum font-serif text-xl md:text-2xl font-semibold text-[--color-ink-primary]">
+              <span className="tnum font-serif text-xl md:text-2xl font-semibold text-[var(--color-ink-primary)]">
                 {formatPrice(primaryPrice.amount)}
               </span>
-              <span className="text-[10px] uppercase tracking-wide text-[--color-ink-tertiary]">
+              <span className="text-[10px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
                 {primaryPrice.label}
               </span>
             </div>
             {secondaryLines.map((line) => (
-              <span key={line.key} className="tnum text-xs text-[--color-ink-tertiary]">
+              <span key={line.key} className="tnum text-xs text-[var(--color-ink-tertiary)]">
                 {line.label}{" "}
-                <span className="text-[--color-ink-secondary]">
+                <span className="text-[var(--color-ink-secondary)]">
                   {formatPrice(line.amount)}
                 </span>
               </span>
             ))}
           </div>
         ) : (
-          <div className="mt-2 text-sm text-[--color-ink-secondary]">
+          <div className="mt-2 text-sm text-[var(--color-ink-secondary)]">
             Precio no disponible
           </div>
         )}
@@ -338,7 +338,7 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
         {/* Short description excerpt. Hidden on the smallest viewports to keep
             the row scannable; expanded on sm+. Two-line clamp. */}
         {excerpt && (
-          <p className="mt-2 hidden sm:block text-sm text-[--color-ink-secondary] line-clamp-2">
+          <p className="mt-2 hidden sm:block text-sm text-[var(--color-ink-secondary)] line-clamp-2">
             {excerpt}
           </p>
         )}
@@ -351,7 +351,7 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
                          Fecha por confirmar".
             Terminal → nothing (status badge already labels it). */}
         {dateLabel === "Termina" && hasEndDate && (
-          <div className="mt-2 text-xs text-[--color-ink-tertiary]">
+          <div className="mt-2 text-xs text-[var(--color-ink-tertiary)]">
             <LiveCountdown
               target={item.endDate}
               size="sm"
@@ -361,22 +361,22 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
           </div>
         )}
         {dateLabel === "Próxima apertura" && (
-          <div className="mt-2 text-xs text-[--color-ink-tertiary] tnum">
-            <span className="text-[--color-ink-secondary]">Próxima apertura</span>
+          <div className="mt-2 text-xs text-[var(--color-ink-tertiary)] tnum">
+            <span className="text-[var(--color-ink-secondary)]">Próxima apertura</span>
             {opensLabel ? (
-              <>: <span className="text-[--color-ink-primary]">{opensLabel}</span></>
+              <>: <span className="text-[var(--color-ink-primary)]">{opensLabel}</span></>
             ) : (
-              <> · <span className="text-[--color-ink-quiet]">Fecha por confirmar</span></>
+              <> · <span className="text-[var(--color-ink-quiet)]">Fecha por confirmar</span></>
             )}
           </div>
         )}
         {dateLabel === "Fecha prevista de reanudación" && (
-          <div className="mt-2 text-xs text-[--color-ink-tertiary] tnum">
-            <span className="text-[--color-ink-secondary]">Fecha prevista de reanudación</span>
+          <div className="mt-2 text-xs text-[var(--color-ink-tertiary)] tnum">
+            <span className="text-[var(--color-ink-secondary)]">Fecha prevista de reanudación</span>
             {resumeDateStr ? (
-              <>: <span className="text-[--color-ink-primary]">{resumeDateStr}</span></>
+              <>: <span className="text-[var(--color-ink-primary)]">{resumeDateStr}</span></>
             ) : (
-              <> · <span className="text-[--color-ink-quiet]">Fecha por confirmar</span></>
+              <> · <span className="text-[var(--color-ink-quiet)]">Fecha por confirmar</span></>
             )}
           </div>
         )}

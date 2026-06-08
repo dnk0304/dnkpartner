@@ -225,7 +225,7 @@ export const FilterChips: React.FC<FilterChipsProps> = ({
               Buscar
             </label>
             <Button 
-              className="w-full md:w-32 h-11 bg-[--color-action-soft] border border-[--color-action] hover:bg-[--color-action-soft]/80 text-[--color-ink-primary] font-bold text-base shadow-sm"
+              className="w-full md:w-32 h-11 bg-[var(--color-action-soft)] border border-[var(--color-action)] hover:bg-[var(--color-action-soft)]/80 text-[var(--color-ink-primary)] font-bold text-base shadow-sm"
             >
               Buscar
             </Button>

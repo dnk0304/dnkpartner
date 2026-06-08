@@ -105,7 +105,7 @@ export default async function TipoPage({ params }: PageProps) {
   );
 
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[--color-page]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-[var(--color-page)]" />}>
       <SubastasListClient
         lockedFilter={{ type: lockedAuctionType }}
         seoTitle={`Subastas ${label} en España`}

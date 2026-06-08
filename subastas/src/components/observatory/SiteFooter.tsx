@@ -90,7 +90,7 @@ export function SiteFooter() {
 
   return (
     <footer
-      className="hairline-t mt-16 bg-[--color-surface] text-[--color-ink-secondary]"
+      className="hairline-t mt-16 bg-[var(--color-surface)] text-[var(--color-ink-secondary)]"
       aria-label={t("footer.aria")}
     >
       <div className="mx-auto max-w-editorial px-4 md:px-6 py-12 md:py-14">
@@ -99,12 +99,12 @@ export function SiteFooter() {
           <div className="md:col-span-5 lg:col-span-4 space-y-4">
             <Link
               href="/"
-              className="inline-flex items-center text-[--color-ink-primary] font-display text-xl font-semibold tracking-tight"
+              className="inline-flex items-center text-[var(--color-ink-primary)] font-display text-xl font-semibold tracking-tight"
               aria-label={t("footer.brandAria")}
             >
               SubastasActivas
             </Link>
-            <p className="max-w-prose text-sm leading-relaxed text-[--color-ink-secondary]">
+            <p className="max-w-prose text-sm leading-relaxed text-[var(--color-ink-secondary)]">
               {t("footer.tagline")}
             </p>
             <Link
@@ -123,7 +123,7 @@ export function SiteFooter() {
             aria-label={t("footer.navAria")}
           >
             <div>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-[--color-ink-primary]">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink-primary)]">
                 {t("footer.colProvincesTitle")}
               </h2>
               <ul className="mt-4 space-y-2.5 text-sm">
@@ -131,7 +131,7 @@ export function SiteFooter() {
                   <li key={p.slug}>
                     <Link
                       href={`/subastas/${p.slug}`}
-                      className="text-[--color-ink-secondary] hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:underline underline-offset-4"
+                      className="text-[var(--color-ink-secondary)] hover:text-[var(--color-ink-primary)] focus-visible:outline-none focus-visible:underline underline-offset-4"
                     >
                       {p.label}
                     </Link>
@@ -140,7 +140,7 @@ export function SiteFooter() {
                 <li className="pt-1">
                   <Link
                     href="/subastas"
-                    className="inline-flex items-center gap-1 text-[--color-action] hover:text-[--color-action-hover] font-medium focus-visible:outline-none focus-visible:underline underline-offset-4"
+                    className="inline-flex items-center gap-1 text-[var(--color-action)] hover:text-[var(--color-action-hover)] font-medium focus-visible:outline-none focus-visible:underline underline-offset-4"
                   >
                     {t("footer.allProvinces")}
                     <span aria-hidden="true">→</span>
@@ -150,7 +150,7 @@ export function SiteFooter() {
             </div>
 
             <div>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-[--color-ink-primary]">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink-primary)]">
                 {t("footer.colTiposTitle")}
               </h2>
               <ul className="mt-4 space-y-2.5 text-sm">
@@ -158,7 +158,7 @@ export function SiteFooter() {
                   <li key={tipo.slug}>
                     <Link
                       href={`/subastas/tipo/${tipo.slug}`}
-                      className="text-[--color-ink-secondary] hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:underline underline-offset-4"
+                      className="text-[var(--color-ink-secondary)] hover:text-[var(--color-ink-primary)] focus-visible:outline-none focus-visible:underline underline-offset-4"
                     >
                       {tipo.label}
                     </Link>
@@ -168,14 +168,14 @@ export function SiteFooter() {
             </div>
 
             <div>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-[--color-ink-primary]">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink-primary)]">
                 {t("footer.colProductTitle")}
               </h2>
               <ul className="mt-4 space-y-2.5 text-sm">
                 <li>
                   <Link
                     href="/blog"
-                    className="text-[--color-ink-secondary] hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:underline underline-offset-4"
+                    className="text-[var(--color-ink-secondary)] hover:text-[var(--color-ink-primary)] focus-visible:outline-none focus-visible:underline underline-offset-4"
                   >
                     {t("footer.linkHowItWorks")}
                   </Link>
@@ -183,7 +183,7 @@ export function SiteFooter() {
                 <li>
                   <Link
                     href="/precios"
-                    className="text-[--color-ink-secondary] hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:underline underline-offset-4"
+                    className="text-[var(--color-ink-secondary)] hover:text-[var(--color-ink-primary)] focus-visible:outline-none focus-visible:underline underline-offset-4"
                   >
                     {t("footer.linkPricing")}
                   </Link>
@@ -191,7 +191,7 @@ export function SiteFooter() {
                 <li>
                   <Link
                     href="/alerts"
-                    className="text-[--color-ink-secondary] hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:underline underline-offset-4"
+                    className="text-[var(--color-ink-secondary)] hover:text-[var(--color-ink-primary)] focus-visible:outline-none focus-visible:underline underline-offset-4"
                   >
                     {t("footer.linkCreateAlert")}
                   </Link>
@@ -199,7 +199,7 @@ export function SiteFooter() {
                 <li>
                   <Link
                     href="/register"
-                    className="text-[--color-ink-secondary] hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:underline underline-offset-4"
+                    className="text-[var(--color-ink-secondary)] hover:text-[var(--color-ink-primary)] focus-visible:outline-none focus-visible:underline underline-offset-4"
                   >
                     {t("footer.linkRegister")}
                   </Link>
@@ -208,14 +208,14 @@ export function SiteFooter() {
             </div>
 
             <div>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-[--color-ink-primary]">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--color-ink-primary)]">
                 {t("footer.colLegalTitle")}
               </h2>
               <ul className="mt-4 space-y-2.5 text-sm">
                 <li>
                   <Link
                     href="/legal/aviso-legal"
-                    className="text-[--color-ink-secondary] hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:underline underline-offset-4"
+                    className="text-[var(--color-ink-secondary)] hover:text-[var(--color-ink-primary)] focus-visible:outline-none focus-visible:underline underline-offset-4"
                   >
                     {t("footer.linkLegalNotice")}
                   </Link>
@@ -223,7 +223,7 @@ export function SiteFooter() {
                 <li>
                   <Link
                     href="/legal/privacidad"
-                    className="text-[--color-ink-secondary] hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:underline underline-offset-4"
+                    className="text-[var(--color-ink-secondary)] hover:text-[var(--color-ink-primary)] focus-visible:outline-none focus-visible:underline underline-offset-4"
                   >
                     {t("footer.linkPrivacy")}
                   </Link>
@@ -231,7 +231,7 @@ export function SiteFooter() {
                 <li>
                   <Link
                     href="/legal/cookies"
-                    className="text-[--color-ink-secondary] hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:underline underline-offset-4"
+                    className="text-[var(--color-ink-secondary)] hover:text-[var(--color-ink-primary)] focus-visible:outline-none focus-visible:underline underline-offset-4"
                   >
                     {t("footer.linkCookies")}
                   </Link>
@@ -239,7 +239,7 @@ export function SiteFooter() {
                 <li>
                   <Link
                     href="/contacto"
-                    className="text-[--color-ink-secondary] hover:text-[--color-ink-primary] focus-visible:outline-none focus-visible:underline underline-offset-4"
+                    className="text-[var(--color-ink-secondary)] hover:text-[var(--color-ink-primary)] focus-visible:outline-none focus-visible:underline underline-offset-4"
                   >
                     {t("footer.linkContact")}
                   </Link>

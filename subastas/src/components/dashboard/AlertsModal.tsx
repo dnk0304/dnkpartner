@@ -409,7 +409,7 @@ export const AlertsModal: React.FC<AlertsModalProps> = ({
 
             <Button 
               onClick={handleAddAlert}
-              className="w-full bg-[--color-action-soft] border border-[--color-action] text-[--color-ink-primary] hover:bg-[--color-action-soft]/80"
+              className="w-full bg-[var(--color-action-soft)] border border-[var(--color-action)] text-[var(--color-ink-primary)] hover:bg-[var(--color-action-soft)]/80"
               disabled={!selectedProvince && selectedCategory === 'all' && !keywords && !alertName}
             >
               Añadir Alerta
@@ -498,7 +498,7 @@ export const AlertsModal: React.FC<AlertsModalProps> = ({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={handleSave} disabled={loading} className="bg-[--color-status-live-soft] border border-[--color-status-live] text-[--color-ink-primary] hover:bg-[--color-status-live-soft]/80 gap-2">
+          <Button onClick={handleSave} disabled={loading} className="bg-[var(--color-status-live-soft)] border border-[var(--color-status-live)] text-[var(--color-ink-primary)] hover:bg-[var(--color-status-live-soft)]/80 gap-2">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
             Guardar Cambios
           </Button>

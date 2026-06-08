@@ -33,20 +33,20 @@ const LEVEL_TOKENS: Record<
   { bg: string; border: string }
 > = {
   critical: {
-    bg: "bg-[--color-warn-critical-soft]",
-    border: "border-[--color-warn-critical]/40",
+    bg: "bg-[var(--color-warn-critical-soft)]",
+    border: "border-[var(--color-warn-critical)]/40",
   },
   attention: {
-    bg: "bg-[--color-warn-attention-soft]",
-    border: "border-[--color-warn-attention]/40",
+    bg: "bg-[var(--color-warn-attention-soft)]",
+    border: "border-[var(--color-warn-attention)]/40",
   },
   info: {
-    bg: "bg-[--color-warn-info-soft]",
-    border: "border-[--color-warn-info]/40",
+    bg: "bg-[var(--color-warn-info-soft)]",
+    border: "border-[var(--color-warn-info)]/40",
   },
   positive: {
-    bg: "bg-[--color-warn-positive-soft]",
-    border: "border-[--color-warn-positive]/40",
+    bg: "bg-[var(--color-warn-positive-soft)]",
+    border: "border-[var(--color-warn-positive)]/40",
   },
 };
 
@@ -57,7 +57,7 @@ export function WarnFlag({ level, icon, children, className }: WarnFlagProps) {
       className={cn(
         "inline-flex items-center gap-1 rounded-md border px-2 py-0.5",
         "text-[11px] font-semibold leading-[1.4]",
-        "text-[--color-ink-primary]",
+        "text-[var(--color-ink-primary)]",
         tokens.bg,
         tokens.border,
         className

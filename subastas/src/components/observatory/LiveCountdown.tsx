@@ -120,7 +120,7 @@ export function LiveCountdown({
     return (
       <span
         className={cn(
-          "tnum text-[--color-ink-tertiary]",
+          "tnum text-[var(--color-ink-tertiary)]",
           size === "lg" ? "text-base" : "text-xs",
           className,
         )}
@@ -142,7 +142,7 @@ export function LiveCountdown({
       return (
         <span
           className={cn(
-            "tnum text-[--color-ink-quiet]",
+            "tnum text-[var(--color-ink-quiet)]",
             size === "lg" ? "text-base" : "text-xs",
             className,
           )}
@@ -155,7 +155,7 @@ export function LiveCountdown({
     return (
       <span
         className={cn(
-          "tnum text-[--color-status-concluded]",
+          "tnum text-[var(--color-status-concluded)]",
           size === "lg" ? "text-base" : "text-xs",
           className,
         )}
@@ -168,7 +168,7 @@ export function LiveCountdown({
   const lastHour = parts.days === 0 && parts.hours === 0;
   const lastDay = parts.days === 0 && !lastHour;
   const emphasis = lastHour ? "font-semibold" : lastDay ? "font-semibold" : "font-medium";
-  const colorClass = lastHour ? "text-[--color-gold]" : "text-[--color-ink-primary]";
+  const colorClass = lastHour ? "text-[var(--color-gold)]" : "text-[var(--color-ink-primary)]";
 
   // Format depends on remaining time
   let body: React.ReactNode;
@@ -209,7 +209,7 @@ export function LiveCountdown({
       aria-live="off"
     >
       {prefix && (
-        <span className="mr-1 font-normal text-[--color-ink-secondary]">{prefix}</span>
+        <span className="mr-1 font-normal text-[var(--color-ink-secondary)]">{prefix}</span>
       )}
       {body}
     </span>
