@@ -40,7 +40,7 @@ import { DetailTimeline } from "@/components/observatory/DetailTimeline";
 import { PROVINCE_DB_KEY_TO_SLUG } from "@/lib/seo/slugs";
 import { auctionDisplayTitle } from "@/lib/seo/display-title";
 import { getSourceLabel } from "@/lib/source-labels";
-import { sanitizeExtractedText } from "@/lib/sanitize-extracted-text";
+import { sanitizeExtractedText, stripStructuredLabelLines } from "@/lib/sanitize-extracted-text";
 import { FollowButton } from "@/components/notifications/FollowButton";
 import { StatusBadge } from "@/components/observatory/StatusBadge";
 // GatedField import dropped 2026-06-07 (wave-B): the detail page is fully
@@ -688,13 +688,24 @@ export default function AuctionDetailClient({
                 BOE page-dump leak (HTML/JS nav chrome) can never reach the
                 UI even if a future regression slips junk into the row.
                 The API already sanitizes too — the double-pass is intentional.
-                When all three sources reject as null, the section is omitted
+
+                Address-dedup (2026-06-09): the BOE-style blob is a flat run of
+                `Etiqueta: valor` / `Etiqueta\tvalor` segments (Dirección, Vía
+                Pública, Número, Localización, Código Postal, Referencia
+                catastral, IDUFIR, Superficie…) — the SAME fields the structured
+                "Datos del bien" KV panel below renders canonically. Rendering
+                the blob verbatim printed the address (and friends) a SECOND
+                time inside the prose. stripStructuredLabelLines() keeps only
+                the genuine free-text lead BEFORE the first structured token and
+                drops the Key/Value dump; the KV panel stays the single home for
+                the structured address. When there is no lead prose (blob was
+                purely structured) it returns null and the section is omitted
                 entirely (no empty heading). */}
             {(() => {
               const desc =
-                sanitizeExtractedText(raw.propertyDescription) ??
-                sanitizeExtractedText(raw.lotDescription) ??
-                sanitizeExtractedText(raw.boeAnnouncement);
+                stripStructuredLabelLines(raw.propertyDescription) ??
+                stripStructuredLabelLines(raw.lotDescription) ??
+                stripStructuredLabelLines(raw.boeAnnouncement);
               if (!desc) return null;
               return (
                 <section aria-labelledby="desc-heading">
