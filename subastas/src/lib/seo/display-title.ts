@@ -40,6 +40,16 @@ export interface DisplayTitleInput {
   province?: string | null;
   /** The raw scraped title (reference/category code). Used only as last resort. */
   title?: string | null;
+  /**
+   * Bug 2 mitigation (2026-06-09): the BOE `lotDescription` blob, used ONLY as
+   * a read-time fallback when the stored `address` is junk (see
+   * {@link isJunkAddress}). The clean street ("León y Castillo 373 4º pta 4-1")
+   * lives in its `Dirección\t…` tab; we extract that field, then run it through
+   * the street+first-number formatter. Optional — when omitted the helper
+   * behaves exactly as before. PII-safe: only the Dirección VALUE is read and
+   * the formatter is a hard allowlist (street + first number only).
+   */
+  lotDescription?: string | null;
 }
 
 const titleCase = (raw: string): string => {
@@ -129,18 +139,60 @@ export function resolveTipo(input: DisplayTitleInput): string {
  *   auctionDisplayTitle({ title: 'SUB-NE-2025-12345' })
  *   // → "SUB-NE-2025-12345"  (last resort, never blank)
  */
+/**
+ * Bug 5 + Bug 2 (2026-06-09): resolve the clean "street + first number" string
+ * for the title, with a read-time lotDescription fallback for dirty rows.
+ *
+ * Resolution order:
+ *   1. Stored `address`, IF it isn't junk → streetWithFirstNumber(address).
+ *   2. lotDescription "Dirección" tab value → streetWithFirstNumber(value).
+ *      Fires whenever (1) yielded nothing — either the stored address was junk
+ *      ("…Superficie construida: 75,40 m2…" / postal+town only) OR it had no
+ *      parseable via-type.
+ *
+ * Returns the formatted "{Via} {Street} {number}" (e.g. "Calle León y Castillo
+ * 373"), or NULL when neither source yields a parseable street. Caller then
+ * decides whether to fall back to the raw stored address or to municipality.
+ */
+export function resolveTitleStreet(input: DisplayTitleInput): string | null {
+  const address = cleanString(input.address);
+  if (address && !isJunkAddress(address)) {
+    const street = streetWithFirstNumber(address);
+    if (street) return street;
+  }
+  // Stored address missing, junk, or unparseable — try the lotDescription
+  // Dirección tab (clean street lives there on the mis-captured BOE rows).
+  const fromLot = addressFromLotDescription(input.lotDescription);
+  if (fromLot) {
+    const street = streetWithFirstNumber(fromLot);
+    if (street) return street;
+  }
+  return null;
+}
+
 export function auctionDisplayTitle(input: DisplayTitleInput): string {
   const tipo = resolveTipo(input);
   const address = cleanString(input.address);
   const municipality = cleanString(input.municipality);
   const province = cleanString(input.province);
 
-  // 1. Street address present — competitor-style phrasing.
-  if (address) {
-    // Append municipality after the address when it isn't already in it
-    // (BOE addresses commonly omit the town: "Calle Tollo, 19" — the town
-    // belongs at the end so the H1 reads cleanly). Avoid dup when the address
-    // already ends with the municipality token.
+  // 1. Clean street + FIRST number (Bug 5) — derived from the stored address
+  //    or, when that's junk, the lotDescription "Dirección" tab (Bug 2).
+  //    Yields "León y Castillo 373" rather than the long dirty address.
+  const street = resolveTitleStreet(input);
+  if (street) {
+    const lowerStreet = street.toLowerCase();
+    const muniSuffix =
+      municipality && !lowerStreet.includes(municipality.toLowerCase())
+        ? `, ${titleCase(municipality)}`
+        : '';
+    return `Subasta de ${tipo} en ${street}${muniSuffix}`;
+  }
+
+  // 1b. We have a stored address that isn't junk but didn't parse to a street
+  //     (no recognised via-type) — surface it verbatim rather than dropping to
+  //     the town, matching the previous competitor-style phrasing.
+  if (address && !isJunkAddress(address)) {
     const lowerAddr = address.toLowerCase();
     const muniSuffix =
       municipality && !lowerAddr.includes(municipality.toLowerCase())
@@ -437,6 +489,173 @@ export function shortStreetName(address: string | null | undefined): string | nu
   const streetName = titleCaseStreetName(streetTokens);
   if (!streetName) return null;
   return `${viaLabel} ${streetName}`;
+}
+
+/**
+ * Bug 5 (2026-06-09): "street + FIRST number" formatter.
+ *
+ * Dennis wants the detail H1 / <title> / OG to read "León y Castillo 373" —
+ * the street NAME plus the FIRST house number, dropping everything after it
+ * (apt/floor "4º pta 4-1", "Es:1 Pl:03 Pt:09", trailing commas, "Superficie
+ * construida: 75,40 m2" garbage). `shortStreetName` already isolates the
+ * street name and locates the first house-number token; this helper reuses
+ * that parse and APPENDS the first number.
+ *
+ * Algorithm:
+ *   1. Strip a leading via-type token if present ("Calle", "Av", "Cl", …) and
+ *      remember its canonical label. A via-type is OPTIONAL here — many BOE
+ *      "Dirección" tab values omit it ("León y Castillo 373 4º pta 4-1"), and
+ *      Dennis wants those surfaced too. (This is the key difference from
+ *      `shortStreetName`, which hard-requires a via-type.)
+ *   2. From the remaining string, capture the street-NAME tokens up to the
+ *      first cutoff (comma / "s/n" / "km <n>" / first digit token), then the
+ *      FIRST house-number token (first token whose first char is a digit).
+ *      Keep only the LEADING numeric run so "15D" → "15", "4,2" → "4",
+ *      "373" → "373" — apartment suffixes / fractional km noise never leak.
+ *   3. Guard: the street name must contain at least one ALPHABETIC token
+ *      (so a bare postal code / number string can't masquerade as a street).
+ *   4. Return "{Via} {Street} {number}" (via-type prepended when matched),
+ *      "{Street} {number}" when no via-type, or the name alone when no house
+ *      number is present (e.g. "s/n").
+ *
+ * Drops EVERYTHING after the first number by construction — so even a dirty
+ * tail ("373 4º pta 4-1, Superficie construida…") collapses to "… 373".
+ *
+ * NEVER returns the full address, municipality, postal code, cadastral ref,
+ * or any tail content. Conservative NULL on a parse failure.
+ */
+export function streetWithFirstNumber(address: string | null | undefined): string | null {
+  const raw = cleanString(address);
+  if (!raw) return null;
+  const collapsed = raw.replace(/\s+/g, ' ').trim();
+
+  // Strip an OPTIONAL leading via-type token. Unlike shortStreetName, absence
+  // of a via-type is fine — we just don't prepend one.
+  let viaLabel: string | null = null;
+  let rest = collapsed;
+  for (const [pattern, label] of VIA_TYPE_MAP) {
+    const match = pattern.exec(collapsed);
+    if (match) {
+      viaLabel = label;
+      rest = collapsed.slice(match[0].length).trim();
+      break;
+    }
+  }
+
+  // Cutoff = earliest of comma / "s/n" / "km <n>" / first leading-digit token.
+  const commaIdx = rest.indexOf(',');
+  const slashNIdx = rest.search(/\bs\s*\/\s*n\b/i);
+  const kmIdx = rest.search(/\bkm\s+\d/i);
+
+  let firstDigitTokenIdx = -1;
+  let firstNumber: string | null = null;
+  {
+    const tokenRe = /\S+/g;
+    let m: RegExpExecArray | null;
+    while ((m = tokenRe.exec(rest)) !== null) {
+      if (/^\d/.test(m[0])) {
+        firstDigitTokenIdx = m.index;
+        const digits = /^\d+/.exec(m[0]);
+        if (digits) firstNumber = digits[0];
+        break;
+      }
+    }
+  }
+
+  const candidates = [commaIdx, slashNIdx, kmIdx, firstDigitTokenIdx].filter((v) => v >= 0);
+  const cutoff = candidates.length > 0 ? Math.min(...candidates) : rest.length;
+
+  const streetTokens = rest.slice(0, cutoff).replace(/[,;:.\s]+$/, '').trim();
+  if (!streetTokens) return null;
+
+  // Guard: require at least one alphabetic token so a bare postal-code / number
+  // run can't be surfaced as a "street" (e.g. "35005 Las Palmas" already gets
+  // cut at "35005", leaving nothing — but defend the "00 2"-style leftovers).
+  if (!/\p{L}/u.test(streetTokens)) return null;
+
+  const streetName = titleCaseStreetName(streetTokens);
+  if (!streetName) return null;
+
+  const base = viaLabel ? `${viaLabel} ${streetName}` : streetName;
+  return firstNumber ? `${base} ${firstNumber}` : base;
+}
+
+/**
+ * Bug 2 mitigation (2026-06-09): is the stored `address` junk?
+ *
+ * The live scraper matches the BOE "Localización" label by position instead of
+ * "Dirección", so a large share of scraped rows store garbage in `address` —
+ * e.g. "35005 Las Palmas G.C. Superficie construida: 75,40 m2. ..." — while the
+ * CLEAN street ("León y Castillo 373 4º pta 4-1") sits in the row's
+ * `lotDescription` under a `Dirección\t…` tab. The scraper-side root fix + DB
+ * re-derive are DEFERRED until the 221k backfill finishes. Until then we detect
+ * junk at READ TIME and fall back to the lotDescription Dirección value.
+ *
+ * Heuristic — an address is JUNK when ANY of:
+ *   (a) it contains a surface-area marker ("Superficie" / "m2" / "m²") — these
+ *       are the mis-captured "Localización" blobs;
+ *   (b) it has NO street signal — i.e. NEITHER a recognised via-type token
+ *       (`shortStreetName` parses) NOR a "name + house-number" shape (a leading
+ *       alphabetic name followed by a digit token, e.g. "León y Castillo 373").
+ *       A bare postal code + town ("35005 Las Palmas G.C.") has neither and is
+ *       correctly flagged junk; a via-less-but-real street is NOT.
+ *
+ * Conservative: when in doubt we treat the address as USABLE (return false) so
+ * a clean stored address is never discarded. Only clear junk triggers the
+ * lotDescription fallback.
+ */
+export function isJunkAddress(address: string | null | undefined): boolean {
+  const raw = cleanString(address);
+  if (!raw) return true; // nothing usable — caller should try the fallback
+  const lower = raw.toLowerCase();
+  if (/superficie|\bm2\b|\bm²\b/.test(lower)) return true;
+  // Street signal #1: a recognised via-type token.
+  if (shortStreetName(raw)) return false;
+  // Street signal #2: a "name + house-number" shape — a leading alphabetic
+  // run (the street name) immediately followed by a digit token (the number),
+  // with NO leading digit (which would be a postal code). Catches via-less
+  // BOE "Dirección" values like "León y Castillo 373 4º pta 4-1".
+  if (/^\s*\p{L}[\p{L}\s.'·-]*\s+\d/u.test(raw)) return false;
+  return true;
+}
+
+/**
+ * Bug 2 mitigation (2026-06-09): extract the clean street from the BOE
+ * `lotDescription` "Dirección" tab.
+ *
+ * BOE `lotDescription` / `propertyDescription` is a `Key\tValue` dump (see
+ * teaser-snippet.ts header for the leak history):
+ *     Dirección\tLeón y Castillo 373 4º pta 4-1
+ *     Código Postal\t35005
+ *     Referencia catastral\t7920903DS5172S0013QW
+ *     IDUFIR\t…
+ *
+ * This helper pulls ONLY the "Dirección" value (up to the next field / line)
+ * and returns it raw. The CALLER must run it through
+ * {@link streetWithFirstNumber}, which keeps street + first number and drops
+ * everything after — so even if this grab over-reaches, no postal code /
+ * cadastral / IDUFIR can survive into the title.
+ *
+ * SECURITY: the title surface is PUBLIC and the street address is explicitly
+ * Dennis-locked PUBLIC. We deliberately read ONLY the Dirección field here —
+ * NOT the whole blob — and the downstream street+number formatter is a hard
+ * allowlist (via-type + name + first numeric run). The PII fields that share
+ * the blob (cadastral, IDUFIR, postal code) can never reach the output.
+ *
+ * Returns NULL when no "Dirección" tab is present.
+ */
+const DIRECCION_FIELD_RE =
+  /(?:^|[\n\r])\s*direcci[oó]n\s*[\t:]\s*([^\n\r\t]+)/i;
+
+export function addressFromLotDescription(
+  lotDescription: string | null | undefined,
+): string | null {
+  const raw = cleanString(lotDescription);
+  if (!raw) return null;
+  const m = DIRECCION_FIELD_RE.exec(raw);
+  if (!m || !m[1]) return null;
+  const value = m[1].trim();
+  return value.length > 0 ? value : null;
 }
 
 /** Tiny category-group predicate kept local so this module has no constants.ts

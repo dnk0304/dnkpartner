@@ -4,6 +4,7 @@ import { Resend } from 'resend';
 import { createAuctionAlertEmail } from '@/lib/email-templates';
 import { requireAdminOrCron } from '@/lib/auth-helpers';
 import { ALERTABLE_DB_STATUSES_SQL } from '@/lib/auction-status';
+import { resolveFreeAndPersist, type ResolverRow } from '@/lib/auction-images/resolver';
 
 /**
  * API endpoint to check for new auctions matching user alerts
@@ -156,6 +157,22 @@ async function sendNotifications(matchesByAlert: Record<string, { alert: any; au
   const from = process.env.RESEND_FROM_EMAIL || 'SubastasActivas <alertas@subastasactivas.com>';
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_URL || 'http://localhost:3005';
 
+  // Bug 1 (2026-06-09): resolve the best FREE image for every matched auction
+  // BEFORE building the email payloads. The raw DB `imageUrl` is often null
+  // (the resolver runs out-of-band), so the email previously fell straight to
+  // the branded placeholder — no property photo. We route each row through the
+  // FREE-only resolver (cached-on-disk → Catastro-by-cadastralRef), which is
+  // coord-independent and never touches a paid Google API. On success the
+  // resolved `/api/auction-image/<boeId>` URL is persisted and mutated onto
+  // the row in-memory so the email template's rung-1 (real photo) fires.
+  //
+  // PAID-API GAP (flagged for Dennis): rows with NO cadastralRef and no cached
+  // file still fall through to the branded placeholder in the email. The only
+  // way to give those a real thumbnail is Street View Static (paid) or Static
+  // Maps (paid) — DELIBERATELY NOT enabled here per the "no paid API for
+  // finalized/alert auctions" rule. resolveFreeAndPersist cannot reach either.
+  await resolveFreeImagesForMatches(matchesByAlert);
+
   for (const entry of Object.values(matchesByAlert)) {
     const alert = entry.alert;
     const auctions = entry.auctions;
@@ -261,4 +278,67 @@ async function sendNotifications(matchesByAlert: Record<string, { alert: any; au
   }
 
   return sent;
+}
+
+/**
+ * Bug 1 (2026-06-09): in-place FREE image resolution for matched auctions.
+ *
+ * Walks every matched auction (deduped by boeId — the same row can match many
+ * alerts), resolves the best FREE image via `resolveFreeAndPersist`
+ * (cached-on-disk → Catastro-by-cadastralRef; never a paid Google API), and
+ * mutates the resolved `/api/auction-image/<boeId>` URL onto the row so the
+ * downstream email payload (`imageUrl: auction.imageUrl`) surfaces a real
+ * photo via the template's rung-1 path.
+ *
+ * Fully fail-safe: a missing boeId, a resolver miss, or any thrown error
+ * leaves the row's `imageUrl` untouched (the email then degrades to the
+ * existing map/placeholder ladder). NEVER throws — alert delivery must not be
+ * blocked by image resolution.
+ */
+async function resolveFreeImagesForMatches(
+  matchesByAlert: Record<string, { alert: any; auctions: any[] }>,
+): Promise<void> {
+  // boeId → resolved public path (or null when no free image exists). Caches
+  // the resolution so an auction matching N alerts is resolved exactly once.
+  const resolved = new Map<string, string | null>();
+
+  for (const entry of Object.values(matchesByAlert)) {
+    for (const auction of entry.auctions) {
+      const boeId = auction.boeId;
+      if (!boeId) continue;
+
+      // If the row already carries a resolver-served real photo, keep it.
+      if (typeof auction.imageUrl === 'string' && auction.imageUrl.startsWith('/api/auction-image/')) {
+        continue;
+      }
+
+      if (!resolved.has(boeId)) {
+        let publicPath: string | null = null;
+        try {
+          const row: ResolverRow = {
+            boeId,
+            status: auction.status,
+            cadastralRef: auction.cadastralRef ?? null,
+            cadastralData: auction.cadastralData ?? null,
+            lotDescription: auction.lotDescription ?? null,
+            propertyDescription: auction.propertyDescription ?? null,
+            boeAnnouncement: auction.boeAnnouncement ?? null,
+            address: auction.address ?? null,
+            latitude: auction.latitude ?? null,
+            longitude: auction.longitude ?? null,
+            imageUrl: auction.imageUrl ?? null,
+          };
+          const outcome = await resolveFreeAndPersist(row);
+          publicPath = outcome.publicPath;
+        } catch (error) {
+          console.error(`Free image resolve failed for ${boeId}:`, error);
+          publicPath = null;
+        }
+        resolved.set(boeId, publicPath);
+      }
+
+      const path = resolved.get(boeId);
+      if (path) auction.imageUrl = path;
+    }
+  }
 }
