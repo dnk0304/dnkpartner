@@ -64,6 +64,11 @@ async function loadAuctionMeta(slug: string) {
       // Surfaced for the title-from-address helper (wave-A, 2026-06-07).
       // The page is now fully public so the address can lead the <title>.
       address: true,
+      // Bug 2 (2026-06-09): read-time fallback source for the title street.
+      // When `address` is junk (mis-captured "Localización" blob), the clean
+      // street lives in the lotDescription "Dirección" tab — the title helper
+      // extracts ONLY that field, then keeps street + first number.
+      lotDescription: true,
       propertyType: true,
       // Price hint for SERP CTR — appraisal first (always populated when
       // present), valorSubasta as a secondary if the row lacks an appraisal.
@@ -91,6 +96,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // CTR vs the previous reference-code title.
   const title = auctionMetaTitle({
     address: a.address,
+    lotDescription: a.lotDescription,
     propertyType: a.propertyType,
     auctionType: a.auctionType,
     category: a.category,
@@ -131,6 +137,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // competitor portal emits these — easy SERP leapfrog.
   const ogTitle = auctionDisplayTitle({
     address: a.address,
+    lotDescription: a.lotDescription,
     propertyType: a.propertyType,
     auctionType: a.auctionType,
     category: a.category,
@@ -288,6 +295,7 @@ export default async function SubastaDetailPage({ params }: PageProps) {
                 // {muni}" / falls back to muni+province for vehicle/land.
                 title: auctionDisplayTitle({
                   address: seo?.address ?? null,
+                  lotDescription: seo?.lotDescription ?? null,
                   propertyType: a.propertyType,
                   auctionType: a.auctionType,
                   category: a.category,

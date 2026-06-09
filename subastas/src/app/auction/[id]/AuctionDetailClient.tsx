@@ -409,6 +409,11 @@ export default function AuctionDetailClient({
             <h1 className="font-serif text-2xl md:text-3xl lg:text-4xl leading-tight text-[var(--color-ink-primary)]">
               {auctionDisplayTitle({
                 address: raw.address,
+                // Bug 2 (2026-06-09): read-time fallback when `address` is the
+                // mis-captured BOE "Localización" junk — clean street comes
+                // from the lotDescription "Dirección" tab (street + first
+                // number only; PII in the blob can't reach the title).
+                lotDescription: raw.lotDescription,
                 propertyType: raw.propertyType,
                 auctionType: raw.auctionType,
                 category: raw.category,

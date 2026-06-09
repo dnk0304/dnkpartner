@@ -82,6 +82,64 @@ export async function resolveImageForRow(row: ResolverRow): Promise<ResolveOutco
   return { source: null, publicPath: null, note: 'no-source' };
 }
 
+/**
+ * FREE-ONLY resolution (Bug 1, 2026-06-09).
+ *
+ * Identical to {@link resolveImageForRow} but STOPS before the Street View
+ * rung — it only ever hits:
+ *   1. Already-cached file on disk (free).
+ *   2. Catastro-by-refcatastral (free, no API key, coord-independent).
+ *
+ * Used by the alert-email path. Dennis is strict: NO paid Google API
+ * (Street View Static / Static Maps) may fire for finalized / alert auctions.
+ * `resolveImageForRow` can reach `fetchStreetView` (a BILLED request once the
+ * Street View Static API is enabled on the GCP project) — so the email path
+ * MUST NOT call it. This function makes the "no paid call" guarantee
+ * structural, not dependent on the API happening to be disabled today.
+ *
+ * Returns the same ResolveOutcome shape; `source` is 'cached' | 'catastro' |
+ * null. NEVER 'streetview'.
+ */
+export async function resolveFreeImageForRow(row: ResolverRow): Promise<ResolveOutcome> {
+  if (!ACTIVE_STATUSES.includes(row.status as (typeof ACTIVE_STATUSES)[number])) {
+    return { source: null, publicPath: null, note: 'inactive-status' };
+  }
+
+  // 1. Already cached on disk?
+  if (await exists(row.boeId)) {
+    return { source: 'cached', publicPath: publicPathFor(row.boeId) };
+  }
+
+  // 2. Catastro by RC (FREE). No Street View rung — paid path deliberately omitted.
+  const rc = extractRCFromRow(row);
+  if (rc) {
+    const r = await fetchCatastroFacade(rc);
+    if (r.ok) {
+      await writeImage(row.boeId, r.bytes);
+      return { source: 'catastro', publicPath: publicPathFor(row.boeId), bytes: r.bytesLen };
+    }
+  }
+
+  return { source: null, publicPath: null, note: 'no-free-source' };
+}
+
+/**
+ * FREE-only resolve + persist (Bug 1). Mirrors {@link resolveAndPersist} but
+ * uses {@link resolveFreeImageForRow} — Catastro / cached only, never the
+ * paid Street View rung. Persists the resolved `/api/auction-image/<boeId>`
+ * URL back to the row so subsequent reads (cards, detail) get it for free too.
+ */
+export async function resolveFreeAndPersist(row: ResolverRow): Promise<ResolveOutcome> {
+  const outcome = await resolveFreeImageForRow(row);
+  if (outcome.publicPath && outcome.publicPath !== row.imageUrl) {
+    await query(
+      'UPDATE "Auction" SET "imageUrl" = $1, "updatedAt" = NOW() WHERE "boeId" = $2',
+      [outcome.publicPath, row.boeId]
+    );
+  }
+  return outcome;
+}
+
 /** Resolve AND persist the imageUrl back to the DB on success. */
 export async function resolveAndPersist(row: ResolverRow): Promise<ResolveOutcome> {
   const outcome = await resolveImageForRow(row);

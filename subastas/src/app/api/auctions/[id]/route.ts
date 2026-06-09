@@ -132,6 +132,12 @@ export async function GET(
     // inline tokens) and falls back to muni/province for vehicle/land rows.
     const teaserTitle = auctionDisplayTitle({
       address: auction.address,
+      // Bug 2 (2026-06-09): read-time fallback when `address` is junk — the
+      // clean street lives in the lotDescription "Dirección" tab. The title
+      // helper reads ONLY that field and keeps street + first number, so the
+      // PII that shares the blob (cadastral/IDUFIR/postal) can't surface here
+      // even though the full lotDescription stays gated below.
+      lotDescription: auction.lotDescription,
       propertyType: auction.propertyType,
       auctionType: auction.auctionType,
       category: auction.category,

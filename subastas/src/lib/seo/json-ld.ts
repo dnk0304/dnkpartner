@@ -95,6 +95,9 @@ export function buildAuctionJsonLd(auction: AuctionLike): object | null {
 
   const displayName = auctionDisplayTitle({
     address: auction.address ?? null,
+    // Bug 2 (2026-06-09): keep JSON-LD `name` in sync with the H1 — same
+    // read-time lotDescription "Dirección" fallback for junk-address rows.
+    lotDescription: auction.lotDescription ?? null,
     propertyType: auction.propertyType ?? null,
     auctionType: auction.auctionType ?? null,
     category: auction.category ?? null,
