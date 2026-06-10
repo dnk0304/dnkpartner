@@ -29,6 +29,8 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { apiFetch } from "@/lib/api-path";
 import { formatUpdatedDayEs } from "./format";
@@ -66,8 +68,27 @@ const TIPOS: ReadonlyArray<{ slug: string; label: string }> = [
 
 export function SiteFooter() {
   const t = useTranslations();
+  const { status } = useSession();
+  const router = useRouter();
   const [lastUpdateTime, setLastUpdateTime] = React.useState<string | null>(null);
   const year = new Date().getFullYear();
+
+  /**
+   * Brand-block CTA → the auctions listing, with a register prompt for
+   * logged-out visitors. Mirrors the canonical register-gate pattern from
+   * CrearAlertaCTA: unauthenticated users route to /register carrying BOTH
+   * `callbackUrl` and `next` (= /subastas) so they land on the listing after
+   * signing up; everyone else goes straight to /subastas. `loading` falls
+   * through to the listing — never trap a click while the session resolves.
+   */
+  const handleSeeAllAuctions = React.useCallback(() => {
+    if (status === "unauthenticated") {
+      const dest = encodeURIComponent("/subastas");
+      router.push(`/register?callbackUrl=${dest}&next=${dest}`);
+      return;
+    }
+    router.push("/subastas");
+  }, [status, router]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -107,14 +128,15 @@ export function SiteFooter() {
             <p className="max-w-prose text-sm leading-relaxed text-[var(--color-ink-secondary)]">
               {t("footer.tagline")}
             </p>
-            <Link
-              href="/alerts"
-              className="cta-gradient text-sm"
+            <button
+              type="button"
+              onClick={handleSeeAllAuctions}
+              className="cta-gradient text-sm font-sans cursor-pointer"
               aria-label={t("footer.ctaAria")}
             >
               {t("footer.ctaLabel")}
               <span aria-hidden="true">→</span>
-            </Link>
+            </button>
           </div>
 
           {/* Link columns — 7 cols on md+, 4 columns inside */}
