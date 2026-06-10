@@ -107,7 +107,8 @@
     "linkPrivacy": "Privacidad",
     "linkCookies": "Cookies",
     "linkContact": "Contacto",
-    "rightsReserved": "Todos los derechos reservados"
+    "rightsReserved": "Todos los derechos reservados",
+    "affiliationDisclaimer": "Descargo de responsabilidad: SubastasActivas no está afiliada, asociada, autorizada, respaldada por, ni conectada oficialmente de ninguna manera con ninguna entidad ni administración pública. Únicamente recopilamos y mostramos en un solo lugar información de acceso público."
   },
   "login": {
     "welcomeTitle": "Bienvenido de nuevo a SubastasActivas",
@@ -299,6 +300,7 @@
     "faqA3": "Sí. El cobro se procesa a través de una plataforma externa certificada y SubastasActivas no almacena tus datos de pago.",
     "faqQ4": "¿Qué pasa si caduca mi suscripción?",
     "faqA4": "Pierdes el acceso a las funciones de Acceso, pero conservamos tus alertas guardadas por si vuelves más adelante.",
-    "trustNote": "IVA incluido cuando aplique"
+    "trustNote": "IVA incluido cuando aplique",
+    "checkoutConsent": "Al hacer clic en «Suscribirme», aceptas nuestros <terms>Términos y Condiciones</terms> y <privacy>Política de Privacidad</privacy>."
   }
 }

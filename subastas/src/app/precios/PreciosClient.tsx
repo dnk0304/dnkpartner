@@ -246,6 +246,32 @@ export default function PreciosClient() {
                 </p>
               </div>
             )}
+            {/* Clickwrap consent — shown only when the subscribe action is
+                reachable (not already subscribed). Clicking "Suscribirme"
+                inside the Whop embed = acceptance; this surfaces the linked
+                Terms + Privacy at the action. Muted, adjacent to checkout. */}
+            {!hasAcceso && (
+              <p className="mt-3 text-center text-xs leading-relaxed text-[var(--color-ink-tertiary)]">
+                {t.rich("checkoutConsent", {
+                  terms: (chunks) => (
+                    <Link
+                      href="/legal/aviso-legal"
+                      className="text-[var(--color-action)] underline underline-offset-4 hover:text-[var(--color-action-hover)]"
+                    >
+                      {chunks}
+                    </Link>
+                  ),
+                  privacy: (chunks) => (
+                    <Link
+                      href="/legal/privacidad"
+                      className="text-[var(--color-action)] underline underline-offset-4 hover:text-[var(--color-action-hover)]"
+                    >
+                      {chunks}
+                    </Link>
+                  ),
+                })}
+              </p>
+            )}
             <p className="mt-3 text-center text-xs text-[var(--color-ink-tertiary)]">
               {t("trustNote")}
             </p>

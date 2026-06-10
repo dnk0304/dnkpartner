@@ -276,15 +276,23 @@ export function SiteFooter() {
           Persistent across the site; degrades to "syncing" copy until
           /api/auctions/stats returns. */}
       <div className="footer-brand-bar">
-        <div className="mx-auto max-w-editorial px-4 md:px-6 py-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-xs">
-          <p className="tnum">
-            {lastUpdateTime
-              ? t("home.footerTagWithUpdate", { when: formatUpdatedDayEs(lastUpdateTime) })
-              : t("home.footerTagSyncing")}
+        <div className="mx-auto max-w-editorial px-4 md:px-6 py-5 text-xs">
+          {/* Non-affiliation disclaimer — short, always-visible, muted.
+              Full version lives in /legal/aviso-legal §3. Quiet single line
+              (wraps on mobile); no color, no border that fights the bar. */}
+          <p className="text-[rgba(255,255,255,0.6)] leading-relaxed">
+            {t("footer.affiliationDisclaimer")}
           </p>
-          <p className="text-[rgba(255,255,255,0.7)]">
-            © {year} SubastasActivas · {t("footer.rightsReserved")}
-          </p>
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="tnum">
+              {lastUpdateTime
+                ? t("home.footerTagWithUpdate", { when: formatUpdatedDayEs(lastUpdateTime) })
+                : t("home.footerTagSyncing")}
+            </p>
+            <p className="text-[rgba(255,255,255,0.7)]">
+              © {year} SubastasActivas · {t("footer.rightsReserved")}
+            </p>
+          </div>
         </div>
       </div>
     </footer>

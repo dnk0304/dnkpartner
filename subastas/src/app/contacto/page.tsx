@@ -4,10 +4,11 @@ import { LegalPageLayout, LegalSection } from "../legal/LegalPageLayout";
 /**
  * /contacto — Contact page.
  *
- * ⚠️ v1 PLACEHOLDER COPY — the contact channel + company identity are
- * provisional pending Dennis's final details (e.g. a dedicated contact
- * address). Page chrome + metadata are production-ready. Reuses the legal
- * page layout for visual consistency.
+ * Intentionally minimal: email-only ("Escríbenos") + a short "Sobre
+ * SubastasActivas" blurb. The full operator identity (DK Partner EOOD /
+ * EIK 207413740) lives in /legal/aviso-legal and /legal/privacidad, so this
+ * page stays a quiet contact surface. Reuses the legal page layout for
+ * visual consistency. Contact email: dennis.kotlenko@gmail.com.
  */
 
 export const metadata: Metadata = {
