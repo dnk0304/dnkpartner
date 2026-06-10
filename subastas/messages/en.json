@@ -107,7 +107,8 @@
     "linkPrivacy": "Privacy",
     "linkCookies": "Cookies",
     "linkContact": "Contact",
-    "rightsReserved": "All rights reserved"
+    "rightsReserved": "All rights reserved",
+    "affiliationDisclaimer": "SubastasActivas is not affiliated with, associated with, authorized by, endorsed by, or in any way officially connected to any public entity or administration. We only gather and display publicly-available information in one place."
   },
   "login": {
     "welcomeTitle": "Welcome back to SubastasActivas",
@@ -299,6 +300,7 @@
     "faqA3": "Yes. Payment is handled by an external certified platform and SubastasActivas does not store your payment details.",
     "faqQ4": "What happens if my subscription expires?",
     "faqA4": "You lose access to Acceso features, but we keep your saved alerts in case you come back later.",
-    "trustNote": "VAT included where applicable"
+    "trustNote": "VAT included where applicable",
+    "checkoutConsent": "By clicking “Subscribe”, you accept our <terms>Terms and Conditions</terms> and <privacy>Privacy Policy</privacy>."
   }
 }
