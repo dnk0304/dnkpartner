@@ -42,6 +42,16 @@ interface Alert {
   matchCount?: number;
 }
 
+/**
+ * Sentinel value for the "no filter" (Todos / Todas) option in the Radix
+ * Selects below. Radix forbids `<SelectItem value="">` (empty string is
+ * reserved for clearing the field), so we use this non-empty token in the UI
+ * and map it back to "" at the state boundary — `formData` keeps storing ""
+ * for "no filter", which means the POST body (`formData.x || undefined`) is
+ * byte-for-byte unchanged from before this fix.
+ */
+const ALL = "__all__";
+
 const PROVINCES = [
   'A Coruña', 'Álava', 'Albacete', 'Alicante', 'Almería', 'Asturias',
   'Ávila', 'Badajoz', 'Barcelona', 'Burgos', 'Cáceres', 'Cádiz',
@@ -289,14 +299,14 @@ export default function AlertsPage() {
                 <div>
                   <Label htmlFor="source">Origen (opcional)</Label>
                   <Select
-                    value={formData.source}
-                    onValueChange={(value) => setFormData({ ...formData, source: value })}
+                    value={formData.source || ALL}
+                    onValueChange={(value) => setFormData({ ...formData, source: value === ALL ? '' : value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Todos los orígenes" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todos</SelectItem>
+                      <SelectItem value={ALL}>Todos</SelectItem>
                       {SOURCES.map(s => (
                         <SelectItem key={s} value={s}>{s}</SelectItem>
                       ))}
@@ -307,14 +317,14 @@ export default function AlertsPage() {
                 <div>
                   <Label htmlFor="propertyType">Tipo de bien (opcional)</Label>
                   <Select
-                    value={formData.propertyType}
-                    onValueChange={(value) => setFormData({ ...formData, propertyType: value })}
+                    value={formData.propertyType || ALL}
+                    onValueChange={(value) => setFormData({ ...formData, propertyType: value === ALL ? '' : value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Todos los tipos" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todos</SelectItem>
+                      <SelectItem value={ALL}>Todos</SelectItem>
                       {PROPERTY_TYPES.map(pt => (
                         <SelectItem key={pt} value={pt}>{pt}</SelectItem>
                       ))}
@@ -325,14 +335,14 @@ export default function AlertsPage() {
                 <div>
                   <Label htmlFor="province">Provincia (opcional)</Label>
                   <Select
-                    value={formData.province}
-                    onValueChange={(value) => setFormData({ ...formData, province: value })}
+                    value={formData.province || ALL}
+                    onValueChange={(value) => setFormData({ ...formData, province: value === ALL ? '' : value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Todas las provincias" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todas</SelectItem>
+                      <SelectItem value={ALL}>Todas</SelectItem>
                       {PROVINCES.map(p => (
                         <SelectItem key={p} value={p}>{p}</SelectItem>
                       ))}
@@ -353,14 +363,14 @@ export default function AlertsPage() {
                 <div>
                   <Label htmlFor="category">Categoría (opcional) - Legacy</Label>
                   <Select
-                    value={formData.category}
-                    onValueChange={(value) => setFormData({ ...formData, category: value })}
+                    value={formData.category || ALL}
+                    onValueChange={(value) => setFormData({ ...formData, category: value === ALL ? '' : value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Todas las categorías" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todas</SelectItem>
+                      <SelectItem value={ALL}>Todas</SelectItem>
                       {CATEGORIES.slice(0, 11).map(c => (
                         <SelectItem key={c} value={c}>{c}</SelectItem>
                       ))}
