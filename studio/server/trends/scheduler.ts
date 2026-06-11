@@ -83,9 +83,22 @@ export interface SchedulerStatus {
   trendsCollected: number;
 }
 
+/**
+ * Etsy snapshot cadence from ETSY_PULLS_PER_DAY (default 3 -> every 8 hours).
+ * Clamped to 1..24 evenly spread daily pulls. Safe at 3x/day because Etsy is
+ * API-first as of 2026-06-11 (no bot-detection exposure on the API path).
+ */
+function etsyIntervalFromEnv(): string {
+  const raw = parseInt(process.env.ETSY_PULLS_PER_DAY || '', 10);
+  const pulls = Number.isFinite(raw) && raw >= 1 ? Math.min(24, raw) : 3;
+  const everyHours = Math.max(1, Math.floor(24 / pulls));
+  return `0 */${everyHours} * * *`;
+}
+
 // Default configuration - DAILY cadence for unattended 30-day accumulation
 // Staggered to avoid concurrent resource spikes. Google Trends runs 3x/day (cheap+reliable).
-// Browser scrapers (ebay, etsy, tiktok, pinterest) once/day only — bot-detection risk.
+// Browser scrapers (ebay, tiktok, pinterest) once/day only — bot-detection risk.
+// Etsy: API-first, ETSY_PULLS_PER_DAY snapshots/day (Puppeteer only as fallback).
 // Twitter/Reddit HTTP-only — once/day each, off-peak hours.
 const DEFAULT_CONFIG: SchedulerConfig = {
   googleTrends: {
@@ -98,7 +111,8 @@ const DEFAULT_CONFIG: SchedulerConfig = {
   },
   etsy: {
     enabled: true,
-    interval: '0 2 * * *', // Once/day at 02:00 UTC — Puppeteer, off-peak
+    // API-first snapshot cadence (2026-06-11): ETSY_PULLS_PER_DAY pulls/day
+    interval: etsyIntervalFromEnv(),
   },
   ebay: {
     enabled: true,
@@ -1510,6 +1524,18 @@ class TrendScheduler {
    */
   getStatus(): SchedulerStatus[] {
     return Array.from(this.status.values());
+  }
+
+  /**
+   * Test a specific scraper by triggering it once and reporting outcome.
+   */
+  async testScraper(source: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const ok = await this.triggerSource(source);
+      return ok ? { success: true } : { success: false, error: `Unknown source: ${source}` };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
   }
 
   /**

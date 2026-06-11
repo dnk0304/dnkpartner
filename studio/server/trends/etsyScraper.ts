@@ -1,29 +1,57 @@
 /**
- * Etsy Trending Scraper — Isolated Stealth Edition (rebuilt 2026-06)
+ * Etsy Trending Scraper — API-first + Isolated Stealth fallback (2026-06-11)
  * --------------------------------------------------------------------------
- * BLOCK DIAGNOSED (live, 2026-06): HARD BLOCK by DataDome. EVERY endpoint —
- * homepage, /c/ category, /search, even /suggestions_ajax.php — returns HTTP
- * 403 with a tiny (~1.2KB) body containing `var dd={'rt':'c','cid':...}` (the
- * DataDome challenge fingerprint). This is NOT selector rot and NOT a cold
- * session: DataDome is blocking the datacenter IP outright. Browser stealth
- * alone cannot defeat DataDome from a datacenter IP — it needs either:
- *   (a) a residential/mobile proxy (set ETSY_PROXY_URL), or
- *   (b) the Etsy Open API v3 key (set ETSY_API_KEY or ETSY_KEYSTRING).
+ * Layer 1: Etsy Open API v3 (ETSY_API_KEY granted 2026-06-11; budget-gated via
+ *          etsyBudget — persistent daily counter, header-aware caps, <=5 qps).
+ * Layer 2: Isolated stealth Puppeteer scraping (Ghost rebuild, 2026-06).
+ *          DataDome hard-blocks datacenter IPs (HTTP 403 `var dd={...}`), so
+ *          this path only works through a residential proxy (ETSY_PROXY_URL).
  *
- * STATUS: NEEDS PROXY OR API KEY. The code below does the right thing the
- * moment Dennis supplies either:
- *   - If an API key is present -> uses the official Etsy Open API (clean, no
- *     scraping). This is the recommended path.
- *   - Else if a proxy is configured -> attempts isolated stealth scraping
- *     through it.
- *   - Else -> attempts a best-effort stealth hit, detects the DataDome 403,
- *     logs the explicit reason, and returns [] (scheduler falls back to mock).
+ * AUTH (live-tested 2026-06-11): the working `x-api-key` value is the
+ * COLON-JOINED `keystring:secret`. Keystring alone returns 403. ETSY_API_KEY
+ * must therefore hold the FULL header value. Read from env only — never
+ * hardcoded. If unset, the API layer is skipped (fail soft).
  */
 
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { IsolatedBrowser } from './isolatedBrowser.js';
 import { SCRAPING_LIMITS } from './scrapingConfig.js';
 import { adaptiveRateLimiter } from './adaptiveRateLimiter.js';
+import { etsyBudget } from './etsyBudget.js';
+import { keywordStore } from './keywordStore.js';
 import type { Page } from 'puppeteer';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Platform-specific raw snapshots: timestamped per-niche listing snapshots so
+// trend deltas are computable across pulls.
+const SNAPSHOT_DIR = path.join(__dirname, '../../data/scrapers/etsy/snapshots');
+
+const ETSY_API_BASE = 'https://openapi.etsy.com/v3/application';
+
+/** Raw-ish listing snapshot entry persisted per pull. */
+export interface EtsyListingSnapshot {
+  listingId: number;
+  title: string;
+  price: number;
+  currency: string;
+  numFavorers: number;
+  createdAt: string; // ISO from original_creation_timestamp
+  url: string;
+  taxonomyId: number | null;
+  tags: string[];
+}
+
+export interface EtsyNicheSnapshot {
+  pulledAt: string;
+  niche: string; // keyword, or `taxonomy:<id>`
+  taxonomyId: number | null;
+  totalCount: number; // Etsy-reported total result count (search-volume proxy)
+  listings: EtsyListingSnapshot[];
+}
 
 export interface EtsyTrend {
   query: string;
@@ -77,11 +105,18 @@ class EtsyScraper {
   private baseUrl = 'https://www.etsy.com';
   private cache: Map<string, { data: any; timestamp: number }> = new Map();
   private cacheTTL = 24 * 60 * 60 * 1000;
-  private etsyApiKey = process.env.ETSY_API_KEY || process.env.ETSY_KEYSTRING || '';
-  private get useApi() { return !!this.etsyApiKey; }
   private proxyUrl = process.env.ETSY_PROXY_URL || process.env.PROXY_URL || '';
   private browser = new IsolatedBrowser({ name: 'etsy', proxyUrl: this.proxyUrl || undefined });
   private dataDomeBlocked = false; // latch: once DataDome 403s, stop hammering this run
+
+  /**
+   * API layer is active only when ETSY_API_KEY is present (env-only, fail soft).
+   * NOTE: ETSY_KEYSTRING-only auth was removed — keystring alone returns 403;
+   * the live-verified header value is colon-joined `keystring:secret`.
+   */
+  isApiEnabled(): boolean {
+    return !!process.env.ETSY_API_KEY;
+  }
 
   async search(query: string, options?: { limit?: number; category?: string }): Promise<EtsyListing[]> {
     const { limit = SCRAPING_LIMITS.TOP_PRODUCTS_PER_PLATFORM, category } = options || {};
@@ -89,13 +124,15 @@ class EtsyScraper {
     const cached = this.cache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < this.cacheTTL) return cached.data;
 
-    // Preferred path: official Etsy Open API.
-    if (this.useApi) {
+    // Layer 1: official Etsy Open API v3 (primary as of 2026-06-11).
+    if (this.isApiEnabled()) {
       const api = await this.searchWithApi(query, options);
       if (api.length) { this.cache.set(cacheKey, { data: api, timestamp: Date.now() }); return api; }
+      console.log(`[EtsyScraper] API returned no results for "${query}", falling back to stealth scraping...`);
     }
 
-    // DataDome already blocked this run and we have no proxy/API -> stop.
+    // Layer 2: isolated stealth Puppeteer.
+    // DataDome already blocked this run and we have no proxy -> stop.
     if (this.dataDomeBlocked && !this.proxyUrl) return [];
 
     const scraped = await this.searchWithPuppeteer(query, options);
@@ -123,7 +160,7 @@ class EtsyScraper {
         console.warn(
           `[EtsyScraper] BLOCKED by DataDome (HTTP ${resp?.status()}) for "${query}". ` +
           `Etsy is undefeatable from this IP without a residential proxy (ETSY_PROXY_URL) ` +
-          `or the Etsy Open API key (ETSY_API_KEY / ETSY_KEYSTRING). Returning [].`
+          `or the Etsy Open API key (ETSY_API_KEY). Returning [].`
         );
         adaptiveRateLimiter.onRateLimit('etsy.com');
         return [];
@@ -178,95 +215,308 @@ class EtsyScraper {
     }
   }
 
+  // ============================================
+  // ETSY OPEN API v3 (Layer 1)
+  // ============================================
+
   /**
-   * Official Etsy Open API v3 path (api_key only — NO OAuth required for these
-   * two public read endpoints; verified against developers.etsy.com reference
-   * 2026-06-02).
-   *
-   * Two-step shape, both authenticated with `x-api-key: <keystring>` only:
-   *   1. GET /v3/application/listings/active?keywords=...&limit=...
-   *        -> base listings (listing_id, title, price, url, tags, num_favorers).
-   *        NOTE: this endpoint does NOT support an `includes` param, so it
-   *        returns NO images and NO shop object. (Passing `includes` here is a
-   *        no-op at best.)
-   *   2. GET /v3/application/listings/batch?listing_ids=a,b,c&includes=Images,Shop
-   *        -> enriches the same listings with image URLs + shop_name in ONE
-   *        batched call (the `includes` param IS supported here).
-   *
-   * Cost: 2 requests per keyword. Standard quota is 10 QPS / 10,000 QPD per
-   * key, so this is comfortably within limits for our ~12 seed keywords/day.
+   * Budget-gated GET against the Etsy v3 API.
+   * Returns null (fail soft) when the key is unset, the daily budget is
+   * exhausted, or the request fails — callers fall back to stealth scraping.
+   * Records every request against etsyBudget and absorbs Etsy's rate-limit
+   * headers (X-Limit-Per-Day / X-Remaining-This-Day).
    */
-  private async searchWithApi(query: string, options?: { limit?: number }): Promise<EtsyListing[]> {
-    const { limit = SCRAPING_LIMITS.TOP_PRODUCTS_PER_PLATFORM } = options || {};
-    const headers = { 'x-api-key': this.etsyApiKey };
+  private async apiFetch(pathname: string, params: URLSearchParams): Promise<any | null> {
+    const apiKey = process.env.ETSY_API_KEY;
+    if (!apiKey) {
+      console.warn('[EtsyScraper] ETSY_API_KEY not set, skipping API call');
+      return null;
+    }
+
+    if (!etsyBudget.canRequest()) {
+      const status = etsyBudget.getStatus();
+      console.warn(`[EtsyScraper] Daily API budget exhausted (${status.requestsToday}/${status.dailyCap}), skipping pull until UTC midnight`);
+      return null;
+    }
+
     try {
-      // Step 1: keyword search of active listings (no includes supported here).
-      const searchParams = new URLSearchParams({ keywords: query, limit: String(limit) });
-      const res = await fetch(`https://openapi.etsy.com/v3/application/listings/active?${searchParams}`, { headers });
-      if (!res.ok) {
-        const body = await res.text().catch(() => '');
-        // 403 "API key not found or not active" == key still PENDING ETSY APPROVAL.
-        if (res.status === 403 && /not active|not found/i.test(body)) {
+      await etsyBudget.waitForSlot();
+      const response = await fetch(`${ETSY_API_BASE}${pathname}?${params}`, {
+        headers: { 'x-api-key': apiKey },
+      });
+      etsyBudget.recordRequest(response.headers);
+
+      if (response.status === 429) {
+        console.warn('[EtsyScraper] Etsy API rate-limited (429), backing off');
+        return null;
+      }
+      if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        // 403 "API key not found or not active" == key pending approval OR
+        // wrong key format (must be colon-joined keystring:secret).
+        if (response.status === 403 && /not active|not found/i.test(body)) {
           console.warn(
-            `[EtsyScraper] Etsy API key PENDING APPROVAL (HTTP 403: ${body.slice(0, 120)}). ` +
-            `This is expected until Etsy activates the app. Returning [] (scheduler falls back to mock).`
+            `[EtsyScraper] Etsy API key rejected (HTTP 403: ${body.slice(0, 120)}). ` +
+            `Check ETSY_API_KEY is the colon-joined keystring:secret value.`
           );
         } else {
-          console.error(`[EtsyScraper] Etsy API ${res.status} ${res.statusText}: ${body.slice(0, 200)}`);
+          console.error(`[EtsyScraper] Etsy API ${response.status} ${response.statusText} on ${pathname}`);
         }
-        return [];
+        return null;
       }
-      const data: any = await res.json();
-      const baseResults: any[] = data.results || [];
-      if (!baseResults.length) {
-        console.log(`[EtsyScraper] Etsy API "${query}" -> 0 listings`);
-        return [];
-      }
-
-      // Step 2: batch-enrich with Images + Shop (includes IS supported here).
-      const imageById = new Map<string, string>();
-      const shopById = new Map<string, string>();
-      try {
-        const ids = baseResults.map((it) => it.listing_id).filter(Boolean).join(',');
-        if (ids) {
-          const batchParams = new URLSearchParams({ listing_ids: ids, includes: 'Images,Shop' });
-          const enrichRes = await fetch(`https://openapi.etsy.com/v3/application/listings/batch?${batchParams}`, { headers });
-          if (enrichRes.ok) {
-            const enrich: any = await enrichRes.json();
-            (enrich.results || []).forEach((it: any) => {
-              const lid = String(it.listing_id || '');
-              const img = it.images?.[0];
-              if (img) imageById.set(lid, img.url_570xN || img.url_340x270 || img.url_fullxfull || '');
-              if (it.shop?.shop_name) shopById.set(lid, it.shop.shop_name);
-            });
-          } else {
-            console.warn(`[EtsyScraper] Etsy batch-enrich ${enrichRes.status} — proceeding without images/shop`);
-          }
-        }
-      } catch (e: any) {
-        console.warn(`[EtsyScraper] Etsy batch-enrich failed (${e.message}) — proceeding without images/shop`);
-      }
-
-      const out: EtsyListing[] = baseResults.map((it: any) => {
-        const id = String(it.listing_id || '');
-        return {
-          id,
-          title: it.title || '',
-          price: it.price?.amount ? Number(it.price.amount) / Number(it.price.divisor || 100) : 0,
-          currency: it.price?.currency_code || 'USD',
-          shopName: shopById.get(id) || '',
-          url: it.url || '',
-          imageUrl: imageById.get(id) || '',
-          reviewCount: it.num_favorers || 0,
-          rating: 0, isBestseller: false, tags: it.tags || [],
-        };
-      });
-      console.log(`[EtsyScraper] Etsy API "${query}" -> ${out.length} listings (${imageById.size} w/ images)`);
-      return out;
-    } catch (err: any) {
-      console.error('[EtsyScraper] Etsy API error:', err.message);
-      return [];
+      return await response.json();
+    } catch (error: any) {
+      console.error('[EtsyScraper] Etsy API request failed:', error.message);
+      return null;
     }
+  }
+
+  /**
+   * findAllListingsActive — search-volume proxy per tracked niche keyword,
+   * or category bestseller proxy when taxonomyId is given.
+   * sort_on=score surfaces Etsy's relevancy/popularity ranking.
+   * NOTE: this endpoint does NOT support `includes` (no images/shop) — use
+   * the batch endpoint for enrichment.
+   */
+  async searchActiveListings(options: {
+    keywords?: string;
+    taxonomyId?: number;
+    limit?: number;
+  }): Promise<{ totalCount: number; listings: EtsyListingSnapshot[] } | null> {
+    const { keywords, taxonomyId, limit = 100 } = options;
+    const params = new URLSearchParams({
+      limit: Math.min(100, limit).toString(),
+      sort_on: 'score',
+    });
+    if (keywords) params.set('keywords', keywords);
+    if (taxonomyId !== undefined) params.set('taxonomy_id', taxonomyId.toString());
+
+    const data = await this.apiFetch('/listings/active', params);
+    if (!data || !Array.isArray(data.results)) return null;
+
+    return {
+      totalCount: typeof data.count === 'number' ? data.count : data.results.length,
+      listings: data.results.map((item: any) => this.toSnapshotListing(item)),
+    };
+  }
+
+  /**
+   * getListingsByListingIds (raw) — batch endpoint, up to 100 ids per call.
+   * Supports `includes=Images,Shop` for enrichment (unlike /listings/active).
+   * Chunks input; caps at maxCalls batch requests.
+   */
+  private async getListingsBatchRaw(listingIds: number[], includes?: string, maxCalls = 2): Promise<any[]> {
+    const results: any[] = [];
+    const chunks: number[][] = [];
+    for (let i = 0; i < listingIds.length; i += 100) {
+      chunks.push(listingIds.slice(i, i + 100));
+    }
+
+    for (const chunk of chunks.slice(0, maxCalls)) {
+      const params = new URLSearchParams({ listing_ids: chunk.join(',') });
+      if (includes) params.set('includes', includes);
+      const data = await this.apiFetch('/listings/batch', params);
+      if (data && Array.isArray(data.results)) {
+        results.push(...data.results);
+      }
+    }
+
+    return results;
+  }
+
+  /** getListingsByListingIds mapped to snapshot shape — batch detail refresh. */
+  async getListingsByIds(listingIds: number[], maxCalls = 2): Promise<EtsyListingSnapshot[]> {
+    const raw = await this.getListingsBatchRaw(listingIds, undefined, maxCalls);
+    return raw.map((item: any) => this.toSnapshotListing(item));
+  }
+
+  private toSnapshotListing(item: any): EtsyListingSnapshot {
+    // v3 money object: { amount, divisor, currency_code }
+    const amount = Number(item.price?.amount) || 0;
+    const divisor = Number(item.price?.divisor) || 100;
+    const createdTs = Number(item.original_creation_timestamp || item.created_timestamp) || 0;
+
+    return {
+      listingId: Number(item.listing_id) || 0,
+      title: String(item.title || ''),
+      price: amount / divisor,
+      currency: String(item.price?.currency_code || 'USD'),
+      numFavorers: Number(item.num_favorers) || 0,
+      createdAt: createdTs ? new Date(createdTs * 1000).toISOString() : '',
+      url: String(item.url || ''),
+      taxonomyId: typeof item.taxonomy_id === 'number' ? item.taxonomy_id : null,
+      tags: Array.isArray(item.tags) ? item.tags.map(String) : [],
+    };
+  }
+
+  private snapshotToListing(snap: EtsyListingSnapshot): EtsyListing {
+    return {
+      id: snap.listingId.toString(),
+      title: snap.title,
+      price: snap.price,
+      currency: snap.currency,
+      shopName: '',
+      url: snap.url,
+      imageUrl: '',
+      reviewCount: snap.numFavorers, // favorers as engagement proxy
+      rating: 0,
+      isBestseller: false,
+      tags: snap.tags,
+    };
+  }
+
+  /**
+   * Pull one niche snapshot via the API: 1 search call, persisted with a
+   * timestamp so trend deltas are computable across pulls.
+   */
+  async pullNicheSnapshot(niche: { keyword?: string; taxonomyId?: number }): Promise<EtsyNicheSnapshot | null> {
+    const result = await this.searchActiveListings({
+      keywords: niche.keyword,
+      taxonomyId: niche.taxonomyId,
+      limit: 100,
+    });
+    if (!result) return null;
+
+    const snapshot: EtsyNicheSnapshot = {
+      pulledAt: new Date().toISOString(),
+      niche: niche.keyword || `taxonomy:${niche.taxonomyId}`,
+      taxonomyId: niche.taxonomyId ?? null,
+      totalCount: result.totalCount,
+      listings: result.listings,
+    };
+
+    this.persistSnapshot(snapshot);
+    return snapshot;
+  }
+
+  /** Append a snapshot to the per-UTC-day JSON file under data/scrapers/etsy/snapshots/. */
+  private persistSnapshot(snapshot: EtsyNicheSnapshot): void {
+    try {
+      if (!fs.existsSync(SNAPSHOT_DIR)) {
+        fs.mkdirSync(SNAPSHOT_DIR, { recursive: true });
+      }
+      const file = path.join(SNAPSHOT_DIR, `${snapshot.pulledAt.slice(0, 10)}.json`);
+      let existing: EtsyNicheSnapshot[] = [];
+      if (fs.existsSync(file)) {
+        try {
+          const parsed = JSON.parse(fs.readFileSync(file, 'utf-8'));
+          if (Array.isArray(parsed)) existing = parsed;
+        } catch {
+          // Corrupt file — start a fresh array rather than crash the pull
+        }
+      }
+      existing.push(snapshot);
+      fs.writeFileSync(file, JSON.stringify(existing));
+    } catch (error: any) {
+      console.error('[EtsyScraper] Failed to persist snapshot:', error.message);
+    }
+  }
+
+  /** Latest snapshot timestamp across persisted files (freshness for /api/trends/health). */
+  getLastSnapshotAt(): string | null {
+    try {
+      if (!fs.existsSync(SNAPSHOT_DIR)) return null;
+      const files = fs.readdirSync(SNAPSHOT_DIR).filter(f => f.endsWith('.json')).sort();
+      const latestFile = files[files.length - 1];
+      if (!latestFile) return null;
+      const parsed = JSON.parse(fs.readFileSync(path.join(SNAPSHOT_DIR, latestFile), 'utf-8'));
+      if (!Array.isArray(parsed) || parsed.length === 0) return null;
+      return parsed[parsed.length - 1].pulledAt || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Search via Etsy Open API v3 (Layer 1).
+   * Two-step shape (cost: 2 requests per keyword, both budget-gated):
+   *   1. /listings/active — base listings + total count (snapshot persisted).
+   *   2. /listings/batch?includes=Images,Shop — enriches image URLs + shop
+   *      names in one batched call (the only endpoint where includes works).
+   */
+  private async searchWithApi(query: string, options?: { limit?: number; category?: string }): Promise<EtsyListing[]> {
+    const { limit = SCRAPING_LIMITS.TOP_PRODUCTS_PER_PLATFORM } = options || {};
+
+    const snapshot = await this.pullNicheSnapshot({ keyword: query });
+    if (!snapshot || snapshot.listings.length === 0) return [];
+
+    // Batch-enrich with Images + Shop (1 extra call; fail-soft to bare listings).
+    const imageById = new Map<string, string>();
+    const shopById = new Map<string, string>();
+    const ids = snapshot.listings.slice(0, limit).map(l => l.listingId).filter(Boolean);
+    if (ids.length) {
+      const enriched = await this.getListingsBatchRaw(ids, 'Images,Shop', 1);
+      enriched.forEach((it: any) => {
+        const lid = String(it.listing_id || '');
+        const img = it.images?.[0];
+        if (img) imageById.set(lid, img.url_570xN || img.url_340x270 || img.url_fullxfull || '');
+        if (it.shop?.shop_name) shopById.set(lid, it.shop.shop_name);
+      });
+    }
+
+    const out = snapshot.listings.slice(0, limit).map(s => {
+      const listing = this.snapshotToListing(s);
+      listing.imageUrl = imageById.get(listing.id) || '';
+      listing.shopName = shopById.get(listing.id) || '';
+      return listing;
+    });
+
+    console.log(`[EtsyScraper] Etsy API "${query}" -> ${out.length} listings (count=${snapshot.totalCount}, ${imageById.size} w/ images)`);
+    return out;
+  }
+
+  /**
+   * API-first trend collection over tracked niche keywords (1 search call per
+   * niche — no enrichment needed for trend metrics). With ~50 niches x
+   * ETSY_PULLS_PER_DAY pulls this stays far below the daily budget.
+   */
+  async getTrendsViaApi(): Promise<EtsyTrend[]> {
+    const nicheKeywords = keywordStore
+      .getTopKeywords(50, { minPriority: 0 })
+      .map(k => k.keyword);
+
+    const queries = nicheKeywords.length > 0 ? nicheKeywords : [...ETSY_SEED_QUERIES];
+
+    const trends: EtsyTrend[] = [];
+    const now = new Date().toISOString();
+
+    for (const keyword of queries) {
+      if (!etsyBudget.canRequest()) {
+        console.warn('[EtsyScraper] Budget exhausted mid-pull, stopping (resumes next UTC day)');
+        break;
+      }
+
+      const snapshot = await this.pullNicheSnapshot({ keyword });
+      if (!snapshot || snapshot.listings.length === 0) continue;
+
+      const prices = snapshot.listings.map(l => l.price).filter(p => p > 0);
+      const avgFavorers = snapshot.listings.reduce((sum, l) => sum + l.numFavorers, 0) / snapshot.listings.length;
+      // Listings created in the last 30 days — proxy for niche momentum
+      const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      const recentRatio = snapshot.listings.filter(l => l.createdAt && Date.parse(l.createdAt) > cutoff).length / snapshot.listings.length;
+
+      const popularityScore = Math.min(100, Math.round(
+        Math.min(1, avgFavorers / 200) * 40 +         // engagement 40%
+        recentRatio * 30 +                              // freshness/momentum 30%
+        Math.min(1, snapshot.totalCount / 10000) * 30   // market size 30%
+      ));
+
+      trends.push({
+        query: keyword,
+        category: this.detectCategory(keyword),
+        listingCount: snapshot.totalCount,
+        popularityScore,
+        priceRange: {
+          min: prices.length ? Math.min(...prices) : 0,
+          max: prices.length ? Math.max(...prices) : 0,
+        },
+        topListings: snapshot.listings.slice(0, 10).map(s => this.snapshotToListing(s)),
+        firstDetected: now,
+        lastUpdated: now,
+      });
+    }
+
+    return trends.sort((a, b) => b.popularityScore - a.popularityScore);
   }
 
   async getTrendingSearches(): Promise<string[]> {
@@ -292,11 +542,21 @@ class EtsyScraper {
   }
 
   async getAllTrends(): Promise<EtsyTrend[]> {
+    // Layer 1: API-first (2026-06-11 — Etsy API access granted).
+    if (this.isApiEnabled()) {
+      const apiTrends = await this.getTrendsViaApi();
+      if (apiTrends.length > 0) {
+        return apiTrends;
+      }
+      console.warn('[EtsyScraper] API trend pull returned nothing, falling back to stealth scraping path');
+    }
+
+    // Layer 2: isolated stealth scraping over seed queries.
     const queries = await this.getTrendingSearches();
     const trends: EtsyTrend[] = [];
     try {
       for (const q of queries.slice(0, SCRAPING_LIMITS.TOP_TRENDING_KEYWORDS)) {
-        if (this.dataDomeBlocked && !this.proxyUrl && !this.useApi) break;
+        if (this.dataDomeBlocked && !this.proxyUrl && !this.isApiEnabled()) break;
         const t = await this.analyzeTrend(q);
         if (t) trends.push(t);
       }

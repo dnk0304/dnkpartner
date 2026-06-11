@@ -34,6 +34,7 @@ import { googleShoppingScraper } from './trends/googleShoppingScraper.js'
 import { growthDetector } from './trends/growthDetector.js'
 import { trendStore } from './trends/trendStore.js'
 import { trendScheduler, scraperHealth } from './trends/scheduler.js'
+import { etsyBudget } from './trends/etsyBudget.js'
 import { amazonTrendBridge } from './trends/amazonTrendBridge.js'
 import { trendCorrelator } from './trends/trendCorrelator.js';
 import { keywordStore } from './trends/keywordStore.js';
@@ -6197,11 +6198,25 @@ app.get("/api/trends/health", async (req, res) => {
     const health = trendScheduler.getHealthStatus();
     const summary = trendScheduler.getHealthSummary();
     const alerts = trendScheduler.getHealthAlerts(20);
-    
-    res.json({ 
-      success: true, 
+
+    // Etsy API ingestion: freshness + daily request budget (2026-06-11)
+    const etsyBudgetStatus = etsyBudget.getStatus();
+    const etsy = {
+      apiEnabled: etsyScraper.isApiEnabled(),
+      lastSnapshotAt: etsyScraper.getLastSnapshotAt(),
+      requestsToday: etsyBudgetStatus.requestsToday,
+      remainingBudget: etsyBudgetStatus.remainingBudget,
+      dailyCap: etsyBudgetStatus.dailyCap,
+      headerLimitPerDay: etsyBudgetStatus.headerLimitPerDay,
+      headerRemainingToday: etsyBudgetStatus.headerRemainingToday,
+      budgetExhausted: etsyBudgetStatus.exhausted,
+    };
+
+    res.json({
+      success: true,
       health,
       summary,
+      etsy,
       recentAlerts: alerts
     });
   } catch (error: any) {
