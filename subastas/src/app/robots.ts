@@ -30,7 +30,12 @@ export default function robots(): MetadataRoute.Robots {
       },
     ],
     sitemap: [
-      `${SITE}/sitemap.xml`,
+      // Chunked via generateSitemaps() (town-pages Phase 2) — fixed ID set,
+      // must match 1 + DETAIL_CHUNKS in src/app/sitemap.ts.
+      `${SITE}/sitemap/0.xml`,
+      `${SITE}/sitemap/1.xml`,
+      `${SITE}/sitemap/2.xml`,
+      `${SITE}/sitemap/3.xml`,
     ],
     host: SITE,
   };
