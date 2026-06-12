@@ -60,18 +60,26 @@ export async function generateSitemaps(): Promise<Array<{ id: number }>> {
 }
 
 export default async function sitemap({ id }: { id: number }): Promise<MetadataRoute.Sitemap> {
+  // Runtime coercion: with `dynamic = 'force-dynamic'` Next passes the
+  // `__metadata_id__` route param as a STRING at request time (possibly with
+  // the `.xml` suffix, e.g. "1.xml") despite the typed `id: number`.
+  // `"1.xml" >= 1` → NaN comparison → false → every chunk served chunk 0.
+  // parseInt stops at the first non-digit, so "1.xml" → 1, "0" → 0.
+  const parsed = Number.parseInt(String(id), 10);
+  const chunkId = Number.isNaN(parsed) ? 0 : parsed;
+
   const now = new Date();
 
   // --- Chunks 1..N: ACTIVE auction-detail pages ---
   // CONCLUIDA / FINALIZADA stay noindex per 07 §1.7, so excluded from sitemap.
-  if (id >= 1) {
+  if (chunkId >= 1) {
     const entries: MetadataRoute.Sitemap = [];
     try {
       const activeAuctions = await prisma.auction.findMany({
         where: { status: { in: ACTIVE_STATUSES } },
         select: { id: true, auctionType: true, province: true, municipality: true, updatedAt: true },
         orderBy: { id: 'asc' }, // stable order so skip/take chunks don't overlap
-        skip: (id - 1) * DETAIL_CHUNK_SIZE,
+        skip: (chunkId - 1) * DETAIL_CHUNK_SIZE,
         take: DETAIL_CHUNK_SIZE,
       });
       for (const a of activeAuctions) {
