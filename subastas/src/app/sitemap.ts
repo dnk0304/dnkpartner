@@ -60,12 +60,15 @@ export async function generateSitemaps(): Promise<Array<{ id: number }>> {
 }
 
 export default async function sitemap({ id }: { id: number }): Promise<MetadataRoute.Sitemap> {
-  // Runtime coercion: with `dynamic = 'force-dynamic'` Next passes the
-  // `__metadata_id__` route param as a STRING at request time (possibly with
-  // the `.xml` suffix, e.g. "1.xml") despite the typed `id: number`.
-  // `"1.xml" >= 1` → NaN comparison → false → every chunk served chunk 0.
-  // parseInt stops at the first non-digit, so "1.xml" → 1, "0" → 0.
-  const parsed = Number.parseInt(String(id), 10);
+  // Runtime root cause (Next 15 async-params, proven in the live wave102
+  // bundle): the generated route wrapper passes `id` as an UN-AWAITED
+  // Promise<string> (already `.xml`-stripped — the suffix theory from
+  // corrective #1 is disproven; the wrapper strips it before calling us).
+  // `String(Promise)` → "[object Promise]" → parseInt → NaN → every chunk
+  // fell back to chunk 0. Await/unwrap first; handles promise AND plain
+  // string/number so this stays correct if Next reverts to sync params.
+  const raw = await Promise.resolve(id as unknown as string | number | Promise<string | number>);
+  const parsed = Number.parseInt(String(raw), 10);
   const chunkId = Number.isNaN(parsed) ? 0 : parsed;
 
   const now = new Date();
