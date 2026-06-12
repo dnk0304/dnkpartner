@@ -280,7 +280,6 @@ export function FiltersSidebar({
         {categoryLocked ? (
           <div className="rounded-md border border-[var(--color-action)]/40 bg-[var(--color-action-soft)] px-2.5 py-1.5 text-xs text-[var(--color-ink-primary)]">
             {lockedFilter?.category}
-            <span className="ml-1 text-[var(--color-ink-tertiary)]">(bloqueado)</span>
           </div>
         ) : (
           <div className="space-y-1">
@@ -313,14 +312,12 @@ export function FiltersSidebar({
           <div className="space-y-2">
             <div className="rounded-md border border-[var(--color-action)]/40 bg-[var(--color-action-soft)] px-2.5 py-1.5 text-xs text-[var(--color-ink-primary)]">
               {lockedFilter?.province}
-              <span className="ml-1 text-[var(--color-ink-tertiary)]">(bloqueado)</span>
             </div>
             {municipalityLocked ? (
               /* Wave 56 — town SEO page. Municipality is also locked (path-
                  encoded); render as a labelled chip. */
               <div className="rounded-md border border-[var(--color-action)]/40 bg-[var(--color-action-soft)] px-2.5 py-1.5 text-xs text-[var(--color-ink-primary)]">
                 {lockedFilter?.municipality}
-                <span className="ml-1 text-[var(--color-ink-tertiary)]">(bloqueado)</span>
               </div>
             ) : (
               /* Municipality stays editable — narrows within the locked province. */

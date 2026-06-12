@@ -1,18 +1,22 @@
 /**
- * sitemap.xml — combined sitemap (07 §4).
+ * sitemap — chunked via `generateSitemaps()` (07 §4).
  *
- * Includes ONLY indexable URLs. Anything below the inventory threshold or
- * flagged noindex is excluded — sitemap = the indexable set, exactly.
+ * Doctrine (updated, town-pages Phase 2): the sitemap ships every URL that is
+ * EITHER indexable today OR a permanent clean page whose index state flips
+ * with inventory. Concretely: ALL clean town pages ship (any-status pairs);
+ * 0-active towns are noindex,follow at the page until inventory returns —
+ * the sitemap is no longer strictly "the indexable set" for towns. Everything
+ * else (categories below threshold, finished auction details) stays excluded.
  *
- * Layout (one sitemap; under 50k URLs total in current state):
- *   - Core (home, /subastas, indices)
- *   - All 52 province pages (always indexable)
- *   - All 5 tipo pages (always indexable)
- *   - The 9 DENSE category pages (OFFICIAL_CATEGORIES ∩ count ≥ threshold)
- *   - All ACTIVE auction-detail pages (active states only)
- *   - All published /guia/ articles
- *
- * If/when this crosses 50k URLs, swap to `generateSitemaps()` and chunk.
+ * Chunk layout (fixed IDs so NO DB query is needed to enumerate chunks —
+ * keeps the route fully request-time, never build-time):
+ *   - /sitemap/0.xml — core (home, /subastas) + 52 provinces + ALL clean
+ *     town pages + 5 tipos + DENSE categories + published /guia/ articles.
+ *     (~5k towns + static set today — far under the 50k cap.)
+ *   - /sitemap/1.xml … /sitemap/3.xml — ACTIVE auction-detail pages, 45k per
+ *     chunk (skip/take ordered by id asc for stable pagination). Today only
+ *     chunk 1 is non-empty (~5k details); 2–3 are empty headroom up to 135k
+ *     actives. Bump DETAIL_CHUNKS (and robots.ts) if inventory ever nears it.
  *
  * lastmod = real data freshness where available (07 §4 — fake daily lastmod
  * gets ignored or penalised).
@@ -34,7 +38,7 @@ import {
   isOfficialCategory,
   type CategorySlug,
 } from '@/lib/seo/slugs';
-import { categoryActiveCounts, activeMunicipalityPairs } from '@/lib/seo/page-data';
+import { categoryActiveCounts, allMunicipalityPairs } from '@/lib/seo/page-data';
 import { buildAuctionSlug } from '@/lib/seo/auction-slug';
 
 const SITE = 'https://subastasactivas.com';
@@ -45,8 +49,46 @@ const ACTIVE_STATUSES: AuctionStatus[] = [
   AuctionStatus.PROXIMA_APERTURA,
 ];
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+/** Auction-detail chunks (ids 1..DETAIL_CHUNKS), 45k URLs each. */
+const DETAIL_CHUNKS = 3;
+const DETAIL_CHUNK_SIZE = 45_000; // safety cap below the 50k sitemap limit
+
+export async function generateSitemaps(): Promise<Array<{ id: number }>> {
+  // Fixed ID set — intentionally no DB call here (chunk enumeration must not
+  // create a build-time or robots.ts-visible dependency on live counts).
+  return Array.from({ length: 1 + DETAIL_CHUNKS }, (_, i) => ({ id: i }));
+}
+
+export default async function sitemap({ id }: { id: number }): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
+
+  // --- Chunks 1..N: ACTIVE auction-detail pages ---
+  // CONCLUIDA / FINALIZADA stay noindex per 07 §1.7, so excluded from sitemap.
+  if (id >= 1) {
+    const entries: MetadataRoute.Sitemap = [];
+    try {
+      const activeAuctions = await prisma.auction.findMany({
+        where: { status: { in: ACTIVE_STATUSES } },
+        select: { id: true, auctionType: true, province: true, municipality: true, updatedAt: true },
+        orderBy: { id: 'asc' }, // stable order so skip/take chunks don't overlap
+        skip: (id - 1) * DETAIL_CHUNK_SIZE,
+        take: DETAIL_CHUNK_SIZE,
+      });
+      for (const a of activeAuctions) {
+        entries.push({
+          url: `${SITE}/subastas/subasta/${buildAuctionSlug(a)}`,
+          lastModified: a.updatedAt ?? now,
+          changeFrequency: 'daily',
+          priority: 0.6,
+        });
+      }
+    } catch {
+      // Non-fatal — an empty detail chunk is still a valid sitemap.
+    }
+    return entries;
+  }
+
+  // --- Chunk 0: core + provinces + towns + tipos + categories + guides ---
   const entries: MetadataRoute.Sitemap = [];
 
   // --- Core ---
@@ -67,12 +109,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     });
   }
 
-  // --- Town pages (Wave 56 additive) ---
-  // Only municipalities with ≥1 active auction are indexable; off-taxonomy
-  // junk filtered inside activeMunicipalityPairs(). ~17 pairs in current
-  // inventory — well under any sitemap cap.
+  // --- Town pages (town-pages Phase 2) ---
+  // ALL clean towns (any-status inventory; off-taxonomy junk filtered inside
+  // allMunicipalityPairs()). 0-active towns are noindex,follow at the page —
+  // see the doctrine note in the header. ~2.7k pairs today.
   try {
-    const pairs = await activeMunicipalityPairs();
+    const pairs = await allMunicipalityPairs();
     for (const p of pairs) {
       entries.push({
         url: `${SITE}/subastas/${p.provinceSlug}/${p.municipioSlug}`,
@@ -107,22 +149,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 0.7,
       });
     }
-  }
-
-  // --- ACTIVE auction-detail pages ---
-  // CONCLUIDA / FINALIZADA stay noindex per 07 §1.7, so excluded from sitemap.
-  const activeAuctions = await prisma.auction.findMany({
-    where: { status: { in: ACTIVE_STATUSES } },
-    select: { id: true, auctionType: true, province: true, municipality: true, updatedAt: true },
-    take: 45_000, // safety cap below 50k sitemap limit
-  });
-  for (const a of activeAuctions) {
-    entries.push({
-      url: `${SITE}/subastas/subasta/${buildAuctionSlug(a)}`,
-      lastModified: a.updatedAt ?? now,
-      changeFrequency: 'daily',
-      priority: 0.6,
-    });
   }
 
   // --- Published /guia/ articles (link from #9 blog) ---

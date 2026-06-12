@@ -5,14 +5,19 @@
  * `[slug]` segment is the PROVINCE slug; if it resolves as a category we
  * 404 (categories have no municipality children). The `[municipio]` segment
  * is resolved within that province via `municipalitySlugToDbName` — case +
- * accent folded against the live distinct-municipality set, highest-count
- * casing wins per slug (per-province collision guard).
+ * accent folded against the distinct-municipality set (ANY status since
+ * town-pages Phase 2 — towns with only finished inventory resolve too),
+ * highest-count casing wins per slug (per-province collision guard).
  *
  * Locked filter: `{ province: dbKey, municipality: dbMunicipalityName }`
  * — the new server-side `municipality` filter on /api/auctions (Wave 56
  * additive) makes counts/list/badge correct at the server.
  *
  * Index gate: count>0 → index,follow; count==0 → noindex,follow (still 200).
+ * `count` is the ACTIVE count (`countActiveAuctions`) — it MUST stay
+ * active-only so finished-only towns get noindex. Those pages still render
+ * content: the list defaults to `when=todas` (all user-facing states), so a
+ * 0-active town shows its finished inventory rather than an empty state.
  *
  * SEO body (intro/footer/internal-link clusters) is Pixel's brief — this file
  * owns the route skeleton + data + canonical + JSON-LD + lockedFilter wiring.
@@ -73,8 +78,9 @@ async function loadTown(slug: string, municipio: string): Promise<Resolved | nul
     countActiveAuctions({ province: r.dbKey }),
   ]);
 
-  // Sibling cluster: every active municipality in the same province
-  // EXCEPT the current one. Already sorted by count desc.
+  // Sibling cluster: every municipality in the same province (any status —
+  // counts shown are ACTIVE counts) EXCEPT the current one. Already sorted
+  // by count desc.
   const siblings: SiblingMuni[] = allMunis
     .filter((m) => m.municipioSlug !== municipio)
     .map((m) => ({ name: m.name, count: m.count, municipioSlug: m.municipioSlug }));
