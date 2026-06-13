@@ -21,14 +21,18 @@ import { SCRAPING_LIMITS } from './scrapingConfig.js';
 import { adaptiveRateLimiter } from './adaptiveRateLimiter.js';
 import { etsyBudget } from './etsyBudget.js';
 import { keywordStore } from './keywordStore.js';
+import { snapshotStore } from './snapshotStore.js';
+import type { TrendSignal } from './signalSchema.js';
 import type { Page } from 'puppeteer';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Platform-specific raw snapshots: timestamped per-niche listing snapshots so
-// trend deltas are computable across pulls.
-const SNAPSHOT_DIR = path.join(__dirname, '../../data/scrapers/etsy/snapshots');
+// LEGACY snapshot dir (pre Phase 1) — lived INSIDE the image under
+// data/scrapers/, so it was wiped every redeploy. Snapshots now persist via
+// snapshotStore on the /app/data/trends volume; this path is kept only so any
+// surviving legacy files can be migrated forward at startup.
+const LEGACY_SNAPSHOT_DIR = path.join(__dirname, '../../data/scrapers/etsy/snapshots');
 
 const ETSY_API_BASE = 'https://openapi.etsy.com/v3/application';
 
@@ -389,42 +393,76 @@ class EtsyScraper {
     return snapshot;
   }
 
-  /** Append a snapshot to the per-UTC-day JSON file under data/scrapers/etsy/snapshots/. */
+  /**
+   * Map a niche snapshot to the unified TrendSignal shape.
+   * isMock is EXPLICITLY false: this path only runs on real Etsy Open API v3
+   * responses (apiFetch fail-soft returns null before we ever get here).
+   */
+  private toTrendSignal(snapshot: EtsyNicheSnapshot): TrendSignal {
+    const sampled = snapshot.listings.length;
+    const avgFavorers = sampled > 0
+      ? snapshot.listings.reduce((sum, l) => sum + l.numFavorers, 0) / sampled
+      : 0;
+    return {
+      keyword: snapshot.niche,
+      platform: 'etsy',
+      metrics: {
+        resultCount: snapshot.totalCount,
+        listingsSampled: sampled,
+        avgFavorers: Math.round(avgFavorers * 100) / 100,
+      },
+      capturedAt: snapshot.pulledAt,
+      source: 'etsy-open-api-v3:/listings/active?sort_on=score&limit=100',
+      isMock: false,
+      raw: { taxonomyId: snapshot.taxonomyId, listings: snapshot.listings },
+    };
+  }
+
+  /** Persist one pull as a TrendSignal on the persistent volume (snapshotStore). */
   private persistSnapshot(snapshot: EtsyNicheSnapshot): void {
+    snapshotStore.appendSignals('etsy', [this.toTrendSignal(snapshot)]);
+  }
+
+  /**
+   * One-time migration: convert any legacy EtsyNicheSnapshot day files (old
+   * image-local data/scrapers/etsy/snapshots) into TrendSignal rows on the
+   * persistent volume, then rename them *.migrated so restarts don't
+   * double-import. Fail-soft: never blocks startup.
+   */
+  migrateLegacySnapshots(): void {
     try {
-      if (!fs.existsSync(SNAPSHOT_DIR)) {
-        fs.mkdirSync(SNAPSHOT_DIR, { recursive: true });
-      }
-      const file = path.join(SNAPSHOT_DIR, `${snapshot.pulledAt.slice(0, 10)}.json`);
-      let existing: EtsyNicheSnapshot[] = [];
-      if (fs.existsSync(file)) {
+      if (!fs.existsSync(LEGACY_SNAPSHOT_DIR)) return;
+      const files = fs.readdirSync(LEGACY_SNAPSHOT_DIR).filter(f => f.endsWith('.json')).sort();
+      let migrated = 0;
+      for (const f of files) {
+        const full = path.join(LEGACY_SNAPSHOT_DIR, f);
         try {
-          const parsed = JSON.parse(fs.readFileSync(file, 'utf-8'));
-          if (Array.isArray(parsed)) existing = parsed;
-        } catch {
-          // Corrupt file — start a fresh array rather than crash the pull
+          const parsed = JSON.parse(fs.readFileSync(full, 'utf-8'));
+          if (Array.isArray(parsed)) {
+            const signals = (parsed as EtsyNicheSnapshot[])
+              .filter(s => s && typeof s.pulledAt === 'string' && typeof s.niche === 'string')
+              .map(s => this.toTrendSignal(s));
+            if (signals.length) {
+              snapshotStore.appendSignals('etsy', signals);
+              migrated += signals.length;
+            }
+          }
+          fs.renameSync(full, `${full}.migrated`);
+        } catch (err: any) {
+          console.warn(`[EtsyScraper] Legacy snapshot migration skipped ${f}:`, err.message);
         }
       }
-      existing.push(snapshot);
-      fs.writeFileSync(file, JSON.stringify(existing));
+      if (migrated > 0) {
+        console.log(`[EtsyScraper] Migrated ${migrated} legacy snapshot(s) to persistent snapshotStore`);
+      }
     } catch (error: any) {
-      console.error('[EtsyScraper] Failed to persist snapshot:', error.message);
+      console.warn('[EtsyScraper] Legacy snapshot migration failed (non-fatal):', error.message);
     }
   }
 
-  /** Latest snapshot timestamp across persisted files (freshness for /api/trends/health). */
+  /** Latest REAL (non-mock) snapshot timestamp (freshness for /api/trends/health). */
   getLastSnapshotAt(): string | null {
-    try {
-      if (!fs.existsSync(SNAPSHOT_DIR)) return null;
-      const files = fs.readdirSync(SNAPSHOT_DIR).filter(f => f.endsWith('.json')).sort();
-      const latestFile = files[files.length - 1];
-      if (!latestFile) return null;
-      const parsed = JSON.parse(fs.readFileSync(path.join(SNAPSHOT_DIR, latestFile), 'utf-8'));
-      if (!Array.isArray(parsed) || parsed.length === 0) return null;
-      return parsed[parsed.length - 1].pulledAt || null;
-    } catch {
-      return null;
-    }
+    return snapshotStore.getLastSignalAt('etsy', { realOnly: true });
   }
 
   /**
@@ -588,3 +626,6 @@ class EtsyScraper {
 
 export const etsyScraper = new EtsyScraper();
 export { ETSY_CATEGORIES };
+
+// Phase 1 (2026-06-13): carry any pre-volume snapshot files forward once.
+etsyScraper.migrateLegacySnapshots();

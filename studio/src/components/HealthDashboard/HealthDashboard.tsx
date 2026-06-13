@@ -9,7 +9,7 @@ import './HealthDashboard.css';
 interface ScraperHealth {
   source: string;
   health: {
-    status: 'healthy' | 'degraded' | 'failing' | 'mock';
+    status: 'healthy' | 'degraded' | 'failing' | 'mock' | 'degraded-mock' | 'no-data';
     successRate: number;
     totalAttempts: number;
     successfulAttempts: number;
@@ -18,7 +18,7 @@ interface ScraperHealth {
     lastFailure: string | null;
     lastError: string | null;
     consecutiveFailures: number;
-    dataFreshness: 'live' | 'stale' | 'mock';
+    dataFreshness: 'live' | 'stale' | 'mock' | 'none';
     avgResponseTime: number;
   };
 }

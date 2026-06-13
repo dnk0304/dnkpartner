@@ -27,15 +27,17 @@ import { Button } from '../../Button';
 // Types matching the backend
 interface ScraperHealth {
   source: string;
-  status: 'healthy' | 'degraded' | 'failing' | 'mock';
+  status: 'healthy' | 'degraded' | 'failing' | 'mock' | 'degraded-mock' | 'no-data';
   lastSuccessfulScrape: string | null;
+  lastRealDataAt?: string | null;
   lastAttempt: string | null;
   consecutiveFailures: number;
   totalScrapes24h: number;
   successRate24h: number;
   avgResponseTime: number;
-  dataFreshness: 'live' | 'stale' | 'mock';
+  dataFreshness: 'live' | 'stale' | 'mock' | 'none';
   trendsCollected24h: number;
+  mockTrendsCollected24h?: number;
   errorMessages: string[];
 }
 
@@ -140,6 +142,9 @@ export function ScraperHealth() {
       case 'failing':
         return <XCircle className="w-5 h-5 text-red-500" />;
       case 'mock':
+      case 'degraded-mock':
+        return <Database className="w-5 h-5 text-purple-500" />;
+      case 'no-data':
         return <Database className="w-5 h-5 text-gray-400" />;
     }
   };
@@ -150,6 +155,8 @@ export function ScraperHealth() {
       case 'degraded': return 'bg-amber-100 text-amber-700 border-amber-200';
       case 'failing': return 'bg-red-100 text-red-700 border-red-200';
       case 'mock': return 'bg-gray-100 text-gray-600 border-gray-200';
+      case 'degraded-mock': return 'bg-purple-100 text-purple-700 border-purple-200';
+      case 'no-data': return 'bg-gray-100 text-gray-500 border-gray-200';
     }
   };
 
@@ -157,7 +164,8 @@ export function ScraperHealth() {
     switch (freshness) {
       case 'live': return <Wifi className="w-4 h-4 text-emerald-500" />;
       case 'stale': return <Clock className="w-4 h-4 text-amber-500" />;
-      case 'mock': return <WifiOff className="w-4 h-4 text-gray-400" />;
+      case 'mock': return <WifiOff className="w-4 h-4 text-purple-500" />;
+      case 'none': return <WifiOff className="w-4 h-4 text-gray-400" />;
     }
   };
 

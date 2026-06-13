@@ -1337,7 +1337,7 @@ class TrendScheduler {
       console.log(`  - Top 10:`, discoveryResult.topKeywords);
       
       const duration = Date.now() - startTime;
-      scraperHealth.recordSuccess(source, duration);
+      scraperHealth.recordSuccess(source, discoveryResult.keywords.length, duration, 'live');
       
       // Get updated store stats
       const stats = keywordStore.getStats();

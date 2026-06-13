@@ -35,6 +35,8 @@ import { growthDetector } from './trends/growthDetector.js'
 import { trendStore } from './trends/trendStore.js'
 import { trendScheduler, scraperHealth } from './trends/scheduler.js'
 import { etsyBudget } from './trends/etsyBudget.js'
+import { snapshotStore as trendSnapshotStore } from './trends/snapshotStore.js'
+import type { TrendSignal } from './trends/signalSchema.js'
 import { amazonTrendBridge } from './trends/amazonTrendBridge.js'
 import { trendCorrelator } from './trends/trendCorrelator.js';
 import { keywordStore } from './trends/keywordStore.js';
@@ -6221,6 +6223,54 @@ app.get("/api/trends/health", async (req, res) => {
     });
   } catch (error: any) {
     console.error('[Trends API] Error fetching health status:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/trends/signal?keyword=<kw>
+ * Unified cross-platform signal series for one keyword, read from the
+ * persistent snapshot store (Phase 1, 2026-06-13).
+ *
+ * Contract:
+ * - isMock:true rows NEVER appear here (filtered at the store, asserted here).
+ * - Platforms with no data for the keyword are OMITTED, never faked.
+ * NOTE: This MUST come BEFORE /api/trends/:id to avoid route collision.
+ */
+app.get("/api/trends/signal", async (req, res) => {
+  try {
+    const keyword = typeof req.query.keyword === 'string' ? req.query.keyword.trim() : '';
+    if (!keyword) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required query parameter: keyword',
+      });
+    }
+
+    const maxDaysRaw = parseInt(String(req.query.days ?? '30'), 10);
+    const maxDays = Number.isFinite(maxDaysRaw) ? Math.min(Math.max(maxDaysRaw, 1), 90) : 30;
+
+    const byPlatform = trendSnapshotStore.getSignalsForKeyword(keyword, { maxDays, includeMock: false });
+
+    const platforms: Record<string, { latest: TrendSignal; series: TrendSignal[] }> = {};
+    for (const [platform, series] of Object.entries(byPlatform)) {
+      // Defense in depth: the store already excludes mock rows; assert anyway.
+      const real = series.filter(s => s.isMock === false);
+      const latest = real[real.length - 1];
+      if (!latest) continue; // no real rows -> omit platform, never fake it
+      // Keep the raw payload only on `latest`; series rows carry metrics only
+      // (raw listing payloads would balloon multi-day responses).
+      const slim = real.map(({ raw: _raw, ...rest }) => rest);
+      platforms[platform] = { latest, series: slim };
+    }
+
+    res.json({
+      keyword,
+      platforms,
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    console.error('[Trends API] Error building signal response:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

@@ -61,15 +61,17 @@ export interface DataSourceStatus {
 // Scraper Health Types
 export interface ScraperHealth {
   source: string;
-  status: 'healthy' | 'degraded' | 'failing' | 'mock';
+  status: 'healthy' | 'degraded' | 'failing' | 'mock' | 'degraded-mock' | 'no-data';
   lastSuccessfulScrape: string | null;
+  lastRealDataAt?: string | null;
   lastAttempt: string | null;
   consecutiveFailures: number;
   totalScrapes24h: number;
   successRate24h: number;
   avgResponseTime: number;
-  dataFreshness: 'live' | 'stale' | 'mock';
+  dataFreshness: 'live' | 'stale' | 'mock' | 'none';
   trendsCollected24h: number;
+  mockTrendsCollected24h?: number;
   errorMessages: string[];
 }
 

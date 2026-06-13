@@ -5,15 +5,28 @@
 
 export interface ScraperHealth {
   source: string;
-  status: 'healthy' | 'degraded' | 'failing' | 'mock';
+  /**
+   * Truthful status (Phase 1, 2026-06-13):
+   * - 'degraded-mock': last pull served MOCK fallback — never 'healthy'.
+   * - 'no-data': no attempts recorded, or attempts but zero real data in 24h.
+   * - 'mock' kept in the union for older serialized payloads; no longer produced.
+   */
+  status: 'healthy' | 'degraded' | 'failing' | 'mock' | 'degraded-mock' | 'no-data';
   lastSuccessfulScrape: string | null;
+  /** Last success that returned REAL (non-mock) data with >0 trends. */
+  lastRealDataAt: string | null;
   lastAttempt: string | null;
   consecutiveFailures: number;
   totalScrapes24h: number;
+  /** Success rate over REAL successes only — mock fallback counts as failure. */
   successRate24h: number;
   avgResponseTime: number;
-  dataFreshness: 'live' | 'stale' | 'mock';
+  /** Computed from real data only; 'none' = no real data ever recorded. */
+  dataFreshness: 'live' | 'stale' | 'mock' | 'none';
+  /** Trends from REAL (non-mock) successes only. */
   trendsCollected24h: number;
+  /** Trends served by mock fallback in 24h (visibility, never counted above). */
+  mockTrendsCollected24h: number;
   errorMessages: string[];
 }
 
@@ -80,21 +93,31 @@ class ScraperHealthService {
    */
   private initializeHealth(): void {
     for (const source of ALL_SOURCES) {
-      this.health.set(source, {
-        source,
-        status: 'healthy',
-        lastSuccessfulScrape: null,
-        lastAttempt: null,
-        consecutiveFailures: 0,
-        totalScrapes24h: 0,
-        successRate24h: 100,
-        avgResponseTime: 0,
-        dataFreshness: 'live',
-        trendsCollected24h: 0,
-        errorMessages: [],
-      });
+      this.health.set(source, this.emptyHealth(source));
       this.attempts.set(source, []);
     }
+  }
+
+  /**
+   * Truthful zero-state: a source that has never collected anything must NOT
+   * claim 'healthy'/'live'/100% (that was the amazonKeywords lie).
+   */
+  private emptyHealth(source: string): ScraperHealth {
+    return {
+      source,
+      status: 'no-data',
+      lastSuccessfulScrape: null,
+      lastRealDataAt: null,
+      lastAttempt: null,
+      consecutiveFailures: 0,
+      totalScrapes24h: 0,
+      successRate24h: 0,
+      avgResponseTime: 0,
+      dataFreshness: 'none',
+      trendsCollected24h: 0,
+      mockTrendsCollected24h: 0,
+      errorMessages: [],
+    };
   }
 
   /**
@@ -139,7 +162,11 @@ class ScraperHealthService {
       dataType,
     });
     
-    console.log(`[ScraperHealth] ${source}: Success - ${trendsCollected} trends in ${duration}ms (${dataType})`);
+    if (dataType === 'mock') {
+      console.warn(`[ScraperHealth] ${source}: MOCK fallback served ${trendsCollected} trends in ${duration}ms — real pull failed, recorded as degraded-mock (does NOT count toward successRate)`);
+    } else {
+      console.log(`[ScraperHealth] ${source}: Success - ${trendsCollected} trends in ${duration}ms (${dataType})`);
+    }
   }
 
   /**
@@ -162,104 +189,118 @@ class ScraperHealthService {
   /**
    * Update health status for a source
    */
+  /**
+   * Truthful health computation (Phase 1, 2026-06-13).
+   *
+   * Core rule: a mock-fallback "success" means the REAL pull failed. Mock
+   * attempts therefore count AGAINST successRate, contribute nothing to
+   * trendsCollected24h / lastRealDataAt / freshness, and force the status to
+   * 'degraded-mock' when they were the most recent pull.
+   */
   private updateHealth(source: string): void {
     const sourceAttempts = this.attempts.get(source) || [];
     const currentHealth = this.health.get(source);
-    
+
     if (!currentHealth) return;
-    
-    // Calculate metrics
-    const successfulAttempts = sourceAttempts.filter(a => a.success);
+
+    const isRealSuccess = (a: ScrapeAttempt) => a.success && a.dataType !== 'mock';
+    const realSuccesses = sourceAttempts.filter(isRealSuccess);
+    const mockSuccesses = sourceAttempts.filter(a => a.success && a.dataType === 'mock');
     const failedAttempts = sourceAttempts.filter(a => !a.success);
-    
+    // Real data = a non-mock success that actually returned trends.
+    const realDataAttempts = realSuccesses.filter(a => a.trendsCollected > 0);
+
     // Total scrapes in 24h
     currentHealth.totalScrapes24h = sourceAttempts.length;
-    
-    // Success rate
+
+    // Success rate over REAL successes — mock fallback never inflates it.
     currentHealth.successRate24h = sourceAttempts.length > 0
-      ? (successfulAttempts.length / sourceAttempts.length) * 100
-      : 100;
-    
-    // Average response time
-    if (successfulAttempts.length > 0) {
-      currentHealth.avgResponseTime = successfulAttempts.reduce((sum, a) => sum + a.duration, 0) / successfulAttempts.length;
-    }
-    
-    // Trends collected in 24h
-    currentHealth.trendsCollected24h = successfulAttempts.reduce((sum, a) => sum + a.trendsCollected, 0);
-    
-    // Last successful scrape
-    const lastSuccess = successfulAttempts.sort(
-      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    )[0];
-    
-    if (lastSuccess) {
-      currentHealth.lastSuccessfulScrape = lastSuccess.timestamp;
-    }
-    
+      ? (realSuccesses.length / sourceAttempts.length) * 100
+      : 0;
+
+    // Average response time (real successes only — mock generation is ~0ms
+    // and would flatter the number).
+    currentHealth.avgResponseTime = realSuccesses.length > 0
+      ? realSuccesses.reduce((sum, a) => sum + a.duration, 0) / realSuccesses.length
+      : 0;
+
+    // Trends collected: real vs mock, never mixed.
+    currentHealth.trendsCollected24h = realSuccesses.reduce((sum, a) => sum + a.trendsCollected, 0);
+    currentHealth.mockTrendsCollected24h = mockSuccesses.reduce((sum, a) => sum + a.trendsCollected, 0);
+
+    const byNewest = (a: ScrapeAttempt, b: ScrapeAttempt) =>
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+
+    // Last successful scrape of ANY kind (kept for back-compat with UI).
+    const lastSuccess = [...sourceAttempts].filter(a => a.success).sort(byNewest)[0];
+    if (lastSuccess) currentHealth.lastSuccessfulScrape = lastSuccess.timestamp;
+
+    // Last REAL data — drives freshness.
+    const lastRealData = [...realDataAttempts].sort(byNewest)[0];
+    if (lastRealData) currentHealth.lastRealDataAt = lastRealData.timestamp;
+
     // Last attempt
-    const lastAttempt = sourceAttempts.sort(
-      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    )[0];
-    
-    if (lastAttempt) {
-      currentHealth.lastAttempt = lastAttempt.timestamp;
-    }
-    
-    // Consecutive failures
+    const sortedAttempts = [...sourceAttempts].sort(byNewest);
+    const lastAttempt = sortedAttempts[0];
+    if (lastAttempt) currentHealth.lastAttempt = lastAttempt.timestamp;
+
+    // Consecutive failures of the REAL pull (mock fallback = real pull failed).
     let consecutiveFailures = 0;
-    const sortedAttempts = [...sourceAttempts].sort(
-      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-    
     for (const attempt of sortedAttempts) {
-      if (!attempt.success) {
+      if (!isRealSuccess(attempt)) {
         consecutiveFailures++;
       } else {
         break;
       }
     }
     currentHealth.consecutiveFailures = consecutiveFailures;
-    
+
     // Error messages (keep most recent)
     currentHealth.errorMessages = failedAttempts
       .filter(a => a.errorMessage)
       .map(a => a.errorMessage!)
       .slice(-HEALTH_THRESHOLDS.MAX_ERROR_MESSAGES);
-    
-    // Determine data freshness
-    if (lastSuccess) {
-      const hoursSinceSuccess = (Date.now() - new Date(lastSuccess.timestamp).getTime()) / (60 * 60 * 1000);
-      
-      if (lastSuccess.dataType === 'mock') {
-        currentHealth.dataFreshness = 'mock';
-      } else if (hoursSinceSuccess > HEALTH_THRESHOLDS.VERY_STALE_DATA_HOURS) {
-        currentHealth.dataFreshness = 'stale';
-      } else if (hoursSinceSuccess > HEALTH_THRESHOLDS.STALE_DATA_HOURS) {
-        currentHealth.dataFreshness = 'stale';
-      } else {
-        currentHealth.dataFreshness = 'live';
-      }
-    } else {
+
+    // Data freshness — REAL data only.
+    if (currentHealth.lastRealDataAt) {
+      const hoursSinceReal = (Date.now() - new Date(currentHealth.lastRealDataAt).getTime()) / (60 * 60 * 1000);
+      currentHealth.dataFreshness = hoursSinceReal > HEALTH_THRESHOLDS.STALE_DATA_HOURS ? 'stale' : 'live';
+    } else if (mockSuccesses.length > 0) {
       currentHealth.dataFreshness = 'mock';
+    } else {
+      currentHealth.dataFreshness = 'none';
     }
-    
-    // Determine overall status
-    if (currentHealth.dataFreshness === 'mock') {
-      currentHealth.status = 'mock';
+
+    // Overall status — order matters:
+    // 1. nothing ever attempted -> no-data
+    // 2. last pull served mock  -> degraded-mock (NEVER healthy)
+    // 3. no real data ever      -> degraded-mock if mock served, else no-data/failing
+    // 4. failure thresholds     -> failing / degraded
+    if (sourceAttempts.length === 0) {
+      currentHealth.status = 'no-data';
+    } else if (lastAttempt && lastAttempt.success && lastAttempt.dataType === 'mock') {
+      currentHealth.status = 'degraded-mock';
+    } else if (currentHealth.dataFreshness === 'mock') {
+      currentHealth.status = 'degraded-mock';
     } else if (consecutiveFailures >= HEALTH_THRESHOLDS.CONSECUTIVE_FAILURES_FAILING) {
       currentHealth.status = 'failing';
     } else if (
       consecutiveFailures >= HEALTH_THRESHOLDS.CONSECUTIVE_FAILURES_DEGRADED ||
-      currentHealth.successRate24h < HEALTH_THRESHOLDS.SUCCESS_RATE_DEGRADED
+      (sourceAttempts.length > 0 && currentHealth.successRate24h < HEALTH_THRESHOLDS.SUCCESS_RATE_DEGRADED && failedAttempts.length > 0)
     ) {
+      // Active breakage outranks "no data yet": a broken source must read as
+      // degraded/failing, never hide behind no-data.
       currentHealth.status = 'degraded';
+    } else if (currentHealth.dataFreshness === 'none') {
+      // Attempts succeeded but returned zero real trends (e.g. an empty
+      // bridge): not an error, but absolutely not 'healthy' either.
+      currentHealth.status = 'no-data';
     } else if (currentHealth.successRate24h < HEALTH_THRESHOLDS.SUCCESS_RATE_HEALTHY) {
       currentHealth.status = 'degraded';
     } else {
       currentHealth.status = 'healthy';
     }
-    
+
     this.health.set(source, currentHealth);
   }
 
@@ -401,7 +442,7 @@ class ScraperHealthService {
     const healthySources = healthValues.filter(h => h.status === 'healthy').length;
     const degradedSources = healthValues.filter(h => h.status === 'degraded').length;
     const failingSources = healthValues.filter(h => h.status === 'failing').length;
-    const mockSources = healthValues.filter(h => h.status === 'mock').length;
+    const mockSources = healthValues.filter(h => h.status === 'mock' || h.status === 'degraded-mock').length;
     
     const totalTrends24h = healthValues.reduce((sum, h) => sum + h.trendsCollected24h, 0);
     const avgSuccessRate = healthValues.length > 0
@@ -476,19 +517,7 @@ class ScraperHealthService {
    * Initialize health for a single source
    */
   private initializeHealthForSource(source: string): void {
-    this.health.set(source, {
-      source,
-      status: 'healthy',
-      lastSuccessfulScrape: null,
-      lastAttempt: null,
-      consecutiveFailures: 0,
-      totalScrapes24h: 0,
-      successRate24h: 100,
-      avgResponseTime: 0,
-      dataFreshness: 'live',
-      trendsCollected24h: 0,
-      errorMessages: [],
-    });
+    this.health.set(source, this.emptyHealth(source));
   }
 
   /**
@@ -496,7 +525,7 @@ class ScraperHealthService {
    */
   getSourcesNeedingAttention(): ScraperHealth[] {
     return Array.from(this.health.values()).filter(
-      h => h.status === 'failing' || h.status === 'degraded' || h.dataFreshness === 'stale'
+      h => h.status === 'failing' || h.status === 'degraded' || h.status === 'degraded-mock' || h.dataFreshness === 'stale'
     );
   }
 
@@ -524,8 +553,11 @@ class ScraperHealthService {
     if (health.dataFreshness === 'stale') {
       return 'Trigger manual refresh or check scraper configuration';
     }
-    if (health.status === 'mock') {
-      return 'Implement real scraping for this source';
+    if (health.status === 'mock' || health.status === 'degraded-mock') {
+      return 'Last pull served mock fallback — real collection is failing, investigate the scraper';
+    }
+    if (health.status === 'no-data') {
+      return 'No real data collected yet — verify the source is configured and scheduled';
     }
     return 'No action needed';
   }
