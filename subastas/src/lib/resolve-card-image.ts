@@ -46,6 +46,10 @@ const MAP_URL_FRAGMENTS = [
   'staticmap.openstreetmap',
   '/tiles/',
   'maps.googleapis',
+  // Wave105 (2026-06-14): self-hosted FREE OSM map served from our origin.
+  // Must be treated as rung-2 (map), NEVER rung-1 (real photo) — so an UPCOMING
+  // row whose imageUrl is a map URL doesn't get mis-promoted into the photo slot.
+  '/api/auction-map/',
 ] as const;
 
 /**

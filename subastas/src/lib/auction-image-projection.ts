@@ -136,6 +136,15 @@ export function getAppropriateImageUrl(item: AuctionImageInput): string {
     return item.imageUrl;
   }
 
+  // Wave105 (2026-06-14): a persisted self-hosted FREE OSM map URL
+  // (/api/auction-map/<key>) is the rung-2 imagery for an UPCOMING auction.
+  // It is NOT a real photo (isRealAuctionImage returns false), but it is a
+  // valid, already-stitched map served from our origin — prefer it verbatim
+  // over rebuilding a fresh rung-2 URL. (A real photo above still wins.)
+  if (item.imageUrl && item.imageUrl.startsWith('/api/auction-map/')) {
+    return item.imageUrl;
+  }
+
   const streetviewFiles = getStreetviewFileSet();
   const streetviewFileExists = (publicPath: string | null): boolean => {
     if (!publicPath || !publicPath.startsWith('/streetview/')) return false;

@@ -16,11 +16,28 @@ import { exists, publicPathFor, writeImage, safeKey } from './storage';
 import { fetchCatastroFacade } from './catastro';
 import { fetchStreetView } from './streetview';
 import { extractRCFromRow } from './extract-rc';
+import { buildOrGetMap, mapPublicPathFor, getOptimalMapZoom } from './osm-map';
 
 // Wave52 (2026-06-04): include SUSPENDIDA / SUSPENDED so the Street View
 // backfill covers suspended auctions (they're still "live" for a buyer
 // watching them — they carry a resumeAt and surface in the card grid + email).
 export const ACTIVE_STATUSES = ['CELEBRANDOSE', 'PROXIMA_APERTURA', 'ACTIVE', 'PRE_AUCTION', 'SUSPENDIDA', 'SUSPENDED'] as const;
+
+// Wave105 (2026-06-14): status-aware image policy (cost fix). Street View is
+// PAID; UPCOMING auctions (PROXIMA_APERTURA / PRE_AUCTION) must NEVER burn a
+// paid SV request — they may never go live. Split ACTIVE_STATUSES into:
+//   LIVE_STATUSES     → may reach the paid Street View rung (resolveAndPersist).
+//   UPCOMING_STATUSES → free OSM map only (resolveUpcomingMapAndPersist).
+// SUSPENDIDA/SUSPENDED count as LIVE for imagery (a buyer is still watching).
+export const LIVE_STATUSES = ['CELEBRANDOSE', 'ACTIVE', 'SUSPENDIDA', 'SUSPENDED'] as const;
+export const UPCOMING_STATUSES = ['PROXIMA_APERTURA', 'PRE_AUCTION'] as const;
+
+export function isLiveStatus(status: string): boolean {
+  return (LIVE_STATUSES as readonly string[]).includes(status);
+}
+export function isUpcomingStatus(status: string): boolean {
+  return (UPCOMING_STATUSES as readonly string[]).includes(status);
+}
 
 export interface ResolverRow {
   boeId: string;
@@ -34,9 +51,11 @@ export interface ResolverRow {
   latitude: number | null;
   longitude: number | null;
   imageUrl: string | null;
+  /** Optional — used only to pick the OSM map zoom for upcoming rows. */
+  category?: string | null;
 }
 
-export type Source = 'cached' | 'catastro' | 'streetview' | null;
+export type Source = 'cached' | 'catastro' | 'streetview' | 'osm-map' | null;
 
 export interface ResolveOutcome {
   source: Source;
@@ -150,6 +169,74 @@ export async function resolveAndPersist(row: ResolverRow): Promise<ResolveOutcom
     );
   }
   return outcome;
+}
+
+/**
+ * UPCOMING-row resolution (wave105, 2026-06-14). FREE only — NEVER reaches the
+ * paid Street View rung. For PROXIMA_APERTURA / PRE_AUCTION auctions:
+ *   1. Already-cached real photo on disk (free) → keep it (sunk cost; an
+ *      upcoming row imaged earlier today must not be discarded).
+ *   2. Coords present → self-hosted FREE OSM map (/api/auction-map/<key>),
+ *      stitched + cached on our volume (OSM-policy compliant, $0).
+ *   3. No coords → null (caller falls through to branded placeholder — honest).
+ *
+ * Deliberately does NOT call fetchStreetView OR fetchCatastroFacade: upcoming
+ * imagery is map-first and must be zero paid-API and zero per-row outbound
+ * Catastro cost. The map is the intended upcoming visual.
+ */
+export async function resolveUpcomingMapForRow(row: ResolverRow): Promise<ResolveOutcome> {
+  // 1. Real photo already cached on disk? Preserve it — never downgrade to a map.
+  if (await exists(row.boeId)) {
+    return { source: 'cached', publicPath: publicPathFor(row.boeId) };
+  }
+
+  // 2. Free self-hosted OSM map when coords exist.
+  if (row.latitude != null && row.longitude != null) {
+    const zoom = getOptimalMapZoom(row.category ?? null);
+    const built = await buildOrGetMap(row.latitude, row.longitude, zoom);
+    if (built) {
+      return { source: 'osm-map', publicPath: mapPublicPathFor(built.key) };
+    }
+  }
+
+  // 3. No coords / map build failed → branded placeholder (caller's job).
+  return { source: null, publicPath: null, note: 'no-map-source' };
+}
+
+/** Resolve UPCOMING free-map AND persist the map URL back to the row. */
+export async function resolveUpcomingMapAndPersist(row: ResolverRow): Promise<ResolveOutcome> {
+  const outcome = await resolveUpcomingMapForRow(row);
+  if (outcome.publicPath && outcome.publicPath !== row.imageUrl) {
+    await query(
+      'UPDATE "Auction" SET "imageUrl" = $1, "updatedAt" = NOW() WHERE "boeId" = $2',
+      [outcome.publicPath, row.boeId]
+    );
+  }
+  return outcome;
+}
+
+/**
+ * STATUS-AWARE policy dispatcher (wave105). The ONE entry point the backfill
+ * drain should call so the status→cost rule cannot drift:
+ *   - LIVE status     → resolveAndPersist (can reach the PAID Street View rung).
+ *   - UPCOMING status → resolveUpcomingMapAndPersist (FREE OSM map only —
+ *                       structurally CANNOT reach fetchStreetView).
+ *   - anything else   → no-op (inactive).
+ *
+ * Go-live upgrade path: when a row transitions UPCOMING→LIVE and still has only
+ * a map URL (`/api/auction-map/…`, NOT `/api/auction-image/…`), the LIVE branch
+ * here runs the full chain and upgrades it to a Street View photo. The backfill
+ * imageUrl skip only excludes `/api/auction-image/%`, so a map URL does NOT
+ * match the skip — the row is re-selected and upgraded. See backfill route.
+ */
+export async function policyResolveAndPersist(row: ResolverRow): Promise<ResolveOutcome> {
+  if (isLiveStatus(row.status)) {
+    return resolveAndPersist(row);
+  }
+  if (isUpcomingStatus(row.status)) {
+    return resolveUpcomingMapAndPersist(row);
+  }
+  return { source: null, publicPath: null, note: 'inactive-status' };
 }
 
 /** Public-path key check for the serving route. Defends against ../ traversal. */

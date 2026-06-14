@@ -35,6 +35,11 @@
  * URLs so `next/image` handles them.
  */
 
+// Pure helpers only (no fs/sharp) — this module is pulled into client bundles
+// via map-image.ts → resolve-card-image.ts, so it must NOT import osm-map.ts
+// (which drags in node:fs/promises + sharp). See osm-map-key.ts header.
+import { mapKeyFor, mapPublicPathFor, getOptimalMapZoom } from './auction-images/osm-map-key';
+
 /** Branded placeholder asset path — PNG, renders in Gmail/Outlook (SVG does not). */
 export const BRANDED_PLACEHOLDER_PATH = '/images/email-placeholder.png';
 
@@ -105,11 +110,20 @@ export function googleStaticMapUrl(
 export function siteFallbackImageUrl(
   latitude: number | null,
   longitude: number | null,
-  _category?: string | null,
+  category?: string | null,
 ): string {
+  // Wave105 (2026-06-14): rung-2 is now the FREE self-hosted OSM map served from
+  // our own origin (/api/auction-map/<key>), NOT paid Google Static Maps. The
+  // URL is deterministic from coords+zoom; the map is stitched + cached on first
+  // request. All map thumbnails are now $0. Google Static Maps remains available
+  // as an instant rollback via STATIC_MAPS_API_DISABLED=0 + USE_GOOGLE_STATIC_MAPS=1.
   if (latitude != null && longitude != null) {
-    const sm = googleStaticMapUrl(latitude, longitude);
-    if (sm) return sm;
+    if (process.env.USE_GOOGLE_STATIC_MAPS === '1') {
+      const sm = googleStaticMapUrl(latitude, longitude);
+      if (sm) return sm;
+    }
+    const zoom = getOptimalMapZoom(category ?? null);
+    return mapPublicPathFor(mapKeyFor(latitude, longitude, zoom));
   }
   return BRANDED_PLACEHOLDER_PATH;
 }
@@ -125,11 +139,17 @@ export function emailFallbackImageUrl(
   latitude: number | null,
   longitude: number | null,
   appUrl: string,
-  _category?: string | null,
+  category?: string | null,
 ): string {
+  // Wave105 (2026-06-14): free self-hosted OSM map (absolute URL for email
+  // clients), NOT paid Google Static Maps. Same deterministic key as the site.
   if (latitude != null && longitude != null) {
-    const sm = googleStaticMapUrl(latitude, longitude);
-    if (sm) return sm;
+    if (process.env.USE_GOOGLE_STATIC_MAPS === '1') {
+      const sm = googleStaticMapUrl(latitude, longitude);
+      if (sm) return sm;
+    }
+    const zoom = getOptimalMapZoom(category ?? null);
+    return `${appUrl}${mapPublicPathFor(mapKeyFor(latitude, longitude, zoom))}`;
   }
   return `${appUrl}${BRANDED_PLACEHOLDER_PATH}`;
 }

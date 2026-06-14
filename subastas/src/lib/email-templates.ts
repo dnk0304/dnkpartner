@@ -609,6 +609,17 @@ function emailAuctionImageUrl(
     };
   }
 
+  // Rung 2a — a persisted self-hosted FREE OSM map URL (UPCOMING auctions,
+  // wave105). Relative path served from our origin; email needs it absolute.
+  // It's a map, NOT a photo — alt reflects that.
+  if (imageUrl && imageUrl.startsWith('/api/auction-map/')) {
+    return {
+      src: `${appUrl}${imageUrl}`,
+      alt: 'Mapa de ubicación',
+      rung: 'map',
+    };
+  }
+
   // Rungs 2 + 3 — delegate to the shared helper.
   //
   // The shared helper returns either:
@@ -630,7 +641,7 @@ function emailAuctionImageUrl(
   }
   return {
     src,
-    alt: title ? `Mapa con ubicación de ${title}` : 'Mapa con la ubicación del bien',
+    alt: 'Mapa de ubicación',
     rung: 'map',
   };
 }
