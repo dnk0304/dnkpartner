@@ -134,6 +134,7 @@ export interface KDPTextElement {
     lineHeight: number
     letterSpacing: number
     opacity?: number
+    textDecoration?: "none" | "underline"
   }
 }
 

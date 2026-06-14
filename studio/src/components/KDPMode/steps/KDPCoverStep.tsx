@@ -1671,13 +1671,17 @@ function CoverCanvas({
                   width: textEl.width * dpiRatio,
                   opacity: textEl.style.opacity ?? 1,
                   fontFamily: textEl.style.fontFamily,
-                  fontSize: Math.max(12, textEl.style.fontSize),
+                  // fontSize is stored in 72-DPI point units; the on-screen size must track
+                  // the zoom (scale) exactly like position/width do, otherwise the preview
+                  // diverges from the baked/exported output at any zoom != 100%. A small 4px
+                  // floor keeps tiny text selectable without distorting the WYSIWYG mapping.
+                  fontSize: Math.max(4, textEl.style.fontSize * scale),
                   fontWeight: textEl.style.fontWeight,
                   fontStyle: textEl.style.fontStyle,
                   color: textEl.style.color,
                   textAlign: textEl.style.textAlign as React.CSSProperties['textAlign'],
                   lineHeight: textEl.style.lineHeight,
-                  letterSpacing: textEl.style.letterSpacing,
+                  letterSpacing: (textEl.style.letterSpacing || 0) * dpiRatio,
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',
                   overflow: 'hidden',
@@ -4767,7 +4771,58 @@ export function KDPCoverStep({ project, onUpdate, onNext, onBack }: KDPCoverStep
                         {Math.round((selectedText.style.opacity ?? 1) * 100)}%
                       </span>
                     </div>
-                    
+
+                    {/* Row: Precise position (inches, 300-DPI) + line height */}
+                    <div className="flex items-center gap-2 pt-2 border-t border-[#444]">
+                      <span className="text-xs text-gray-400">X(in)</span>
+                      <input
+                        type="number"
+                        step="0.05"
+                        value={Number((selectedText.position.x / 300).toFixed(2))}
+                        onChange={(e) => {
+                          const inches = parseFloat(e.target.value)
+                          if (Number.isNaN(inches)) return
+                          handleUpdateTextElement(selectedTextId, {
+                            position: { ...selectedText.position, x: Math.max(0, inches * 300) },
+                          })
+                        }}
+                        className="w-16 px-1.5 py-0.5 bg-[#2a2a2a] border border-[#444] rounded text-white text-xs text-center"
+                        title="Horizontal position from cover left edge, in inches"
+                      />
+                      <span className="text-xs text-gray-400">Y(in)</span>
+                      <input
+                        type="number"
+                        step="0.05"
+                        value={Number((selectedText.position.y / 300).toFixed(2))}
+                        onChange={(e) => {
+                          const inches = parseFloat(e.target.value)
+                          if (Number.isNaN(inches)) return
+                          handleUpdateTextElement(selectedTextId, {
+                            position: { ...selectedText.position, y: Math.max(0, inches * 300) },
+                          })
+                        }}
+                        className="w-16 px-1.5 py-0.5 bg-[#2a2a2a] border border-[#444] rounded text-white text-xs text-center"
+                        title="Vertical position from cover top edge, in inches"
+                      />
+                      <span className="text-xs text-gray-400 ml-1">Line</span>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0.8"
+                        max="3"
+                        value={Number((selectedText.style.lineHeight ?? 1.2).toFixed(1))}
+                        onChange={(e) => {
+                          const lh = parseFloat(e.target.value)
+                          if (Number.isNaN(lh)) return
+                          handleUpdateTextElement(selectedTextId, {
+                            style: { ...selectedText.style, lineHeight: Math.max(0.8, Math.min(3, lh)) },
+                          })
+                        }}
+                        className="w-14 px-1.5 py-0.5 bg-[#2a2a2a] border border-[#444] rounded text-white text-xs text-center"
+                        title="Line height (multiplier) for multi-line text"
+                      />
+                    </div>
+
                     {/* Row: Background Color Controls */}
                     <div className="space-y-2 pt-2 border-t border-[#444]">
                       <label className="text-xs text-gray-400 font-semibold">Text Box Background:</label>

@@ -406,33 +406,66 @@ export async function generateCoverPDF(project: any): Promise<Buffer> {
     for (const textEl of textElements) {
       try {
         // Load font
+        //
+        // NOTE: pdf-lib's built-in StandardFonts only cover the 3 base families
+        // (Helvetica/Times/Courier). The editor offers Georgia/Verdana/Impact which
+        // are NOT embeddable here, so we map them to the closest base family and warn
+        // loudly that the unbaked export will not be pixel-WYSIWYG. The fully faithful
+        // path is "Confirm Cover" (bake-to-PNG), which uses the browser's real fonts.
         let font
         try {
-          // Map common fonts to standard fonts
-          const fontMap: Record<string, any> = {
-            'Arial': StandardFonts.Helvetica,
-            'Helvetica': StandardFonts.Helvetica,
-            'Times': StandardFonts.TimesRoman,
-            'TimesRoman': StandardFonts.TimesRoman,
-            'Courier': StandardFonts.Courier,
-          }
           const fontFamily = textEl.style?.fontFamily || 'Arial'
-          const standardFont = fontMap[fontFamily] || StandardFonts.Helvetica
-          
-          // Check if bold
-          if (textEl.style?.fontWeight === 'bold') {
-            if (standardFont === StandardFonts.Helvetica) {
-              font = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
-            } else if (standardFont === StandardFonts.TimesRoman) {
-              font = await pdfDoc.embedFont(StandardFonts.TimesRomanBold)
-            } else if (standardFont === StandardFonts.Courier) {
-              font = await pdfDoc.embedFont(StandardFonts.CourierBold)
-            } else {
-              font = await pdfDoc.embedFont(standardFont)
-            }
-          } else {
-            font = await pdfDoc.embedFont(standardFont)
+          const isBold = textEl.style?.fontWeight === 'bold'
+          const isItalic = textEl.style?.fontStyle === 'italic'
+
+          // Map editor font-family -> a base family. Non-standard families are
+          // approximated (and flagged) so output is at least sane, never silently wrong.
+          const SANS = 'helvetica'
+          const SERIF = 'times'
+          const MONO = 'courier'
+          const familyMap: Record<string, string> = {
+            'Arial': SANS,
+            'Helvetica': SANS,
+            'Verdana': SANS,           // approximated -> Helvetica
+            'Impact': SANS,            // approximated -> Helvetica (bold forced below)
+            'Times': SERIF,
+            'Times New Roman': SERIF,
+            'TimesRoman': SERIF,
+            'Georgia': SERIF,          // approximated -> Times
+            'Courier': MONO,
+            'Courier New': MONO,
           }
+          const APPROXIMATED = new Set(['Verdana', 'Impact', 'Georgia', 'Courier New'])
+          const base = familyMap[fontFamily] || SANS
+          if (!(fontFamily in familyMap) || APPROXIMATED.has(fontFamily)) {
+            console.warn(
+              `[KDP PDF] Cover text font "${fontFamily}" is not embeddable in the live-text export ` +
+              `and was approximated to "${base}". For exact fonts, use "Confirm Cover" (bake-to-image).`
+            )
+          }
+          // Impact has no italic and reads as a heavy display face -> force bold.
+          const forceBold = fontFamily === 'Impact'
+          const bold = isBold || forceBold
+
+          // Resolve the concrete StandardFonts variant from base + bold + italic.
+          let chosen: any
+          if (base === SERIF) {
+            chosen = bold && isItalic ? StandardFonts.TimesRomanBoldItalic
+              : bold ? StandardFonts.TimesRomanBold
+              : isItalic ? StandardFonts.TimesRomanItalic
+              : StandardFonts.TimesRoman
+          } else if (base === MONO) {
+            chosen = bold && isItalic ? StandardFonts.CourierBoldOblique
+              : bold ? StandardFonts.CourierBold
+              : isItalic ? StandardFonts.CourierOblique
+              : StandardFonts.Courier
+          } else {
+            chosen = bold && isItalic ? StandardFonts.HelveticaBoldOblique
+              : bold ? StandardFonts.HelveticaBold
+              : isItalic ? StandardFonts.HelveticaOblique
+              : StandardFonts.Helvetica
+          }
+          font = await pdfDoc.embedFont(chosen)
         } catch (fontError) {
           console.warn('Font embedding failed, using Helvetica:', fontError)
           font = await pdfDoc.embedFont(StandardFonts.Helvetica)
