@@ -767,22 +767,46 @@ export function createAuctionAlertEmail({ alertName, auctions, manageUrl }: Auct
   const EUR = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
 
   /**
-   * SINGLE-line evaluation (card-strip brief, 2026-06-14). Honest-NULL priority:
-   * Valor subasta (`valorSubasta`) PRIMARY → fallback Tasación (`appraisalValue`).
-   * Label = "Valor subasta" when valorSubasta>0 else "Tasación". If both
-   * null/≤0 → returns null (render NOTHING — no empty line, no "0 €").
-   * Deliberately ignores `claimedAmount` (dropped from the card path).
+   * Multi-figure value block (card v2 brief, 2026-06-14 — DETAIL RESTORED).
+   *
+   * Dennis reversed the v1 single-eval either/or fallback: now show EACH figure
+   * on its OWN labeled line WHEN PRESENT, never the valorSubasta→Tasación
+   * fallback (he was confused why some cards showed one and some the other).
+   * Honest-NULL — a figure is included only when its column is > 0; otherwise
+   * the line is omitted entirely (never "0 €").
+   *
+   * Order (top→bottom): Valor subasta · Tasación · Cantidad reclamada.
+   * Returns [] when none present (caller renders nothing).
    */
-  const resolveEvaluation = (
+  const resolveValues = (
     auction: AuctionAlertEmailProps['auctions'][number],
-  ): { label: string; amount: number } | null => {
+  ): Array<{ label: string; amount: number }> => {
+    const out: Array<{ label: string; amount: number }> = [];
     if (auction.valorSubasta != null && auction.valorSubasta > 0) {
-      return { label: 'Valor subasta', amount: auction.valorSubasta };
+      out.push({ label: 'Valor subasta', amount: auction.valorSubasta });
     }
     if (auction.appraisalValue != null && auction.appraisalValue > 0) {
-      return { label: 'Tasación', amount: auction.appraisalValue };
+      out.push({ label: 'Tasación', amount: auction.appraisalValue });
     }
-    return null;
+    if (auction.claimedAmount != null && auction.claimedAmount > 0) {
+      out.push({ label: 'Cantidad reclamada', amount: auction.claimedAmount });
+    }
+    return out;
+  };
+
+  /**
+   * Location line (card v2 — restored). "Telde, Las Palmas" shape: municipality
+   * + province when both present, either alone, or null when neither.
+   * Honest-NULL — omitted when blank. It's fine alongside the address title;
+   * Dennis explicitly wants the info back.
+   */
+  const resolveLocation = (
+    auction: AuctionAlertEmailProps['auctions'][number],
+  ): string | null => {
+    const muni = auction.municipality?.trim() || null;
+    const prov = auction.province?.trim() || null;
+    if (muni && prov) return `${muni}, ${prov}`;
+    return muni ?? prov ?? null;
   };
 
   /**
@@ -803,7 +827,9 @@ export function createAuctionAlertEmail({ alertName, auctions, manageUrl }: Auct
       const displayTitle = resolveDisplayTitle(auction);
       const badge = statusBadge(auction.status);
       const category = auction.category ? escapeHtml(auction.category) : null;
-      const evaluation = resolveEvaluation(auction);
+      const values = resolveValues(auction);
+      const location = resolveLocation(auction);
+      const dateLine = resolveAuctionDateLine(auction);
 
       const badgeHtml = badge
         ? `<span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600;background:${badge.bg};color:${badge.fg};line-height:1.4;">${escapeHtml(badge.label)}</span>`
@@ -811,10 +837,33 @@ export function createAuctionAlertEmail({ alertName, auctions, manageUrl }: Auct
       const categoryHtml = category
         ? `<span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:500;background:#eef2ff;color:#3730a3;line-height:1.4;margin-left:6px;">${category}</span>`
         : '';
-      const evaluationHtml = evaluation
-        ? `<div style="font-size:13px;color:#111827;margin-top:6px;">
-             <span style="color:#6b7280;font-weight:500;">${escapeHtml(evaluation.label)}:</span>
-             <span style="color:#111827;font-weight:600;margin-left:4px;">${EUR.format(evaluation.amount)}</span>
+
+      // Full-width value block (v2): one labeled line per present figure, using
+      // the whole text width — label left, figure inline beside it. Table rows
+      // keep the columns aligned across Gmail/Outlook (a flex/justify-between
+      // would collapse in Outlook). Omitted entirely when no figures.
+      const valuesHtml = values.length
+        ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;margin-top:10px;">
+             ${values
+               .map(
+                 (v) => `<tr>
+               <td style="font-size:13px;color:#6b7280;font-weight:500;padding:2px 0;white-space:nowrap;">${escapeHtml(v.label)}:</td>
+               <td style="font-size:13px;color:#111827;font-weight:600;padding:2px 0;text-align:right;">${EUR.format(v.amount)}</td>
+             </tr>`,
+               )
+               .join('')}
+           </table>`
+        : '';
+      const locationHtml = location
+        ? `<div style="font-size:12px;color:#6b7280;margin-top:8px;">
+             <span style="font-weight:500;">Ubicación:</span>
+             <span style="margin-left:4px;">${escapeHtml(location)}</span>
+           </div>`
+        : '';
+      const dateHtml = dateLine
+        ? `<div style="font-size:12px;color:#6b7280;margin-top:4px;">
+             <span style="font-weight:500;">${escapeHtml(dateLine.label)}:</span>
+             <span style="margin-left:4px;">${escapeHtml(dateLine.dateStr)}</span>
            </div>`
         : '';
 
@@ -832,8 +881,10 @@ export function createAuctionAlertEmail({ alertName, auctions, manageUrl }: Auct
             <td style="padding:0;">
               <div style="font-weight:600;color:#111827;font-size:16px;line-height:1.35;margin-bottom:6px;">${escapeHtml(displayTitle)}</div>
               <div style="margin-bottom:6px;">${badgeHtml}${categoryHtml}</div>
-              ${evaluationHtml}
-              <div style="margin-top:8px;">
+              ${valuesHtml}
+              ${locationHtml}
+              ${dateHtml}
+              <div style="margin-top:12px;">
                 <a href="${escapeHtml(auction.url)}" style="color:#2563eb;text-decoration:none;font-size:13px;font-weight:600;">Ver subasta &rarr;</a>
               </div>
             </td>
@@ -845,17 +896,24 @@ export function createAuctionAlertEmail({ alertName, auctions, manageUrl }: Auct
 
   const textList = auctions
     .map((auction) => {
-      // Mirror the card trim (2026-06-14): title→address, single evaluation,
-      // drop claimed/date/location. Terse.
+      // Mirror the v2 card (2026-06-14): address title + tags, then each present
+      // figure as its own labeled line, location, date, url. Honest-NULL.
       const displayTitle = resolveDisplayTitle(auction);
       const badge = statusBadge(auction.status);
       const tags = [badge?.label, auction.category].filter(Boolean).join(' · ');
       const tagPart = tags ? ` [${tags}]` : '';
-      const evaluation = resolveEvaluation(auction);
-      const evalPart = evaluation ? ` — ${evaluation.label} ${EUR.format(evaluation.amount)}` : '';
-      return `- ${displayTitle}${tagPart}${evalPart}\n  ${auction.url}`;
+      const lines: string[] = [`- ${displayTitle}${tagPart}`];
+      for (const v of resolveValues(auction)) {
+        lines.push(`  ${v.label}: ${EUR.format(v.amount)}`);
+      }
+      const location = resolveLocation(auction);
+      if (location) lines.push(`  Ubicación: ${location}`);
+      const dateLine = resolveAuctionDateLine(auction);
+      if (dateLine) lines.push(`  ${dateLine.label}: ${dateLine.dateStr}`);
+      lines.push(`  ${auction.url}`);
+      return lines.join('\n');
     })
-    .join('\n');
+    .join('\n\n');
 
   const html = `
 <!DOCTYPE html>
