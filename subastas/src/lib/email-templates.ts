@@ -516,6 +516,8 @@ export interface AuctionAlertEmailProps {
   auctions: Array<{
     title: string;
     url: string;
+    /** Street address — preferred display title (falls back to municipality → title). */
+    address?: string | null;
     province?: string | null;
     municipality?: string | null;
     appraisalValue?: number | null;
@@ -765,58 +767,43 @@ export function createAuctionAlertEmail({ alertName, auctions, manageUrl }: Auct
   const EUR = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
 
   /**
-   * Build the three-labelled-value block for a single auction (Dennis-locked
-   * 2026-06-04, brief `three-values-card-display`). Renders up to three
-   * lines: Tasación (`appraisalValue`), Valor subasta (`valorSubasta`,
-   * NEW after Ghost's 2026-06-04 split), Cantidad reclamada
-   * (`claimedAmount`). Honest-NULL: a missing value is OMITTED — never
-   * coerced to "0 €" or "Sin tasación". Returns "" when ALL three are
-   * absent so the email block stays clean.
+   * SINGLE-line evaluation (card-strip brief, 2026-06-14). Honest-NULL priority:
+   * Valor subasta (`valorSubasta`) PRIMARY → fallback Tasación (`appraisalValue`).
+   * Label = "Valor subasta" when valorSubasta>0 else "Tasación". If both
+   * null/≤0 → returns null (render NOTHING — no empty line, no "0 €").
+   * Deliberately ignores `claimedAmount` (dropped from the card path).
    */
-  const valuesHtml = (auction: AuctionAlertEmailProps['auctions'][number]): string => {
-    const lines: Array<{ label: string; amount: number }> = [];
-    if (auction.appraisalValue != null && auction.appraisalValue > 0) {
-      lines.push({ label: 'Tasación', amount: auction.appraisalValue });
-    }
+  const resolveEvaluation = (
+    auction: AuctionAlertEmailProps['auctions'][number],
+  ): { label: string; amount: number } | null => {
     if (auction.valorSubasta != null && auction.valorSubasta > 0) {
-      lines.push({ label: 'Valor subasta', amount: auction.valorSubasta });
+      return { label: 'Valor subasta', amount: auction.valorSubasta };
     }
-    if (auction.claimedAmount != null && auction.claimedAmount > 0) {
-      lines.push({ label: 'Cantidad reclamada', amount: auction.claimedAmount });
+    if (auction.appraisalValue != null && auction.appraisalValue > 0) {
+      return { label: 'Tasación', amount: auction.appraisalValue };
     }
-    if (lines.length === 0) return '';
-    return lines
-      .map(
-        (l, i) =>
-          `<div style="font-size:13px;color:#111827;margin-top:${i === 0 ? 4 : 2}px;">
-            <span style="color:#6b7280;font-weight:500;">${escapeHtml(l.label)}:</span>
-            <span style="color:#111827;font-weight:600;margin-left:4px;">${EUR.format(l.amount)}</span>
-          </div>`,
-      )
-      .join('');
+    return null;
   };
 
-  const valuesText = (auction: AuctionAlertEmailProps['auctions'][number]): string => {
-    const parts: string[] = [];
-    if (auction.appraisalValue != null && auction.appraisalValue > 0) {
-      parts.push(`Tasación ${EUR.format(auction.appraisalValue)}`);
-    }
-    if (auction.valorSubasta != null && auction.valorSubasta > 0) {
-      parts.push(`Valor subasta ${EUR.format(auction.valorSubasta)}`);
-    }
-    if (auction.claimedAmount != null && auction.claimedAmount > 0) {
-      parts.push(`Cantidad reclamada ${EUR.format(auction.claimedAmount)}`);
-    }
-    return parts.join(' · ');
-  };
+  /**
+   * Display title — street ADDRESS preferred (card-strip brief, 2026-06-14).
+   * Fallback order LOCKED: address → municipality → auction.title. Never blank.
+   */
+  const resolveDisplayTitle = (
+    auction: AuctionAlertEmailProps['auctions'][number],
+  ): string =>
+    auction.address && auction.address.trim()
+      ? auction.address.trim()
+      : auction.municipality?.trim() || auction.title;
 
   const listHtml = auctions
     .map((auction) => {
-      const location = [auction.municipality, auction.province].filter(Boolean).join(', ') || 'Sin ubicación';
+      // emailAuctionImageUrl rung logic UNCHANGED (#1a) — just consumes the alt.
       const image = emailAuctionImageUrl(auction, appUrl);
-      const dateLine = resolveAuctionDateLine(auction);
+      const displayTitle = resolveDisplayTitle(auction);
       const badge = statusBadge(auction.status);
       const category = auction.category ? escapeHtml(auction.category) : null;
+      const evaluation = resolveEvaluation(auction);
 
       const badgeHtml = badge
         ? `<span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600;background:${badge.bg};color:${badge.fg};line-height:1.4;">${escapeHtml(badge.label)}</span>`
@@ -824,22 +811,28 @@ export function createAuctionAlertEmail({ alertName, auctions, manageUrl }: Auct
       const categoryHtml = category
         ? `<span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:500;background:#eef2ff;color:#3730a3;line-height:1.4;margin-left:6px;">${category}</span>`
         : '';
-      const dateHtml = dateLine
-        ? `<div style="font-size:13px;color:#374151;margin-top:6px;"><strong>${dateLine.label}:</strong> ${escapeHtml(dateLine.dateStr)}</div>`
+      const evaluationHtml = evaluation
+        ? `<div style="font-size:13px;color:#111827;margin-top:6px;">
+             <span style="color:#6b7280;font-weight:500;">${escapeHtml(evaluation.label)}:</span>
+             <span style="color:#111827;font-weight:600;margin-left:4px;">${EUR.format(evaluation.amount)}</span>
+           </div>`
         : '';
 
+      // STACKED card (Dennis override, 2026-06-14): full-width image section on
+      // top, full-width text section beneath — wider text column, shorter cards.
+      // Table-based, inline styles, email-client-safe (Gmail/Outlook).
       return `
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 16px;border-bottom:1px solid #e5e7eb;padding-bottom:16px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;margin:0 0 16px;border-bottom:1px solid #e5e7eb;padding-bottom:16px;">
           <tr>
-            <td valign="top" width="130" style="width:130px;padding-right:12px;">
-              <img src="${escapeHtml(image.src)}" alt="${escapeHtml(image.alt)}" width="120" height="90" style="display:block;width:120px;height:90px;border-radius:6px;object-fit:cover;border:0;outline:none;text-decoration:none;background:#e5e7eb;" />
+            <td style="padding:0 0 12px;">
+              <img src="${escapeHtml(image.src)}" alt="${escapeHtml(image.alt)}" width="600" style="display:block;width:100%;max-width:100%;height:auto;max-height:220px;border-radius:8px;object-fit:cover;border:0;outline:none;text-decoration:none;background:#e5e7eb;" />
             </td>
-            <td valign="top" style="vertical-align:top;">
-              <div style="font-weight:600;color:#111827;font-size:15px;line-height:1.35;margin-bottom:6px;">${escapeHtml(auction.title)}</div>
+          </tr>
+          <tr>
+            <td style="padding:0;">
+              <div style="font-weight:600;color:#111827;font-size:16px;line-height:1.35;margin-bottom:6px;">${escapeHtml(displayTitle)}</div>
               <div style="margin-bottom:6px;">${badgeHtml}${categoryHtml}</div>
-              <div style="font-size:13px;color:#6b7280;">${escapeHtml(location)}</div>
-              ${valuesHtml(auction)}
-              ${dateHtml}
+              ${evaluationHtml}
               <div style="margin-top:8px;">
                 <a href="${escapeHtml(auction.url)}" style="color:#2563eb;text-decoration:none;font-size:13px;font-weight:600;">Ver subasta &rarr;</a>
               </div>
@@ -852,15 +845,15 @@ export function createAuctionAlertEmail({ alertName, auctions, manageUrl }: Auct
 
   const textList = auctions
     .map((auction) => {
-      const location = [auction.municipality, auction.province].filter(Boolean).join(', ') || 'Sin ubicación';
-      const dateLine = resolveAuctionDateLine(auction);
+      // Mirror the card trim (2026-06-14): title→address, single evaluation,
+      // drop claimed/date/location. Terse.
+      const displayTitle = resolveDisplayTitle(auction);
       const badge = statusBadge(auction.status);
       const tags = [badge?.label, auction.category].filter(Boolean).join(' · ');
       const tagPart = tags ? ` [${tags}]` : '';
-      const datePart = dateLine ? ` — ${dateLine.label} ${dateLine.dateStr}` : '';
-      const values = valuesText(auction);
-      const valuesPart = values ? ` — ${values}` : '';
-      return `- ${auction.title}${tagPart} (${location})${valuesPart}${datePart}\n  ${auction.url}`;
+      const evaluation = resolveEvaluation(auction);
+      const evalPart = evaluation ? ` — ${evaluation.label} ${EUR.format(evaluation.amount)}` : '';
+      return `- ${displayTitle}${tagPart}${evalPart}\n  ${auction.url}`;
     })
     .join('\n');
 

@@ -188,6 +188,7 @@ async function sendNotifications(matchesByAlert: Record<string, { alert: any; au
       const auctionPayload = auctions.map((auction: any) => ({
         title: auction.title,
         url: `${appUrl}/auction/${auction.id}`,
+        address: auction.address,
         province: auction.province,
         municipality: auction.municipality,
         appraisalValue: auction.appraisalValue,
@@ -236,6 +237,7 @@ async function sendNotifications(matchesByAlert: Record<string, { alert: any; au
         const auctionPayload = [{
           title: auction.title,
           url: `${appUrl}/auction/${auction.id}`,
+          address: auction.address,
           province: auction.province,
           municipality: auction.municipality,
           appraisalValue: auction.appraisalValue,
