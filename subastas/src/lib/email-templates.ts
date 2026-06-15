@@ -549,7 +549,7 @@ export interface AuctionAlertEmailProps {
     category?: string | null;
     /** Raw imageUrl from the projection (may be a /api/auction-image/… resolver URL or a placeholder). */
     imageUrl?: string | null;
-    /** Coords for the rung-2 Google Static Maps fallback. */
+    /** Coords for the rung-2 FREE self-hosted OSM map (`/api/auction-map/<key>`). */
     latitude?: number | null;
     longitude?: number | null;
   }>;
@@ -560,27 +560,34 @@ export interface AuctionAlertEmailProps {
  * Email-safe absolute-URL image picker (server-side mirror of the
  * resolve-card-image ladder, via the SHARED helper in `auction-image-url.ts`).
  *
- * Wave52 (2026-06-04) — replaces the broken `tile.openstreetmap.org`
- * hot-link rungs 2/3 with the Google Static Maps → branded PNG placeholder
- * ladder. Zero OSM URLs ever leave this function.
+ * Wave52 (2026-06-04) replaced the broken `tile.openstreetmap.org` hot-link.
+ * Wave106 (2026-06-14) repointed rung-2 to the FREE self-hosted OSM map.
+ * Zero raw-OSM-tile URLs ever leave this function (the map is served from OUR
+ * `/api/auction-map/<key>` origin, which stitches+caches tiles server-side).
  *
  * Ladder:
  *   Rung 1 — real photo: `imageUrl` that starts with `/api/auction-image/` or
  *            `/streetview/` → `${appUrl}${imageUrl}` (resolver-served JPEG).
  *            Also: any absolute https http(s) imageUrl (external CDN) that
  *            isn't an SVG → used directly.
- *   Rung 2 — Google Static Maps pin at the auction's coords (lat+lng present
- *            AND Maps Static API usable). Absolute https URL, key in querystring,
- *            email-safe (renders in Gmail/Outlook).
+ *   Rung 1b/2a — a persisted absolute photo, or a persisted `/api/auction-map/`
+ *            URL already written onto the row → used as-is (made absolute).
+ *   Rung 2 — FREE self-hosted OSM map for ANY auction with lat+lng (delegated
+ *            to `emailFallbackImageUrl`). Deterministic `/api/auction-map/<key>`
+ *            path from coords+zoom; stitched+cached on first request; $0; no
+ *            paid Google call. This is what gives UPCOMING (PROXIMA_APERTURA /
+ *            PRE_AUCTION) auctions a map pin even though their DB `imageUrl` is
+ *            NULL — coords alone are enough (no DB write needed).
+ *            Google Static Maps remains a one-flag rollback
+ *            (`USE_GOOGLE_STATIC_MAPS=1`) but is OFF by default.
  *   Rung 3 — branded raster PNG placeholder hosted at our domain
- *            (`${appUrl}/images/email-placeholder.png`). PNG so Gmail/Outlook
- *            render it. SVG would be blocked.
+ *            (`${appUrl}/images/email-placeholder.png`) when NO coords (honest
+ *            NULL — never a faked map). PNG so Gmail/Outlook render it.
  *
- * Degrade-to-placeholder behaviour:
- *   When the Static Maps API isn't usable (no key, or
- *   STATIC_MAPS_API_DISABLED=1 — the expected state until Dennis enables the
- *   "Maps Static API" toggle in GCP), rung-2 collapses STRAIGHT into rung 3.
- *   NEVER an OSM hot-link.
+ * NB: rung-2 is coord-driven, NOT status-gated. UPCOMING and any LIVE auction
+ * that lacks a real photo both get the free map. That is the wave106-shipped,
+ * Ken-approved behaviour for the email surface — do NOT re-add a status gate
+ * (it would regress LIVE-without-photo back to a placeholder).
  *
  * The result is always an absolute https:// URL.
  */
@@ -622,14 +629,17 @@ function emailAuctionImageUrl(
 
   // Rungs 2 + 3 — delegate to the shared helper.
   //
-  // The shared helper returns either:
-  //   - a Google Static Maps URL (rung 2) when coords present AND API usable, or
-  //   - `${appUrl}/images/email-placeholder.png` (rung 3) otherwise.
+  // The shared helper (wave106) returns either:
+  //   - a FREE self-hosted OSM map URL (rung 2): `${appUrl}/api/auction-map/<key>`
+  //     whenever lat+lng are present (UPCOMING auctions reach this with NULL
+  //     imageUrl — coords alone suffice, no DB write), or
+  //   - `${appUrl}/images/email-placeholder.png` (rung 3) when coords are NULL.
   //
-  // It NEVER returns an OSM URL. So whether we're rung 2 or rung 3 is decided
-  // by inspecting the returned URL (the only branded-placeholder URL contains
-  // BRANDED_PLACEHOLDER_PATH; everything else is Google Static Maps).
-  void category; // category not used for the image source (we deliberately do not ship SVG cartoons in email).
+  // It NEVER hot-links a raw OSM tile and (with USE_GOOGLE_STATIC_MAPS unset)
+  // NEVER calls a paid Google API. Rung 2 vs 3 is decided by inspecting the
+  // returned URL: only the placeholder ends with BRANDED_PLACEHOLDER_PATH.
+  // category IS forwarded — it selects the map zoom (getOptimalMapZoom) so the
+  // emitted key matches what /api/auction-map/[key] stitches.
   const src = emailFallbackImageUrl(latitude ?? null, longitude ?? null, appUrl, category);
   const isPlaceholder = src.endsWith(BRANDED_PLACEHOLDER_PATH);
   if (isPlaceholder) {

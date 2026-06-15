@@ -34,25 +34,43 @@ function googleStaticMapUrl(lat, lng) {
   const slat = lat.toFixed(6); const slng = lng.toFixed(6);
   return `https://maps.googleapis.com/maps/api/staticmap?center=${slat},${slng}&zoom=16&size=640x400&scale=2&markers=color:red%7C${slat},${slng}&key=${encodeURIComponent(key)}`;
 }
-function emailFallbackImageUrl(lat, lng, appUrl) {
+// Wave106 (2026-06-14): rung-2 is the FREE self-hosted OSM map served from our
+// own origin (/api/auction-map/<key>), NOT paid Google Static Maps. Mirror the
+// real helper so this preview does not falsely show a placeholder for upcoming.
+const DEFAULT_MAP_ZOOM = 16;
+function getOptimalMapZoom(category) {
+  const z = { Viviendas:17, Locales:17, Garajes:18, Terrenos:15, 'Fincas rústicas':14, 'Naves industriales':16 };
+  return (category && z[category]) || DEFAULT_MAP_ZOOM;
+}
+function mapKeyFor(lat, lng, zoom = DEFAULT_MAP_ZOOM) {
+  const enc = (v) => (v < 0 ? 'n' : '') + Math.abs(v).toFixed(6).replace('.', 'd');
+  return `m_${enc(lat)}_${enc(lng)}_z${zoom}`;
+}
+function emailFallbackImageUrl(lat, lng, appUrl, category) {
   if (lat != null && lng != null) {
-    const sm = googleStaticMapUrl(lat, lng);
-    if (sm) return sm;
+    if (process.env.USE_GOOGLE_STATIC_MAPS === '1') {
+      const sm = googleStaticMapUrl(lat, lng);
+      if (sm) return sm;
+    }
+    return `${appUrl}/api/auction-map/${mapKeyFor(lat, lng, getOptimalMapZoom(category))}`;
   }
   return `${appUrl}${BRANDED_PLACEHOLDER_PATH}`;
 }
 function emailAuctionImageUrl(a) {
-  const { imageUrl, latitude, longitude, title } = a;
+  const { imageUrl, latitude, longitude, title, category } = a;
   if (imageUrl && (imageUrl.startsWith('/api/auction-image/') || imageUrl.startsWith('/streetview/'))) {
     return { src: `${APP_URL}${imageUrl}`, alt: title ? `Foto de ${title}` : 'Foto', rung: 'photo' };
   }
   if (imageUrl && /^https?:\/\//.test(imageUrl) && !imageUrl.endsWith('.svg')) {
     return { src: imageUrl, alt: title ? `Foto de ${title}` : 'Foto', rung: 'photo' };
   }
-  const src = emailFallbackImageUrl(latitude ?? null, longitude ?? null, APP_URL);
+  if (imageUrl && imageUrl.startsWith('/api/auction-map/')) {
+    return { src: `${APP_URL}${imageUrl}`, alt: 'Mapa de ubicación', rung: 'map' };
+  }
+  const src = emailFallbackImageUrl(latitude ?? null, longitude ?? null, APP_URL, category);
   const isPlaceholder = src.endsWith(BRANDED_PLACEHOLDER_PATH);
   if (isPlaceholder) return { src, alt: title ? `Categoría: ${title}` : 'Subasta sin imagen', rung: 'placeholder' };
-  return { src, alt: title ? `Mapa ${title}` : 'Mapa', rung: 'map' };
+  return { src, alt: 'Mapa de ubicación', rung: 'map' };
 }
 
 // ── Status-branched date label (mirror of auction-status.ts) ─────────────
@@ -261,7 +279,10 @@ if (!concBlock.includes('Concluida')) errors.push('FAIL: CONCLUIDA_PORTAL badge 
 
 console.log(`Wrote ${out} (${html.length} bytes)`);
 console.log(`OSM hot-links in HTML: ${(html.match(/tile\.openstreetmap/g) || []).length}`);
-console.log(`Static-Maps API usable in env: ${isStaticMapsApiUsable()} (rung-2 = ${isStaticMapsApiUsable() ? 'Google pin' : 'branded placeholder'})`);
+const rung2Kind = process.env.USE_GOOGLE_STATIC_MAPS === '1' && isStaticMapsApiUsable()
+  ? 'Google pin (rollback flag set)'
+  : 'FREE self-hosted OSM map (/api/auction-map/<key>)';
+console.log(`Rung-2 (coords present): ${rung2Kind}`);
 if (errors.length) {
   for (const e of errors) console.error(e);
   process.exit(1);
