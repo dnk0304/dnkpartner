@@ -4,6 +4,7 @@ Tasks for backfilling missing data (coordinates, enrichment, etc.)
 """
 
 import logging
+from datetime import datetime
 from typing import List
 from ..services.geocoding_service import GeocodingService
 from ..services.streetview_service import StreetViewService
@@ -12,14 +13,75 @@ from ..database.adapter import DatabaseAdapter
 logger = logging.getLogger(__name__)
 
 
+def _stamp(db, boe_id, updates):
+    """
+    Merge the geocode-attempt marker into an update payload (poison-pill unjam).
+
+    Always sets geocodeAttemptedAt = now() so the row leaves the selection
+    window for the 7-day cooldown, and best-effort increments geocodeAttempts
+    via a SQL expression UPDATE (in-place, no read). The increment is guarded:
+    on a pre-migration schema (column absent) it logs once and degrades — the
+    coords/timestamp still land via update_auction, so the unjam never depends
+    on geocodeAttempts existing.
+
+    Returns the updates dict (with geocodeAttemptedAt added) so the caller can
+    pass it straight to db.update_auction(). The attempts bump is applied here
+    as a side effect because update_auction takes literal values only, not
+    SQL expressions like "geocodeAttempts + 1".
+    """
+    payload = dict(updates)
+    payload['geocodeAttemptedAt'] = datetime.now()
+
+    # Best-effort running count via SQL expression (separate small UPDATE).
+    try:
+        conn = db.connect()
+        cur = conn.cursor()
+        if db.db_type == 'postgresql':
+            cur.execute(
+                'UPDATE "Auction" '
+                'SET "geocodeAttempts" = COALESCE("geocodeAttempts", 0) + 1 '
+                'WHERE "boeId" = %s',
+                (boe_id,),
+            )
+        else:
+            cur.execute(
+                "UPDATE Auction "
+                "SET geocodeAttempts = COALESCE(geocodeAttempts, 0) + 1 "
+                "WHERE boeId = ?",
+                (boe_id,),
+            )
+        conn.commit()
+    except Exception as e:
+        try:
+            db.connect().rollback()
+        except Exception:
+            pass
+        logger.debug(f"geocodeAttempts bump skipped for {boe_id}: {e}")
+
+    return payload
+
+
 def geocode_missing_coordinates(batch_size: int = 100, active_only: bool = True):
     """
-    Backfill missing coordinates for auctions using Google Geocoding API.
+    Backfill missing coordinates for auctions using Nominatim (OpenStreetMap),
+    free + keyless. The geocoding layer (GeocodingService) is single-threaded at
+    RATE_LIMIT_DELAY ~1.1s/req — load-bearing, do not parallelise.
 
-    Tracks precision via Google's geometry.location_type:
-      ROOFTOP / RANGE_INTERPOLATED / GEOMETRIC_CENTER / APPROXIMATE
-    Per Dennis: keep APPROXIMATE (town-centroid) results — a nearby Street View
-    beats the stock placeholder icon.
+    Tracks precision via GeocodingService's location_type
+    (ROOFTOP / RANGE_INTERPOLATED / GEOMETRIC_CENTER / APPROXIMATE). Per Dennis:
+    keep APPROXIMATE (town-centroid) results — a coarse pin beats the stock
+    placeholder icon.
+
+    POISON-PILL UNJAM (2026-06-16): the old query had no ORDER BY and no failure
+    memory, so a head-of-line cluster of un-findable addresses (Nominatim
+    ZERO_RESULTS) was re-selected every cycle forever (processed=25 geocoded=0
+    failed=25), starving the 470+ findable rows behind them. We now:
+      * exclude rows attempted within the last 7 days (cooldown), and
+      * ORDER BY geocodeAttemptedAt NULLS FIRST (never-tried rows first),
+      * stamp geocodeAttemptedAt = now() on EVERY attempt (hit OR miss) and bump
+        geocodeAttempts, via _stamp_geocode_attempt() below.
+    Net effect: the LIMIT window always advances past the poison cluster. An
+    un-findable address stays NULL-coord (honest, no pin) — never fabricated.
 
     Args:
         batch_size: rows per run
@@ -38,23 +100,33 @@ def geocode_missing_coordinates(batch_size: int = 100, active_only: bool = True)
 
     try:
         if is_pg:
+            # Cooldown: skip rows attempted < 7d ago; never-tried (NULL) first.
             query = f"""
                 SELECT "boeId", address, province, municipality
                 FROM "Auction"
                 WHERE latitude IS NULL
                   AND longitude IS NULL
                   AND address IS NOT NULL
+                  AND ("geocodeAttemptedAt" IS NULL
+                       OR "geocodeAttemptedAt" < now() - interval '7 days')
                   {status_clause}
+                ORDER BY "geocodeAttemptedAt" ASC NULLS FIRST
                 LIMIT %s
             """
         else:
+            # SQLite (dev): no now()/interval/NULLS FIRST — emulate. SQLite sorts
+            # NULLs first on ASC by default, and julianday('now','-7 days') gives
+            # the cooldown boundary as a comparable ISO/julian value.
             query = f"""
                 SELECT boeId, address, province, municipality
                 FROM Auction
                 WHERE latitude IS NULL
                   AND longitude IS NULL
                   AND address IS NOT NULL
+                  AND (geocodeAttemptedAt IS NULL
+                       OR geocodeAttemptedAt < datetime('now', '-7 days'))
                   {status_clause}
+                ORDER BY geocodeAttemptedAt ASC
                 LIMIT ?
             """
 
@@ -80,10 +152,12 @@ def geocode_missing_coordinates(batch_size: int = 100, active_only: bool = True)
                 )
 
                 if result:
-                    db.update_auction(boe_id, {
+                    # Stamp the attempt in the SAME write as the coords so a hit
+                    # and its marker are atomic.
+                    db.update_auction(boe_id, _stamp(db, boe_id, {
                         'latitude': result.latitude,
                         'longitude': result.longitude,
-                    })
+                    }))
                     geocoded_count += 1
                     precision_counts[result.location_type] = (
                         precision_counts.get(result.location_type, 0) + 1
@@ -93,10 +167,19 @@ def geocode_missing_coordinates(batch_size: int = 100, active_only: bool = True)
                         f"({result.latitude}, {result.longitude})"
                     )
                 else:
+                    # Miss: stamp the attempt so this row cools down 7 days and
+                    # the LIMIT window advances past it next cycle (poison unjam).
+                    db.update_auction(boe_id, _stamp(db, boe_id, {}))
                     failed_count += 1
                     logger.warning(f"Could not geocode {boe_id}")
 
             except Exception as e:
+                # Still stamp on error so a row that throws every time can't jam
+                # the head of the queue forever (same poison-pill class).
+                try:
+                    db.update_auction(boe_id, _stamp(db, boe_id, {}))
+                except Exception as stamp_err:
+                    logger.error(f"Failed to stamp attempt for {boe_id}: {stamp_err}")
                 logger.error(f"Error geocoding {boe_id}: {e}")
                 failed_count += 1
 
@@ -177,7 +260,10 @@ def _geocode_town_fallback(db, geocoder, batch_size, status_clause, is_pg):
                   AND longitude IS NULL
                   AND (address IS NULL OR address = '')
                   AND {town_expr} IS NOT NULL
+                  AND ("geocodeAttemptedAt" IS NULL
+                       OR "geocodeAttemptedAt" < now() - interval '7 days')
                   {status_clause}
+                ORDER BY "geocodeAttemptedAt" ASC NULLS FIRST
                 LIMIT %s
             """
         else:
@@ -191,7 +277,10 @@ def _geocode_town_fallback(db, geocoder, batch_size, status_clause, is_pg):
                   AND longitude IS NULL
                   AND (address IS NULL OR address = '')
                   AND NULLIF(municipality, '') IS NOT NULL
+                  AND (geocodeAttemptedAt IS NULL
+                       OR geocodeAttemptedAt < datetime('now', '-7 days'))
                   {status_clause}
+                ORDER BY geocodeAttemptedAt ASC
                 LIMIT ?
             """
 
@@ -214,19 +303,24 @@ def _geocode_town_fallback(db, geocoder, batch_size, status_clause, is_pg):
                 # geocode string is "<town>, <province>, España".
                 result = geocoder.geocode_address_detailed(town, prov, None)
                 if result:
-                    db.update_auction(boe_id, {
+                    db.update_auction(boe_id, _stamp(db, boe_id, {
                         'latitude': result.latitude,
                         'longitude': result.longitude,
-                    })
+                    }))
                     ok += 1
                     logger.info(
                         f"Town-pin {boe_id} [{result.location_type}]: "
                         f"({result.latitude}, {result.longitude}) <- {town}, {prov}"
                     )
                 else:
+                    db.update_auction(boe_id, _stamp(db, boe_id, {}))
                     bad += 1
                     logger.warning(f"Town-fallback could not geocode {boe_id} ({town}, {prov})")
             except Exception as e:
+                try:
+                    db.update_auction(boe_id, _stamp(db, boe_id, {}))
+                except Exception:
+                    pass
                 bad += 1
                 logger.error(f"Town-fallback error for {boe_id}: {e}")
 

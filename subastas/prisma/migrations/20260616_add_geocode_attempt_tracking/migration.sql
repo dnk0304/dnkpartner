@@ -1,0 +1,41 @@
+-- Geocode-drain poison-pill fix (2026-06-16) — Forge.
+-- Additive ONLY. TWO new columns on "Auction":
+--   geocodeAttemptedAt  TIMESTAMP NULL   (no default; NULL = never attempted)
+--   geocodeAttempts     INTEGER NOT NULL DEFAULT 0
+-- CREATED, NOT APPLIED — Ken applies on the box via `prisma migrate deploy`.
+--
+-- WHY: the 10-min geocode drain (scraper.tasks.backfill_tasks.
+-- geocode_missing_coordinates, also used by run_geocode_active_pre.py) SELECTed
+--   WHERE latitude IS NULL AND longitude IS NULL AND address IS NOT NULL
+--   {status} LIMIT N
+-- with NO ORDER BY and NO failure memory. A head-of-line cluster of un-findable
+-- BOE addresses (SUB-JA-2020-154158-L*, Nominatim returns ZERO_RESULTS) was
+-- re-selected on EVERY cycle: processed=25 geocoded=0 failed=25, forever. The
+-- 470+ findable address-only rows behind them (incl. Dennis's CAMELLAS 24 /
+-- Tisalaya 1) were never reached, so the alert email map-pin stayed a grey
+-- placeholder.
+--
+-- THE FIX: give the drain a persistent memory. Selection becomes
+--   ... AND (geocodeAttemptedAt IS NULL OR geocodeAttemptedAt < now() - interval '7 days')
+--   ORDER BY geocodeAttemptedAt NULLS FIRST
+-- and EVERY attempt (hit OR miss) stamps geocodeAttemptedAt = now(). Never-tried
+-- rows go first, recently-failed rows cool down 7 days, the LIMIT window always
+-- advances past the poison cluster. An un-findable address stays NULL-coord
+-- (honest, no pin) — we never fabricate coords; these columns only stop a
+-- poison row BLOCKING findable rows.
+--
+-- SAFETY: metadata-only ALTER. geocodeAttemptedAt is nullable with NO default
+-- (no table rewrite). geocodeAttempts has a constant DEFAULT 0 — on Postgres 11+
+-- a constant default is also metadata-only (no rewrite). NO index (~237k rows,
+-- the NULLS-FIRST scan is cheap against the already-narrow NULL-coord +
+-- active-status predicate). NO data backfill — existing rows take NULL /
+-- default 0, which the query reads as "never attempted" (correct: they go to
+-- the front of the queue exactly once, then get stamped).
+--
+-- Idempotent (IF NOT EXISTS) — partial prior apply or local re-run is a no-op.
+-- Follows: 20260607_add_vehicle_make_model_year, 20260608_add_user_email_prefs.
+-- Sequencing (Ken applies): AFTER 20260608_add_user_email_prefs. Independent of
+-- every prior wave's columns.
+
+ALTER TABLE "Auction" ADD COLUMN IF NOT EXISTS "geocodeAttemptedAt" TIMESTAMP(3);
+ALTER TABLE "Auction" ADD COLUMN IF NOT EXISTS "geocodeAttempts"    INTEGER NOT NULL DEFAULT 0;
