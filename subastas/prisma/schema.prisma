@@ -90,6 +90,25 @@ model Auction {
   longitude Float?
   address   String?
 
+  // Geocode attempt tracking (geocode-drain poison-pill fix). The 10-min
+  // geocode drain (scraper.tasks.backfill_tasks.geocode_missing_coordinates)
+  // SELECTs NULL-coord rows with no ORDER BY and no failure memory, so a small
+  // head-of-line cluster of un-findable addresses (Nominatim ZERO_RESULTS) was
+  // re-selected every cycle forever — the 470+ findable rows behind them were
+  // never reached. These two columns give the drain a memory:
+  //   geocodeAttemptedAt — stamped now() on EVERY attempt (hit OR miss). The
+  //     selection query orders NULLS FIRST and excludes rows attempted within
+  //     the last 7 days, so never-tried rows go first, recently-failed rows
+  //     cool down, and the LIMIT window always advances past the poison cluster.
+  //   geocodeAttempts    — running count, for observability / future backoff.
+  // Both nullable/defaulted-additive: ~237k existing rows take the column
+  // default with NO backfill, NO index (metadata-only ALTER, safe at this row
+  // count — precedent: add_boe_tab_urls / add_user_email_prefs). An un-findable
+  // address stays NULL-coord (honest, no pin) — we never fabricate coords;
+  // these columns only stop it BLOCKING findable rows.
+  geocodeAttemptedAt DateTime?
+  geocodeAttempts    Int       @default(0)
+
   // Property details
   propertyType        String?
   lotDescription      String?
