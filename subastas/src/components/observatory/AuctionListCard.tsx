@@ -31,6 +31,7 @@ import { resolveCardImage, fallbackImageFor, isVariosLotesTitle } from "@/lib/re
 import { statusDateLabel } from "@/lib/auction-status";
 import { AuctionCardTypeBanner } from "./AuctionCardTypeBanner";
 import { OFFICIAL_CATEGORIES } from "@/lib/constants";
+import { googleMapsSearchUrl } from "@/lib/maps-link";
 
 export type AuctionListCardProps = {
   item: AuctionItem & { hasImage?: boolean | null };
@@ -464,6 +465,38 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             Ir al BOE oficial →
           </a>
         )}
+
+        {/* FREE Google Maps search link — plain hyperlink, no API/key/cost.
+            Honest-NULL: rendered only when the auction has a usable location
+            (address → coords → town). Does NOT replace the OSM map pin. */}
+        {(() => {
+          const mapsUrl = googleMapsSearchUrl({
+            address: item.address,
+            latitude: item.latitude,
+            longitude: item.longitude,
+            municipality: item.municipality,
+            province: item.province,
+          });
+          if (!mapsUrl) return null;
+          return (
+            <a
+              href={mapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              aria-label="Ver ubicación en Google Maps"
+              className={cn(
+                "inline-flex items-center justify-center gap-1 rounded-md",
+                "border border-[var(--color-brand-soft)]/30 px-2 py-1 text-[11px] font-medium",
+                "text-[var(--color-brand-soft)] hover:bg-[var(--color-info-soft)]",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-soft)]/40",
+              )}
+            >
+              <MapPin className="h-3 w-3" aria-hidden="true" />
+              Ver en Google Maps
+            </a>
+          );
+        })()}
       </div>
     </article>
   );

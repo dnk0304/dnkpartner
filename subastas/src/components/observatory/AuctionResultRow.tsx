@@ -53,6 +53,7 @@ import {
 import { statusDateLabel } from "@/lib/auction-status";
 import { AuctionCardTypeBanner } from "./AuctionCardTypeBanner";
 import { OFFICIAL_CATEGORIES } from "@/lib/constants";
+import { googleMapsSearchUrl } from "@/lib/maps-link";
 
 export type AuctionResultRowProps = {
   item: AuctionItem & { hasImage?: boolean | null };
@@ -380,6 +381,37 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
             )}
           </div>
         )}
+
+        {/* FREE Google Maps search link — plain hyperlink (no API/key/cost).
+            Honest-NULL: rendered only when the auction has a usable location.
+            Lives OUTSIDE the title <Link> (sibling) so we never nest
+            interactives. Does NOT replace the OSM map-thumb pin. */}
+        {(() => {
+          const mapsUrl = googleMapsSearchUrl({
+            address: item.address,
+            latitude: item.latitude,
+            longitude: item.longitude,
+            municipality: item.municipality,
+            province: item.province,
+          });
+          if (!mapsUrl) return null;
+          return (
+            <a
+              href={mapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Ver ubicación en Google Maps"
+              className={cn(
+                "mt-2 inline-flex items-center gap-1 text-xs font-medium",
+                "text-[var(--color-brand-soft)] hover:underline",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-soft)]/40 rounded-sm",
+              )}
+            >
+              <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+              Ver en Google Maps
+            </a>
+          );
+        })()}
       </div>
 
       {/* Favourite heart — absolute top-right. Lives OUTSIDE the title Link
