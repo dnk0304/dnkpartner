@@ -6,6 +6,7 @@ import {
   statusDateLabel,
   statusHumanLabel,
 } from './auction-status';
+import { googleMapsSearchUrl } from './maps-link';
 
 export interface EmailTemplateProps {
   url: string;
@@ -878,6 +879,13 @@ export function createAuctionAlertEmail({ alertName, auctions, manageUrl }: Auct
            </div>`
         : '';
 
+      // FREE Google Maps search link — plain hyperlink, no API/key/cost.
+      // Honest-NULL: rendered only when the auction has a usable location.
+      const mapsUrl = googleMapsSearchUrl(auction);
+      const mapsHtml = mapsUrl
+        ? `<a href="${escapeHtml(mapsUrl)}" style="color:#2563eb;text-decoration:none;font-size:13px;font-weight:600;margin-left:16px;">&#128205; Ver en Google Maps</a>`
+        : '';
+
       // STACKED card (Dennis override, 2026-06-14): full-width image section on
       // top, full-width text section beneath — wider text column, shorter cards.
       // Table-based, inline styles, email-client-safe (Gmail/Outlook).
@@ -896,7 +904,7 @@ export function createAuctionAlertEmail({ alertName, auctions, manageUrl }: Auct
               ${locationHtml}
               ${dateHtml}
               <div style="margin-top:12px;">
-                <a href="${escapeHtml(auction.url)}" style="color:#2563eb;text-decoration:none;font-size:13px;font-weight:600;">Ver subasta &rarr;</a>
+                <a href="${escapeHtml(auction.url)}" style="color:#2563eb;text-decoration:none;font-size:13px;font-weight:600;">Ver subasta &rarr;</a>${mapsHtml}
               </div>
             </td>
           </tr>
@@ -922,6 +930,9 @@ export function createAuctionAlertEmail({ alertName, auctions, manageUrl }: Auct
       const dateLine = resolveAuctionDateLine(auction);
       if (dateLine) lines.push(`  ${dateLine.label}: ${dateLine.dateStr}`);
       lines.push(`  ${auction.url}`);
+      // FREE Google Maps link — honest-NULL (line omitted when no location).
+      const mapsUrl = googleMapsSearchUrl(auction);
+      if (mapsUrl) lines.push(`  Google Maps: ${mapsUrl}`);
       return lines.join('\n');
     })
     .join('\n\n');
