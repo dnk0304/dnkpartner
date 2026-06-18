@@ -42,10 +42,65 @@ type Backend = 'local-cli' | 'anthropic-sdk';
 const BACKEND: Backend =
   (process.env.FACTORY_LLM_BACKEND as Backend | undefined) ?? 'local-cli';
 
-/** Hard ceiling on a single CLI call. A hung `claude` must fail loudly. */
-const CLI_TIMEOUT_MS = 180_000;
+/**
+ * Resolve a positive-integer env var (milliseconds/count), else a default.
+ * Falls back on unset, non-numeric, NaN, or <= 0 — never throws at load.
+ */
+function envInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined) return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+}
+
+/**
+ * Hard ceiling on a single CLI call. A hung `claude` must fail loudly.
+ * Default 300s (was 180s): under subscription rate throttling, heavy opus-4-8
+ * calls have been observed at 172s — 180s was clipping legitimately-slow calls.
+ * Override with FACTORY_CLI_TIMEOUT_MS (milliseconds).
+ */
+const CLI_TIMEOUT_MS = envInt('FACTORY_CLI_TIMEOUT_MS', 300_000);
+
+/**
+ * Exponential-backoff-with-jitter knobs for the retry loop. The subscription
+ * CLI trips a rolling rate wall after ~9–10 consecutive heavy calls; firing a
+ * retry instantly just slams the same wall. We back off before each retry.
+ *   delay = min(BASE * 2^(attempt-1), CAP) + random(0..BASE)   (full-jitter-ish)
+ */
+const BACKOFF_BASE_MS = envInt('FACTORY_BACKOFF_BASE_MS', 5_000);
+const BACKOFF_CAP_MS = envInt('FACTORY_BACKOFF_CAP_MS', 120_000);
+/** Total attempts (incl. the first). Default 5; override FACTORY_MAX_ATTEMPTS. */
+const MAX_ATTEMPTS = envInt('FACTORY_MAX_ATTEMPTS', 5);
+
 /** Prompts (expert personas + artifacts) can be large; outputs are small. */
 const CLI_MAX_BUFFER = 10 * 1024 * 1024;
+
+/** Sleep helper — setTimeout-based, no external deps. */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Backoff delay before retry `attempt` (attempt is 1-based for retries; never
+ * called for attempt 0). Exponential growth, capped, plus full-ish jitter.
+ */
+function backoffDelayMs(attempt: number): number {
+  const exp = BACKOFF_BASE_MS * 2 ** (attempt - 1);
+  const capped = Math.min(exp, BACKOFF_CAP_MS);
+  return capped + Math.random() * BACKOFF_BASE_MS;
+}
+
+/**
+ * Narrow rate-limit / throttle classifier. Returns true when a failure looks
+ * like the subscription rate wall (or a throttled-but-not-dead timeout) and so
+ * should be retried *with backoff* rather than hard-thrown. Deliberately narrow:
+ * genuine refusals / error_max_turns must still fail fast, not burn attempts.
+ */
+const RATE_REGEX = /rate|limit|429|quota|usage|too many|overloaded|capacity/i;
+
+function isRetryableRateFailure(text: string): boolean {
+  return RATE_REGEX.test(text);
+}
 
 export interface CallOptions {
   /** Stable system prompt (e.g. an expert persona or a producer brief). */
@@ -241,15 +296,25 @@ function spawnClaude(args: string[]): Promise<string> {
 async function callViaLocalCLI<T>(opts: CallOptions): Promise<T> {
   const args = cliArgs(opts);
   let lastErr: unknown;
+  const lastAttempt = MAX_ATTEMPTS - 1; // 0-based index of the final attempt
 
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    // Back off before EVERY retry (attempts 1..N) — never before attempt 0.
+    // De-correlates retries so they don't all slam the rate wall in lockstep.
+    if (attempt > 0) {
+      await sleep(backoffDelayMs(attempt));
+    }
+
     let stdout: string;
     try {
       stdout = await spawnClaude(args);
     } catch (err) {
-      // Transient spawn/timeout failure — retry once, then give up.
+      // Spawn/timeout failure. A timeout (message contains "timed out") or a
+      // rate-classified non-zero exit is a throttled-but-not-dead call → retry
+      // with backoff. Any other spawn error is also retried (transient), but
+      // none of these short-circuit: all give up only after the last attempt.
       lastErr = err;
-      if (attempt === 1) throw err;
+      if (attempt === lastAttempt) throw err;
       continue;
     }
 
@@ -260,18 +325,30 @@ async function callViaLocalCLI<T>(opts: CallOptions): Promise<T> {
       lastErr = new Error(
         `claude CLI returned non-JSON stdout. First 200 chars: ${stdout.slice(0, 200)}`,
       );
-      if (attempt === 1) throw lastErr;
+      if (attempt === lastAttempt) throw lastErr;
       continue;
     }
 
-    // Hard error envelope — these are NOT retryable as "transient"; surface them.
-    // (error_max_turns / error_during_execution / refusals all land here.)
+    // Hard error envelope (error_max_turns / error_during_execution / refusals
+    // / a rate-cap envelope all land here). Classify before deciding:
+    //   - If it matches the rate/throttle signature → retryable WITH backoff
+    //     (set lastErr + continue), unless this is already the last attempt.
+    //   - Otherwise it's a genuine non-retryable error (a refusal must fail
+    //     fast, not burn all attempts) → throw immediately.
     if (env.is_error === true || (env.subtype && env.subtype !== 'success')) {
-      throw new Error(
+      const detail =
         `claude CLI error (subtype=${env.subtype ?? 'unknown'}). ` +
-          `errors=${safeJson(env.errors)} ` +
-          `permission_denials=${safeJson(env.permission_denials)}`,
-      );
+        `errors=${safeJson(env.errors)} ` +
+        `permission_denials=${safeJson(env.permission_denials)}`;
+      const err = new Error(detail);
+      const classifierText = `${env.subtype ?? ''} ${safeJson(env.errors)} ${safeJson(
+        env.permission_denials,
+      )}`;
+      if (isRetryableRateFailure(classifierText) && attempt !== lastAttempt) {
+        lastErr = err;
+        continue; // rate-classified hard error → back off and retry
+      }
+      throw err; // non-rate hard error → fail fast
     }
 
     // Success but no structured output → the StructuredOutput tool never fired,
@@ -281,8 +358,8 @@ async function callViaLocalCLI<T>(opts: CallOptions): Promise<T> {
         'claude CLI returned success but no `structured_output` — the schema ' +
           'tool did not fire. Refusing to trust `.result` prose.',
       );
-      if (attempt === 1) throw lastErr;
-      continue; // retry once
+      if (attempt === lastAttempt) throw lastErr;
+      continue; // retry
     }
 
     return env.structured_output as T;
