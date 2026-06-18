@@ -34,6 +34,16 @@ export interface GateOutcome {
 }
 
 /**
+ * Called by runGate the moment a loop finishes (pass, fix, or escalate), BEFORE
+ * the next — potentially throwing — producer fix call. The runner uses this to
+ * persist each loop's GateLog row independently, so a later throw (e.g. a
+ * rate-limit cap mid-stage) cannot wipe loops that already completed. Awaited so
+ * persistence ordering is deterministic. Optional — when omitted (unit tests,
+ * scripts) behaviour is unchanged and runGate still returns the full loops[].
+ */
+export type LoopSink = (loop: GateLoopResult) => Promise<void>;
+
+/**
  * Resolve one round of verdicts+challenges into a decision and the deltas a fix
  * must address. A stage passes when:
  *   - Every expert's EFFECTIVE verdict (round-2 revision if any, else round-1)
@@ -106,6 +116,7 @@ export async function runGate(
   seed: string,
   priorArtifacts: Record<number, unknown>,
   runner: ExpertRunner = new PersonaRunner(),
+  onLoopComplete?: LoopSink,
 ): Promise<GateOutcome> {
   const stage = getStage(stageN);
   const prompts = stage.experts.map((e) => ({
@@ -138,17 +149,25 @@ export async function runGate(
     const { passed, fixDeltas: deltas, minorDeltas } = resolveRound(round1, round2);
 
     if (passed) {
-      loops.push({ loop, round1, round2, resolution: 'pass', fixDeltas: [], minorDeltas });
+      const lp: GateLoopResult = { loop, round1, round2, resolution: 'pass', fixDeltas: [], minorDeltas };
+      loops.push(lp);
+      await onLoopComplete?.(lp);
       return { artifact, loops, resolution: 'pass' };
     }
 
     // Failed this loop. If we're at the ceiling, escalate; else targeted fix.
     if (loop === stage.fixCeiling) {
-      loops.push({ loop, round1, round2, resolution: 'escalate', fixDeltas: deltas, minorDeltas });
+      const lp: GateLoopResult = { loop, round1, round2, resolution: 'escalate', fixDeltas: deltas, minorDeltas };
+      loops.push(lp);
+      await onLoopComplete?.(lp);
       return { artifact, loops, resolution: 'escalate' };
     }
 
-    loops.push({ loop, round1, round2, resolution: 'fix', fixDeltas: deltas, minorDeltas });
+    const lp: GateLoopResult = { loop, round1, round2, resolution: 'fix', fixDeltas: deltas, minorDeltas };
+    loops.push(lp);
+    // Persist this loop BEFORE the produce fix call below — that call is the one
+    // that can throw on a rate cap, and loop-1 must already be durable when it does.
+    await onLoopComplete?.(lp);
     fixDeltas = deltas;
     artifact = await produceStageArtifact({
       stage: stageN,

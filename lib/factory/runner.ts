@@ -87,34 +87,48 @@ export async function advanceOneStage(run: Run): Promise<AdvanceResult> {
   const priorArtifacts = await loadPriorArtifacts(run.id);
 
   // ── Run the produce → adversarial gate → resolve loop for this stage ──────
-  const outcome = await runGate(stageN, run.seed, priorArtifacts);
-
-  // Persist GateLog rows (one per loop attempt) + the artifact in a single
-  // transaction, so the stage transition is atomic: either the whole stage is
-  // committed or none of it is. A crash mid-stage leaves the run at the prior
-  // committed stage — re-tick re-runs this stage cleanly.
-  await db.$transaction([
-    ...outcome.loops.map((lp) =>
-      db.gateLog.create({
-        data: {
-          runId: run.id,
-          stage: stageN,
-          loop: lp.loop,
-          round1: lp.round1 as unknown as object,
-          round2: lp.round2 as unknown as object,
-          resolution: lp.resolution,
-        },
-      }),
-    ),
-    db.factoryArtifact.create({
+  //
+  // Durability: each loop's GateLog row is committed the INSTANT that loop
+  // finishes (via the onLoopComplete sink below), NOT batched at end-of-stage.
+  // A stage is many heavy LLM calls; if a later loop's producer fix call throws
+  // (e.g. a rate-limit cap), the loops that already passed stay in the DB. The
+  // old single end-of-stage $transaction meant any mid-stage throw discarded
+  // every completed loop — runGate never returned, so nothing was ever written.
+  //
+  // Idempotency (option a — "latest re-run wins", no migration): a stage can be
+  // re-ticked after a partial failure (some loops persisted, a later loop threw,
+  // run still 'running' at this stage). A re-tick re-runs from loop-1, so before
+  // creating each loop we deleteMany the prior row for {runId, stage, loop}. The
+  // GateLog model has no @@unique on (runId, stage, loop), so delete-then-create
+  // is the simplest correct guard; the audit trail keeps the most recent attempt
+  // per loop, which is the honest current state.
+  const outcome = await runGate(stageN, run.seed, priorArtifacts, undefined, async (lp) => {
+    await db.gateLog.deleteMany({ where: { runId: run.id, stage: stageN, loop: lp.loop } });
+    await db.gateLog.create({
       data: {
         runId: run.id,
         stage: stageN,
-        kind: stage.artifactKind,
-        payload: outcome.artifact as unknown as object,
+        loop: lp.loop,
+        round1: lp.round1 as unknown as object,
+        round2: lp.round2 as unknown as object,
+        resolution: lp.resolution,
       },
-    }),
-  ]);
+    });
+  });
+
+  // The artifact is only meaningful once the stage actually resolved (pass /
+  // escalate), so it is written AFTER runGate returns — by which point there is
+  // no half-stage to roll back, hence no transaction needed. deleteMany the
+  // prior stage artifact first so a re-tick replaces rather than stacks (option a).
+  await db.factoryArtifact.deleteMany({ where: { runId: run.id, stage: stageN } });
+  await db.factoryArtifact.create({
+    data: {
+      runId: run.id,
+      stage: stageN,
+      kind: stage.artifactKind,
+      payload: outcome.artifact as unknown as object,
+    },
+  });
 
   // ── Escalation: a gate hit its ceiling. Stop and surface to Dennis. ───────
   if (outcome.resolution === 'escalate') {
