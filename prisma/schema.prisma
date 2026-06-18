@@ -34,3 +34,89 @@ model User {
   googleId          String?   @unique
   authProvider      String    @default("email")
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Product Factory — orchestration runner (v1 executable slice, 2026-06-18).
+// A Run is one product moving seed → 8 stages → saved Etsy draft. It is a
+// persisted state machine (NOT a chat session): every stage transition is
+// committed before the next begins, so a crash resumes from the last
+// committed stage. Everything is auditable — one GateLog row per gate loop,
+// one Decision row per human gate. Spec: docs/ORCHESTRATION.md §1-2.
+//
+// IDs use cuid() to match User above (codebase convention); the brief said
+// "uuid pk" but cuid is collision-safe and keeps the schema internally
+// consistent. Switchable to uuid() later with no behavioural change.
+// ─────────────────────────────────────────────────────────────────────────
+
+enum RunStatus {
+  running            // a stage is being produced/gated, or ready to tick
+  awaiting_human_gate // stopped at stages 1/5/6/8, waiting for a Decision
+  escalated          // a gate hit its fix-loop ceiling — surfaced to Dennis
+  draft_ready        // stage 8 done; Etsy draft object persisted, not published
+  published          // reserved — only reachable once ETSY_WRITE_ENABLED + token
+  killed             // operator-killed run
+}
+
+model Run {
+  id        String    @id @default(cuid())
+  seed      String                       // operator raw input (niche/audience/pain)
+  stage     Int       @default(1)        // 1..8 current stage
+  status    RunStatus @default(running)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  artifacts FactoryArtifact[]
+  gateLogs  GateLog[]
+  decisions Decision[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+// One completed-stage artifact per stage. `kind` labels the shape
+// (e.g. "niche_brief", "blueprint", "build", "draft_listing"); `payload`
+// holds the structured JSON/markdown the stage produced.
+model FactoryArtifact {
+  id        String   @id @default(cuid())
+  runId     String
+  run       Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  stage     Int
+  kind      String
+  payload   Json
+  createdAt DateTime @default(now())
+
+  @@index([runId])
+  @@index([runId, stage])
+}
+
+// One row per gate LOOP attempt (auditable). round1 = the 3 independent
+// verdicts; round2 = the adversarial challenges; resolution = pass|fix|escalate;
+// loop = the fix-loop iteration number for this stage.
+model GateLog {
+  id         String   @id @default(cuid())
+  runId      String
+  run        Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  stage      Int
+  loop       Int
+  round1     Json
+  round2     Json
+  resolution String              // "pass" | "fix" | "escalate"
+  createdAt  DateTime @default(now())
+
+  @@index([runId])
+  @@index([runId, stage])
+}
+
+// One row per human-gate decision. gate = "niche"|"brand"|"channel"|"publish";
+// choice = "approve"|"override"|"reject"; by = the operator email.
+model Decision {
+  id     String   @id @default(cuid())
+  runId  String
+  run    Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  gate   String
+  choice String
+  by     String
+  at     DateTime @default(now())
+
+  @@index([runId])
+}

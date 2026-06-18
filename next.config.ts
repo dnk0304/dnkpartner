@@ -15,6 +15,16 @@ const nextConfig: NextConfig = {
   // Refs: https://www.prisma.io/docs/orm/more/help-and-troubleshooting/nextjs-help
   serverExternalPackages: ['@prisma/client', '.prisma/client'],
 
+  // The Product Factory runner reads its 24 vendored expert prompts from
+  // lib/factory/experts/**/*.md at runtime via fs (so they stay editable
+  // assets, not inlined strings). Next.js can't statically trace a dynamic
+  // readFileSync path, so explicitly include the prompts in the output trace
+  // for the factory API routes. Harmless under `next start` (files already
+  // present); load-bearing if standalone output is ever enabled.
+  outputFileTracingIncludes: {
+    '/api/factory/**': ['./lib/factory/experts/**/*.md'],
+  },
+
   // Permanent 308 redirects for the auth-lockdown URL move (2026-05-28).
   // Old /auth/login + /auth/forgot-password URLs survive in bookmarks, email
   // links, search-engine indices — 308 preserves the method on the redirect
