@@ -35,38 +35,63 @@ export interface GateOutcome {
 
 /**
  * Resolve one round of verdicts+challenges into a decision and the deltas a fix
- * must address. A stage passes only when, after the adversarial round, every
- * expert's EFFECTIVE verdict (round-2 revision if any, else round-1) is PASS
- * and no surviving deltas remain. Any effective FAIL → fix.
+ * must address. A stage passes when:
+ *   - Every expert's EFFECTIVE verdict (round-2 revision if any, else round-1)
+ *     is PASS, AND
+ *   - No round-2 challenge has severity='blocking'.
+ *
+ * Round-2 challenges with severity='minor' (or severity omitted, which defaults
+ * to 'minor' — fail-open) are recorded in minorDeltas for audit visibility but
+ * do NOT block the stage. This is the fix for the impossible-gate bug where any
+ * adversarial delta prevented convergence even on clean artifacts.
+ *
+ * An effective FAIL verdict always blocks regardless of challenge severity.
  */
 export function resolveRound(round1: Verdict[], round2: Challenge[]): {
   passed: boolean;
   fixDeltas: string[];
+  minorDeltas: string[];
 } {
   const challengeBySlug = new Map(round2.map((c) => [c.expert, c]));
   const fixDeltas = new Set<string>();
+  const minorDeltas = new Set<string>();
   let passed = true;
 
   for (const v of round1) {
     const challenge = challengeBySlug.get(v.expert);
     const effective = challenge?.revisedVerdict ?? v.verdict;
+
+    // An effective FAIL verdict (round-1 FAIL not upgraded, OR round-2
+    // revisedVerdict=FAIL) is always blocking — collect all its deltas.
     if (effective === 'FAIL') {
       passed = false;
       for (const d of v.deltas) fixDeltas.add(d);
+      // If a revisedVerdict=FAIL came from round-2, its deltas are also blocking.
+      if (challenge?.revisedVerdict === 'FAIL') {
+        for (const d of challenge.deltas) {
+          if (d.trim()) fixDeltas.add(d);
+        }
+      }
     }
-    // Surviving deltas raised in round 2 (e.g. a peer broke a weak PASS) also
-    // block the gate even if the owner's verdict text still says PASS.
-    if (challenge) {
+
+    // Round-2 challenge severity gate. Missing severity → 'minor' (fail-open).
+    // blocking → blocks the stage (even if the verdict is still PASS).
+    // minor    → recorded for the audit trail but does NOT fail the stage.
+    if (challenge && effective !== 'FAIL') {
+      const sev = challenge.severity ?? 'minor';
       for (const d of challenge.deltas) {
-        if (d.trim()) {
+        if (!d.trim()) continue;
+        if (sev === 'blocking') {
           fixDeltas.add(d);
           passed = false;
+        } else {
+          minorDeltas.add(d);
         }
       }
     }
   }
 
-  return { passed, fixDeltas: [...fixDeltas] };
+  return { passed, fixDeltas: [...fixDeltas], minorDeltas: [...minorDeltas] };
 }
 
 /**
@@ -110,20 +135,20 @@ export async function runGate(
       }),
     );
 
-    const { passed, fixDeltas: deltas } = resolveRound(round1, round2);
+    const { passed, fixDeltas: deltas, minorDeltas } = resolveRound(round1, round2);
 
     if (passed) {
-      loops.push({ loop, round1, round2, resolution: 'pass', fixDeltas: [] });
+      loops.push({ loop, round1, round2, resolution: 'pass', fixDeltas: [], minorDeltas });
       return { artifact, loops, resolution: 'pass' };
     }
 
     // Failed this loop. If we're at the ceiling, escalate; else targeted fix.
     if (loop === stage.fixCeiling) {
-      loops.push({ loop, round1, round2, resolution: 'escalate', fixDeltas: deltas });
+      loops.push({ loop, round1, round2, resolution: 'escalate', fixDeltas: deltas, minorDeltas });
       return { artifact, loops, resolution: 'escalate' };
     }
 
-    loops.push({ loop, round1, round2, resolution: 'fix', fixDeltas: deltas });
+    loops.push({ loop, round1, round2, resolution: 'fix', fixDeltas: deltas, minorDeltas });
     fixDeltas = deltas;
     artifact = await produceStageArtifact({
       stage: stageN,

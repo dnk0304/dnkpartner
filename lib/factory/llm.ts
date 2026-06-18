@@ -1,8 +1,9 @@
 /**
  * Thin typed Claude wrapper for the Product Factory runner.
  *
- * One job: make a single structured (JSON) call to claude-opus-4-8 and return
- * parsed, schema-shaped data — retrying ONCE on a bad/empty structured result.
+ * One job: make a single structured (JSON) call to the configured model and
+ * return parsed, schema-shaped data — retrying ONCE on a bad/empty structured
+ * result. Default model: claude-opus-4-8. Override with FACTORY_EXPERT_MODEL.
  *
  * ─── BACKEND (locked 2026-06-18, decision: "Api is not happening") ────────────
  * The default backend is `local-cli`: we shell out to the `claude` CLI that is
@@ -17,7 +18,7 @@
  * Proven CLI invocation (Ken, CLI 2.1.173, billed to subscription / opus-4-8):
  *   claude -p "<USER>" --output-format json --json-schema "<SCHEMA>" \
  *     --allowedTools "StructuredOutput" --max-turns 3 \
- *     --append-system-prompt "<SYSTEM>" --model claude-opus-4-8
+ *     --append-system-prompt "<SYSTEM>" --model <FACTORY_EXPERT_MODEL>
  * Hard-won gotchas baked in below (do NOT change without re-verifying live):
  *   - NEVER pass --bare: it forces ANTHROPIC_API_KEY / apiKeyHelper and never
  *     reads the subscription OAuth — defeating the whole decision.
@@ -35,7 +36,12 @@
 
 import { spawn } from 'node:child_process';
 
-export const FACTORY_MODEL = 'claude-opus-4-8';
+/**
+ * The model used for all factory expert calls. Read once at module load.
+ * Override with FACTORY_EXPERT_MODEL env var (e.g. 'claude-sonnet-4-6').
+ * Empty string / whitespace-only / unset → falls back to 'claude-opus-4-8'.
+ */
+export const FACTORY_MODEL = process.env.FACTORY_EXPERT_MODEL?.trim() || 'claude-opus-4-8';
 
 /** Which LLM backend to route through. Default: the local subscription CLI. */
 type Backend = 'local-cli' | 'anthropic-sdk';

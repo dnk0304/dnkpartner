@@ -31,6 +31,14 @@ export interface Verdict {
  * round-1 verdicts and must EITHER cite a concrete challenge OR explicitly
  * state it tried to break a peer and could not. `challengeAttempted=false`
  * with no `revisedVerdict` is the rubber-stamp tell we re-prompt once.
+ *
+ * severity classifies the round-2 challenge so `resolveRound` can distinguish
+ * material defects from minor nitpicks:
+ *   'blocking' — a genuine material defect; fails the stage and loops.
+ *   'minor'    — a nitpick / nice-to-have; recorded in the GateLog but does
+ *                NOT block the stage from passing.
+ * Missing/unset severity → treated as 'minor' (fail-open: prevents spurious
+ * blocks; a real FAIL verdict always blocks regardless of severity).
  */
 export interface Challenge {
   expert: string;
@@ -40,8 +48,14 @@ export interface Challenge {
   note: string;
   /** If the expert changed its own verdict after seeing peers, the new value. */
   revisedVerdict?: VerdictValue;
-  /** Deltas surviving / introduced by this round (drives the targeted fix). */
+  /** Deltas surviving / introduced by this round. */
   deltas: string[];
+  /**
+   * Whether this challenge's deltas are blocking or merely minor.
+   * Omitted → 'minor' (fail-open). An effective FAIL verdict always blocks
+   * regardless of this field.
+   */
+  severity?: 'blocking' | 'minor';
 }
 
 export type GateResolution = 'pass' | 'fix' | 'escalate';
@@ -52,8 +66,14 @@ export interface GateLoopResult {
   round1: Verdict[];
   round2: Challenge[];
   resolution: GateResolution;
-  /** Union of deltas that must be addressed by the next fix (empty on pass/escalate). */
+  /** Union of BLOCKING deltas that must be addressed by the next fix (empty on pass). */
   fixDeltas: string[];
+  /**
+   * Round-2 deltas classified as 'minor' (non-blocking). Recorded for audit
+   * visibility — they are real feedback but did not fail the stage. Empty when
+   * there are no minor notes or on escalate.
+   */
+  minorDeltas: string[];
 }
 
 // ─── ExpertRunner seam ──────────────────────────────────────────────────────

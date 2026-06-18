@@ -44,9 +44,11 @@ const CHALLENGE_SCHEMA: Record<string, unknown> = {
     note: { type: 'string' },
     revisedVerdict: { type: 'string', enum: ['PASS', 'FAIL'] },
     deltas: { type: 'array', items: { type: 'string' } },
+    severity: { type: 'string', enum: ['blocking', 'minor'] },
   },
   // revisedVerdict optional — only when the expert changes its own call.
-  required: ['challengeAttempted', 'note', 'deltas'],
+  // severity optional — missing treated as 'minor' (fail-open) by resolveRound.
+  required: ['challengeAttempted', 'note', 'deltas', 'severity'],
 };
 
 // ─── Prompt assembly helpers ─────────────────────────────────────────────────
@@ -80,11 +82,21 @@ function round2Task(ownVerdict: Verdict, peers: Verdict[]): string {
     'Now run your ADVERSARIAL brief. You MUST do ONE of:\n' +
     '  (a) cite a concrete challenge to a peer verdict (attack a weak PASS, or reinforce/upgrade a FAIL you agree with), OR\n' +
     "  (b) explicitly state \"I tried to break <peer>'s verdict and could not, because …\" with a real reason.\n" +
-    'Pure agreement with no challenge attempted is NOT acceptable. Return strictly as JSON: ' +
-    'challengeAttempted (true if you genuinely attacked or stress-tested a peer), note (your ' +
-    'challenge text or your explicit could-not-break statement), revisedVerdict (only if YOU ' +
-    'change your own verdict after seeing peers — omit otherwise), deltas (any surviving or ' +
-    'newly-found deltas the fix must address; empty if none).'
+    'Pure agreement with no challenge attempted is NOT acceptable. Return strictly as JSON:\n' +
+    '  challengeAttempted (true if you genuinely attacked or stress-tested a peer)\n' +
+    '  note (your challenge text or your explicit could-not-break statement)\n' +
+    '  revisedVerdict (only if YOU change your own verdict after seeing peers — omit otherwise)\n' +
+    '  deltas (any surviving or newly-found deltas the fix must address; empty if none)\n' +
+    '  severity: classify the issues you found as EXACTLY ONE of:\n' +
+    '    "blocking" — a MATERIAL defect that makes the artifact wrong, unsellable, factually ' +
+    'unsound, or fails this expert\'s hard pass-bar / red-flags. The kind of issue that MUST ' +
+    'be fixed before the stage can pass.\n' +
+    '    "minor" — a nitpick, a nice-to-have, a stylistic preference, a "could be slightly ' +
+    'stronger" observation. Real feedback worth recording, but NOT a reason to block the stage.\n' +
+    'Classify severity HONESTLY. Most adversarial challenges surface minor refinements — that ' +
+    'is normal and expected. Reserve "blocking" for genuine material defects. Do NOT inflate ' +
+    'severity to force a re-loop, and do NOT downgrade a real material defect to "minor" to ' +
+    'avoid conflict. If you found nothing at all, set severity="minor" and deltas=[].'
   );
 }
 
@@ -137,6 +149,8 @@ export class PersonaRunner implements ExpertRunner {
       note: out.note,
       ...(out.revisedVerdict ? { revisedVerdict: out.revisedVerdict } : {}),
       deltas: out.deltas ?? [],
+      // Fail-open: missing severity → 'minor' so it never spuriously blocks.
+      severity: out.severity ?? 'minor',
     };
   }
 
@@ -148,6 +162,7 @@ export class PersonaRunner implements ExpertRunner {
     note: string;
     revisedVerdict?: VerdictValue;
     deltas: string[];
+    severity?: 'blocking' | 'minor';
   }> {
     return callClaudeJSON({ system, user, schema: CHALLENGE_SCHEMA });
   }

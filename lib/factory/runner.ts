@@ -23,11 +23,36 @@ import { getStage, STAGES } from './types';
 import { buildDraftListing } from './etsyAdapter';
 import type { Run } from '@prisma/client';
 
+/**
+ * Optional stage ceiling for audit runs. When FACTORY_STAGE_CEILING=N, the run
+ * stops cleanly after stage N passes — no stage N+1 producer call, no GateLog
+ * or artifact rows. Unset (default) → all 8 stages run as normal.
+ *
+ * Stage 6 has a humanGate='channel' so it already stops at awaiting_human_gate
+ * in normal flow. The ceiling is a belt-and-braces guard ensuring that even if
+ * the driver auto-approves the human gate, the run does not advance past N.
+ * Enforced in both advanceOneStage AND resumeFromGate.
+ */
+const STAGE_CEILING: number | null = (() => {
+  const raw = process.env.FACTORY_STAGE_CEILING?.trim();
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+})();
+
 export type AdvanceState =
   | 'awaiting_human_gate'
   | 'running'
   | 'escalated'
-  | 'draft_ready';
+  | 'draft_ready'
+  /**
+   * Run stopped at the FACTORY_STAGE_CEILING (local audit only). The DB status
+   * is set to 'draft_ready' (no migration needed — RunStatus is a Prisma enum
+   * and ceiling_reached would require a migration). The driver sees stopped:true
+   * and the status field in the return value is 'ceiling_reached' so call-sites
+   * can distinguish it from a genuine draft.
+   */
+  | 'ceiling_reached';
 
 export interface AdvanceResult {
   runId: string;
@@ -102,6 +127,20 @@ export async function advanceOneStage(run: Run): Promise<AdvanceResult> {
 
   // ── Gate passed. Decide the next state. ───────────────────────────────────
 
+  // Stage ceiling: if this stage equals or exceeds the audit ceiling, stop
+  // cleanly. The stage's artifact + GateLogs are already committed above.
+  // DB status → 'draft_ready' (reusing an existing RunStatus enum value to
+  // avoid a migration; ceiling_reached would require a schema change on the
+  // critical path). The return value carries 'ceiling_reached' so call-sites
+  // can distinguish it from a genuine publish-ready draft.
+  if (STAGE_CEILING !== null && stageN >= STAGE_CEILING) {
+    await db.run.update({
+      where: { id: run.id },
+      data: { status: 'draft_ready' },
+    });
+    return { runId: run.id, stage: stageN, status: 'ceiling_reached', stopped: true };
+  }
+
   // Human gate: pass, but STOP for operator approval before advancing.
   if (stage.humanGate) {
     await db.run.update({
@@ -150,6 +189,18 @@ export async function resumeFromGate(
   if (choice === 'reject') {
     await db.run.update({ where: { id: run.id }, data: { status: 'killed' } });
     return { runId: run.id, stage: run.stage, status: 'escalated', stopped: true };
+  }
+
+  // Stage ceiling guard: if the current stage is at or beyond the ceiling,
+  // refuse to advance even on an approved human gate (belt-and-braces for the
+  // audit driver that auto-approves). The Decision row is already committed.
+  // DB status → 'draft_ready' (same reasoning as advanceOneStage — no migration).
+  if (STAGE_CEILING !== null && run.stage >= STAGE_CEILING) {
+    await db.run.update({
+      where: { id: run.id },
+      data: { status: 'draft_ready' },
+    });
+    return { runId: run.id, stage: run.stage, status: 'ceiling_reached', stopped: true };
   }
 
   // The publish gate is the terminal human gate. Approval = finalize draft.
