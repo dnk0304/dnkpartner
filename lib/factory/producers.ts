@@ -26,6 +26,7 @@
 
 import { callClaudeJSON } from './llm';
 import { getStage } from './types';
+import { buildXlsx, type SheetCell, type SheetDef, type CellStyle } from './xlsx';
 
 /**
  * Hard ceiling on how many sections/modules the full build generates — one LLM
@@ -632,6 +633,26 @@ interface BuildSection {
   markdown: string;
 }
 
+/**
+ * The optional live-formula workbook persisted alongside the markdown for a
+ * COMPUTATIONAL product (brief §2c). The `.xlsx` bytes ride inside the Stage-3
+ * artifact JSON payload as base64 — no DB migration. Pixel reads
+ * `artifact.payload.workbook.base64` to wire a "Download .xlsx" button.
+ *
+ * Absent entirely when the product is NOT computational (pure-prose ebooks etc.)
+ * — markdown stays the sole deliverable; we never force a spreadsheet on prose.
+ */
+interface BuildWorkbook {
+  /** Suggested download filename, e.g. "divorce-organizer.xlsx". */
+  filename: string;
+  /** base64-encoded `.xlsx` bytes (the workbook itself). */
+  base64: string;
+  /** The sheet tab names, in order (for a quick UI summary without decoding). */
+  sheetNames: string[];
+  /** Always true when this object is present (mirrors the gating decision). */
+  computational: boolean;
+}
+
 /** The final stage-3 artifact. Keeps {title, markdown} for the viewer; adds visibility fields. */
 interface BuildArtifact {
   title: string;
@@ -640,6 +661,11 @@ interface BuildArtifact {
   sections: string[];
   /** Total markdown character count of the assembled product (assembler-computed). */
   totalChars: number;
+  /**
+   * Live-formula spreadsheet — present ONLY for computational products. The
+   * markdown above is untouched/unconditional; this is purely ADDITIVE.
+   */
+  workbook?: BuildWorkbook;
 }
 
 /**
@@ -697,6 +723,211 @@ const SECTION_SCHEMA: Record<string, unknown> = {
   },
   required: ['title', 'markdown'],
 };
+
+// ─── Stage 3: live-formula WORKBOOK path (brief §2b/§2c) ─────────────────────
+//
+// After the markdown product is assembled, for a COMPUTATIONAL product we make
+// ONE extra structured call — the WORKBOOK SPEC — that returns a typed sheet/
+// column/row/FORMULA plan. The model designs the spreadsheet LOGIC (it returns
+// formula strings like "SUM(B2:B9)"); our code renders that to real .xlsx bytes
+// via buildXlsx (the model never emits XML). If the model says the product is
+// NOT computational, we skip the workbook entirely — markdown stays the
+// deliverable. One call only (Stage-3 is already the heaviest stage).
+
+/** Max sheets the workbook may contain. Default 8, clamp [1,20]. Env FACTORY_WORKBOOK_MAX_SHEETS. */
+function workbookMaxSheets(): number {
+  const raw = process.env.FACTORY_WORKBOOK_MAX_SHEETS;
+  if (raw === undefined) return 8;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return 8;
+  return Math.min(20, Math.max(1, Math.floor(n)));
+}
+
+/** Hard cell-cap per sheet so a runaway spec can't bloat the base64 payload. */
+const WORKBOOK_MAX_ROWS_PER_SHEET = 200;
+const WORKBOOK_MAX_COLS_PER_SHEET = 26;
+
+/** One cell as the model returns it (mirrors xlsx.SheetCell, schema-constrained). */
+interface SpecCell {
+  v?: string | number;
+  f?: string;
+  style?: CellStyle;
+}
+/** One sheet as the model returns it. */
+interface SpecSheet {
+  name: string;
+  rows: SpecCell[][];
+  cols?: number[];
+}
+/** The WORKBOOK-SPEC call's full return shape. */
+interface WorkbookSpec {
+  computational: boolean;
+  filename?: string;
+  sheets?: SpecSheet[];
+}
+
+const STYLE_ENUM = ['header', 'input', 'formula', 'label', 'money'];
+
+/** JSON schema for the WORKBOOK-SPEC call. */
+const WORKBOOK_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    computational: { type: 'boolean' },
+    filename: { type: 'string' },
+    sheets: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          name: { type: 'string' },
+          cols: { type: 'array', items: { type: 'number' } },
+          rows: {
+            type: 'array',
+            items: {
+              type: 'array',
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  v: { type: ['string', 'number'] },
+                  f: { type: 'string' },
+                  style: { type: 'string', enum: STYLE_ENUM },
+                },
+              },
+            },
+          },
+        },
+        required: ['name', 'rows'],
+      },
+    },
+  },
+  required: ['computational'],
+};
+
+/** Coerce one spec cell to a clean xlsx SheetCell (drop junk, keep formula/value/style). */
+function toSheetCell(c: SpecCell | null | undefined): SheetCell {
+  if (!c || typeof c !== 'object') return {};
+  const out: SheetCell = {};
+  // Formula wins; strip a leading '=' the model may include (renderer also guards).
+  if (typeof c.f === 'string' && c.f.trim()) out.f = c.f.replace(/^\s*=+/, '').trim();
+  if (typeof c.v === 'string' || (typeof c.v === 'number' && Number.isFinite(c.v))) out.v = c.v;
+  if (typeof c.style === 'string' && STYLE_ENUM.includes(c.style)) out.style = c.style as CellStyle;
+  return out;
+}
+
+/** Coerce + BOUND the model's spec into safe SheetDefs (caps sheets/rows/cols). */
+function specToSheets(spec: WorkbookSpec): SheetDef[] {
+  const maxSheets = workbookMaxSheets();
+  const rawSheets = Array.isArray(spec.sheets) ? spec.sheets : [];
+  const sheets: SheetDef[] = [];
+  for (const s of rawSheets.slice(0, maxSheets)) {
+    if (!s || typeof s !== 'object') continue;
+    const name = typeof s.name === 'string' && s.name.trim() ? s.name : `Sheet${sheets.length + 1}`;
+    const rawRows = Array.isArray(s.rows) ? s.rows.slice(0, WORKBOOK_MAX_ROWS_PER_SHEET) : [];
+    const rows: SheetCell[][] = rawRows.map((row) =>
+      (Array.isArray(row) ? row.slice(0, WORKBOOK_MAX_COLS_PER_SHEET) : []).map(toSheetCell),
+    );
+    const cols =
+      Array.isArray(s.cols) && s.cols.length > 0
+        ? s.cols.slice(0, WORKBOOK_MAX_COLS_PER_SHEET).filter((w) => Number.isFinite(w))
+        : undefined;
+    sheets.push({ name, rows, cols });
+  }
+  return sheets;
+}
+
+/** Derive a safe .xlsx filename from a product title (kebab, ascii, bounded). */
+function safeWorkbookFilename(suggested: string | undefined, productTitle: string): string {
+  const base = (suggested && suggested.trim()) || productTitle || 'workbook';
+  const stem = base
+    .replace(/\.xlsx$/i, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+  return `${stem || 'workbook'}.xlsx`;
+}
+
+/**
+ * Build the optional live-formula workbook for a computational product. ONE LLM
+ * call (the WORKBOOK SPEC); the model designs sheets/columns/rows + formula
+ * strings, our code renders the bytes. Returns undefined when the product is
+ * non-computational OR the spec produced no usable sheets. RESILIENT: a flake
+ * here (after llm.ts retries) returns undefined rather than failing the whole
+ * Stage-3 build — the workbook is additive, the markdown is the guaranteed
+ * deliverable.
+ */
+async function produceWorkbook(
+  productTitle: string,
+  seed: string,
+  prior: string,
+  structureHint: string,
+  outlineList: string,
+): Promise<BuildWorkbook | undefined> {
+  const maxSheets = workbookMaxSheets();
+
+  const system =
+    'You are the Stage 3 Build producer (WORKBOOK phase). You decide whether the ' +
+    'product just built is COMPUTATIONAL — i.e. its core value is calculation a ' +
+    'spreadsheet does live (a budget/finances workbook, an equalization or ' +
+    'settlement calculator, a net-worth tracker, a pricing model, a planner with ' +
+    'roll-ups/totals). If it is NOT computational (a pure-prose ebook, a checklist ' +
+    'with no math, a guide), set computational:false and return NO sheets — the ' +
+    'markdown stays the deliverable; do NOT force a spreadsheet onto prose.\n\n' +
+    'If it IS computational, design a REAL working spreadsheet with LIVE Excel ' +
+    'formulas. Return a typed plan only — DO NOT emit XML. For each sheet: a name, ' +
+    'optional column widths, and a row-major grid of cells. Each cell is one of:\n' +
+    '  • a LABEL/heading: {"v":"Asset","style":"header"} or {"v":"Total","style":"label"}\n' +
+    '  • a BUYER INPUT (a value they type): {"v":0,"style":"input"}\n' +
+    '  • a MONEY value: {"v":1234.5,"style":"money"}\n' +
+    '  • a LIVE FORMULA: {"f":"SUM(B2:B9)","style":"formula"} — f is an Excel ' +
+    'formula WITHOUT a leading "=" (e.g. "SUM(B2:B9)", "(B12-C12)/2", "B5*0.5", ' +
+    '"IFERROR(B2/C2,0)"). Reference real cells you laid out. Formulas are what make ' +
+    'this beat a static doc — the cell COMPUTES the answer on open.\n\n' +
+    `Use at most ${maxSheets} sheets. Build a genuinely useful tool a paying buyer ` +
+    'opens and immediately gets answers from — totals that sum, calculators that ' +
+    'compute, scenarios that update. Wrap every division in IFERROR(…,0) so an empty ' +
+    'input never shows #DIV/0!. Keep grids reasonable (tens of rows, not hundreds).';
+
+  const user =
+    `Design the live-formula workbook for this just-built product (or decline it if ` +
+    `it is not computational).\n\nPRODUCT: ${productTitle}\n\nOPERATOR SEED:\n${seed}\n\n` +
+    `PRODUCT STRUCTURE (the sections that were built):\n${outlineList}` +
+    prior +
+    structureHint +
+    `\n\nReturn {computational}. If true, also return {filename, sheets[]} with real ` +
+    `<f> formulas wired to the cells you lay out. If false, return computational:false and no sheets.`;
+
+  let spec: WorkbookSpec;
+  try {
+    spec = await callClaudeJSON<WorkbookSpec>({
+      system,
+      user,
+      schema: WORKBOOK_SCHEMA,
+      maxTokens: 8000,
+    });
+  } catch {
+    // Workbook is additive — never let its flake fail the markdown build.
+    return undefined;
+  }
+
+  if (!spec || spec.computational !== true) return undefined;
+
+  const sheets = specToSheets(spec);
+  // A computational verdict with no usable sheet content → treat as no workbook.
+  const hasContent = sheets.some((s) => s.rows.some((r) => r.length > 0));
+  if (sheets.length === 0 || !hasContent) return undefined;
+
+  const bytes = buildXlsx(sheets);
+  return {
+    filename: safeWorkbookFilename(spec.filename, productTitle),
+    base64: bytes.toString('base64'),
+    sheetNames: sheets.map((s) => s.name),
+    computational: true,
+  };
+}
 
 /**
  * Produce the FULL product for Stage 3, Monetise-style:
@@ -810,10 +1041,23 @@ async function produceBuildArtifact(input: ProduceInput): Promise<BuildArtifact>
   }
   const markdown = parts.join('\n\n').trim();
 
+  // ── 4. WORKBOOK (additive — one extra call; skipped for non-computational) ──
+  // After the markdown deliverable is complete, attempt a live-formula .xlsx.
+  // produceWorkbook returns undefined for prose products or on any flake, so the
+  // markdown build above is the guaranteed deliverable and this never fails it.
+  const workbook = await produceWorkbook(
+    productTitle,
+    seed,
+    prior,
+    structureHint,
+    outlineList,
+  );
+
   return {
     title: productTitle,
     markdown,
     sections: filled.map((s) => s.title),
     totalChars: markdown.length,
+    ...(workbook ? { workbook } : {}),
   };
 }
