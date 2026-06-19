@@ -21,7 +21,12 @@ import { db } from '@/lib/db';
 import { runGate } from './gate';
 import { getStage, STAGES } from './types';
 import { buildDraftListing } from './etsyAdapter';
+import { produceNicheCandidates, advisoryCrossCheck } from './producers';
+import type { NicheCandidate, NicheCandidateSet } from './producers';
 import type { Run } from '@prisma/client';
+
+/** The artifact `kind` for the persisted multi-niche candidate set (Stage 1 pre-step). */
+export const NICHE_CANDIDATES_KIND = 'niche_candidates';
 
 /**
  * Optional stage ceiling for audit runs. When FACTORY_STAGE_CEILING=N, the run
@@ -74,6 +79,120 @@ async function loadPriorArtifacts(runId: string): Promise<Record<number, unknown
   return out;
 }
 
+// ─── Stage 1 MULTI-NICHE selection step (runs BEFORE the heavy gate) ──────────
+//
+// New Stage-1 shape (brief dispatch #13):
+//   1. runCandidateGeneration — generate N distinct candidate niches (+ cheap
+//      advisory cross-check), persist as the `niche_candidates` artifact, stop at
+//      status `awaiting_selection`. The user MUST pick before anything is built.
+//   2. selectCandidate — record the choice, promote the chosen candidate's refined
+//      niche into Run.seed, then run the EXISTING heavy gate via advanceOneStage —
+//      which lands at the existing awaiting_human_gate (gate='niche'). From there
+//      S2→S6 are UNCHANGED.
+// Cost: generate (1 call) + advisory (1 call) to reach selection; the heavy
+// 3-expert gate (4-5 calls) runs ONCE, on the chosen niche only.
+
+export interface CandidateGenResult {
+  runId: string;
+  status: 'awaiting_selection';
+  set: NicheCandidateSet;
+}
+
+/**
+ * Generate the candidate-niche set for a freshly-created run and stop at
+ * `awaiting_selection`. Idempotent on re-run: replaces any prior candidate
+ * artifact for stage 1 (deleteMany then create) so a re-trigger after a flake
+ * does not stack duplicate sets.
+ */
+export async function runCandidateGeneration(run: Run): Promise<CandidateGenResult> {
+  // Keep the token meter's run id exact for the generation + advisory calls.
+  process.env.FACTORY_RUN_ID = run.id;
+
+  const hint = run.hint ?? '';
+  const generated = await produceNicheCandidates(hint);
+  // Advisory cross-check is best-effort (it self-catches flakes and returns the
+  // set unflagged), so this never blocks reaching awaiting_selection.
+  const set = await advisoryCrossCheck(generated);
+
+  await db.factoryArtifact.deleteMany({
+    where: { runId: run.id, stage: 1, kind: NICHE_CANDIDATES_KIND },
+  });
+  await db.factoryArtifact.create({
+    data: {
+      runId: run.id,
+      stage: 1,
+      kind: NICHE_CANDIDATES_KIND,
+      payload: set as unknown as object,
+    },
+  });
+  await db.run.update({
+    where: { id: run.id },
+    data: { status: 'awaiting_selection' },
+  });
+
+  return { runId: run.id, status: 'awaiting_selection', set };
+}
+
+/**
+ * Promote the chosen candidate and kick off the heavy Stage-1 gate.
+ *
+ * Records a Decision (gate='niche_selection'), rewrites Run.seed to the chosen
+ * candidate's refined niche string (so every downstream stage anchors on the
+ * picked niche, not the loose hint), flips status back to 'running', then runs
+ * advanceOneStage — the EXISTING produce→heavy-gate path, which lands at the
+ * existing awaiting_human_gate (gate='niche'). Selection and the niche gate are
+ * kept SEPARATE (not folded) so the post-gate review card still fires.
+ *
+ * Guards: the run must be in `awaiting_selection`; the index must be in range.
+ * Both are validated by the caller (the /select route) AND here defensively.
+ */
+export async function selectCandidate(
+  run: Run,
+  candidateIndex: number,
+  by: string,
+): Promise<AdvanceResult> {
+  if (run.status !== 'awaiting_selection') {
+    throw new Error(`Run is ${run.status}, not awaiting_selection — cannot select.`);
+  }
+
+  const artifact = await db.factoryArtifact.findFirst({
+    where: { runId: run.id, stage: 1, kind: NICHE_CANDIDATES_KIND },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (!artifact) {
+    throw new Error('No candidate set found for this run — cannot select.');
+  }
+  const set = artifact.payload as unknown as NicheCandidateSet;
+  const chosen: NicheCandidate | undefined = set.candidates?.find((c) => c.index === candidateIndex);
+  if (!chosen) {
+    throw new Error(`candidateIndex ${candidateIndex} is out of range for this run.`);
+  }
+
+  // Audit: the selection decision, distinct from the later 'niche' approval gate.
+  await db.decision.create({
+    data: {
+      runId: run.id,
+      gate: 'niche_selection',
+      choice: `index:${candidateIndex} — ${chosen.niche}`,
+      by,
+    },
+  });
+
+  // Promote: the downstream anchor becomes a single rich seed line derived from the
+  // chosen candidate. The existing Stage-1 producer refines THIS into the niche
+  // brief, and the heavy gate runs on that — exactly as it does for a typed seed.
+  const promotedSeed =
+    `${chosen.niche} — ${chosen.productIdea}. Core pain: ${chosen.painArea}.`;
+
+  const promoted = await db.run.update({
+    where: { id: run.id },
+    data: { seed: promotedSeed, stage: 1, status: 'running' },
+  });
+
+  // Run the existing heavy Stage-1 gate. This lands at awaiting_human_gate (niche).
+  return advanceOneStage(promoted);
+}
+
 /**
  * Advance the run by exactly one stage. The run MUST be in a runnable state
  * ('running'); callers (tick/gate routes) enforce that. Idempotency note: this
@@ -85,6 +204,13 @@ export async function advanceOneStage(run: Run): Promise<AdvanceResult> {
   const stageN = run.stage;
   const stage = getStage(stageN);
   const priorArtifacts = await loadPriorArtifacts(run.id);
+
+  // Stamp the real run id into the env the token meter reads, so per-run totals
+  // in .factory-tokens.jsonl are EXACT regardless of whether the external driver
+  // exported FACTORY_RUN_ID. The LLM seam (llm.ts → meterUsage) reads this at
+  // call time; setting it here threads the run id without changing the seam's
+  // signature (the low-risk option the llm.ts metering note already anticipates).
+  process.env.FACTORY_RUN_ID = run.id;
 
   // ── Run the produce → adversarial gate → resolve loop for this stage ──────
   //
@@ -120,7 +246,14 @@ export async function advanceOneStage(run: Run): Promise<AdvanceResult> {
   // escalate), so it is written AFTER runGate returns — by which point there is
   // no half-stage to roll back, hence no transaction needed. deleteMany the
   // prior stage artifact first so a re-tick replaces rather than stacks (option a).
-  await db.factoryArtifact.deleteMany({ where: { runId: run.id, stage: stageN } });
+  //
+  // Stage 1 exception: the `niche_candidates` set (the multi-niche pre-step record
+  // of what was offered + which index the user picked) is PRESERVED — a plain
+  // {runId, stage:1} deleteMany would wipe it when the niche_brief lands. Scope the
+  // delete to everything EXCEPT the candidate set so the selection audit survives.
+  await db.factoryArtifact.deleteMany({
+    where: { runId: run.id, stage: stageN, kind: { not: NICHE_CANDIDATES_KIND } },
+  });
   await db.factoryArtifact.create({
     data: {
       runId: run.id,
@@ -194,6 +327,9 @@ export async function resumeFromGate(
   by: string,
 ): Promise<AdvanceResult> {
   const stage = getStage(run.stage);
+
+  // Keep the token meter's run id exact for any LLM calls this resume path drives.
+  process.env.FACTORY_RUN_ID = run.id;
 
   await db.decision.create({
     data: { runId: run.id, gate, choice, by },

@@ -49,17 +49,24 @@ model User {
 // ─────────────────────────────────────────────────────────────────────────
 
 enum RunStatus {
-  running            // a stage is being produced/gated, or ready to tick
+  running             // a stage is being produced/gated, or ready to tick
+  awaiting_selection  // Stage-1 candidate niches generated; user must pick one before any build
   awaiting_human_gate // stopped at stages 1/5/6/8, waiting for a Decision
-  escalated          // a gate hit its fix-loop ceiling — surfaced to Dennis
-  draft_ready        // stage 8 done; Etsy draft object persisted, not published
-  published          // reserved — only reachable once ETSY_WRITE_ENABLED + token
-  killed             // operator-killed run
+  escalated           // a gate hit its fix-loop ceiling — surfaced to Dennis
+  draft_ready         // stage 8 done; Etsy draft object persisted, not published
+  published           // reserved — only reachable once ETSY_WRITE_ENABLED + token
+  killed              // operator-killed run
 }
 
 model Run {
   id        String    @id @default(cuid())
+  // The downstream anchor every stage producer reads. Pre-selection it holds the
+  // user's hint (or "" for "help me discover"); after a candidate is selected it is
+  // REWRITTEN to the chosen refined-niche string so S2-8 anchor on the picked niche.
   seed      String                       // operator raw input (niche/audience/pain)
+  // The raw user HINT as typed at run creation (optional; empty/null = "help me discover").
+  // Preserved verbatim for audit even after `seed` is rewritten at selection time.
+  hint      String?
   stage     Int       @default(1)        // 1..8 current stage
   status    RunStatus @default(running)
   createdAt DateTime  @default(now())

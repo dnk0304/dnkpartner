@@ -11,6 +11,8 @@ import { validateSessionToken } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { publishGateMessage } from './etsyAdapter';
 import { getStage } from './types';
+import { computeRunProgress } from './progress';
+import { NICHE_CANDIDATES_KIND } from './runner';
 import type { JwtPayload } from '@/lib/auth';
 import type { Run } from '@prisma/client';
 
@@ -72,14 +74,38 @@ export async function serializeRun(run: Run) {
         }
       : null;
 
+  // Multi-niche selection surface. When the run is awaiting_selection we expose the
+  // candidate set (from the `niche_candidates` artifact) as a top-level `candidates`
+  // array + a `pendingSelection` descriptor, so the picker UI reads it directly
+  // without parsing artifacts. Picking is the POST /select endpoint.
+  const candidateArtifact = artifacts.find(
+    (a) => a.stage === 1 && a.kind === NICHE_CANDIDATES_KIND,
+  );
+  const candidateSet =
+    candidateArtifact && candidateArtifact.payload && typeof candidateArtifact.payload === 'object'
+      ? (candidateArtifact.payload as { candidates?: unknown }).candidates
+      : undefined;
+  const candidates = Array.isArray(candidateSet) ? candidateSet : [];
+  const pendingSelection =
+    run.status === 'awaiting_selection'
+      ? { stage: 1, count: candidates.length, message: 'Pick one niche to build.' }
+      : null;
+
   return {
     id: run.id,
     seed: run.seed,
+    hint: run.hint,
     stage: run.stage,
     status: run.status,
     createdAt: run.createdAt,
     updatedAt: run.updatedAt,
+    // Real progress signal — stage X/N + per-call liveness from the token log.
+    progress: computeRunProgress(run),
     pendingGate,
+    // The multi-niche candidate set + the selection descriptor (null unless the
+    // run is awaiting_selection). `candidates` is always present (empty when none).
+    candidates,
+    pendingSelection,
     artifacts,
     gateLogs,
     decisions,
