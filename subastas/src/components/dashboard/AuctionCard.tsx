@@ -10,8 +10,10 @@ import Image from 'next/image';
 import { capitalizeLocation } from '@/lib/utils';
 import { resolveCardImage, fallbackImageFor, isVariosLotesTitle } from '@/lib/resolve-card-image';
 import { statusDateLabel } from '@/lib/auction-status';
-import { formatM2, formatPricePerM2 } from '@/components/observatory/format';
+import { formatM2, formatPricePerM2, titleCase } from '@/components/observatory/format';
 import { OccupancyBadge } from '@/components/observatory/PujaOccupancyBadges';
+import { auctionCardTitle } from '@/lib/seo/display-title';
+import { OFFICIAL_CATEGORIES } from '@/lib/constants';
 
 interface AuctionCardProps {
   item: AuctionItem;
@@ -176,6 +178,51 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
   const statusConfig = getStatusConfig();
   const auctionTypeConfig = getAuctionTypeConfig(item.auctionType);
 
+  // Card headline (2026-06-19 fix): this dashboard card previously rendered the
+  // RAW `item.title` — the BOE ref code ("SUB-JA-2026-262337") — as its <h3>.
+  // Wire it to the shared `auctionCardTitle` so it shows the real street +
+  // house number ("Vivienda – Calle Campillo Altobuey 10") like every other
+  // card surface. Property → full-street mode (via-optional, includes the
+  // number, lotDescription fallback); vehicle → make/model branch.
+  const isVehicleCard = item.category
+    ? (OFFICIAL_CATEGORIES.MOVABLE as readonly string[]).includes(item.category)
+    : false;
+  const baseHeadline = auctionCardTitle({
+    address: item.address,
+    propertyType: item.propertyType,
+    auctionType: item.auctionType,
+    category: item.category,
+    municipality: item.municipality,
+    province: item.province,
+    title: item.title,
+    categoryGroup: isVehicleCard ? 'movable' : 'real_estate',
+    vehicleMake: item.vehicleMake,
+    vehicleModel: item.vehicleModel,
+    vehicleYear: item.vehicleYear,
+    lotDescription: item.lotDescription,
+    useFullStreet: !isVehicleCard,
+  });
+  const vehicleMakeModel =
+    isVehicleCard && item.vehicleMake && item.vehicleModel
+      ? `${titleCase(item.vehicleMake)} ${titleCase(item.vehicleModel)}`
+      : null;
+  const cardTitle = vehicleMakeModel ?? baseHeadline;
+
+  // Location chip — dedupe Town==Province (no "Valencia, Valencia"). Province
+  // "Desconocida" stays the explicit "Sin ubicación" fallback below.
+  const chipMuni = item.municipality ? capitalizeLocation(item.municipality) : null;
+  const chipProv =
+    item.province && item.province !== 'Desconocida'
+      ? capitalizeLocation(item.province)
+      : null;
+  const chipLocation = (() => {
+    if (chipMuni && chipProv && chipMuni.toLowerCase() === chipProv.toLowerCase()) {
+      return chipMuni;
+    }
+    if (chipMuni && chipProv) return `${chipMuni}, ${chipProv}`;
+    return chipMuni ?? chipProv ?? 'Sin ubicación';
+  })();
+
   // Centralized 3-rung imagery ladder — identical logic across dashboard
   // card, observatory card/row, carousel, detail. See lib/resolve-card-image.
   const [imgFailed, setImgFailed] = React.useState(false);
@@ -339,10 +386,7 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
           <div className="absolute bottom-2 left-2 right-2 z-10">
             <div className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-hairline)] bg-[var(--color-surface)]/95 px-2 py-1 text-[12px] font-medium text-[var(--color-ink-primary)] backdrop-blur-sm max-w-full">
               <MapPin className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">
-                {item.municipality ? `${capitalizeLocation(item.municipality)}, ` : ''}
-                {item.province !== 'Desconocida' ? capitalizeLocation(item.province) : 'Sin ubicación'}
-              </span>
+              <span className="truncate">{chipLocation}</span>
             </div>
           </div>
 
@@ -366,8 +410,8 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
             {/* Title - Larger */}
             <div>
               <div className="flex justify-between items-start gap-2">
-                <h3 className="font-bold text-gray-900 line-clamp-2 text-base leading-snug group-hover:text-blue-600 transition-colors h-12" title={item.title}>
-                  {item.title}
+                <h3 className="font-bold text-gray-900 line-clamp-2 text-base leading-snug group-hover:text-blue-600 transition-colors h-12" title={cardTitle}>
+                  {cardTitle}
                 </h3>
               </div>
             </div>

@@ -202,8 +202,11 @@ export function auctionDisplayTitle(input: DisplayTitleInput): string {
   }
 
   // 2. No street, but town/province known (vehicle, land, BOE without bien).
+  //    Dedupe Town==Province so we never render "Valencia, Valencia".
   if (municipality) {
-    const provSuffix = province ? `, ${titleCase(province)}` : '';
+    const sameAsMuni =
+      province != null && province.toLowerCase() === municipality.toLowerCase();
+    const provSuffix = province && !sameAsMuni ? `, ${titleCase(province)}` : '';
     return `Subasta de ${tipo} en ${titleCase(municipality)}${provSuffix}`;
   }
   if (province) {
@@ -279,6 +282,17 @@ export interface CardTitleInput extends DisplayTitleInput {
    *  existing logic if the short-street parse returns null. Vehicles are
    *  untouched — they take the `movable` branch above. */
   useShortStreet?: boolean | null;
+  /** Card-street fix (2026-06-19) — when true AND categoryGroup ===
+   *  'real_estate', the card title becomes "{Tipo} – {full street + house
+   *  number}" via {@link resolveTitleStreet}. Unlike `useShortStreet` this is
+   *  via-OPTIONAL (recovers via-less real streets that `shortStreetName`
+   *  wrongly dropped to town) and INCLUDES the first house number
+   *  ("Calle Campillo Altobuey 10"), with a `lotDescription` "Dirección"-tab
+   *  fallback. When no street can be resolved it falls back to the
+   *  municipality phrasing (Town==Province deduped). Vehicles untouched — they
+   *  take the `movable` branch above. Prefer this over `useShortStreet` on all
+   *  card surfaces. */
+  useFullStreet?: boolean | null;
 }
 
 /**
@@ -720,6 +734,42 @@ export function auctionCardTitle(input: CardTitleInput): string {
 
   // REAL ESTATE (or unknown group — default to property phrasing).
   //
+  // Town==Province fallback (kills "Vivienda en Valencia, Valencia"): when no
+  // street resolves we show "{Tipo} en {muni}" and append ", {province}" ONLY
+  // when province differs (case-insensitively) from municipality. Used by both
+  // the useFullStreet and useShortStreet branches and the bare fallback below.
+  const muniFallback = (): string | null => {
+    if (municipality) {
+      const sameAsMuni =
+        province != null &&
+        province.toLowerCase() === municipality.toLowerCase();
+      const provSuffix = province && !sameAsMuni ? `, ${titleCase(province)}` : '';
+      return `${tipo} en ${titleCase(municipality)}${provSuffix}`;
+    }
+    if (province) return `${tipo} en ${titleCase(province)}`;
+    return null;
+  };
+
+  // Card-street fix (2026-06-19): full-street mode. When the caller passes
+  // `useFullStreet=true`, resolve the street + first house number via
+  // `resolveTitleStreet` (via-OPTIONAL, includes the number, lotDescription
+  // fallback) and render "{Tipo} – {street}". This recovers the via-less real
+  // streets `shortStreetName` wrongly dropped to town AND surfaces the house
+  // number Dennis wants. Null parse → municipality fallback (Town==Province
+  // deduped). Vehicles handled earlier; this only fires for real-estate.
+  if (input.useFullStreet === true) {
+    const full = resolveTitleStreet(input);
+    if (full) {
+      const lowerStreet = full.toLowerCase();
+      const muniSuffix =
+        municipality && !lowerStreet.includes(municipality.toLowerCase())
+          ? `, ${titleCase(municipality)}`
+          : '';
+      return `${tipo} – ${full}${muniSuffix}`;
+    }
+    return muniFallback() ?? tipo;
+  }
+
   // C2 (2026-06-07): short-street mode. When the caller passes
   // `useShortStreet=true` and the address parses cleanly into a street name,
   // collapse the title to "{Tipo} – {street name}" (en-dash) so the card
@@ -730,15 +780,9 @@ export function auctionCardTitle(input: CardTitleInput): string {
     const short = shortStreetName(address);
     if (short) return `${tipo} – ${short}`;
     // No parseable street — fall through to the municipality fallback so the
-    // card shows "{Tipo} en {town}" instead of the long raw address.
-    if (municipality) {
-      const provSuffix = province ? `, ${titleCase(province)}` : '';
-      return `${tipo} en ${titleCase(municipality)}${provSuffix}`;
-    }
-    if (province) {
-      return `${tipo} en ${titleCase(province)}`;
-    }
-    return tipo;
+    // card shows "{Tipo} en {town}" instead of the long raw address
+    // (Town==Province deduped — no "Valencia, Valencia").
+    return muniFallback() ?? tipo;
   }
 
   if (address) {
@@ -749,15 +793,9 @@ export function auctionCardTitle(input: CardTitleInput): string {
         : '';
     return `${tipo} en ${titleCase(address)}${muniSuffix}`;
   }
-  if (municipality) {
-    const provSuffix = province ? `, ${titleCase(province)}` : '';
-    return `${tipo} en ${titleCase(municipality)}${provSuffix}`;
-  }
-  if (province) {
-    return `${tipo} en ${titleCase(province)}`;
-  }
-  // No location at all — fall back to tipo alone (never the BOE ref).
-  return tipo;
+  // No street, town/province known (Town==Province deduped). No location at
+  // all — fall back to tipo alone (never the BOE ref).
+  return muniFallback() ?? tipo;
 }
 
 /**

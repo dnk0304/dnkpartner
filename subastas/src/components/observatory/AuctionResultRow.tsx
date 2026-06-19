@@ -63,12 +63,14 @@ export type AuctionResultRowProps = {
 export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
   const effective = effectiveStatus(item.status, item.endDate) as AuctionStatus;
 
-  const where = [
-    item.municipality && titleCase(item.municipality),
-    item.province && capitalize(item.province),
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  // Town==Province dedupe (2026-06-19): show the town ONCE when municipality
+  // and province are the same place — never "Valencia · Valencia".
+  const where = (() => {
+    const m = item.municipality ? titleCase(item.municipality) : null;
+    const p = item.province ? capitalize(item.province) : null;
+    if (m && p && m.toLowerCase() === p.toLowerCase()) return m;
+    return [m, p].filter(Boolean).join(" · ");
+  })();
 
   // Row title (Wave C3, 2026-06-07):
   //   - PROPERTY: short-street "{Tipo} – {Calle X}" (helper from C2),
@@ -89,7 +91,8 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
     vehicleMake: item.vehicleMake,
     vehicleModel: item.vehicleModel,
     vehicleYear: item.vehicleYear,
-    useShortStreet: !isVehicle,
+    lotDescription: item.lotDescription,
+    useFullStreet: !isVehicle,
   });
   const vehicleMakeModel =
     isVehicle && item.vehicleMake && item.vehicleModel

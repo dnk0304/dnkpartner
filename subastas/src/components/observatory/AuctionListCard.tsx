@@ -42,9 +42,14 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
   // Clock-wins: stale celebrandose row with past endDate renders as concluded
   // so badge + countdown agree.
   const effective = effectiveStatus(item.status, item.endDate) as AuctionStatus;
-  const where = [item.municipality && titleCase(item.municipality), item.province && capitalize(item.province)]
-    .filter(Boolean)
-    .join(" · ");
+  // Town==Province dedupe (2026-06-19): show the town ONCE when municipality
+  // and province are the same place — never "Valencia · Valencia".
+  const where = (() => {
+    const m = item.municipality ? titleCase(item.municipality) : null;
+    const p = item.province ? capitalize(item.province) : null;
+    if (m && p && m.toLowerCase() === p.toLowerCase()) return m;
+    return [m, p].filter(Boolean).join(" · ");
+  })();
 
   // Category group hint — drives the dual-card-headline path (vehicle vs
   // property) and the short-street wiring below.
@@ -70,7 +75,8 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
     vehicleMake: item.vehicleMake,
     vehicleModel: item.vehicleModel,
     vehicleYear: item.vehicleYear,
-    useShortStreet: !isVehicle,
+    lotDescription: item.lotDescription,
+    useFullStreet: !isVehicle,
   });
   const vehicleMakeModel =
     isVehicle && item.vehicleMake && item.vehicleModel

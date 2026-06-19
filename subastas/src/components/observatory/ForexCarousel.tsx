@@ -838,7 +838,7 @@ function ExpandedCard({
     vehicleMake: auction.vehicleMake,
     vehicleModel: auction.vehicleModel,
     vehicleYear: auction.vehicleYear,
-    useShortStreet: !isVehicleRow,
+    useFullStreet: !isVehicleRow,
   });
   const vehicleMakeModel =
     isVehicleRow && auction.vehicleMake && auction.vehicleModel
@@ -875,9 +875,15 @@ function ExpandedCard({
 
   const muni = cleanLoc(auction.municipality);
   const prov = cleanLoc(auction.province);
-  const where = [muni && titleCase(muni), prov && capitalize(prov)]
-    .filter(Boolean)
-    .join(" · ");
+  // Town==Province dedupe (2026-06-19): when municipality and province are the
+  // same place (e.g. Valencia/Valencia), show the town ONCE — never the
+  // redundant "Valencia · Valencia".
+  const where = (() => {
+    const m = muni ? titleCase(muni) : null;
+    const p = prov ? capitalize(prov) : null;
+    if (m && p && m.toLowerCase() === p.toLowerCase()) return m;
+    return [m, p].filter(Boolean).join(" · ");
+  })();
   // Three-value display (Dennis-locked 2026-06-04, brief
   // `three-values-card-display`): Tasación + Valor subasta + Cantidad
   // reclamada are now distinct columns after Ghost's 2026-06-04 split. The
