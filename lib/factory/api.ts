@@ -11,6 +11,7 @@ import { validateSessionToken } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { publishGateMessage } from './etsyAdapter';
 import { getStage } from './types';
+import { computeRunProgress } from './progress';
 import type { JwtPayload } from '@/lib/auth';
 import type { Run } from '@prisma/client';
 
@@ -79,6 +80,8 @@ export async function serializeRun(run: Run) {
     status: run.status,
     createdAt: run.createdAt,
     updatedAt: run.updatedAt,
+    // Real progress signal — stage X/N + per-call liveness from the token log.
+    progress: computeRunProgress(run),
     pendingGate,
     artifacts,
     gateLogs,

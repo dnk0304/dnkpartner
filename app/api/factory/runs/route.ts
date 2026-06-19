@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireOwner, apiError, serializeRun } from '@/lib/factory/api';
 import { advanceOneStage } from '@/lib/factory/runner';
+import { computeRunProgress } from '@/lib/factory/progress';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,7 +56,7 @@ export async function GET(req: NextRequest) {
   const gate = await requireOwner(req.cookies.get('auth_token')?.value);
   if ('error' in gate) return gate.error;
 
-  const runs = await db.run.findMany({
+  const rows = await db.run.findMany({
     orderBy: { createdAt: 'desc' },
     take: 50,
     select: {
@@ -67,5 +68,11 @@ export async function GET(req: NextRequest) {
       updatedAt: true,
     },
   });
+  // Attach the real progress signal (stage X/N + token-log liveness) so cards
+  // can show a filling bar + live "processing" state without an extra request.
+  const runs = rows.map((r) => ({
+    ...r,
+    progress: computeRunProgress(r),
+  }));
   return NextResponse.json({ runs });
 }

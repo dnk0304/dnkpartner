@@ -86,6 +86,13 @@ export async function advanceOneStage(run: Run): Promise<AdvanceResult> {
   const stage = getStage(stageN);
   const priorArtifacts = await loadPriorArtifacts(run.id);
 
+  // Stamp the real run id into the env the token meter reads, so per-run totals
+  // in .factory-tokens.jsonl are EXACT regardless of whether the external driver
+  // exported FACTORY_RUN_ID. The LLM seam (llm.ts → meterUsage) reads this at
+  // call time; setting it here threads the run id without changing the seam's
+  // signature (the low-risk option the llm.ts metering note already anticipates).
+  process.env.FACTORY_RUN_ID = run.id;
+
   // ── Run the produce → adversarial gate → resolve loop for this stage ──────
   //
   // Durability: each loop's GateLog row is committed the INSTANT that loop
@@ -194,6 +201,9 @@ export async function resumeFromGate(
   by: string,
 ): Promise<AdvanceResult> {
   const stage = getStage(run.stage);
+
+  // Keep the token meter's run id exact for any LLM calls this resume path drives.
+  process.env.FACTORY_RUN_ID = run.id;
 
   await db.decision.create({
     data: { runId: run.id, gate, choice, by },

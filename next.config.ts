@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Build output dir. Defaults to .next; override with NEXT_DIST_DIR so a
+  // verification `next build` can run into an isolated dir without colliding
+  // with a `next dev` server that is holding .next on the same worktree.
+  ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
+
   // Disable StrictMode in dev — it double-renders every component on every
   // state change (intentional for side-effect detection, but halves perf on
   // complex components like Dashboard). Re-enable if auditing for side effects.
