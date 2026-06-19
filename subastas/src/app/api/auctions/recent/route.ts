@@ -84,6 +84,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { boeLinkFor } from "@/lib/boe-link";
+import { derivePricePerM2 } from "@/lib/auction-derive";
 import { categoryRankOf } from "@/lib/category-rank";
 import {
   ACTIVE_OR_UPCOMING_DB_STATUSES,
@@ -143,6 +144,10 @@ type FeedAuctionProjection = {
   vehicleMake: string | null;
   vehicleModel: string | null;
   vehicleYear: number | null;
+  // surfaceM2 + derived €/m² (2026-06-19, property-card-redesign). m² from
+  // Ghost's prose extraction; €/m² derived at read time. Honest-NULL.
+  surfaceM2: number | null;
+  pricePerM2: number | null;
 };
 
 type FeedItem = {
@@ -270,6 +275,8 @@ function projectAuction(a: {
   vehicleMake?: string | null;
   vehicleModel?: string | null;
   vehicleYear?: number | null;
+  // surfaceM2 (2026-06-19) — Float? from Prisma → number | null.
+  surfaceM2?: number | null;
   _count?: { documents: number } | null;
 }): FeedAuctionProjection {
   return {
@@ -320,6 +327,10 @@ function projectAuction(a: {
     vehicleMake: a.vehicleMake ?? null,
     vehicleModel: a.vehicleModel ?? null,
     vehicleYear: a.vehicleYear ?? null,
+    // surfaceM2 + derived €/m² (2026-06-19). Same derive rule as /api/auctions:
+    // round(valorSubasta||appraisalValue ÷ m²). Honest-NULL ⇒ card omits pill.
+    surfaceM2: a.surfaceM2 ?? null,
+    pricePerM2: derivePricePerM2(a.valorSubasta, a.appraisalValue, a.surfaceM2),
   };
 }
 
@@ -422,6 +433,9 @@ const AUCTION_CARD_SELECT = {
   vehicleMake: true,
   vehicleModel: true,
   vehicleYear: true,
+  // surfaceM2 (2026-06-19) — Prisma select MUST list it explicitly (unlike the
+  // raw `SELECT Auction.*` route). Feeds the read-time €/m² derive.
+  surfaceM2: true,
   // Document-archive wave (2026-06-03). `_count` produces `hasDocuments` on
   // cards WITHOUT inlining the full doc array (keeps the list query lean).
   _count: { select: { documents: true } },

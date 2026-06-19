@@ -7,6 +7,7 @@ import {
 } from '@/lib/auction-image-projection';
 import { auctionCache } from '@/lib/cache';
 import { boeLinkFor } from '@/lib/boe-link';
+import { derivePricePerM2, coerceFiniteNumber } from '@/lib/auction-derive';
 import { buildCategoryRankCaseSql } from '@/lib/category-rank';
 import {
   ACTIVE_DB_STATUSES,
@@ -238,6 +239,12 @@ interface AuctionFromDB {
   vehicleMake: string | null;
   vehicleModel: string | null;
   vehicleYear: number | null;
+  // surfaceM2 (2026-06-19) — building surface area in m², from Ghost's prose
+  // extraction (`8956c5f`). Arrives via `SELECT Auction.*`. Stored as Float in
+  // the schema so pg returns a JS number; coerced defensively in transform
+  // anyway (NUMERIC would arrive as a string). Honest-NULL when not extracted.
+  // Drives the read-time €/m² derive (no stored pricePerM2 column).
+  surfaceM2: number | null;
 }
 
 // Map DB status to frontend status. Delegates to the shared
@@ -438,6 +445,14 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
   // a JS boolean; null/undefined collapse to false so cards never render
   // the "documentos" indicator on a row we never queried for.
   const hasDocuments = Boolean(item.hasDocuments);
+  // surfaceM2 (2026-06-19) — coerce defensively (Float arrives as number;
+  // NUMERIC would arrive as a string) → finite number or null.
+  const surfaceM2 = coerceFiniteNumber(item.surfaceM2);
+  // €/m² derived at read time (NOT stored). Numerator precedence:
+  // valorSubasta>0 → appraisalValue>0 → null. Uses the post-pre-auction
+  // `appraisalValue` computed above (pre-auction-without-pdf nulls appraisal;
+  // €/m² then falls to valorSubasta or null — honest). NULL ⇒ card omits pill.
+  const pricePerM2 = derivePricePerM2(item.valorSubasta, appraisalValue, surfaceM2);
 
   if (isLocked) {
     // Locked teaser
@@ -512,6 +527,12 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
       vehicleMake: item.vehicleMake ?? null,
       vehicleModel: item.vehicleModel ?? null,
       vehicleYear: item.vehicleYear ?? null,
+      // surfaceM2 + €/m² (2026-06-19) — PUBLIC auction facts (same posture as
+      // occupancy / vehicle make-model above), so projected honestly even on
+      // locked teasers. €/m² is derived from valorSubasta/appraisalValue ÷ m²;
+      // null ⇒ the card omits the pill.
+      surfaceM2,
+      pricePerM2,
     };
   }
 
@@ -589,6 +610,11 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
     vehicleMake: item.vehicleMake ?? null,
     vehicleModel: item.vehicleModel ?? null,
     vehicleYear: item.vehicleYear ?? null,
+    // surfaceM2 + derived €/m² (2026-06-19, property-card-redesign). m² from
+    // Ghost's prose extraction; €/m² = round(valorSubasta||appraisalValue ÷ m²)
+    // — read-time derive, never stored. Honest-NULL ⇒ card omits the pill.
+    surfaceM2,
+    pricePerM2,
   };
 }
 

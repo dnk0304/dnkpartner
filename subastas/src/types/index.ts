@@ -135,6 +135,14 @@ export interface AuctionItem {
   // #17 — Situación posesoria.
   //   'OCUPADO' | 'NO_OCUPADO' | 'NO_CONSTA' | null (null = unscraped).
   occupancy?: 'OCUPADO' | 'NO_OCUPADO' | 'NO_CONSTA' | string | null;
+  // surfaceM2 (2026-06-19, property-card-redesign) — building surface area in
+  // SQUARE METRES (Ghost prose extraction). Null when not extracted.
+  surfaceM2?: number | null;
+  // pricePerM2 (2026-06-19) — DERIVED at read time, never stored:
+  // round(valorSubasta>0 || appraisalValue>0 ÷ surfaceM2). Null when surfaceM2
+  // is null/≤0 or no positive numerator. Honest-NULL ⇒ the card omits the
+  // €/m² pill entirely (never 0, never "—").
+  pricePerM2?: number | null;
   /**
    * Referencia catastral — the 20-character Spanish cadastral identifier.
    * Only ~2.5% of active rows currently carry a value (the BOE-gazette

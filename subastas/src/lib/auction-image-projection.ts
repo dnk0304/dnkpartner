@@ -27,7 +27,7 @@
  */
 import fs from 'fs';
 import path from 'path';
-import { generateMapImageUrl, getOptimalZoom } from './map-image';
+import { siteFallbackImageUrl } from './auction-image-url';
 import { getVehicleCategoryImageUrl } from './vehicle-images';
 import { getPropertyCategoryImageUrl } from './property-images';
 
@@ -113,15 +113,15 @@ export type AuctionImageInput = {
  *
  * Rung 1: resolver-served real photo (`/api/auction-image/<boeId>` or a
  *   verified `/streetview/<safe>.jpg` file). Always wins when present.
- * Rung 2: Google Static Maps pin at the row's lat/lng (via
- *   `generateMapImageUrl` → `siteFallbackImageUrl`). When the Static Maps
- *   API isn't usable, this rung degrades to the branded placeholder PNG
- *   (see `siteFallbackImageUrl` for the env flag logic).
+ * Rung 2: canonical self-hosted map pin at the row's lat/lng — minted via
+ *   `siteFallbackImageUrl`, which returns the FREE `/api/auction-map/<key>`
+ *   URL (wave105). This is the SAME canonical map URL the client resolver and
+ *   the alert email use, so the whole system mints ONE map-pin URL per coord.
+ *   When coords are missing it degrades to the branded placeholder.
  * Rung 3: category placeholder — property or vehicle SVG / image — for
  *   rows with no real photo and no coords.
  */
 export function getAppropriateImageUrl(item: AuctionImageInput): string {
-  const zoom = getOptimalZoom(item.category);
   const safeStreetviewPath = item.boeId
     ? `/streetview/${item.boeId.replace(/[^a-zA-Z0-9_-]+/g, '_')}.jpg`
     : null;
@@ -184,13 +184,13 @@ export function getAppropriateImageUrl(item: AuctionImageInput): string {
         return safeStreetviewPath;
       }
       if (item.latitude && item.longitude) {
-        return generateMapImageUrl(item.latitude, item.longitude, 800, 600, zoom);
+        return siteFallbackImageUrl(item.latitude, item.longitude, item.category);
       }
       return getPropertyCategoryImageUrl(item.category);
     }
     if (storedImageUrl) return storedImageUrl;
     if (item.latitude && item.longitude) {
-      return generateMapImageUrl(item.latitude, item.longitude, 800, 600, zoom);
+      return siteFallbackImageUrl(item.latitude, item.longitude, item.category);
     }
     return getPropertyCategoryImageUrl(item.category);
   }
@@ -205,7 +205,7 @@ export function getAppropriateImageUrl(item: AuctionImageInput): string {
   const fallbackImageUrl = hasValidLocalImage(item.imageUrl) ? item.imageUrl : null;
   if (fallbackImageUrl) return fallbackImageUrl;
   if (item.latitude && item.longitude) {
-    return generateMapImageUrl(item.latitude, item.longitude, 800, 600, zoom);
+    return siteFallbackImageUrl(item.latitude, item.longitude, item.category);
   }
   return getPropertyCategoryImageUrl('Otros inmuebles');
 }
