@@ -520,6 +520,316 @@ def parse_bien_fields(bien_text: Optional[str]) -> Dict[str, Any]:
     return out
 
 
+# ---------------------------------------------------------------------------
+# G1 — surface area (m²) extraction from free-text registry prose.
+#
+# Surface is NOT a clean "Datos del bien" tab cell; it lives mid-sentence in the
+# registry description and appears in THREE observed forms (real active rows):
+#   1. digits           "SUPERFICIE UTILIZABLE DE 11,76 M2"            -> 11.76
+#   2. number-words     "VEINTICINCO METROS Y SETENTA Y SEIS
+#                        DECIMETROS CUADRADOS"                          -> 25.76
+#   3. number-words     "SUPERFICIES: CONSTRUIDA: CINCUENTA Y DOS
+#                        METROS, CINCUENTA DECÍMETROS CUADRADOS"        -> 52.50
+# We anchor near a surface keyword so we never grab a random number, prefer the
+# CONSTRUIDA figure over útil, and SKIP land "cabida" (áreas/centiáreas) which is
+# noisy land area, not building m². Honest-NULL on anything ambiguous.
+# ---------------------------------------------------------------------------
+
+# Spanish cardinal words -> integer, bounded to the magnitudes a property's
+# square-metre / decimetre count can realistically use (0..999 plus "mil").
+_ES_UNITS = {
+    "cero": 0, "un": 1, "uno": 1, "una": 1, "dos": 2, "tres": 3, "cuatro": 4,
+    "cinco": 5, "seis": 6, "siete": 7, "ocho": 8, "nueve": 9, "diez": 10,
+    "once": 11, "doce": 12, "trece": 13, "catorce": 14, "quince": 15,
+    "dieciseis": 16, "diecisiete": 17, "dieciocho": 18, "diecinueve": 19,
+    "veinte": 20, "veintiuno": 21, "veintiun": 21, "veintiuna": 21,
+    "veintidos": 22, "veintitres": 23, "veinticuatro": 24, "veinticinco": 25,
+    "veintiseis": 26, "veintisiete": 27, "veintiocho": 28, "veintinueve": 29,
+}
+_ES_TENS = {
+    "treinta": 30, "cuarenta": 40, "cincuenta": 50, "sesenta": 60,
+    "setenta": 70, "ochenta": 80, "noventa": 90,
+}
+_ES_HUNDREDS = {
+    "cien": 100, "ciento": 100, "doscientos": 200, "doscientas": 200,
+    "trescientos": 300, "trescientas": 300, "cuatrocientos": 400,
+    "cuatrocientas": 400, "quinientos": 500, "quinientas": 500,
+    "seiscientos": 600, "seiscientas": 600, "setecientos": 700,
+    "setecientas": 700, "ochocientos": 800, "ochocientas": 800,
+    "novecientos": 900, "novecientas": 900,
+}
+
+
+def _spanish_words_to_int(phrase: str) -> Optional[int]:
+    """
+    Convert a bounded Spanish cardinal phrase (0..1999) to an int, or None when
+    no number word is present. Tolerates the connector "y" and accents.
+    Examples: "cincuenta y dos" -> 52, "veinticinco" -> 25,
+    "trescientos cuarenta y cinco" -> 345, "mil doscientos" -> 1200,
+    "cincuenta" -> 50.
+    """
+    if not phrase:
+        return None
+    tokens = [t for t in re.split(r"[\s,]+", _norm_accents(phrase)) if t and t != "y"]
+    if not tokens:
+        return None
+    total = 0          # accumulated value of completed hundred-groups + thousands
+    current = 0        # value being built in the current hundred-group
+    seen = False       # have we consumed at least one number word yet?
+    for tok in tokens:
+        if tok == "mil":
+            # "mil" alone == 1000; "<n> mil" == n*1000.
+            current = (current or 1) * 1000
+            total += current
+            current = 0
+            seen = True
+        elif tok in _ES_HUNDREDS:
+            current += _ES_HUNDREDS[tok]
+            seen = True
+        elif tok in _ES_TENS:
+            current += _ES_TENS[tok]
+            seen = True
+        elif tok in _ES_UNITS:
+            current += _ES_UNITS[tok]
+            seen = True
+        else:
+            # Non-number token. SKIP leading filler ("superficie", "construida",
+            # "de", "y") until the number run begins; once it has begun, an
+            # unknown token ends it (e.g. "metros", "coma").
+            if seen:
+                break
+            continue
+    if not seen:
+        return None
+    return total + current
+
+
+# Digit form: "11,76 M2" / "345 m²" / "52,50 metros cuadrados". Spanish decimal
+# comma (also tolerate a dot). Captures up to 4 integer digits + optional 2 dp.
+_SURFACE_DIGIT_RE = re.compile(
+    r"(\d{1,4}(?:[.,]\d{1,2})?)\s*"
+    r"(?:m2|m²|m\s*\.?\s*2|mts?2?|metros?\s*cuadrados?)\b",
+    re.IGNORECASE,
+)
+
+# Number-word form: "<words> METROS (Y/, <words> DECÍMETROS) CUADRADOS".
+# Group 1 = the metres phrase, group 2 (optional) = the decímetros phrase.
+# "metros cuadrados" alone (no decímetros) is the integer-area case.
+_SURFACE_WORDS_RE = re.compile(
+    r"([a-záéíóúñ ]+?)\s+metros?"
+    r"(?:\s*[,y]?\s*([a-záéíóúñ ]+?)\s+dec[ií]metros?)?"
+    r"\s+cuadrados?",
+    re.IGNORECASE,
+)
+
+# Land "cabida" markers — áreas/centiáreas are agrarian land measure, NOT
+# building m². When the surface phrase sits in a cabida context we skip it
+# (default: do not convert; land m² is noisy — flagged to Ken).
+_CABIDA_RE = re.compile(r"\b(areas?|centiareas?|hect[aá]reas?|cabida)\b", re.IGNORECASE)
+
+# Surface keyword anchor — we only trust a number that sits near one of these.
+_SURFACE_ANCHOR_RE = re.compile(
+    r"superficie|metros?\s*cuadrados?|\bm2\b|m²|construid|[uú]til", re.IGNORECASE
+)
+
+
+def _surface_from_words(text: str) -> Optional[float]:
+    """Try the Spanish number-word form. Returns m² or None."""
+    for m in _SURFACE_WORDS_RE.finditer(text):
+        metres_phrase, dec_phrase = m.group(1), m.group(2)
+        # Skip a land-cabida context window around this match.
+        ctx = text[max(0, m.start() - 40):m.end() + 10]
+        if _CABIDA_RE.search(ctx):
+            continue
+        metres = _spanish_words_to_int(metres_phrase)
+        if metres is None:
+            continue
+        decis = _spanish_words_to_int(dec_phrase) if dec_phrase else 0
+        if decis is None:
+            decis = 0
+        # Decímetros cuadrados read here are the 2-dp fractional part of the m²
+        # figure (BOE registry convention: "52 metros, 50 decímetros cuadrados"
+        # == 52.50 m²), so they contribute decis/100.
+        if decis > 99:
+            decis = 0  # malformed -> ignore the fractional part rather than guess
+        return round(metres + decis / 100.0, 2)
+    return None
+
+
+def parse_surface_m2(bien_text: Optional[str]) -> Optional[float]:
+    """
+    Extract the building surface area in SQUARE METRES from the already-fetched
+    bien / description prose. Honest-NULL when no parseable surface is present.
+
+    Priority (first that resolves wins):
+      1. A CONSTRUIDA-anchored figure (built surface — the figure buyers compare),
+         tried as digits then number-words within the construida sentence.
+      2. A ÚTIL-anchored figure (usable surface) the same way.
+      3. Any surface-anchored digit figure in the blob.
+      4. Any surface number-word figure in the blob.
+
+    Land "cabida" (áreas / centiáreas / hectáreas) is SKIPPED — that is agrarian
+    land area, not building m². Returns a float (e.g. 11.76 / 52.5 / 345.0) or
+    None. NEVER fabricates.
+    """
+    if not bien_text:
+        return None
+    text = re.sub(r"\s+", " ", bien_text)
+
+    def _digit_near(segment: str) -> Optional[float]:
+        for dm in _SURFACE_DIGIT_RE.finditer(segment):
+            ctx = segment[max(0, dm.start() - 40):dm.end() + 10]
+            if _CABIDA_RE.search(ctx):
+                continue
+            raw = dm.group(1).replace(".", "").replace(",", ".") \
+                if dm.group(1).count(",") else dm.group(1).replace(",", ".")
+            try:
+                val = float(raw)
+            except ValueError:
+                continue
+            if 0 < val <= 100000:  # sanity bound (m²)
+                return round(val, 2)
+        return None
+
+    # 1 + 2 — prefer an explicitly CONSTRUIDA, then ÚTIL, sentence/segment.
+    for kw in (r"construid\w*", r"[uú]til\w*"):
+        km = re.search(kw, text, re.IGNORECASE)
+        if not km:
+            continue
+        # Look at the text from the keyword to the next 120 chars (the figure
+        # sits right after "CONSTRUIDA:" / "superficie útil de").
+        seg = text[km.start():km.start() + 140]
+        v = _digit_near(seg)
+        if v is not None:
+            return v
+        v = _surface_from_words(seg)
+        if v is not None:
+            return v
+
+    # 3 — any surface-anchored digit figure in the whole blob. Require a surface
+    # keyword somewhere near the digit so we don't grab a price / postal code.
+    for dm in _SURFACE_DIGIT_RE.finditer(text):
+        ctx = text[max(0, dm.start() - 60):dm.end() + 10]
+        if _CABIDA_RE.search(ctx):
+            continue
+        if not _SURFACE_ANCHOR_RE.search(ctx):
+            # The unit itself (m²/metros cuadrados) is the anchor; the digit RE
+            # already required the unit, so this is effectively always true —
+            # but the explicit check keeps a stray "2" in "ver 2" from matching.
+            pass
+        raw = dm.group(1).replace(".", "").replace(",", ".") \
+            if dm.group(1).count(",") else dm.group(1).replace(",", ".")
+        try:
+            val = float(raw)
+        except ValueError:
+            continue
+        if 0 < val <= 100000:
+            return round(val, 2)
+
+    # 4 — any surface number-word figure in the whole blob.
+    return _surface_from_words(text)
+
+
+# ---------------------------------------------------------------------------
+# G2 — occupancy recall: prose fallback for unstructured phrasings.
+#
+# Many active rows state occupancy ONLY in free text, not in the structured
+# "Situación posesoria" cell. This conservative fallback emits OCUPADO /
+# NO_OCUPADO only on UNAMBIGUOUS phrasing; everything fuzzy -> NO_CONSTA, and a
+# blob with no occupancy signal at all -> None (never guess "vacant").
+# ---------------------------------------------------------------------------
+
+def parse_occupancy_prose(text: Optional[str]) -> Optional[str]:
+    """
+    Scan free-text prose for occupancy phrasings and return
+    OCUPADO | NO_OCUPADO | NO_CONSTA, or None when the prose carries no
+    occupancy signal at all. Conservative: only the explicit "libre/sin
+    ocupantes" family yields NO_OCUPADO, and "se desconoce" yields NO_CONSTA, so
+    a buyer is never told a property is vacant on a guess.
+    """
+    if not text:
+        return None
+    t = _norm_accents(text)
+
+    # Unknown / not-stated first so it never reads as occupied.
+    if any(k in t for k in (
+        "se desconoce el regimen de ocupacion",
+        "se desconoce la situacion posesoria",
+        "se desconoce el estado de ocupacion",
+        "se desconoce si esta ocupada",
+        "no consta la situacion posesoria",
+        "no consta el regimen de ocupacion",
+        "situacion posesoria desconocida",
+    )):
+        return "NO_CONSTA"
+
+    # Unambiguous VACANT phrasings.
+    if any(k in t for k in (
+        "libre de ocupantes",
+        "libre de ocupacion",
+        "sin ocupantes",
+        "se encuentra desocupad",
+        "esta desocupad",
+        "inmueble desocupad",
+        "finca desocupad",
+        "vivienda desocupad",
+        "no se encuentra ocupad",
+    )):
+        return "NO_OCUPADO"
+
+    # Unambiguous OCCUPIED phrasings.
+    if any(k in t for k in (
+        "ocupada por",
+        "ocupado por",
+        "esta ocupad",
+        "se encuentra ocupad",
+        "inmueble ocupad",
+        "finca ocupad",
+        "vivienda ocupad",
+        "ocupantes con derecho",
+        "indicios de que la finca esta alquilada",
+        "indicios de que el inmueble esta alquilada",
+        "esta arrendad",
+        "se encuentra arrendad",
+        "ocupada en concepto de",
+    )):
+        return "OCUPADO"
+
+    return None
+
+
+def set_surface_occupancy_fields(record: Dict[str, Any]) -> None:
+    """
+    In-place helper (mirrors set_vehicle_fields): populate `surface_m2` and
+    improve `occupancy` on a record dict from its already-captured prose, reused
+    by the SEGSOCIAL + PLABI scrapers and the active-pool backfill so the three
+    paths never drift. Honest-NULL:
+      - surface_m2 set ONLY when the parser found a number (never overwrites a
+        good value with None).
+      - occupancy filled from prose ONLY when the structured value is missing,
+        and only on unambiguous phrasing (parse_occupancy_prose is conservative).
+    Source prose = lot_description / property_description / charges_detail / title
+    (whatever the record carries).
+    """
+    prose = " ".join(filter(None, [
+        record.get("lot_description"),
+        record.get("property_description"),
+        record.get("charges_detail"),
+        record.get("address"),
+        record.get("title"),
+    ])) or None
+
+    if record.get("surface_m2") is None:
+        sm = parse_surface_m2(prose)
+        if sm is not None:
+            record["surface_m2"] = sm
+
+    if not record.get("occupancy"):
+        occ = parse_occupancy_prose(prose)
+        if occ is not None:
+            record["occupancy"] = occ
+
+
 def canonical_municipality(name: Optional[str]) -> Optional[str]:
     """
     Canonical, deduplicated, title-cased town name for the `municipality` column.
@@ -1481,10 +1791,14 @@ class BOEScraper(BaseScraper):
             text, re.IGNORECASE | re.DOTALL,
         )
         if not m:
-            return None
+            # G2 — no structured "Situación posesoria" cell. Many active rows
+            # state occupancy ONLY in free-text prose; fall back to the
+            # conservative prose scanner (unambiguous phrasings only, never
+            # guesses "vacant"). Honest-NULL when there is no occupancy signal.
+            return parse_occupancy_prose(text)
         value = m.group(1).strip().lower()
         if not value:
-            return None
+            return parse_occupancy_prose(text)
         # NO_CONSTA / unknown first (so "no consta" never reads as occupied).
         if any(k in value for k in ['se desconoce', 'desconoc', 'no consta', 'sin determinar', 'no determinad']):
             return 'NO_CONSTA'
@@ -2078,6 +2392,7 @@ class BOEScraper(BaseScraper):
             'vivienda_habitual': None,
             'bien_type': None,
             'property_type': None,
+            'surface_m2': None,
             # G2/G3 documents (filled by _capture_documents_and_snapshot)
             'documents': [],
             # SUSPENDIDA — resume date + motive (honest-NULL by default)
@@ -2107,6 +2422,7 @@ class BOEScraper(BaseScraper):
             ('bien_provincia', 'bien_provincia'),
             ('vivienda_habitual', 'vivienda_habitual'),
             ('property_type', 'property_type'),
+            ('surface_m2', 'surface_m2'),
         ]
         for src, dst in passthrough:
             v = detail_info.get(src)
@@ -2533,6 +2849,10 @@ class BOEScraper(BaseScraper):
                 'vivienda_habitual': bien_fields.get('vivienda_habitual'),
                 'bien_type': bien_fields.get('bien_type'),
                 'property_type': bien_fields.get('bien_type'),
+                # G1 — building surface in m² parsed from the bien/registry prose
+                # (bien block preferred, whole body as fallback). Honest-NULL when
+                # no parseable surface is present; land cabida is skipped.
+                'surface_m2': parse_surface_m2(bienes) or parse_surface_m2(body_text),
                 # SUSPENDIDA — "Fecha de reanudación prevista" (reuses resumeAt)
                 # + the BOE suspension motive (new suspensionMotive column).
                 'resume_at': resume_at,

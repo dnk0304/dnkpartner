@@ -178,6 +178,16 @@ model Auction {
   bienProvincia       String?
   viviendaHabitual    Boolean?
 
+  // surfaceM2 (2026-06-19) — building surface area in SQUARE METRES, parsed by
+  // Ghost from the registry/bien free-text prose (digit "11,76 M2" and Spanish
+  // number-word "veinticinco metros y setenta y seis decímetros cuadrados"
+  // forms). NOT a structured BOE tab cell. Honest-NULL when no parseable
+  // surface (or only agrarian "cabida" áreas/centiáreas) is present — never 0,
+  // never fabricated. Float (m² can be 11.76 / 52.50). €/m² is DERIVED at read
+  // time (valorSubasta ÷ surfaceM2, else appraisalValue ÷ surfaceM2) — no stored
+  // column, so it can never go stale when either input changes.
+  surfaceM2           Float?
+
   // Vehicle fields (wave E2, 2026-06-07) — make/model/year for VEHICLE-category
   // auctions (Turismos, Motocicletas, Camiones, …). Source: BOE/SEGSOCIAL/PLABI
   // vehicle ficha pages (Ghost E1 extracts; this column set lands the storage).

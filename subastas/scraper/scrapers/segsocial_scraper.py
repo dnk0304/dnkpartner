@@ -48,6 +48,7 @@ from ..config.provinces import ALL_PROVINCES, get_province_by_code
 from ..config.municipality_province import canonical_municipality_name
 from ..config.categories import get_category_type
 from .vehicle_parser import set_vehicle_fields
+from .boe_scraper import set_surface_occupancy_fields
 
 import logging
 
@@ -421,6 +422,8 @@ class SegSocialScraper(BankBaseScraper):
         }
         # Vehicle make/model/year (wave E2) — no-op on non-vehicle bienes.
         set_vehicle_fields(record)
+        # G1/G2 — surface m² + occupancy from the TGSS bien prose. Honest-NULL.
+        set_surface_occupancy_fields(record)
         return record
 
     @staticmethod

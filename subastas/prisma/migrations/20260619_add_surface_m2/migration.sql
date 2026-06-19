@@ -1,0 +1,43 @@
+-- surfaceM2 — building surface area in SQUARE METRES (2026-06-19) — Ghost.
+-- Additive ONLY. ONE new nullable column on "Auction": "surfaceM2".
+-- CREATED, NOT APPLIED — Ken applies on the box via `prisma migrate deploy`
+-- FIRST (before the scheduler rebuild), mirroring the wave52 suspensionMotive /
+-- wave54 valorSubasta pattern.
+--
+-- WHY: idealista-style property cards (Dennis green-lit 2026-06-19) want surface
+-- m² and a derived €/m². Surface is NOT a clean BOE "Datos del bien" tab cell —
+-- it lives mid-sentence in the registry prose in THREE forms (all real, active
+-- rows):
+--   digit          "SUPERFICIE UTILIZABLE DE 11,76 M2"                  -> 11.76
+--   number-words   "VEINTICINCO METROS Y SETENTA Y SEIS DECIMETROS
+--                   CUADRADOS"                                          -> 25.76
+--   number-words   "CONSTRUIDA: CINCUENTA Y DOS METROS, CINCUENTA
+--                   DECÍMETROS CUADRADOS"                               -> 52.50
+-- Ghost's new parse_surface_m2() (scrapers/boe_scraper.py) extracts it from the
+-- already-fetched bien block — no new page fetches. Agrarian land "cabida"
+-- (áreas / centiáreas / hectáreas) is SKIPPED (noisy land area, not building m²).
+--
+-- Idempotent (IF NOT EXISTS) so a partial prior apply or local re-run is a
+-- no-op. Follows the convention of:
+--   20260603_add_auction_documents
+--   20260604_add_suspension_motive
+--   20260605_add_valor_subasta
+--   20260607_add_vehicle_make_model_year
+--
+-- Sequencing (Ken applies): AFTER 20260616_add_geocode_attempt_tracking.
+-- Independent of every prior wave's columns. Existing rows get NULL until Ghost
+-- backfills the ACTIVE pool via backfill_surface_occupancy.py (the adapter's
+-- information_schema guard makes the write safe pre/post migration).
+--
+-- SEMANTICS:
+--   "surfaceM2" = building surface in m² (Float / DOUBLE PRECISION; e.g. 11.76,
+--   52.5, 345.0). Honest-NULL when no parseable surface (or only land cabida) is
+--   present — NEVER 0, NEVER fabricated. Same honest-NULL posture as
+--   valorSubasta / occupancy.
+--
+-- DERIVED, NOT STORED: €/m² is computed at READ time = valorSubasta ÷ surfaceM2
+-- (prefer valorSubasta, else appraisalValue ÷ surfaceM2). No column for it —
+-- storing it would go stale whenever either input changes. Type DOUBLE PRECISION
+-- to match every other numeric column (Float? in schema.prisma).
+
+ALTER TABLE "Auction" ADD COLUMN IF NOT EXISTS "surfaceM2" DOUBLE PRECISION;

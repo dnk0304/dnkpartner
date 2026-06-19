@@ -33,6 +33,7 @@ _BIEN_FIELD_COLS = [
     ('bien_localidad',       'bienLocalidad'),
     ('bien_provincia',       'bienProvincia'),
     ('vivienda_habitual',    'viviendaHabitual'),
+    ('surface_m2',           'surfaceM2'),
 ]
 
 # Vehicle make/model/year columns (Forge wave E2, 20260607). (data_key, db_col).
@@ -427,7 +428,7 @@ class DatabaseAdapter:
                                       'vehicleMake', 'vehicleModel', 'vehicleYear',
                                       'postalCode', 'idufir', 'registryInscription',
                                       'legalTitle', 'bienLocalidad', 'bienProvincia',
-                                      'viviendaHabitual')
+                                      'viviendaHabitual', 'surfaceM2')
             """)
             forge_cols = {r[0] for r in cursor.fetchall()}
         except Exception:
