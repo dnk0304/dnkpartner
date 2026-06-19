@@ -242,6 +242,20 @@ export const ALERTABLE_DB_STATUSES_SQL = ALERTABLE_DB_STATUSES
   .map((s) => `'${s}'`)
   .join(',');
 
+/**
+ * Quoted comma-separated SQL literal list of LIVE_NOW_DB_STATUSES
+ * (ACTIVE / CELEBRANDOSE), for inline use in a raw-SQL `status IN (...)` clause.
+ *
+ * Used by /api/alerts/check's FUTURE-END GATE (Bug 1, 2026-06-19): only the
+ * live-now statuses carry a meaningful current `endsAt`; PROXIMA_APERTURA /
+ * PRE_AUCTION are upcoming (no end yet) and SUSPENDIDA / SUSPENDED carry a
+ * resumeAt instead — so the gate must scope the end-date check to JUST these
+ * two statuses. Static enum strings (no user input) → safe to interpolate.
+ */
+export const LIVE_NOW_DB_STATUSES_SQL = LIVE_NOW_DB_STATUSES
+  .map((s) => `'${s}'`)
+  .join(',');
+
 // ─── Status → human Spanish label (no raw enum codes ever) ───────────────
 
 /**

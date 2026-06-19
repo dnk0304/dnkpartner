@@ -3,7 +3,7 @@ import { query } from '@/lib/db';
 import { Resend } from 'resend';
 import { createAuctionAlertEmail } from '@/lib/email-templates';
 import { requireAdminOrCron } from '@/lib/auth-helpers';
-import { ALERTABLE_DB_STATUSES_SQL } from '@/lib/auction-status';
+import { ALERTABLE_DB_STATUSES_SQL, LIVE_NOW_DB_STATUSES_SQL } from '@/lib/auction-status';
 import { resolveFreeAndPersist, type ResolverRow } from '@/lib/auction-images/resolver';
 
 /**
@@ -44,12 +44,41 @@ export async function POST(request: NextRequest) {
     //
     // ALERTABLE_DB_STATUSES_SQL is a static quoted-comma list — no user input,
     // safe to inline (same pattern used by /api/admin/images/backfill).
+    //
+    // ── Bug 1 FUTURE-END GATE (Ken-locked 2026-06-19) ──────────────────────
+    // "Termina hoy" alert noise: the scraper sometimes first discovers a
+    // correct-but-late auction on its CLOSING DAY (createdAt = today, but it
+    // opened weeks ago). Such a row matches `createdAt >= now-24h`, is still
+    // CELEBRANDOSE/ACTIVE, and fires an alert that truthfully says
+    // "Termina: <today>" — accurate but useless (the auction is already
+    // closing; the buyer can't act). This was NOT a data bug — endsAt is
+    // correct (Ghost verified vs BOE). The fix is a defensive guard here.
+    //
+    // GATE: for LIVE-NOW rows (ACTIVE / CELEBRANDOSE) that carry a concrete
+    // endsAt, REQUIRE the auction to still have a meaningful runway —
+    // endsAt > now + 24h. Rows ending today or in the past are dropped.
+    //
+    // Scope discipline:
+    //   - ONLY ACTIVE / CELEBRANDOSE are gated. PROXIMA_APERTURA / PRE_AUCTION
+    //     are upcoming (no current end) and SUSPENDIDA / SUSPENDED carry a
+    //     resumeAt, not a live end — they must NOT be filtered on endsAt.
+    //   - Honest-NULL: a live-now row with endsAt IS NULL is KEPT (we never
+    //     fabricate an end date to exclude it). The NOT-wrapper below only
+    //     drops rows where endsAt is concrete AND too soon.
+    //
+    // LIVE_NOW_DB_STATUSES_SQL is a static quoted-comma list (no user input).
     const cutoffDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const futureEndCutoff = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     const recentAuctions = await query<any>(`
       SELECT * FROM Auction
       WHERE createdAt >= ?
         AND status IN (${ALERTABLE_DB_STATUSES_SQL})
-    `, [cutoffDate]);
+        AND NOT (
+          status IN (${LIVE_NOW_DB_STATUSES_SQL})
+          AND endsAt IS NOT NULL
+          AND endsAt <= ?
+        )
+    `, [cutoffDate, futureEndCutoff]);
 
     const matchesByAlert: Record<string, { alert: any; auctions: any[] }> = {};
 
