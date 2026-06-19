@@ -26,7 +26,7 @@
 
 import { callClaudeJSON } from './llm';
 import { getStage } from './types';
-import { buildXlsx, type SheetCell, type SheetDef, type CellStyle } from './xlsx';
+import { buildXlsx, colLetter, type SheetCell, type SheetDef, type CellStyle } from './xlsx';
 
 /**
  * Hard ceiling on how many sections/modules the full build generates — one LLM
@@ -651,6 +651,20 @@ interface BuildWorkbook {
   sheetNames: string[];
   /** Always true when this object is present (mirrors the gating decision). */
   computational: boolean;
+  /**
+   * AUDIT MANIFEST (brief §2a) — a compact, human-readable view of the workbook's
+   * live formulas so the 3-expert gate can SEE the spreadsheet's computational
+   * value WITHOUT decoding the base64 blob. All three fields are computed from the
+   * SAME coerced SheetDefs that get rendered to bytes — so the manifest reflects
+   * what's actually IN the file, not the raw model claim. They are small (text),
+   * safe to keep in the artifact JSON and safe to show the experts.
+   */
+  /** Total count of live-formula cells across all sheets (cells whose `f` is non-empty after coercion). */
+  formulaCount: number;
+  /** A BOUNDED sample of real formulas for gate audit — never the whole sheet. */
+  formulaSamples: { sheet: string; cell: string; formula: string }[];
+  /** Per-sheet shape so the lens can sanity-check structure. */
+  sheetSummary: { name: string; rows: number; formulaCells: number }[];
 }
 
 /** The final stage-3 artifact. Keeps {title, markdown} for the viewer; adds visibility fields. */
@@ -746,6 +760,83 @@ function workbookMaxSheets(): number {
 /** Hard cell-cap per sheet so a runaway spec can't bloat the base64 payload. */
 const WORKBOOK_MAX_ROWS_PER_SHEET = 200;
 const WORKBOOK_MAX_COLS_PER_SHEET = 26;
+
+/**
+ * How many real formulas to sample into the audit manifest for the gate (brief
+ * §2a). Default 24, clamp [4,60]. Env FACTORY_WORKBOOK_FORMULA_SAMPLES. Bounded so
+ * the manifest never balloons the artifact JSON — it's a representative sample for
+ * the experts, never the whole sheet.
+ */
+function workbookFormulaSampleCap(): number {
+  const raw = process.env.FACTORY_WORKBOOK_FORMULA_SAMPLES;
+  if (raw === undefined) return 24;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return 24;
+  return Math.min(60, Math.max(4, Math.floor(n)));
+}
+
+/** One live-formula cell located in the coerced grid (for counting/sampling). */
+interface FormulaHit {
+  sheet: string;
+  /** A1 ref computed from row/col index via the xlsx colLetter helper. */
+  cell: string;
+  /** The `<f>` string (no leading '='), already coerced/normalized. */
+  formula: string;
+}
+
+/**
+ * Build the audit manifest (formulaCount / formulaSamples / sheetSummary) from the
+ * COERCED SheetDefs — the exact cells that get written to the .xlsx, so the
+ * manifest matches the file, not the raw model claim. Counts only cells whose `f`
+ * survived `toSheetCell` coercion. Samples are taken ROUND-ROBIN across sheets so a
+ * multi-sheet workbook isn't represented by sheet-1 only, then capped. Reuses the
+ * xlsx `colLetter` helper for A1 refs (no duplicated column-letter routine).
+ */
+function buildWorkbookManifest(sheets: SheetDef[]): {
+  formulaCount: number;
+  formulaSamples: { sheet: string; cell: string; formula: string }[];
+  sheetSummary: { name: string; rows: number; formulaCells: number }[];
+} {
+  const sheetSummary: { name: string; rows: number; formulaCells: number }[] = [];
+  // Per-sheet ordered formula hits → enables round-robin sampling across sheets.
+  const perSheetHits: FormulaHit[][] = [];
+  let formulaCount = 0;
+
+  for (const s of sheets) {
+    const rows = Array.isArray(s.rows) ? s.rows : [];
+    const hits: FormulaHit[] = [];
+    rows.forEach((row, r) => {
+      (Array.isArray(row) ? row : []).forEach((cell, c) => {
+        if (cell && typeof cell.f === 'string' && cell.f.trim()) {
+          hits.push({ sheet: s.name, cell: `${colLetter(c)}${r + 1}`, formula: cell.f });
+        }
+      });
+    });
+    formulaCount += hits.length;
+    perSheetHits.push(hits);
+    sheetSummary.push({ name: s.name, rows: rows.length, formulaCells: hits.length });
+  }
+
+  // Round-robin across sheets so the sample spans the whole workbook, not sheet 1.
+  const cap = workbookFormulaSampleCap();
+  const formulaSamples: { sheet: string; cell: string; formula: string }[] = [];
+  const cursors = perSheetHits.map(() => 0);
+  let exhausted = false;
+  while (formulaSamples.length < cap && !exhausted) {
+    exhausted = true;
+    for (let i = 0; i < perSheetHits.length && formulaSamples.length < cap; i++) {
+      const hits = perSheetHits[i];
+      const cur = cursors[i];
+      if (cur < hits.length) {
+        formulaSamples.push(hits[cur]);
+        cursors[i] = cur + 1;
+        exhausted = false;
+      }
+    }
+  }
+
+  return { formulaCount, formulaSamples, sheetSummary };
+}
 
 /** One cell as the model returns it (mirrors xlsx.SheetCell, schema-constrained). */
 interface SpecCell {
@@ -921,11 +1012,13 @@ async function produceWorkbook(
   if (sheets.length === 0 || !hasContent) return undefined;
 
   const bytes = buildXlsx(sheets);
+  const manifest = buildWorkbookManifest(sheets);
   return {
     filename: safeWorkbookFilename(spec.filename, productTitle),
     base64: bytes.toString('base64'),
     sheetNames: sheets.map((s) => s.name),
     computational: true,
+    ...manifest,
   };
 }
 
