@@ -23,7 +23,7 @@ import { SourceBadge } from "./SourceBadge";
 import { PujaBadge, OccupancyBadge } from "./PujaOccupancyBadges";
 import { LiveCountdown } from "./LiveCountdown";
 import { FollowButton } from "@/components/notifications/FollowButton";
-import { formatPrice, capitalize, titleCase, formatDaysLeft, formatDateMed, prettifyAuctionType } from "./format";
+import { formatPrice, capitalize, titleCase, formatDaysLeft, formatDateMed, prettifyAuctionType, formatM2, formatPricePerM2 } from "./format";
 import { auctionCardTitle } from "@/lib/seo/display-title";
 import { effectiveStatus } from "./status";
 import { cn } from "@/lib/utils";
@@ -125,6 +125,20 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
   // instead of an empty price block.
   const noPriceData = valueLines.length === 0 && !hasCurrentBid;
   const isVariosLotes = isVariosLotesTitle(item.title);
+  // Idealista-style FACT STRIP (property-card-redesign, 2026-06-19): a tight
+  // inline key-facts row beneath the price — surface (m²) · derived €/m² ·
+  // occupancy. Forge derives surfaceM2 + pricePerM2 server-side (honest-NULL,
+  // never 0); we only render. Each pill omits cleanly when its value is null
+  // and the whole strip collapses when there's neither m² nor €/m² nor a badge
+  // — most historical rows have no m², the card must look intact without it.
+  const surfaceLabel = formatM2(item.surfaceM2);
+  const pricePerM2Label = formatPricePerM2(item.pricePerM2);
+  const occupancyBadge = <OccupancyBadge occupancy={item.occupancy ?? null} />;
+  const hasOccupancyBadge =
+    item.occupancy === "OCUPADO" ||
+    item.occupancy === "NO_OCUPADO" ||
+    item.occupancy === "NO_CONSTA";
+  const showFactStrip = Boolean(surfaceLabel || pricePerM2Label || hasOccupancyBadge);
   // Type headline — propertyType (from the doc-archive backfill) is the
   // BOE-accurate bien type; fall back to category for the ~99% of rows still
   // pre-backfill. `prettifyAuctionType` singularises and strips "Inmueble(…)"
@@ -281,16 +295,15 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
           ) : null}
         </Link>
 
-        {/* Puja + occupancy chips — only render when at least one field
-            present. Compact gap so the row doesn't add height when chips
-            wrap. */}
-        {(item.pujaStatus || item.occupancy) && (
+        {/* Puja chip — own row, only when a puja status exists. Occupancy has
+            moved DOWN into the idealista fact strip (under the price) so the
+            scannable m²/€/m²/occupancy facts read together. */}
+        {item.pujaStatus && (
           <div className="flex flex-wrap items-center gap-1">
             <PujaBadge
               status={item.pujaStatus ?? null}
               amountEuros={item.currentBidAmount ?? null}
             />
-            <OccupancyBadge occupancy={item.occupancy ?? null} />
           </div>
         )}
 
@@ -356,6 +369,32 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             <span className="tnum font-semibold text-sm text-[var(--color-ink-primary)]">
               {formatPrice(item.currentBid)}
             </span>
+          </div>
+        )}
+
+        {/* Idealista FACT STRIP — surface · €/m² · occupancy. Sits directly
+            under the price block. Each pill omits when its value is null
+            (no orphan dashes); the whole strip collapses when there's nothing
+            to show. tnum keeps the figures aligned. */}
+        {showFactStrip && (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[var(--color-ink-secondary)]">
+            {surfaceLabel && (
+              <span className="tnum font-medium text-[var(--color-ink-primary)]">
+                {surfaceLabel}
+              </span>
+            )}
+            {surfaceLabel && pricePerM2Label && (
+              <span aria-hidden="true" className="text-[var(--color-ink-quiet)]">·</span>
+            )}
+            {pricePerM2Label && (
+              <span className="tnum text-[var(--color-ink-secondary)]">
+                {pricePerM2Label}
+              </span>
+            )}
+            {hasOccupancyBadge && (surfaceLabel || pricePerM2Label) && (
+              <span aria-hidden="true" className="text-[var(--color-ink-quiet)]">·</span>
+            )}
+            {hasOccupancyBadge && occupancyBadge}
           </div>
         )}
 

@@ -14,12 +14,16 @@
  *   attention — cierre 24–72h, suspendida, depósito alto
  *   info      — nueva puja, reanudada, lote modificado
  *   positive  — abierta a pujas, BOE oficial enlazado
+ *   neutral   — honest "unknown" facts (occupancy "No consta"): grey, not a
+ *               coloured signal. Reuses the project's muted surface + hairline
+ *               so the chip reads as disclosed-but-unknown, never as a
+ *               positive/negative buyer cue.
  */
 
 import React from "react";
 import { cn } from "@/lib/utils";
 
-export type WarnLevel = "critical" | "attention" | "info" | "positive";
+export type WarnLevel = "critical" | "attention" | "info" | "positive" | "neutral";
 
 interface WarnFlagProps {
   level: WarnLevel;
@@ -47,6 +51,10 @@ const LEVEL_TOKENS: Record<
   positive: {
     bg: "bg-[var(--color-warn-positive-soft)]",
     border: "border-[var(--color-warn-positive)]/40",
+  },
+  neutral: {
+    bg: "bg-[var(--color-surface-muted)]",
+    border: "border-[var(--color-hairline)]",
   },
 };
 
@@ -81,7 +89,7 @@ interface WarnFlagRowProps {
  * Critical always wins position 1.
  */
 export function WarnFlagRow({ flags, max = 3, className }: WarnFlagRowProps) {
-  const order: WarnLevel[] = ["critical", "attention", "info", "positive"];
+  const order: WarnLevel[] = ["critical", "attention", "info", "positive", "neutral"];
   const sorted = [...flags].sort(
     (a, b) => order.indexOf(a.level) - order.indexOf(b.level)
   );

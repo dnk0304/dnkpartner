@@ -10,6 +10,8 @@ import Image from 'next/image';
 import { capitalizeLocation } from '@/lib/utils';
 import { resolveCardImage, fallbackImageFor, isVariosLotesTitle } from '@/lib/resolve-card-image';
 import { statusDateLabel } from '@/lib/auction-status';
+import { formatM2, formatPricePerM2 } from '@/components/observatory/format';
+import { OccupancyBadge } from '@/components/observatory/PujaOccupancyBadges';
 
 interface AuctionCardProps {
   item: AuctionItem;
@@ -225,6 +227,18 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
   if (hasValorSubasta) valueLines.push({ key: 'valorSubasta', label: 'Valor subasta', amount: item.valorSubasta as number });
   if (hasClaimed) valueLines.push({ key: 'claimedAmount', label: 'Cantidad reclamada', amount: item.claimedAmount as number });
 
+  // Idealista FACT STRIP (property-card-redesign, 2026-06-19) — wired onto the
+  // dashboard card too, for consistency with AuctionListCard. surfaceM2 +
+  // pricePerM2 derived server-side by Forge (honest-NULL); we only render.
+  // Occupancy badge is added here for the first time (dashboard card had none).
+  const surfaceLabel = formatM2(item.surfaceM2);
+  const pricePerM2Label = formatPricePerM2(item.pricePerM2);
+  const hasOccupancyBadge =
+    item.occupancy === 'OCUPADO' ||
+    item.occupancy === 'NO_OCUPADO' ||
+    item.occupancy === 'NO_CONSTA';
+  const showFactStrip = Boolean(surfaceLabel || pricePerM2Label || hasOccupancyBadge);
+
   return (
     <Card 
       className={`
@@ -421,6 +435,31 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
                     </span>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Idealista FACT STRIP — surface · €/m² · occupancy. Directly
+                under the price block; each pill omits cleanly when null and
+                the whole strip collapses when there's nothing to show. */}
+            {showFactStrip && (
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[var(--color-ink-secondary)]">
+                {surfaceLabel && (
+                  <span className="tnum font-medium text-[var(--color-ink-primary)]">
+                    {surfaceLabel}
+                  </span>
+                )}
+                {surfaceLabel && pricePerM2Label && (
+                  <span aria-hidden="true" className="text-[var(--color-ink-quiet)]">·</span>
+                )}
+                {pricePerM2Label && (
+                  <span className="tnum text-[var(--color-ink-secondary)]">
+                    {pricePerM2Label}
+                  </span>
+                )}
+                {hasOccupancyBadge && (surfaceLabel || pricePerM2Label) && (
+                  <span aria-hidden="true" className="text-[var(--color-ink-quiet)]">·</span>
+                )}
+                {hasOccupancyBadge && <OccupancyBadge occupancy={item.occupancy ?? null} />}
               </div>
             )}
 

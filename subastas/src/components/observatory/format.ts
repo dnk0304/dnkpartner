@@ -11,6 +11,11 @@ const EURO_FORMAT = new Intl.NumberFormat("es-ES", {
 
 const NUM_FORMAT = new Intl.NumberFormat("es-ES");
 
+// Grouped variant — forces the Spanish thousands separator even on 4-digit
+// values (es-ES defaults to `min2` grouping, so 1450 renders without a dot).
+// Used by the m²/€/m² fact-strip helpers where "1.450 €/m²" is the spec.
+const NUM_FORMAT_GROUPED = new Intl.NumberFormat("es-ES", { useGrouping: "always" });
+
 const DATE_LONG = new Intl.DateTimeFormat("es-ES", {
   dateStyle: "long",
   timeStyle: "short",
@@ -39,6 +44,32 @@ export function formatPrice(value: number | null | undefined): string {
 export function formatNumber(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "—";
   return NUM_FORMAT.format(value);
+}
+
+/**
+ * formatM2 — surface area as "85 m²" / "1.250 m²" (Spanish thousands sep,
+ * non-breaking space before the unit so the figure never wraps off its unit).
+ *
+ * Honest-NULL: returns null (NOT "—") when the value is absent or ≤0, so the
+ * caller can OMIT the pill entirely rather than render an orphan dash. Most
+ * historical rows have no m²; the fact strip must collapse cleanly.
+ */
+export function formatM2(value: number | null | undefined): string | null {
+  if (value == null || !Number.isFinite(value) || value <= 0) return null;
+  return `${NUM_FORMAT_GROUPED.format(Math.round(value))} m²`;
+}
+
+/**
+ * formatPricePerM2 — derived €/m² as "1.450 €/m²" (Spanish thousands sep, no
+ * decimals, non-breaking space before the unit). Forge derives + rounds this
+ * server-side (numerator precedence valorSubasta→appraisalValue); we only
+ * render it — never recompute.
+ *
+ * Honest-NULL: returns null when absent or ≤0 so the figure omits cleanly.
+ */
+export function formatPricePerM2(value: number | null | undefined): string | null {
+  if (value == null || !Number.isFinite(value) || value <= 0) return null;
+  return `${NUM_FORMAT_GROUPED.format(Math.round(value))} €/m²`;
 }
 
 export function formatDateLong(value: string | Date | null | undefined): string {

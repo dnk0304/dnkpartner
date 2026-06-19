@@ -17,7 +17,9 @@
  *   #17 occupancy:
  *     OCUPADO     → attention (real risk — bidder must factor possession)
  *     NO_OCUPADO  → positive  (clean, ready-to-take possession)
- *     NO_CONSTA   → info      (unknown but disclosed — neutral)
+ *     NO_CONSTA   → neutral   (grey — honest "unknown", not a buyer signal.
+ *                              Dennis-approved 2026-06-19: a blue/info tint
+ *                              read as a positive cue; grey is more honest.)
  */
 
 import * as React from "react";
@@ -99,7 +101,7 @@ export function OccupancyBadge({ occupancy, className }: OccupancyBadgeProps) {
     );
   }
   return (
-    <WarnFlag level="info" className={cn("cursor-pointer", className)}>
+    <WarnFlag level="neutral" className={cn("cursor-pointer", className)}>
       No consta
     </WarnFlag>
   );
