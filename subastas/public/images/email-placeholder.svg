@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800" fill="none" role="img" aria-label="Subasta sin imagen disponible">
+  <!--
+    Email alert placeholder tile for no-photo auctions (SubastasActivas / dnksubastas).
+    Renders in the alert digest at width:100%, max-height:220px, object-fit:cover,
+    border-radius:8px, NEXT TO real listing photos. Goal: a calm, intentional
+    "photo coming soon" property tile on a LIGHT winter-green/pine field —
+    NOT the old dark-navy text plate. One clean green mark; subtle muted label.
+    Art direction reviewed by Vinci (2026-06-19): one motif, no horizon backdrop,
+    full-tile hairline so it never reads as an empty cell, no dashed border.
+  -->
+  <defs>
+    <linearGradient id="badge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F1F7F4"/>
+      <stop offset="100%" stop-color="#EAF2EE"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Calm light field. Solid near-white so it reads as a deliberate card. -->
+  <rect width="1280" height="800" fill="#FBFCFD"/>
+
+  <!-- Full-tile hairline: guarantees the tile reads as an intentional filled
+       card beside real photos, never as a blank/unrendered cell. -->
+  <rect x="1" y="1" width="1278" height="798" fill="none" stroke="#E5EAEC" stroke-width="2"/>
+
+  <!-- Centered soft mint-frost badge holding the property mark -->
+  <g transform="translate(640 350)">
+    <circle r="138" fill="url(#badge)" stroke="#E5EAEC" stroke-width="2"/>
+
+    <!-- Reduced house / property line-icon. Saturated winter-green at full
+         strength so the mark reads as 'designed', round joins, single door. -->
+    <g stroke="#17926D" stroke-width="8" stroke-linejoin="round" stroke-linecap="round" fill="none">
+      <path d="M-80 6 L0 -64 L80 6"/>            <!-- roof -->
+      <path d="M-60 -8 V66 H60 V-8"/>            <!-- walls -->
+      <path d="M-17 66 V22 H17 V66"/>            <!-- door -->
+    </g>
+  </g>
+
+  <!-- Subtle muted label. Sentence case, sized to sit UNDER the icon in the
+       hierarchy — the image carries the meaning, not the text. -->
+  <text x="640" y="600" text-anchor="middle"
+        font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+        font-size="38" font-weight="500" letter-spacing="0.2" fill="#6B7280">Foto pendiente</text>
+
+  <!-- Tiny, quiet brand mark. Tasteful, low-opacity pine, never a headline. -->
+  <text x="640" y="712" text-anchor="middle"
+        font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+        font-size="20" font-weight="600" letter-spacing="2.6" fill="#1F4A3A" opacity="0.42">SUBASTAS ACTIVAS</text>
+</svg>
