@@ -109,12 +109,15 @@ export function KanbanBoard({
       </div>
 
       {/*
-        THE no-horizontal-scroll grid (Vinci §2). auto-fit keeps a 180px floor
-        per panel; when six can't fit at ≥180px the row WRAPS (6 → 3+3 → 2+2+2
-        → 1). No media-query juggling, and no `overflow-x-auto` is possible.
+        THE no-horizontal-scroll grid (audit §2 — fixed, deliberate columns).
+        A DELIBERATE breakpoint ladder, not auto-fit wrap: 6-up ≥1280 (xl),
+        3×2 at lg, 2-up at md, 1-up below. `items-stretch` + a min-height floor
+        give equal-height panels and a predictable rhythm at every width. Every
+        panel is `min-w-0` so content truncates instead of forcing a side-scroll —
+        there is no `overflow-x-auto` anywhere, so ZERO horizontal scroll holds.
       */}
       <div
-        className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4"
+        className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
         role="list"
         aria-label="Product Factory pipeline — projects by stage"
       >
@@ -139,7 +142,7 @@ export function KanbanBoard({
                 inColumn.length === 1 ? 'project' : 'projects'
               }`}
               className={cn(
-                'flex min-w-0 flex-col gap-2 overflow-hidden rounded-xl p-4 shadow-sm ring-1 transition-colors',
+                'flex min-h-[14rem] min-w-0 flex-col gap-2 overflow-hidden rounded-xl p-4 shadow-sm ring-1 transition-colors',
                 active
                   ? 'bg-brand-tint ring-brand-primary/30'
                   : 'bg-brand-surface ring-brand-line',

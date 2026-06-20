@@ -28,6 +28,7 @@ import { cn } from '../_lib/cn';
 import {
   readCompetitorScan,
   readWorkbookManifest,
+  readNicheCandidates,
   deriveCardState,
   getTier,
   type Artifact,
@@ -49,6 +50,7 @@ import {
   combinedFilename,
 } from '../_lib/artifactMarkdown';
 import { Markdown } from './Markdown';
+import { NicheConsideredRecap } from './NicheConsideredRecap';
 import { FactoryPrintDocument } from './FactoryPrintDocument';
 import { StatusChip } from './StatusChip';
 
@@ -412,7 +414,7 @@ export function ProjectView({
               {/* Center — section cards (col-span-7) */}
               <div className="col-span-12 min-w-0 space-y-6 lg:col-span-7">
                 {ordered.map((a) => (
-                  <StageSection key={a.stage} artifact={a} />
+                  <StageSection key={a.id} artifact={a} chosenNiche={seed} />
                 ))}
               </div>
 
@@ -521,6 +523,18 @@ function SectionNav({
   currentStage: number;
   className?: string;
 }) {
+  // One nav entry per stage. The Stage-1 candidate-set recap is a SUB-section of
+  // stage 1 (it owns `#stage-1-considered`, not `#stage-1`), so it must not add a
+  // second "Find Your Market" link — prefer the non-candidate artifact per stage.
+  const navStages: Artifact[] = [];
+  const seenStages = new Set<number>();
+  for (const a of ordered) {
+    if (a.kind === 'niche_candidates') continue;
+    if (seenStages.has(a.stage)) continue;
+    seenStages.add(a.stage);
+    navStages.push(a);
+  }
+
   return (
     <nav aria-label="Project sections" className={className}>
       <div className="lg:sticky lg:top-24">
@@ -529,7 +543,7 @@ function SectionNav({
         </p>
         {/* lg+: vertical list · < lg: horizontal scrollable pill row */}
         <ul className="flex gap-1.5 overflow-x-auto pb-1 lg:flex-col lg:gap-0.5 lg:overflow-visible lg:pb-0">
-          {ordered.map((a) => {
+          {navStages.map((a) => {
             const v = stageView(a.stage);
             const Icon = STAGE_ICON[a.stage] ?? FileText;
             const isActive = activeStage === a.stage;
@@ -584,11 +598,33 @@ function sectionLabel(stage: number): string {
 
 /* ── Center stage section card ────────────────────────────────────────────── */
 
-function StageSection({ artifact }: { artifact: Artifact }) {
+function StageSection({
+  artifact,
+  chosenNiche,
+}: {
+  artifact: Artifact;
+  /** The picked niche (Run.seed after selection) — marks the chosen recap card. */
+  chosenNiche?: string;
+}) {
   const v = stageView(artifact.stage);
   const Icon = STAGE_ICON[artifact.stage] ?? FileText;
-  const markdown = useMemo(() => artifactToMarkdown(artifact), [artifact]);
-  const isEmpty = markdown.trim() === '';
+
+  // Stage-1 candidate set: render the scored candidates as human cards (the
+  // "Niches considered" recap), NOT raw JSON. This is the artifact that used to
+  // fall through to mdGeneric → a fenced ```json block (the app's only remaining
+  // horizontal scroll). Intercepted here so the picker UI stays visible after a
+  // niche is chosen.
+  const isCandidateSet = artifact.kind === 'niche_candidates';
+  const candidates = useMemo(
+    () => (isCandidateSet ? readNicheCandidates(artifact.payload) : []),
+    [artifact, isCandidateSet],
+  );
+
+  const markdown = useMemo(
+    () => (isCandidateSet ? '' : artifactToMarkdown(artifact)),
+    [artifact, isCandidateSet],
+  );
+  const isEmpty = isCandidateSet ? candidates.length === 0 : markdown.trim() === '';
 
   const workbook = useMemo(() => readWorkbook(artifact.payload), [artifact]);
   const workbookManifest = useMemo<WorkbookManifest | null>(
@@ -608,10 +644,18 @@ function StageSection({ artifact }: { artifact: Artifact }) {
     downloadBase64(name, workbook.base64, XLSX_MIME);
   };
 
+  // The candidate-set recap gets a DISTINCT section id + heading so it never
+  // collides with the niche_brief's `#stage-1` anchor (both are stage 1).
+  const sectionId = isCandidateSet ? `stage-${artifact.stage}-considered` : `stage-${artifact.stage}`;
+  const heading = isCandidateSet ? 'Niches considered' : sectionLabel(artifact.stage);
+  const blurb = isCandidateSet
+    ? 'Every niche the factory scored at Stage 1 — and the one that was picked to build.'
+    : v.blurb;
+
   return (
     <section
-      id={`stage-${artifact.stage}`}
-      aria-labelledby={`stage-${artifact.stage}-h`}
+      id={sectionId}
+      aria-labelledby={`${sectionId}-h`}
       className="scroll-mt-24 overflow-hidden rounded-xl bg-brand-surface shadow-sm ring-1 ring-brand-line"
     >
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-brand-line-soft px-6 py-4">
@@ -627,15 +671,18 @@ function StageSection({ artifact }: { artifact: Artifact }) {
               Stage {artifact.stage}
             </p>
             <h2
-              id={`stage-${artifact.stage}-h`}
+              id={`${sectionId}-h`}
               className="text-base font-semibold text-brand-accent"
             >
-              {sectionLabel(artifact.stage)}
+              {heading}
             </h2>
-            {v.blurb && <p className="mt-0.5 text-[13px] leading-snug text-brand-dark/60">{v.blurb}</p>}
+            {blurb && <p className="mt-0.5 text-[13px] leading-snug text-brand-dark/60">{blurb}</p>}
           </div>
         </div>
-        {!isEmpty && (
+        {/* The candidate recap has no .md download — its honest export is JSON,
+            which is exactly what we removed from the read view. The chosen-niche
+            brief carries the downloadable Stage-1 record. */}
+        {!isEmpty && !isCandidateSet && (
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
             {workbook && (
               <span className="inline-flex items-center rounded-full bg-brand-tint px-2 py-0.5 text-[11px] font-medium text-brand-primary">
@@ -666,7 +713,7 @@ function StageSection({ artifact }: { artifact: Artifact }) {
       </header>
 
       <div className="px-6 py-5">
-        {note && (
+        {note && !isCandidateSet && (
           <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
             <p className="text-sm text-amber-800">{note}</p>
@@ -674,7 +721,9 @@ function StageSection({ artifact }: { artifact: Artifact }) {
         )}
         {/* Stage-3 workbook gate-lens (spec §5.4 — kept surfaced on stage 3). */}
         {workbookManifest && <WorkbookLens manifest={workbookManifest} />}
-        {isEmpty ? (
+        {isCandidateSet ? (
+          <NicheConsideredRecap candidates={candidates} chosenNiche={chosenNiche} />
+        ) : isEmpty ? (
           <p className="text-sm italic text-brand-dark/45">This stage produced no readable content.</p>
         ) : (
           <article className={cn(workbookManifest && 'mt-4')}>

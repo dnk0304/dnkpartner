@@ -416,11 +416,11 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
 function BoardSkeleton() {
   return (
     <div
-      className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4"
+      className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
       aria-hidden="true"
     >
       {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="min-w-0 rounded-xl bg-brand-surface p-4 shadow-sm ring-1 ring-brand-line">
+        <div key={i} className="min-h-[14rem] min-w-0 rounded-xl bg-brand-surface p-4 shadow-sm ring-1 ring-brand-line">
           <div className="h-7 w-7 animate-pulse rounded-lg bg-brand-line" />
           <div className="mt-2 h-4 w-24 animate-pulse rounded bg-brand-line" />
           <div className="mt-2 h-3 w-full animate-pulse rounded bg-brand-line-soft" />

@@ -432,7 +432,13 @@ export function artifactFilename(artifact: Artifact): string {
 
 /** One combined .md document covering every stage, ordered by stage. */
 export function combinedMarkdownDocument(seed: string, artifacts: Artifact[]): string {
-  const ordered = [...artifacts].sort((a, b) => a.stage - b.stage);
+  // The Stage-1 candidate set serializes only as raw JSON (mdGeneric); the
+  // on-screen recap renders it as cards instead, and the chosen-niche brief
+  // carries the readable Stage-1 record — so it's excluded from the combined .md
+  // to keep the export free of the JSON dump we removed from the UI.
+  const ordered = [...artifacts]
+    .filter((a) => a.kind !== 'niche_candidates')
+    .sort((a, b) => a.stage - b.stage);
   const parts: string[] = [`# ${seed}`, '', '_Product Factory — full project export._', ''];
   for (const a of ordered) {
     const v = stageView(a.stage);

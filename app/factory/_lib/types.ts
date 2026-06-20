@@ -635,6 +635,45 @@ function str(v: unknown): string {
 }
 
 /**
+ * Narrow the Stage-1 `niche_candidates` artifact payload into its scored
+ * candidate set, or [] when absent/unrecognisable.
+ *
+ * The artifact persists `{ candidates: NicheCandidate[], hint?, ... }`. The READ
+ * view (ProjectView) reads this so it can render the candidates as human cards
+ * instead of dumping the raw array as JSON. NEVER fabricates: a candidate with no
+ * niche string is dropped; every field degrades to a safe default. Scores coerce
+ * to a 0 floor so a half-dropped object still renders a valid (if empty) meter.
+ */
+export function readNicheCandidates(payload: unknown): NicheCandidate[] {
+  if (!isRecord(payload)) return [];
+  const raw = Array.isArray(payload.candidates) ? payload.candidates : [];
+  const out: NicheCandidate[] = [];
+  raw.forEach((item, i) => {
+    if (!isRecord(item)) return;
+    const niche = str(item.niche).trim();
+    if (!niche) return;
+    const s = isRecord(item.scores) ? item.scores : {};
+    out.push({
+      index: typeof item.index === 'number' && Number.isFinite(item.index) ? item.index : i,
+      niche,
+      productIdea: str(item.productIdea).trim(),
+      painArea: str(item.painArea).trim(),
+      scores: {
+        pain: num(s.pain) ?? 0,
+        worsening: num(s.worsening) ?? 0,
+        purchasingPower: num(s.purchasingPower) ?? 0,
+        speedToValue: num(s.speedToValue) ?? 0,
+        competitionGap: num(s.competitionGap) ?? 0,
+      },
+      demandEvidence: str(item.demandEvidence).trim(),
+      rationale: str(item.rationale).trim(),
+      advisoryFlags: strArr(item.advisoryFlags),
+    });
+  });
+  return out;
+}
+
+/**
  * Narrow a Stage-4 `audit_report` payload into its competitor scan, or null.
  *
  * Returns null when `competitorScan` is absent (older runs / a flaked scan) — the

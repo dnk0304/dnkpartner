@@ -26,7 +26,7 @@ export const STAGE_GUIDE: Record<
   1: { label: 'Find Your Market', explainer: 'We surface real niches with painful, paying problems.', icon: Compass },
   2: { label: 'See the Build Plan', explainer: 'The full blueprint and prompts behind your product.', icon: ClipboardList },
   3: { label: 'Get the Product', explainer: 'The finished product — text or a live Excel tool.', icon: Package },
-  4: { label: 'Beat Competitors', explainer: "Who you're up against and how you win.", icon: Swords },
+  4: { label: 'Beat Competitors', explainer: "Competitor Scan — who you're up against and how you win.", icon: Swords },
   5: { label: 'Brand It', explainer: 'A sellable name and a brand voice.', icon: Tag },
   6: { label: 'Launch It', explainer: 'Where and how to sell it, ranked.', icon: Rocket },
 };
@@ -38,16 +38,16 @@ export function guideFor(n: number, short: string) {
 
 /**
  * StageGuideExplainerGrid — the read-only "here's what the 6 stages do" grid
- * for the first-run welcome state. Same no-horizontal-scroll fluid grid as the
- * board (`auto-fit minmax(180px,1fr)` — wraps 6 → 3+3 → 2+2+2 → 1, never
- * side-scrolls) so the layout language matches what the user sees once they
- * have projects. Pure presentation: numbered badge + icon + label + explainer.
- * No counts, no cards — this is the guide, not the live board.
+ * for the first-run welcome state. Same DELIBERATE fixed grid as the board
+ * (6-up ≥1280 / 3-up lg / 2-up md / 1-up below, equal-height panels), so the
+ * layout language matches exactly what the user sees once they have projects —
+ * never side-scrolls. Pure presentation: numbered badge + icon + label +
+ * explainer. No counts, no cards — this is the guide, not the live board.
  */
 export function StageGuideExplainerGrid() {
   return (
     <ol
-      className="grid w-full grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4"
+      className="grid w-full grid-cols-1 items-stretch gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
       aria-label="The 6-stage build — what each step does"
     >
       {ACTIVE_STAGES.map((stage) => {
@@ -56,7 +56,7 @@ export function StageGuideExplainerGrid() {
         return (
           <li
             key={stage.n}
-            className="flex min-w-0 flex-col gap-2 overflow-hidden rounded-xl bg-brand-surface p-4 text-left shadow-sm ring-1 ring-brand-line"
+            className="flex min-h-[10rem] min-w-0 flex-col gap-2 overflow-hidden rounded-xl bg-brand-surface p-4 text-left shadow-sm ring-1 ring-brand-line"
           >
             <div className="flex items-center gap-2">
               <span

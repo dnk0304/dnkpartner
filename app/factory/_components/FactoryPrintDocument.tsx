@@ -37,8 +37,14 @@ export function FactoryPrintDocument({
   seed: string;
   artifacts: Artifact[];
 }) {
+  // Skip the Stage-1 candidate-set artifact: its only serialization is raw JSON
+  // (mdGeneric), which we deliberately keep out of every read surface — the PDF
+  // included. The chosen-niche brief carries the printable Stage-1 record.
   const ordered = useMemo(
-    () => [...artifacts].sort((a, b) => a.stage - b.stage),
+    () =>
+      artifacts
+        .filter((a) => a.kind !== 'niche_candidates')
+        .sort((a, b) => a.stage - b.stage),
     [artifacts],
   );
 
