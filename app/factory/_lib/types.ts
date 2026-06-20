@@ -518,6 +518,65 @@ function num(v: unknown): number | undefined {
   return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
 }
 
+// ─── Stage-3 workbook audit manifest (the gate-lens trust signal) ─────────────
+
+/** One representative live formula the gate audited (e.g. `Totals!B12 =SUM(B2:B11)`). */
+export interface FormulaSample {
+  sheet: string;
+  cell: string;
+  formula: string;
+}
+
+/**
+ * The narrowed, UI-facing view of a computational Stage-3 build's audit manifest
+ * (lib/factory/producers.ts BuildArtifact.workbook). These numbers are REAL —
+ * computed from the coerced cells that get rendered to bytes, not a model claim —
+ * so the gate-lens can honestly say "the live formulas were checked".
+ */
+export interface WorkbookManifest {
+  /** Total live-formula cells across all sheets (real count). */
+  formulaCount: number;
+  /** How many sheets the workbook has (sheetSummary length, else sheetNames length). */
+  sheetCount: number;
+  /** A bounded set of real formula samples (may be empty even when computational). */
+  samples: FormulaSample[];
+}
+
+/**
+ * Narrow a Stage-3 artifact payload into its workbook audit manifest, or null.
+ *
+ * Returns null for any non-computational / workbook-less / non-Stage-3 payload —
+ * the lens then renders nothing. NEVER fabricates: every field is read straight
+ * off the persisted manifest, and `formulaCount` defaults to 0 (an HONEST zero
+ * the lens surfaces as a warning) rather than being invented. Mirrors the
+ * `readWorkbook` narrowing in ProjectView.tsx, extended to the audit fields.
+ */
+export function readWorkbookManifest(payload: unknown): WorkbookManifest | null {
+  if (!isRecord(payload)) return null;
+  const wb = payload.workbook;
+  if (!isRecord(wb)) return null;
+  if (wb.computational !== true) return null;
+
+  const formulaCount = num(wb.formulaCount) ?? 0;
+
+  const summary = Array.isArray(wb.sheetSummary) ? wb.sheetSummary : [];
+  const names = Array.isArray(wb.sheetNames) ? wb.sheetNames : [];
+  const sheetCount = summary.length > 0 ? summary.length : names.length;
+
+  const samples: FormulaSample[] = (Array.isArray(wb.formulaSamples) ? wb.formulaSamples : [])
+    .map((raw): FormulaSample | null => {
+      if (!isRecord(raw)) return null;
+      const sheet = typeof raw.sheet === 'string' ? raw.sheet : '';
+      const cell = typeof raw.cell === 'string' ? raw.cell : '';
+      const formula = typeof raw.formula === 'string' ? raw.formula : '';
+      if (!formula) return null;
+      return { sheet, cell, formula };
+    })
+    .filter((s): s is FormulaSample => s !== null);
+
+  return { formulaCount, sheetCount, samples };
+}
+
 /**
  * Extract scored angles from a Stage-1 niche_brief artifact payload.
  * The producer emits 5 sub-scores in a 1-10 band; we compose them into a single
