@@ -58,7 +58,28 @@ export interface Challenge {
   severity?: 'blocking' | 'minor';
 }
 
-export type GateResolution = 'pass' | 'fix' | 'escalate';
+/**
+ * One single-reviewer review of a stage artifact (the LEAN default path —
+ * FACTORY_EXPERT_COUNT=1, Monetise-like "produce → check → done"). ONE reviewer
+ * returns a real 0–100 quality score, a short HONEST critique, and a PASS/FAIL
+ * verdict, plus the deltas a rewrite must address on FAIL. This is the
+ * differentiator vs a rubber-stamp: the score and critique are genuine, not
+ * canned. When FACTORY_EXPERT_COUNT >= 2 the gate uses the round1/round2 panel
+ * instead (see gate.ts) and this path is dormant.
+ */
+export interface Review {
+  /** Which reviewer produced this (the stage's first expert slug). */
+  expert: string;
+  /** Real 0–100 quality score. The pass-bar is FACTORY_REVIEW_PASS_SCORE (default 70). */
+  score: number;
+  verdict: VerdictValue;
+  /** Short, honest critique — what is strong and what is weak. Always present. */
+  critique: string;
+  /** If FAIL: the specific, actionable deltas a single rewrite must address. */
+  deltas: string[];
+}
+
+export type GateResolution = 'pass' | 'fix' | 'passed_with_caveats' | 'escalate';
 
 /** The full outcome of one gate loop attempt — persisted as a GateLog row. */
 export interface GateLoopResult {
@@ -113,6 +134,11 @@ export interface GateContext {
  * subagent-bound impl would dispatch to a fleet agent instead.
  */
 export interface ExpertRunner {
+  /**
+   * LEAN default (FACTORY_EXPERT_COUNT=1): one reviewer returns a 0–100 score +
+   * honest critique + PASS/FAIL on the artifact. One Claude call.
+   */
+  reviewSingle(systemPrompt: string, expertSlug: string, ctx: GateContext): Promise<Review>;
   round1(systemPrompt: string, expertSlug: string, ctx: GateContext): Promise<Verdict>;
   round2(
     systemPrompt: string,

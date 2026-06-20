@@ -35,6 +35,7 @@
  */
 
 import { spawn } from 'node:child_process';
+import { appendFileSync } from 'node:fs';
 
 /**
  * The model used for all factory expert calls. Read once at module load.
@@ -68,14 +69,29 @@ function envInt(name: string, fallback: number): number {
 const CLI_TIMEOUT_MS = envInt('FACTORY_CLI_TIMEOUT_MS', 300_000);
 
 /**
- * Exponential-backoff-with-jitter knobs for the retry loop. The subscription
- * CLI trips a rolling rate wall after ~9–10 consecutive heavy calls; firing a
- * retry instantly just slams the same wall. We back off before each retry.
+ * Exponential-backoff-with-jitter knobs for the retry loop. TWO failure modes
+ * share this loop:
+ *   1. A transient CLI FLAKE — exit code 1 with empty/no usable output, an empty
+ *      result, or a missing `structured_output`. This is the intermittent killer
+ *      (Dennis, 2026-06-18: a `claude -p` call returned "exited with code 1 (no
+ *      stderr)" and the stage froze). A flake clears almost immediately, so we
+ *      want a SHORT first backoff — ~2s then ~5s (matches the brief's 2s/5s).
+ *   2. The subscription RATE WALL — after ~9–10 consecutive heavy calls; firing
+ *      a retry instantly just slams the same wall. The same exponential growth
+ *      escalates the wait for these (2s→4s→8s…capped) so it de-correlates.
  *   delay = min(BASE * 2^(attempt-1), CAP) + random(0..BASE)   (full-jitter-ish)
+ *
+ * BASE default 2s (was 5s): the dominant failure we now harden against is the
+ * fast-clearing flake, which a 2s first retry recovers from without delay; the
+ * rate-wall case still escalates exponentially toward the CAP.
  */
-const BACKOFF_BASE_MS = envInt('FACTORY_BACKOFF_BASE_MS', 5_000);
+const BACKOFF_BASE_MS = envInt('FACTORY_BACKOFF_BASE_MS', 2_000);
 const BACKOFF_CAP_MS = envInt('FACTORY_BACKOFF_CAP_MS', 120_000);
-/** Total attempts (incl. the first). Default 5; override FACTORY_MAX_ATTEMPTS. */
+/**
+ * Total attempts (incl. the first). Default 5 — covers BOTH a multi-retry flake
+ * (the brief's "up to 3 times" is the floor; 5 is strictly safer) AND the rate
+ * wall. Override FACTORY_MAX_ATTEMPTS.
+ */
 const MAX_ATTEMPTS = envInt('FACTORY_MAX_ATTEMPTS', 5);
 
 /** Prompts (expert personas + artifacts) can be large; outputs are small. */
@@ -125,8 +141,19 @@ export interface CallOptions {
 
 /**
  * Make one structured JSON call and return the parsed object typed as T.
- * Retries ONCE on a transient spawn failure or a missing structured result.
- * Throws on: refusal, max_tokens/turns, a CLI error envelope, or a second fail.
+ *
+ * Retries the SAME call up to MAX_ATTEMPTS (default 5) with short backoff on a
+ * TRANSIENT failure — the set that the brief (Dennis, 2026-06-18) requires never
+ * fail a stage on a single flake:
+ *   - a spawn/timeout rejection, incl. a non-zero exit with empty/no usable
+ *     output ("exited with code 1 (no stderr)"),
+ *   - non-JSON stdout (a torn/empty result envelope),
+ *   - a success envelope with a missing/null `structured_output`,
+ *   - a rate/throttle-classified error envelope.
+ * Throws ONLY on a NON-transient hard error (a genuine refusal / error_max_turns
+ * / a non-rate error envelope) or after the final attempt is exhausted. The gate
+ * layer (gate.ts) additionally catches a final throw and advances the stage with
+ * caveats, so even an exhausted-retries throw never freezes a run.
  */
 export async function callClaudeJSON<T>(opts: CallOptions): Promise<T> {
   if (BACKEND === 'anthropic-sdk') {
@@ -172,6 +199,19 @@ function cliArgs(opts: CallOptions): string[] {
   ];
 }
 
+/**
+ * The `usage` block the `claude -p --output-format json` envelope carries on a
+ * successful call. Fields are best-effort: the CLI populates input/output token
+ * counts and (when prompt caching is in play) the cache_* counts. Any field may
+ * be absent on a given call — the meter coerces missing values to 0.
+ */
+interface CliUsage {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
+}
+
 interface CliEnvelope {
   type?: string;
   subtype?: string;
@@ -180,6 +220,60 @@ interface CliEnvelope {
   structured_output?: unknown;
   errors?: unknown;
   permission_denials?: unknown;
+  usage?: CliUsage;
+}
+
+// ─── Real token metering ─────────────────────────────────────────────────────
+//
+// CHANGE (Dennis, 2026-06-18): "actually check the real token burn." We parse the
+// `usage` block from EVERY successful CLI call and append one JSON line per call
+// to a per-run usage log. We chose the file-log over a Run-model schema change
+// deliberately: callClaudeJSON is a pure, run-agnostic seam, and threading a
+// runId + Prisma write through the gate loop's durability path is the higher-risk
+// option. A best-effort file append is isolated and additive — a metering failure
+// (fs error, missing usage) NEVER fails the LLM call.
+//
+// The log path defaults to `.factory-tokens.jsonl` in the process cwd; override
+// with FACTORY_TOKEN_LOG. Set FACTORY_RUN_ID before driving a run and it is
+// stamped on every line so you can grep one run's calls out of a shared log.
+
+/** Resolve the JSONL usage-log path. Override with FACTORY_TOKEN_LOG. */
+function tokenLogPath(): string {
+  return process.env.FACTORY_TOKEN_LOG?.trim() || '.factory-tokens.jsonl';
+}
+
+/** Coerce a possibly-missing usage count to a finite non-negative integer. */
+function asCount(v: number | undefined): number {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
+}
+
+/**
+ * Append one call's real token usage to the per-run JSONL log. Best-effort:
+ * swallows ALL errors so metering can never break a gate call. `usage` may be
+ * undefined (older CLI / odd envelope) — we still record a zero-count line so the
+ * call count stays accurate.
+ */
+function meterUsage(usage: CliUsage | undefined): void {
+  try {
+    const inTok = asCount(usage?.input_tokens);
+    const outTok = asCount(usage?.output_tokens);
+    const cacheCreate = asCount(usage?.cache_creation_input_tokens);
+    const cacheRead = asCount(usage?.cache_read_input_tokens);
+    const line =
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        runId: process.env.FACTORY_RUN_ID ?? null,
+        model: FACTORY_MODEL,
+        input_tokens: inTok,
+        output_tokens: outTok,
+        cache_creation_input_tokens: cacheCreate,
+        cache_read_input_tokens: cacheRead,
+        total_tokens: inTok + outTok,
+      }) + '\n';
+    appendFileSync(tokenLogPath(), line);
+  } catch {
+    // Metering is observability only — never let it surface as a call failure.
+  }
 }
 
 /**
@@ -216,6 +310,16 @@ function spawnClaude(args: string[]): Promise<string> {
         child = spawn(bin, args, {
           windowsHide: true,
           env: process.env,
+          // stdin = 'ignore': the prompt is passed via -p (an arg), NOT stdin.
+          // Without this, `claude -p` inherits the parent stdin and, when that is
+          // a non-TTY pipe with no data (the Next.js route / driver case), the
+          // CLI waits ~3s then emits "Warning: no stdin data received in 3s,
+          // proceeding without it" and intermittently exits code 1 — the #1
+          // run-killer. Giving it /dev/null-equivalent stdin ('ignore' attaches
+          // no pipe and provides immediate EOF) means it never waits and never
+          // flakes. Mirrors the manual `claude -p … < /dev/null` that works 100%.
+          // stdout/stderr stay piped so we read the JSON envelope + any error.
+          stdio: ['ignore', 'pipe', 'pipe'],
           // .cmd/.bat shims need a shell on Windows; native exes must NOT use
           // one (shell:true would re-introduce string quoting of our args).
           // CAVEAT: shell:true does NOT escape args (Node DEP0190) — only the
@@ -367,6 +471,9 @@ async function callViaLocalCLI<T>(opts: CallOptions): Promise<T> {
       if (attempt === lastAttempt) throw lastErr;
       continue; // retry
     }
+
+    // Real token burn for this successful call → per-run usage log (best-effort).
+    meterUsage(env.usage);
 
     return env.structured_output as T;
   }
