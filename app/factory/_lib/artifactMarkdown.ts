@@ -197,7 +197,92 @@ function mdAuditReport(p: Record<string, unknown>): string {
     out.push('## Benchmarks', '');
     for (const [k, v] of Object.entries(benchmarks)) if (str(v) || numOf(v) !== undefined) out.push(`**${humanizeKey(k)}:** ${v}`, '');
   }
+  mdCompetitorScan(p.competitorScan, out);
   return out.join('\n');
+}
+
+/**
+ * Compact, HONEST text rendering of the Stage-4 competitor scan so the
+ * print/PDF + .md export carry the edge too — doc-only, matching the existing
+ * print-honesty pattern. Renders nothing when the scan is absent. When the
+ * source is model analysis (`llm-analysis`) the heading says so plainly — the
+ * document must not imply live scraped competitor data any more than the UI does.
+ */
+function mdCompetitorScan(cs: unknown, out: string[]): void {
+  if (!isRecord(cs)) return;
+
+  const edgeThesis = str(cs.edgeThesis) ? (cs.edgeThesis as string).trim() : '';
+  const edgeMoves = Array.isArray(cs.edgeMoves) ? cs.edgeMoves.filter(str) : [];
+  const openGaps = Array.isArray(cs.openGaps) ? cs.openGaps.filter(str) : [];
+  const redTeam = Array.isArray(cs.redTeamChallenges) ? cs.redTeamChallenges.filter(str) : [];
+  const stronger = Array.isArray(cs.whereCompetitorsAreStronger)
+    ? cs.whereCompetitorsAreStronger.filter(str)
+    : [];
+  const competitors = Array.isArray(cs.competitors) ? cs.competitors.filter(isRecord) : [];
+
+  // Honest emptiness guard — mirror readCompetitorScan: nothing to show → nothing.
+  const hasCompetitors = competitors.some((c) => str(c.name));
+  if (!edgeThesis && !edgeMoves.length && !hasCompetitors) return;
+
+  const confidence = numOf(cs.confidence);
+  const isLive = cs.dataSource === 'dnk-trends';
+  const sourceLabel = isLive
+    ? 'dnk-trends live market data'
+    : 'LLM market analysis (model analysis — not live scraped competitor data)';
+
+  out.push('## Competitive Edge', '');
+  const meta: string[] = [`_Source: ${sourceLabel}._`];
+  if (confidence !== undefined) meta.push(`_Edge confidence: ${Math.round(confidence)}/100._`);
+  out.push(meta.join(' '), '');
+
+  if (edgeThesis) out.push(`**The edge:** ${edgeThesis}`, '');
+
+  if (edgeMoves.length) {
+    out.push('### Moves that win it', '');
+    for (const m of edgeMoves) out.push(`- ${m}`);
+    out.push('');
+  }
+
+  if (openGaps.length) {
+    out.push('### Gaps we exploit', '');
+    for (const g of openGaps) out.push(`- ${g}`);
+    out.push('');
+  }
+
+  if (hasCompetitors) {
+    out.push('### The field', '');
+    for (const c of competitors) {
+      const name = str(c.name) ? (c.name as string).trim() : '';
+      if (!name) continue;
+      const price = str(c.priceRange) ? ` (${(c.priceRange as string).trim()})` : '';
+      out.push(`**${name}**${price}`);
+      if (str(c.whatTheyOffer)) out.push(`- Offers: ${(c.whatTheyOffer as string).trim()}`);
+      const strengths = Array.isArray(c.strengths) ? c.strengths.filter(str) : [];
+      const weaknesses = Array.isArray(c.weaknesses) ? c.weaknesses.filter(str) : [];
+      if (strengths.length) out.push(`- Their strength: ${strengths.join('; ')}`);
+      if (weaknesses.length) out.push(`- Our opening: ${weaknesses.join('; ')}`);
+      out.push('');
+    }
+  }
+
+  // The spar — the honest counter-case the edge survived.
+  if (redTeam.length || stronger.length) {
+    out.push('### How the edge was stress-tested', '');
+    out.push(
+      '_Two experts sparred — one argued the edge, one red-teamed it. This is what the thesis survived._',
+      '',
+    );
+    if (redTeam.length) {
+      out.push('**Challenges it answered:**', '');
+      for (const r of redTeam) out.push(`- ${r}`);
+      out.push('');
+    }
+    if (stronger.length) {
+      out.push('**Where competitors are honestly stronger:**', '');
+      for (const s of stronger) out.push(`- ${s}`);
+      out.push('');
+    }
+  }
 }
 
 function mdBrandPackage(p: Record<string, unknown>): string {

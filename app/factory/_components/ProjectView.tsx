@@ -18,7 +18,8 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { cn } from '../_lib/cn';
-import type { Artifact } from '../_lib/types';
+import { readCompetitorScan, type Artifact } from '../_lib/types';
+import { CompetitorScanPanel } from './CompetitorScanPanel';
 import {
   stageView,
   stageNote,
@@ -293,6 +294,12 @@ function StageSection({ artifact }: { artifact: Artifact }) {
 
   // Live-formula spreadsheet for a computational Stage-3 build (absent otherwise).
   const workbook = useMemo(() => readWorkbook(artifact.payload), [artifact]);
+  // Competitor scan for a Stage-4 audit_report (absent otherwise) — the
+  // "Competitive Edge" panel that survived the 2-expert spar.
+  const competitorScan = useMemo(
+    () => (artifact.stage === 4 ? readCompetitorScan(artifact.payload) : null),
+    [artifact],
+  );
   // Per-artifact honesty note (e.g. Stage-3 doc-only products); undefined = none.
   const note = stageNote(artifact);
 
@@ -379,15 +386,24 @@ function StageSection({ artifact }: { artifact: Artifact }) {
             <p className="text-sm text-amber-800">{note}</p>
           </div>
         )}
-        {isEmpty ? (
+        {isEmpty && !competitorScan ? (
           <p className="text-sm italic text-brand-dark/45">
             This stage produced no readable content.
           </p>
         ) : (
-          <article>
-            <h3 className="sr-only">{artifactTitle(artifact)}</h3>
-            <Markdown source={markdown} />
-          </article>
+          <>
+            {!isEmpty && (
+              <article>
+                <h3 className="sr-only">{artifactTitle(artifact)}</h3>
+                <Markdown source={markdown} />
+              </article>
+            )}
+            {competitorScan && (
+              <div className={cn(!isEmpty && 'mt-5')}>
+                <CompetitorScanPanel competitorScan={competitorScan} variant="page" />
+              </div>
+            )}
+          </>
         )}
       </div>
     </section>

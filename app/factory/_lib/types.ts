@@ -577,6 +577,144 @@ export function readWorkbookManifest(payload: unknown): WorkbookManifest | null 
   return { formulaCount, sheetCount, samples };
 }
 
+// ─── Stage-4 competitor scan (the "Competitive Edge" panel) ───────────────────
+
+/** One competitor the scan surfaced. Every field is best-effort (may be ''/[]). */
+export interface ScanCompetitor {
+  name: string;
+  whatTheyOffer: string;
+  priceRange: string;
+  /** Where they beat us — surfaced honestly (warning tone in the UI). */
+  strengths: string[];
+  /** Their gaps — our openings (positive tone in the UI). */
+  weaknesses: string[];
+}
+
+/** One spar round transcript: the edge expert's move → the red-team's pushback. */
+export interface ScanRound {
+  round: number;
+  edge: { thesis: string; moves: string[]; note: string };
+  redTeam: { challenges: string[]; competitorsStronger: string[]; note: string };
+}
+
+/**
+ * The narrowed, UI-facing view of the Stage-4 audit's competitor scan
+ * (Forge persists this under `audit_report` payload `competitorScan`). It is the
+ * sharpened "how we win" strategy that SURVIVED a 2-expert spar — the
+ * edge-vs-red-team tension is the trust signal, not a flaw, so we render both
+ * sides. Mirrors Forge's `CompetitorScan` shape; re-declared app-side so the
+ * client component never cross-imports server code (same boundary discipline as
+ * the rest of this file).
+ */
+export interface CompetitorScan {
+  competitors: ScanCompetitor[];
+  /** The headline edge strategy. */
+  edgeThesis: string;
+  /** Concrete actions — price / positioning / features. */
+  edgeMoves: string[];
+  /** Gaps competitors leave open (what we fill). */
+  openGaps: string[];
+  /** Surviving red-team challenges the thesis answered (honest pushback). */
+  redTeamChallenges: string[];
+  /** Where competitors are honestly stronger (the losses we own). */
+  whereCompetitorsAreStronger: string[];
+  /** 0-100 confidence in the edge thesis. */
+  confidence: number;
+  /** 'llm-analysis' = model analysis (NOT live scraped); 'dnk-trends' = live data. */
+  dataSource: 'llm-analysis' | 'dnk-trends';
+  /** The round-by-round spar transcript (may be empty). */
+  rounds: ScanRound[];
+}
+
+function strArr(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.trim() !== '') : [];
+}
+
+function str(v: unknown): string {
+  return typeof v === 'string' ? v : '';
+}
+
+/**
+ * Narrow a Stage-4 `audit_report` payload into its competitor scan, or null.
+ *
+ * Returns null when `competitorScan` is absent (older runs / a flaked scan) — the
+ * panel then renders nothing, exactly like the WorkbookLens is inert for prose
+ * products. NEVER fabricates: every field is read straight off the persisted
+ * object and degrades to ''/[] when missing, so we never invent a competitor, an
+ * edge move, or a confidence number the data doesn't carry. A scan that parses to
+ * NO competitors AND no edge thesis AND no moves is treated as empty (→ null), so
+ * a half-dropped object doesn't render an empty husk.
+ */
+export function readCompetitorScan(payload: unknown): CompetitorScan | null {
+  if (!isRecord(payload)) return null;
+  const cs = payload.competitorScan;
+  if (!isRecord(cs)) return null;
+
+  const competitors: ScanCompetitor[] = (Array.isArray(cs.competitors) ? cs.competitors : [])
+    .map((raw): ScanCompetitor | null => {
+      if (!isRecord(raw)) return null;
+      const name = str(raw.name).trim();
+      if (!name) return null;
+      return {
+        name,
+        whatTheyOffer: str(raw.whatTheyOffer).trim(),
+        priceRange: str(raw.priceRange).trim(),
+        strengths: strArr(raw.strengths),
+        weaknesses: strArr(raw.weaknesses),
+      };
+    })
+    .filter((c): c is ScanCompetitor => c !== null);
+
+  const edgeThesis = str(cs.edgeThesis).trim();
+  const edgeMoves = strArr(cs.edgeMoves);
+  const openGaps = strArr(cs.openGaps);
+  const redTeamChallenges = strArr(cs.redTeamChallenges);
+  const whereCompetitorsAreStronger = strArr(cs.whereCompetitorsAreStronger);
+
+  const rounds: ScanRound[] = (Array.isArray(cs.rounds) ? cs.rounds : [])
+    .map((raw, i): ScanRound | null => {
+      if (!isRecord(raw)) return null;
+      const edge = isRecord(raw.edge) ? raw.edge : {};
+      const redTeam = isRecord(raw.redTeam) ? raw.redTeam : {};
+      return {
+        round: num(raw.round) ?? i + 1,
+        edge: {
+          thesis: str(edge.thesis).trim(),
+          moves: strArr(edge.moves),
+          note: str(edge.note).trim(),
+        },
+        redTeam: {
+          challenges: strArr(redTeam.challenges),
+          competitorsStronger: strArr(redTeam.competitorsStronger),
+          note: str(redTeam.note).trim(),
+        },
+      };
+    })
+    .filter((r): r is ScanRound => r !== null);
+
+  // Honest emptiness guard — a husk with nothing to show renders nothing.
+  if (!competitors.length && !edgeThesis && !edgeMoves.length) return null;
+
+  const rawConfidence = num(cs.confidence);
+  const confidence =
+    rawConfidence === undefined ? 0 : Math.max(0, Math.min(100, Math.round(rawConfidence)));
+
+  const dataSource: CompetitorScan['dataSource'] =
+    cs.dataSource === 'dnk-trends' ? 'dnk-trends' : 'llm-analysis';
+
+  return {
+    competitors,
+    edgeThesis,
+    edgeMoves,
+    openGaps,
+    redTeamChallenges,
+    whereCompetitorsAreStronger,
+    confidence,
+    dataSource,
+    rounds,
+  };
+}
+
 /**
  * Extract scored angles from a Stage-1 niche_brief artifact payload.
  * The producer emits 5 sub-scores in a 1-10 band; we compose them into a single

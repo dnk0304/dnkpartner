@@ -24,6 +24,7 @@ import {
   deriveCardState,
   extractScoredAngles,
   readWorkbookManifest,
+  readCompetitorScan,
   TOTAL_STAGES,
   type RunDetail as RunDetailData,
   type GateLog,
@@ -34,6 +35,7 @@ import {
 import { StatusChip } from './StatusChip';
 import { ScoredRanking } from './ScoredRanking';
 import { ProgressBar } from './ProgressBar';
+import { CompetitorScanPanel } from './CompetitorScanPanel';
 
 /**
  * RunDetail — the card → open surface. A right-side drawer that polls
@@ -203,6 +205,18 @@ export function RunDetail({
                   s.n === 3
                     ? readWorkbookManifest(detail.artifacts.find((a) => a.stage === 3)?.payload)
                     : null;
+                // Stage-4 audit only: if it carries a competitor scan, surface the
+                // sharpened "how we win" edge that survived the 2-expert spar.
+                const competitorScan =
+                  s.n === 4
+                    ? readCompetitorScan(
+                        (
+                          detail.artifacts.find(
+                            (a) => a.stage === 4 && a.kind === 'audit_report',
+                          ) ?? detail.artifacts.find((a) => a.stage === 4)
+                        )?.payload,
+                      )
+                    : null;
                 return (
                   <li
                     key={s.n}
@@ -233,6 +247,11 @@ export function RunDetail({
                       </div>
                     </div>
                     {workbook && <WorkbookLens manifest={workbook} />}
+                    {competitorScan && (
+                      <div className="mt-3">
+                        <CompetitorScanPanel competitorScan={competitorScan} variant="detail" />
+                      </div>
+                    )}
                     {logs.length > 0 && (
                       <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
                         {logs.map((log) => (
