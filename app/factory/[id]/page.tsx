@@ -36,7 +36,7 @@ export default async function FactoryProjectPage({
 
   return (
     <div data-testid="factory-project-root">
-      <ProjectView runId={run.id} seed={run.seed} />
+      <ProjectView runId={run.id} seed={run.seed} stage={run.stage} status={run.status} />
     </div>
   );
 }
