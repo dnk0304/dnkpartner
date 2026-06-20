@@ -189,10 +189,10 @@ export function RunDetail({
             </section>
           )}
 
-          {/* Pipeline */}
+          {/* The board — the 6 stages and where this project sits. */}
           <section aria-labelledby="pipeline-h">
             <h3 id="pipeline-h" className="mb-2.5 text-sm font-semibold text-brand-accent">
-              Pipeline
+              The board
             </h3>
             <ol className="space-y-2.5">
               {ACTIVE_STAGES.map((s) => {

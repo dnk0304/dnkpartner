@@ -37,6 +37,17 @@ export function guideFor(n: number, short: string) {
 }
 
 /**
+ * The ONE plain-language label for a stage — the same verb-phrase the board
+ * cards show ("Find Your Market" … "Launch It"). Use this everywhere a stage is
+ * named to the user (sidebar, list, announcements) so the chips and the cards
+ * speak ONE vocabulary instead of two ("Brand" chip vs. "Brand It" card). Falls
+ * back to the engine `short` for any unmapped (parked 7/8) stage.
+ */
+export function plainStageLabel(n: number, short: string): string {
+  return STAGE_GUIDE[n]?.label ?? short;
+}
+
+/**
  * StageGuideExplainerGrid — the read-only "here's what the 6 stages do" grid
  * for the first-run welcome state. Same DELIBERATE fixed grid as the board
  * (6-up ≥1280 / 3-up lg / 2-up md / 1-up below, equal-height panels), so the
@@ -58,14 +69,14 @@ export function StageGuideExplainerGrid() {
             key={stage.n}
             className="flex min-h-[10rem] min-w-0 flex-col gap-2 overflow-hidden rounded-xl bg-brand-surface p-4 text-left shadow-sm ring-1 ring-brand-line"
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
               <span
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-primary/10 text-sm font-bold text-brand-primary"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-primary/10 text-base font-extrabold tabular-nums text-brand-primary"
                 aria-hidden="true"
               >
                 {stage.n}
               </span>
-              <Icon className="h-4 w-4 shrink-0 text-brand-primary" aria-hidden="true" />
+              <Icon className="h-5 w-5 shrink-0 text-brand-primary" strokeWidth={2} aria-hidden="true" />
             </div>
             <div>
               <h3 className="truncate text-sm font-semibold text-brand-accent">{guide.label}</h3>

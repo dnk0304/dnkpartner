@@ -14,6 +14,8 @@ interface Stat {
   label: string;
   value: number;
   icon: LucideIcon;
+  /** One-line plain-language explanation, surfaced as a hover tooltip. */
+  tip: string;
 }
 
 export function KpiRow({ runs }: { runs: RunSummary[] }) {
@@ -36,26 +38,26 @@ export function KpiRow({ runs }: { runs: RunSummary[] }) {
   }
 
   const stats: Stat[] = [
-    { label: 'In progress', value: inProgress, icon: Activity },
-    { label: 'Stopped (resumable)', value: stopped, icon: PauseCircle },
-    { label: 'Ready', value: ready, icon: CheckCircle2 },
-    { label: 'Total', value: runs.length, icon: LayoutGrid },
+    { label: 'In progress', value: inProgress, icon: Activity, tip: 'Projects the factory is actively building or waiting on you for.' },
+    { label: 'Stopped (resumable)', value: stopped, icon: PauseCircle, tip: 'Drafts that stalled mid-build — open one and hit Resume to continue.' },
+    { label: 'Ready', value: ready, icon: CheckCircle2, tip: 'Finished projects ready to review, download, or launch.' },
+    { label: 'Total', value: runs.length, icon: LayoutGrid, tip: 'Every project on the board, across all stages.' },
   ];
 
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl bg-brand-surface px-5 py-2.5 ring-1 ring-brand-line">
+    <div className="inline-flex w-fit flex-wrap items-center gap-x-5 gap-y-2 rounded-xl bg-brand-surface px-4 py-2 ring-1 ring-brand-line">
       {stats.map((s) => {
         const Icon = s.icon;
+        // The COUNT always reads at brand-accent weight (even at 0) so the metric
+        // set is legible; only the icon dims at 0 to keep the row calm.
         const dim = s.value === 0;
         return (
-          <div key={s.label} className="flex items-center gap-2 text-sm">
+          <div key={s.label} className="flex items-center gap-2 text-sm" title={s.tip}>
             <Icon
               className={dim ? 'h-4 w-4 text-brand-muted' : 'h-4 w-4 text-brand-primary'}
               aria-hidden="true"
             />
-            <span className={dim ? 'font-semibold tabular-nums text-brand-muted' : 'font-semibold tabular-nums text-brand-accent'}>
-              {s.value}
-            </span>
+            <span className="font-semibold tabular-nums text-brand-accent">{s.value}</span>
             <span className="text-brand-muted">{s.label}</span>
           </div>
         );

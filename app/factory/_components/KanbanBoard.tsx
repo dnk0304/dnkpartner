@@ -148,18 +148,18 @@ export function KanbanBoard({
                   : 'bg-brand-surface ring-brand-line',
               )}
             >
-              {/* Numbered badge + stage icon */}
-              <div className="flex items-center gap-2">
+              {/* Numbered badge + stage icon (audit §7 — bolder badge, 20px icon) */}
+              <div className="flex items-center gap-2.5">
                 <span
                   className={cn(
-                    'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-sm font-bold',
+                    'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-base font-extrabold tabular-nums',
                     active ? 'bg-brand-primary text-white' : 'bg-brand-primary/10 text-brand-primary',
                   )}
                   aria-hidden="true"
                 >
                   {stage.n}
                 </span>
-                <Icon className="h-4 w-4 shrink-0 text-brand-primary" aria-hidden="true" />
+                <Icon className="h-5 w-5 shrink-0 text-brand-primary" strokeWidth={2} aria-hidden="true" />
               </div>
 
               {/* Locked plain-language label + explainer */}

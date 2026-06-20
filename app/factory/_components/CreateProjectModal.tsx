@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Sparkles, Loader2, AlertCircle, Compass } from 'lucide-react';
 import { cn } from '../_lib/cn';
+import { useFocusTrap } from '../_lib/useFocusTrap';
 import type { RunDetail } from '../_lib/types';
 
 /**
@@ -30,6 +31,9 @@ export function CreateProjectModal({
   const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const mounted = typeof document !== 'undefined';
+
+  // Trap focus inside the dialog and restore it to the trigger on close.
+  useFocusTrap(dialogRef, mounted);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -94,7 +98,7 @@ export function CreateProjectModal({
       />
       <div
         ref={dialogRef}
-        className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-200"
+        className="relative w-full max-w-md rounded-2xl border border-brand-line bg-white p-6 shadow-xl motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-200"
       >
         <button
           type="button"
@@ -131,7 +135,7 @@ export function CreateProjectModal({
             onChange={(e) => setHint(e.target.value)}
             disabled={submitting}
             placeholder="e.g. divorce &amp; family admin — or leave blank"
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-brand-dark outline-none transition-all placeholder:text-brand-dark/35 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/30 disabled:opacity-60"
+            className="w-full rounded-lg border border-brand-line bg-white px-3 py-2 text-sm text-brand-dark outline-none transition-all placeholder:text-brand-dark/35 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/30 disabled:opacity-60"
             aria-describedby="hint-help"
           />
           <p id="hint-help" className="mt-1.5 text-xs text-brand-dark/45">

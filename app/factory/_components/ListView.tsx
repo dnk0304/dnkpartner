@@ -6,6 +6,7 @@ import { cn } from '../_lib/cn';
 import { deriveCardState, isResumable, stageMeta, TOTAL_STAGES, type RunSummary } from '../_lib/types';
 import { StatusChip } from './StatusChip';
 import { DeleteRunControl } from './DeleteRunControl';
+import { plainStageLabel } from './StageGuide';
 
 function relativeTime(iso: string): string {
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
@@ -101,7 +102,7 @@ export function ListView({
                 >
                   <td className="px-4 py-3 font-medium text-brand-accent">{run.seed}</td>
                   <td className="px-4 py-3 text-brand-dark/70">
-                    {run.stage} / {TOTAL_STAGES} · {meta.short}
+                    {run.stage} / {TOTAL_STAGES} · {plainStageLabel(run.stage, meta.short)}
                   </td>
                   <td className="px-4 py-3">
                     <StatusChip state={state} stage={run.stage} gate={gates[run.id]} />

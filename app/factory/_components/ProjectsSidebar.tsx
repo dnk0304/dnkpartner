@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { LayoutGrid, FolderOpen, AlertCircle } from 'lucide-react';
 import { cn } from '../_lib/cn';
 import { stageMeta, TOTAL_STAGES, type RunSummary } from '../_lib/types';
+import { plainStageLabel } from './StageGuide';
 
 /**
  * ProjectsSidebar — the persistent left nav (Monetise-style). Lists EVERY
@@ -137,7 +138,7 @@ export function ProjectsSidebar() {
                       </span>
                     </span>
                     <span className="pl-6 text-[11px] text-brand-dark/40">
-                      Stage {Math.min(run.stage, TOTAL_STAGES)} / {TOTAL_STAGES} · {stageMeta(run.stage).short}
+                      Stage {Math.min(run.stage, TOTAL_STAGES)} / {TOTAL_STAGES} · {plainStageLabel(run.stage, stageMeta(run.stage).short)}
                     </span>
                   </Link>
                 </li>

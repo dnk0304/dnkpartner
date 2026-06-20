@@ -312,9 +312,10 @@ export function ProjectView({
       <div data-print-hide className="min-h-screen bg-brand-canvas pb-16">
         {/* ── Sticky action bar (spec §5.1) ─────────────────────────────────── */}
         <div className="sticky top-0 z-20 border-b border-brand-line bg-brand-surface/90 backdrop-blur">
-          <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 px-6 py-3">
-            {/* Left: back + title + status */}
-            <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div className="mx-auto flex max-w-[1600px] flex-col gap-3 px-6 py-3 sm:flex-row sm:flex-wrap sm:items-center">
+            {/* Left: back + title + status. Full-width < sm so the export cluster
+                stacks BELOW it instead of overlapping the title at 390px. */}
+            <div className="flex min-w-0 items-center gap-3 sm:flex-1">
               <Link
                 href="/factory"
                 aria-label="Back to all projects"
@@ -333,9 +334,11 @@ export function ProjectView({
               </div>
             </div>
 
-            {/* Right: export cluster + verdicts (spec order/labels/icons) */}
+            {/* Right: export cluster + verdicts (spec order/labels/icons). The
+                primary "Show Gate Verdicts" DOMINATES (solid fill); the export
+                buttons recede to quiet outlines. */}
             {hasArtifacts && (
-              <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                 <ActionButton
                   onClick={downloadAll}
                   busy={mdBusy}
@@ -354,7 +357,7 @@ export function ProjectView({
                 <button
                   type="button"
                   onClick={openVerdicts}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-brand-primary/10 px-3 py-2 text-sm font-semibold text-brand-primary transition-colors hover:bg-brand-primary/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-brand-primary px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40"
                 >
                   <ShieldCheck className="h-4 w-4" />
                   <span className="hidden sm:inline">Show Gate Verdicts</span>
@@ -398,7 +401,7 @@ export function ProjectView({
                 className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40"
               >
                 <Compass className="h-4 w-4" />
-                Open the live pipeline
+                Open the board
               </Link>
             </div>
           ) : (
@@ -411,8 +414,9 @@ export function ProjectView({
                 className="col-span-12 lg:col-span-2"
               />
 
-              {/* Center — section cards (col-span-7) */}
-              <div className="col-span-12 min-w-0 space-y-6 lg:col-span-7">
+              {/* Center — section cards (col-span-7). space-y-8 gives the section
+                  cards more breathing room between them (audit §7). */}
+              <div className="col-span-12 min-w-0 space-y-8 lg:col-span-7">
                 {ordered.map((a) => (
                   <StageSection key={a.id} artifact={a} chosenNiche={seed} />
                 ))}
@@ -672,7 +676,7 @@ function StageSection({
             </p>
             <h2
               id={`${sectionId}-h`}
-              className="text-base font-semibold text-brand-accent"
+              className="text-lg font-bold tracking-tight text-brand-accent"
             >
               {heading}
             </h2>

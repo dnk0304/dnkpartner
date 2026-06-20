@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -22,6 +22,7 @@ import {
   type RunDetail as RunDetailData,
 } from '../_lib/types';
 import { TierBadge, CompetitionPill } from './Badges';
+import { useFocusTrap } from '../_lib/useFocusTrap';
 
 /**
  * NichePicker — the Stage-1 "choose one niche" screen. Renders the N candidate
@@ -62,6 +63,10 @@ export function NichePicker({
   const mounted = typeof document !== 'undefined';
   const [selecting, setSelecting] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Trap focus inside the overlay and restore it to the trigger on close.
+  useFocusTrap(dialogRef, mounted);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -112,6 +117,7 @@ export function NichePicker({
 
   return createPortal(
     <div
+      ref={dialogRef}
       className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto p-4 sm:p-6"
       role="dialog"
       aria-modal="true"

@@ -17,7 +17,7 @@ import { ListView } from './ListView';
 import { CreateProjectModal } from './CreateProjectModal';
 import { RunDetail } from './RunDetail';
 import { NichePicker } from './NichePicker';
-import { StageGuideExplainerGrid } from './StageGuide';
+import { StageGuideExplainerGrid, plainStageLabel } from './StageGuide';
 
 const POLL_INTERVAL_MS = 3000;
 
@@ -70,7 +70,7 @@ export function FactoryWorkspace() {
         const prev = prevStages.current.get(r.id);
         if (prev !== undefined && r.stage > prev) {
           moved.add(r.id);
-          announcements.push(`${r.seed} advanced to stage ${r.stage} — ${stageMeta(r.stage).short}`);
+          announcements.push(`${r.seed} advanced to stage ${r.stage} — ${plainStageLabel(r.stage, stageMeta(r.stage).short)}`);
         }
       }
       prevStages.current = new Map(next.map((r) => [r.id, r.stage]));
@@ -239,9 +239,11 @@ export function FactoryWorkspace() {
       </div>
 
       {/* Welcome hero — one clear idea, one low-friction CTA. The optional hint
-          field lives INSIDE the create modal, never here, so the hero stays a
-          single button. */}
-      <section className="mb-6 rounded-2xl bg-gradient-to-br from-brand-light to-brand-surface px-8 py-10 text-center ring-1 ring-brand-line">
+          field lives INSIDE the create modal; the hint line below OPENS the
+          modal so it's not a dead-end reference to a field the user can't see.
+          Gradient deepened with a faint teal tint (not flat white) so the hero
+          reads intentional. */}
+      <section className="mb-6 rounded-2xl bg-gradient-to-br from-brand-tint/40 via-brand-light to-brand-surface px-8 py-10 text-center ring-1 ring-brand-line">
         <p className="flex items-center justify-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-primary">
           <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
           Product Factory
@@ -262,7 +264,13 @@ export function FactoryWorkspace() {
             <Plus className="h-4 w-4" />
             Create a new project
           </button>
-          <p className="text-xs text-brand-muted">Optional: add a hint to steer the genre.</p>
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="rounded text-xs text-brand-muted underline-offset-2 transition-colors hover:text-brand-primary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40"
+          >
+            Optional: add a hint to steer the genre.
+          </button>
         </div>
       </section>
 
@@ -375,41 +383,38 @@ function ViewTab({
  * what the factory does. Order: welcome card + CTA → "what the 6 stages do".
  */
 function EmptyState({ onCreate }: { onCreate: () => void }) {
+  // The 6-stage grid IS the hero now (audit §4). The old floating "No projects
+  // yet" void card is gone — the "nothing yet" state lives INSIDE this section,
+  // as a quiet line under the heading. The column is vertically centered so a
+  // first-timer lands on the explainer, not a sea of white space.
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-brand-line bg-brand-surface px-6 py-12 text-center">
+    <section
+      aria-labelledby="empty-stage-guide-heading"
+      className="flex min-h-[60vh] flex-col justify-center"
+    >
+      <div className="mb-7 text-center">
         <span className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-sm">
           <Sparkles className="h-7 w-7 text-white" />
         </span>
-        <h2 className="text-lg font-semibold text-brand-accent">No projects yet</h2>
-        <p className="mt-1 max-w-sm text-sm text-brand-dark/55">
-          Create your first product. Drop in a raw idea and the factory runs Stage 1 immediately.
+        <h2 id="empty-stage-guide-heading" className="text-2xl font-semibold tracking-tight text-brand-accent">
+          Here&apos;s how the factory works
+        </h2>
+        <p className="mx-auto mt-2 max-w-xl text-sm text-brand-dark/60">
+          Six steps take a raw idea to a ready-to-sell product — each one quality-checked before the
+          next begins. No projects yet: create your first and it starts at Stage&nbsp;1 immediately.
         </p>
         <button
           type="button"
           onClick={onCreate}
-          className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40"
+          className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-brand-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40"
         >
           <Plus className="h-4 w-4" />
-          Create a project
+          Create your first project
         </button>
       </div>
 
-      {/* What the factory will do — the same 6-stage explainer the board shows,
-          surfaced here so a first-timer understands the pipeline before they
-          have a single project. Same fluid no-scroll grid as the board. */}
-      <section aria-labelledby="empty-stage-guide-heading">
-        <div className="mb-3">
-          <h3 id="empty-stage-guide-heading" className="text-sm font-semibold text-brand-accent">
-            How it works — the 6-stage build
-          </h3>
-          <p className="text-xs text-brand-muted">
-            Each step is quality-checked before the next begins. Your projects will move through these in order.
-          </p>
-        </div>
-        <StageGuideExplainerGrid />
-      </section>
-    </div>
+      <StageGuideExplainerGrid />
+    </section>
   );
 }
 
