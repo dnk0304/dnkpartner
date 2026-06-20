@@ -26,6 +26,7 @@
 
 import { callClaudeJSON } from './llm';
 import { getStage } from './types';
+import { runCompetitorScan, type CompetitorScan } from './competitorScan';
 import { buildXlsx, colLetter, type SheetCell, type SheetDef, type CellStyle } from './xlsx';
 
 /**
@@ -448,9 +449,15 @@ const PRODUCERS: Record<
   // this map; produceStageArtifact routes stage 3 to the dedicated multi-call path.
   4: {
     system:
-      'You are the Stage 4 Audit producer. Benchmark the built artifact against the 3 named live ' +
-      'competitors from Stage 2 on completeness, perceived value, presentation, and price-to-value. ' +
-      'Return a verdict (ship | improve-then-ship | kill) and, if improve, the exact deltas.',
+      'You are the Stage 4 Audit producer. A 2-expert COMPETITOR SCAN (EDGE-STRATEGIST vs ' +
+      'RED-TEAM spar) has already run and is supplied to you below: the biggest real competitors, ' +
+      'our sharpened competitive-edge thesis, the gaps we fill, the surviving red-team challenges, ' +
+      'and where competitors are genuinely stronger. Benchmark the built artifact against those ' +
+      'competitors on completeness, perceived value, presentation, and price-to-value, and let the ' +
+      'scan findings drive your verdict — if the red-team showed competitors decisively beat us on ' +
+      'something buyers value, that must lower the verdict; if our edge thesis holds, it supports a ' +
+      'ship. Return a verdict (ship | improve-then-ship | kill) and, if improve, the exact deltas ' +
+      '(reference the edge moves / open gaps where relevant).',
     schema: {
       type: 'object',
       additionalProperties: false,
@@ -595,6 +602,12 @@ export async function produceStageArtifact(input: ProduceInput): Promise<unknown
     return produceBuildArtifact(input);
   }
 
+  // Stage 4 (audit) runs the 2-expert COMPETITOR SCAN spar first, then the audit
+  // call consumes it; the scan rides inside the persisted audit_report payload.
+  if (input.stage === 4) {
+    return produceAuditArtifact(input);
+  }
+
   const cfg = PRODUCERS[input.stage];
   if (!cfg) throw new Error(`No producer for stage ${input.stage}`);
   const stage = getStage(input.stage);
@@ -611,6 +624,85 @@ export async function produceStageArtifact(input: ProduceInput): Promise<unknown
     schema: cfg.schema,
     maxTokens: cfg.maxTokens ?? 8000,
   });
+}
+
+// ─── Stage 4: Audit + embedded 2-expert COMPETITOR SCAN ──────────────────────
+//
+// Ken's design (locked): the Competitor Scan is a PRE-STEP inside the Stage-4
+// producer, not a new stage. Before the audit benchmark is produced, the
+// EDGE-STRATEGIST vs RED-TEAM spar runs (lib/factory/competitorScan.ts) and
+// produces a CompetitorScan artifact. The audit call then consumes it (its system
+// prompt is scan-aware) and the scan is embedded INTO the persisted audit_report
+// payload under `competitorScan` — exactly like the workbook rides inside the S3
+// build payload. One artifact (audit_report), one DB row, richer payload. NO
+// Prisma migration (FactoryArtifact.payload is Json).
+//
+// RESILIENCE: a scan flake (after llm.ts retries) must not kill the audit. If the
+// spar throws, we log and proceed with a null competitorScan rather than failing
+// the whole Stage-4 produce — the audit benchmark is the guaranteed deliverable.
+
+/** What the model returns for the S4 audit (the scan is merged in code, not by the model). */
+interface AuditModelOut {
+  benchmarks: { competitor: string; completeness: string; perceivedValue: string; priceToValue: string }[];
+  verdict: string;
+  deltas: string[];
+}
+
+/** The persisted Stage-4 audit_report payload: the audit + the embedded scan. */
+interface AuditArtifact extends AuditModelOut {
+  /** The 2-expert spar result. null only if the scan threw (audit still ships). */
+  competitorScan: CompetitorScan | null;
+}
+
+async function produceAuditArtifact(input: ProduceInput): Promise<AuditArtifact> {
+  const cfg = PRODUCERS[4];
+  const stage = getStage(4);
+
+  // 1. COMPETITOR SCAN — the 2-expert spar (resilient: a flake yields null, not a
+  //    failed audit). identify → edge r1 → red-team r1 → edge sharpen r2 (default).
+  let competitorScan: CompetitorScan | null = null;
+  try {
+    competitorScan = await runCompetitorScan(input.seed, input.priorArtifacts);
+  } catch (err) {
+    console.warn(
+      `[producers:S4] competitor scan failed — auditing without it: ${(err as Error).message}`,
+    );
+  }
+
+  // 2. AUDIT — the scan-aware benchmark call. Feed the spar findings so the verdict
+  //    reflects the edge thesis + surviving red-team challenges.
+  const scanBlock = competitorScan
+    ? `\n\nCOMPETITOR SCAN (2-expert EDGE vs RED-TEAM spar result — drive your verdict from this):\n` +
+      `Competitors: ${competitorScan.competitors
+        .map((c) => `${c.name} (${c.priceRange})`)
+        .join('; ')}\n` +
+      `Edge thesis: ${competitorScan.edgeThesis}\n` +
+      `Edge moves: ${competitorScan.edgeMoves.join('; ') || '(none)'}\n` +
+      `Open gaps we fill: ${competitorScan.openGaps.join('; ') || '(none)'}\n` +
+      `Surviving red-team challenges: ${competitorScan.redTeamChallenges.join('; ') || '(none)'}\n` +
+      `Where competitors are stronger: ${
+        competitorScan.whereCompetitorsAreStronger.join('; ') || '(none)'
+      }\n` +
+      `Edge confidence after sparring: ${competitorScan.confidence}/100 (source: ${competitorScan.dataSource})`
+    : '\n\n(Competitor scan unavailable for this run — benchmark against the Stage-2 named competitors.)';
+
+  const user =
+    `Produce the artifact for Stage 4 (${stage.name}).\n\n` +
+    `OPERATOR SEED:\n${input.seed}` +
+    priorBlock(input.priorArtifacts) +
+    scanBlock +
+    fixBlock(input.fixDeltas);
+
+  const audit = await callClaudeJSON<AuditModelOut>({
+    system: cfg.system,
+    user,
+    schema: cfg.schema,
+    maxTokens: cfg.maxTokens ?? 8000,
+  });
+
+  // 3. EMBED the scan in the persisted payload (the merge happens in code, not by
+  //    the model — keeps the spar transcript verbatim and untruncated).
+  return { ...audit, competitorScan };
 }
 
 // ─── Stage 3: FULL product generation (Monetise-style, module-by-module) ───────
