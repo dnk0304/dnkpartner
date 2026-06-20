@@ -1,15 +1,6 @@
 'use client';
 
 import { useLayoutEffect, useRef } from 'react';
-import {
-  Compass,
-  ClipboardList,
-  Package,
-  Swords,
-  Tag,
-  Rocket,
-  type LucideIcon,
-} from 'lucide-react';
 import { cn } from '../_lib/cn';
 import {
   ACTIVE_STAGES,
@@ -18,6 +9,7 @@ import {
   type RunDetail,
 } from '../_lib/types';
 import { RunCard } from './RunCard';
+import { guideFor } from './StageGuide';
 
 /**
  * KanbanBoard — the hero. Panels = the active stages (1–6 by default; stages
@@ -44,24 +36,6 @@ import { RunCard } from './RunCard';
  * that moved, apply an inverse transform then transition it to zero — the
  * browser interpolates the real layout change.
  */
-
-/** The locked plain-language label, ≤10-word explainer, and icon per stage. */
-const STAGE_GUIDE: Record<
-  number,
-  { label: string; explainer: string; icon: LucideIcon }
-> = {
-  1: { label: 'Find Your Market', explainer: 'We surface real niches with painful, paying problems.', icon: Compass },
-  2: { label: 'See the Build Plan', explainer: 'The full blueprint and prompts behind your product.', icon: ClipboardList },
-  3: { label: 'Get the Product', explainer: 'The finished product — text or a live Excel tool.', icon: Package },
-  4: { label: 'Beat Competitors', explainer: "Who you're up against and how you win.", icon: Swords },
-  5: { label: 'Brand It', explainer: 'A sellable name and a brand voice.', icon: Tag },
-  6: { label: 'Launch It', explainer: 'Where and how to sell it, ranked.', icon: Rocket },
-};
-
-/** Defensive fallback so a parked stage (7/8) never renders without a guide. */
-function guideFor(n: number, short: string) {
-  return STAGE_GUIDE[n] ?? { label: short, explainer: '', icon: Compass };
-}
 
 export function KanbanBoard({
   runs,

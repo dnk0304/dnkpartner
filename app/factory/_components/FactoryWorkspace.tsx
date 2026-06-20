@@ -17,6 +17,7 @@ import { ListView } from './ListView';
 import { CreateProjectModal } from './CreateProjectModal';
 import { RunDetail } from './RunDetail';
 import { NichePicker } from './NichePicker';
+import { StageGuideExplainerGrid } from './StageGuide';
 
 const POLL_INTERVAL_MS = 3000;
 
@@ -364,24 +365,50 @@ function ViewTab({
   );
 }
 
+/**
+ * EmptyState — the zero-projects / first-run welcome. This is the FIRST thing a
+ * brand-new user sees, so it must do two jobs: (1) invite them to create, and
+ * (2) explain the 6-stage pipeline in plain language — because EmptyState
+ * REPLACES KanbanBoard when there are no runs, and the board is where the
+ * stage explainers normally live. Without the grid below, a first-timer (the
+ * exact person this redesign is for) would see "no projects" and nothing about
+ * what the factory does. Order: welcome card + CTA → "what the 6 stages do".
+ */
 function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-20 text-center">
-      <span className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-sm">
-        <Sparkles className="h-7 w-7 text-white" />
-      </span>
-      <h2 className="text-lg font-semibold text-brand-accent">No projects yet</h2>
-      <p className="mt-1 max-w-sm text-sm text-brand-dark/55">
-        Create your first product. Drop in a raw idea and the factory runs Stage 1 immediately.
-      </p>
-      <button
-        type="button"
-        onClick={onCreate}
-        className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40"
-      >
-        <Plus className="h-4 w-4" />
-        Create a project
-      </button>
+    <div className="space-y-6">
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-brand-line bg-brand-surface px-6 py-12 text-center">
+        <span className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-sm">
+          <Sparkles className="h-7 w-7 text-white" />
+        </span>
+        <h2 className="text-lg font-semibold text-brand-accent">No projects yet</h2>
+        <p className="mt-1 max-w-sm text-sm text-brand-dark/55">
+          Create your first product. Drop in a raw idea and the factory runs Stage 1 immediately.
+        </p>
+        <button
+          type="button"
+          onClick={onCreate}
+          className="mt-5 inline-flex items-center gap-1.5 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40"
+        >
+          <Plus className="h-4 w-4" />
+          Create a project
+        </button>
+      </div>
+
+      {/* What the factory will do — the same 6-stage explainer the board shows,
+          surfaced here so a first-timer understands the pipeline before they
+          have a single project. Same fluid no-scroll grid as the board. */}
+      <section aria-labelledby="empty-stage-guide-heading">
+        <div className="mb-3">
+          <h3 id="empty-stage-guide-heading" className="text-sm font-semibold text-brand-accent">
+            How it works — the 6-stage build
+          </h3>
+          <p className="text-xs text-brand-muted">
+            Each step is quality-checked before the next begins. Your projects will move through these in order.
+          </p>
+        </div>
+        <StageGuideExplainerGrid />
+      </section>
     </div>
   );
 }
