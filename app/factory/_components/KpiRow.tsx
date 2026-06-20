@@ -1,53 +1,24 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Boxes, Activity, PauseCircle, PackageCheck } from 'lucide-react';
-import { cn } from '../_lib/cn';
+import { Activity, PauseCircle, CheckCircle2, LayoutGrid, type LucideIcon } from 'lucide-react';
 import { deriveCardState, type RunSummary } from '../_lib/types';
 
 /**
- * KpiRow — the dnk-trends 4-up gradient stat row (AITrends "Stats Cards"
- * pattern). Computes honest counts from the live run list.
+ * KpiRow — the slim status bar (2026-06-20 redesign — Vinci spec). The bulky
+ * 4-up gradient KPI cards are GONE; the same honest counts are now demoted to
+ * one quiet inline row of stat chips — chrome, not hero. Counts stay visible at
+ * zero (greyed) rather than hiding, so the metric set reads consistently.
  */
-interface Kpi {
+interface Stat {
   label: string;
   value: number;
-  hint: string;
-  icon: React.ComponentType<{ className?: string }>;
-  /** card bg gradient · border · label text · value text · icon text */
-  tone: { card: string; label: string; value: string; icon: string };
+  icon: LucideIcon;
 }
 
-const TONES = {
-  amber: {
-    card: 'from-amber-50 to-orange-50 border-amber-200',
-    label: 'text-amber-700',
-    value: 'text-amber-900',
-    icon: 'text-amber-500',
-  },
-  blue: {
-    card: 'from-blue-50 to-indigo-50 border-blue-200',
-    label: 'text-blue-700',
-    value: 'text-blue-900',
-    icon: 'text-blue-500',
-  },
-  purple: {
-    card: 'from-purple-50 to-pink-50 border-purple-200',
-    label: 'text-purple-700',
-    value: 'text-purple-900',
-    icon: 'text-purple-500',
-  },
-  emerald: {
-    card: 'from-emerald-50 to-green-50 border-emerald-200',
-    label: 'text-emerald-700',
-    value: 'text-emerald-900',
-    icon: 'text-emerald-500',
-  },
-} as const;
-
 export function KpiRow({ runs }: { runs: RunSummary[] }) {
-  // Stall derivation reads `now`; capture it in state on a slow interval so the
-  // counts re-evaluate as runs age, without an impure Date.now() during render.
+  // Stall derivation reads `now`; capture it on a slow interval so the counts
+  // re-evaluate as runs age, without an impure Date.now() during render.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 15000);
@@ -55,37 +26,37 @@ export function KpiRow({ runs }: { runs: RunSummary[] }) {
   }, []);
 
   let inProgress = 0;
-  let stalled = 0;
+  let stopped = 0;
   let ready = 0;
   for (const r of runs) {
     const state = deriveCardState(r, now);
-    if (state === 'running' || state === 'awaiting_gate') inProgress += 1;
-    if (state === 'draft_stalled') stalled += 1;
+    if (state === 'running' || state === 'awaiting_gate' || state === 'awaiting_selection') inProgress += 1;
+    if (state === 'draft_stalled') stopped += 1;
     if (state === 'draft_ready' || state === 'published') ready += 1;
   }
 
-  const kpis: Kpi[] = [
-    { label: 'Total projects', value: runs.length, hint: 'In the factory', icon: Boxes, tone: TONES.blue },
-    { label: 'In progress', value: inProgress, hint: 'Running or awaiting you', icon: Activity, tone: TONES.amber },
-    { label: 'Drafts (stopped)', value: stalled, hint: 'Resumable', icon: PauseCircle, tone: TONES.purple },
-    { label: 'Drafts ready', value: ready, hint: 'Completed pipeline', icon: PackageCheck, tone: TONES.emerald },
+  const stats: Stat[] = [
+    { label: 'In progress', value: inProgress, icon: Activity },
+    { label: 'Stopped (resumable)', value: stopped, icon: PauseCircle },
+    { label: 'Ready', value: ready, icon: CheckCircle2 },
+    { label: 'Total', value: runs.length, icon: LayoutGrid },
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-      {kpis.map((k) => {
-        const Icon = k.icon;
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl bg-brand-surface px-5 py-2.5 ring-1 ring-brand-line">
+      {stats.map((s) => {
+        const Icon = s.icon;
+        const dim = s.value === 0;
         return (
-          <div
-            key={k.label}
-            className={cn('rounded-xl border bg-gradient-to-br p-4 shadow-sm', k.tone.card)}
-          >
-            <div className="mb-2 flex items-center justify-between">
-              <span className={cn('text-sm font-medium', k.tone.label)}>{k.label}</span>
-              <Icon className={cn('h-4 w-4', k.tone.icon)} aria-hidden="true" />
-            </div>
-            <div className={cn('text-3xl font-bold tabular-nums', k.tone.value)}>{k.value}</div>
-            <p className={cn('mt-1 text-xs', k.tone.label)}>{k.hint}</p>
+          <div key={s.label} className="flex items-center gap-2 text-sm">
+            <Icon
+              className={dim ? 'h-4 w-4 text-brand-muted' : 'h-4 w-4 text-brand-primary'}
+              aria-hidden="true"
+            />
+            <span className={dim ? 'font-semibold tabular-nums text-brand-muted' : 'font-semibold tabular-nums text-brand-accent'}>
+              {s.value}
+            </span>
+            <span className="text-brand-muted">{s.label}</span>
           </div>
         );
       })}

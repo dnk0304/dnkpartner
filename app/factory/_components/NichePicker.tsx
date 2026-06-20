@@ -8,7 +8,6 @@ import {
   Lightbulb,
   HeartCrack,
   Hammer,
-  ChevronDown,
   AlertTriangle,
   Loader2,
   ArrowRight,
@@ -33,17 +32,22 @@ import { TierBadge, CompetitionPill } from './Badges';
  *   - niche · productIdea · painArea
  *   - the tier badge (composed 0-100 overall) + the 5 raw 1-10 sub-scores
  *   - the Easy/Medium/Hard competition pill (inverted competitionGap)
- *   - demandEvidence + a collapsible rationale
+ *   - demandEvidence + the RATIONALE (permanently open — 2026-06-20 redesign;
+ *     the "why this niche?" reasoning was buried behind a disclosure before,
+ *     now it's always on screen)
  *   - advisoryFlags from the 3-expert cross-check, shown as HONEST caveats —
  *     never hidden. This transparency is the wedge vs. canned competitor scores.
  *
- * Picking one fires onAction (workspace re-polls → the run advances into the
- * kanban at the niche human-gate). Only ONE candidate is chosen; the rest are
- * discarded — S2→S6 build the chosen niche only.
+ * LAYOUT (Vinci spec): a full-width immersive blurred overlay ("pick a mission")
+ * — the dashboard shows through, blurred — replacing the old cramped right
+ * drawer. Candidates render in a fluid grid (1 → 2 → 3 across, wrapping, never
+ * side-scrolling). Picking one fires onAction (workspace re-polls → the run
+ * advances into the board at the niche human-gate). Only ONE candidate is
+ * chosen; the rest are discarded — S2→S6 build the chosen niche only.
  *
- * Accessibility: a labelled modal dialog, Escape to close, each card is a real
- * <button> (keyboard-selectable, focus-visible ring), the collapse is a real
- * disclosure button, advisory flags carry role="note".
+ * Accessibility: a labelled modal dialog, Escape to close, each card's CTA is a
+ * real <button> (keyboard-selectable, focus-visible ring), advisory flags carry
+ * role="note".
  */
 export function NichePicker({
   detail,
@@ -58,7 +62,6 @@ export function NichePicker({
   const mounted = typeof document !== 'undefined';
   const [selecting, setSelecting] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<ReadonlySet<number>>(new Set());
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -72,15 +75,6 @@ export function NichePicker({
 
   const candidates = detail.candidates ?? [];
   const hint = detail.hint?.trim();
-
-  function toggleExpanded(index: number) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
-      return next;
-    });
-  }
 
   async function pick(index: number) {
     if (selecting !== null) return;
@@ -111,48 +105,56 @@ export function NichePicker({
     }
   }
 
+  const gridCols =
+    candidates.length === 4
+      ? 'md:grid-cols-2 xl:grid-cols-4'
+      : 'md:grid-cols-2 xl:grid-cols-3';
+
   return createPortal(
     <div
-      className="fixed inset-0 z-40 flex justify-end"
+      className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto p-4 sm:p-6"
       role="dialog"
       aria-modal="true"
-      aria-label="Pick a niche to build"
+      aria-label="Pick a market to build"
     >
+      {/* The dashboard shows through, blurred. */}
       <button
         type="button"
         aria-label="Close niche picker"
-        className="absolute inset-0 bg-brand-dark/40 backdrop-blur-sm"
+        className="fixed inset-0 bg-brand-dark/40 backdrop-blur-sm"
         onClick={() => selecting === null && onClose()}
       />
-      <div className="relative flex h-full w-full max-w-3xl flex-col bg-brand-light/40 shadow-2xl motion-safe:animate-in motion-safe:slide-in-from-right motion-safe:duration-300">
+
+      {/* Centered full-width surface. */}
+      <div className="relative my-auto w-full max-w-[1400px] rounded-2xl bg-brand-surface shadow-xl motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-300">
         {/* Header */}
-        <header className="flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-6 py-4">
+        <header className="flex items-start justify-between gap-3 border-b border-brand-line px-8 py-7">
           <div className="min-w-0">
-            <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-violet-600">
-              <Compass className="h-3.5 w-3.5" />
-              Stage 1 · pick a niche
+            <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-primary">
+              <Compass className="h-3.5 w-3.5" aria-hidden="true" />
+              Stage 1 · Choose your market
             </p>
-            <h2 className="mt-1 text-xl font-semibold text-brand-accent">
-              {candidates.length} niche{candidates.length === 1 ? '' : 's'} to choose from
+            <h2 className="mt-1.5 text-xl font-semibold tracking-tight text-brand-accent md:text-2xl">
+              Pick one to build.
             </h2>
-            <p className="mt-1 text-sm text-brand-dark/60">
-              {hint ? (
+            <p className="mt-1.5 text-sm leading-relaxed text-brand-dark/80">
+              The factory found {candidates.length} viable idea{candidates.length === 1 ? '' : 's'}. Choose
+              ONE — the rest are discarded.
+              {hint && (
                 <>
-                  Steered by your hint{' '}
-                  <span className="rounded bg-violet-50 px-1.5 py-0.5 font-medium text-violet-700">
+                  {' '}Steered by your hint{' '}
+                  <span className="rounded bg-brand-tint px-1.5 py-0.5 font-medium text-brand-accent">
                     “{hint}”
                   </span>
-                  . Pick one — only that niche gets built.
+                  .
                 </>
-              ) : (
-                <>Discovered for you. Pick one — only that niche gets built (Stages 2–6).</>
               )}
             </p>
           </div>
           <button
             type="button"
             onClick={() => selecting === null && onClose()}
-            className="rounded-md p-1.5 text-brand-dark/40 transition-colors hover:bg-slate-100 hover:text-brand-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40 disabled:opacity-40"
+            className="rounded-md p-1.5 text-brand-muted transition-colors hover:bg-brand-line-soft hover:text-brand-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40 disabled:opacity-40"
             aria-label="Close"
             disabled={selecting !== null}
           >
@@ -162,7 +164,7 @@ export function NichePicker({
 
         {error && (
           <div
-            className="flex items-start gap-2 border-b border-rose-200 bg-rose-50 px-6 py-3 text-sm text-rose-700"
+            className="flex items-start gap-2 border-b border-rose-200 bg-rose-50 px-8 py-3 text-sm text-rose-700"
             role="alert"
           >
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -170,24 +172,24 @@ export function NichePicker({
           </div>
         )}
 
-        {/* Candidate list */}
-        <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
+        {/* Candidate grid — wraps, never side-scrolls. */}
+        <div className="px-8 py-7">
           {candidates.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center text-sm text-brand-dark/55">
+            <div className="rounded-2xl border border-dashed border-brand-line px-6 py-16 text-center text-sm text-brand-muted">
               No candidates were generated. Close this and retry from the card.
             </div>
           ) : (
-            candidates.map((c) => (
-              <CandidateCard
-                key={c.index}
-                candidate={c}
-                expanded={expanded.has(c.index)}
-                onToggle={() => toggleExpanded(c.index)}
-                onPick={() => pick(c.index)}
-                busy={selecting !== null}
-                picking={selecting === c.index}
-              />
-            ))
+            <div className={cn('grid grid-cols-1 gap-5', gridCols)}>
+              {candidates.map((c) => (
+                <CandidateCard
+                  key={c.index}
+                  candidate={c}
+                  onPick={() => pick(c.index)}
+                  busy={selecting !== null}
+                  picking={selecting === c.index}
+                />
+              ))}
+            </div>
           )}
         </div>
       </div>
@@ -198,15 +200,11 @@ export function NichePicker({
 
 function CandidateCard({
   candidate: c,
-  expanded,
-  onToggle,
   onPick,
   busy,
   picking,
 }: {
   candidate: NicheCandidate;
-  expanded: boolean;
-  onToggle: () => void;
   onPick: () => void;
   busy: boolean;
   picking: boolean;
@@ -218,11 +216,15 @@ function CandidateCard({
   return (
     <article
       className={cn(
-        'rounded-2xl border bg-white shadow-sm transition-all',
-        picking ? 'border-brand-primary ring-2 ring-brand-primary/30' : 'border-slate-200 hover:border-slate-300 hover:shadow-md',
+        'flex flex-col overflow-hidden rounded-2xl bg-brand-surface shadow-sm ring-1 transition-all',
+        picking
+          ? 'ring-2 ring-brand-primary'
+          : busy
+            ? 'opacity-60 ring-brand-line'
+            : 'ring-brand-line hover:shadow-md hover:ring-brand-primary/40',
       )}
     >
-      <div className="p-5">
+      <div className="flex flex-1 flex-col p-5">
         {/* Top row: tier + title + competition */}
         <div className="flex items-start gap-3">
           <TierBadge score={overall} className="mt-0.5 shrink-0" />
@@ -264,7 +266,7 @@ function CandidateCard({
         </div>
 
         {/* Demand evidence */}
-        <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-relaxed text-brand-dark/70">
+        <p className="mt-3 rounded-lg bg-brand-light px-3 py-2 text-xs leading-relaxed text-brand-dark/70">
           <span className="font-semibold text-brand-dark/60">Demand evidence: </span>
           {c.demandEvidence}
         </p>
@@ -285,34 +287,27 @@ function CandidateCard({
           </ul>
         )}
 
-        {/* Collapsible rationale */}
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-expanded={expanded}
-          className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand-primary transition-colors hover:text-brand-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40 rounded"
-        >
-          <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', expanded && 'rotate-180')} />
-          {expanded ? 'Hide rationale' : 'Why this niche?'}
-        </button>
-        {expanded && (
-          <p className="mt-2 border-l-2 border-slate-200 pl-3 text-sm leading-relaxed text-brand-dark/70">
+        {/* THE RATIONALE — permanently open (was a disclosure; the reasoning is
+            the wedge, so it's always on screen now). mt-auto pushes it + the CTA
+            to the card bottom so every card in the grid aligns. */}
+        <div className="mt-auto pt-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-primary">
+            The Rationale
+          </p>
+          <p className="mt-1.5 rounded-lg bg-brand-light p-3 text-[13px] leading-snug text-brand-dark/70">
             {c.rationale}
           </p>
-        )}
+        </div>
       </div>
 
       {/* Pick action */}
-      <div className="flex items-center justify-between gap-3 rounded-b-2xl border-t border-slate-100 bg-slate-50/60 px-5 py-3">
-        <span className="text-xs text-brand-dark/45">
-          Only this niche gets built — the rest are discarded.
-        </span>
+      <div className="border-t border-brand-line-soft px-5 py-4">
         <button
           type="button"
           onClick={onPick}
           disabled={busy}
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-lg bg-brand-primary px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors',
+            'inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand-primary py-2.5 text-sm font-semibold text-white shadow-sm transition-colors',
             'hover:bg-brand-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40',
             'disabled:cursor-not-allowed disabled:opacity-50',
           )}

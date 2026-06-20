@@ -52,6 +52,21 @@
   --color-brand-accent: #092848;
   --color-brand-dark: #0A1F38;
   --color-brand-light: #F5FAFB;
+
+  /*
+   * Premium-minimal surface system (Pixel, 2026-06-20 redesign — Vinci spec).
+   * These FORMALIZE values previously used ad-hoc as raw slate-* so the
+   * redesign reads intentional, not borrowed. They do NOT touch the 5 locked
+   * brand vars above. Accessibility rule still holds: never set body copy in
+   * brand-primary over brand-light/brand-tint — teal is for labels, icons,
+   * CTA fills, and borders only.
+   */
+  --color-brand-surface: #FFFFFF;   /* card / panel face */
+  --color-brand-canvas: #FBFDFE;    /* app canvas behind cards (a hair warmer than white) */
+  --color-brand-line: #E6EDF1;      /* default hairline border on premium surfaces */
+  --color-brand-line-soft: #F0F4F7; /* internal dividers inside a card */
+  --color-brand-muted: #6B7C8E;     /* caption / secondary text */
+  --color-brand-tint: #EAF3F4;      /* 6% teal wash — active panel / selected halo */
 }
 
 :root {

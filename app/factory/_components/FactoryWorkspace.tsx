@@ -7,7 +7,6 @@ import { cn } from '../_lib/cn';
 import {
   isNonTerminal,
   stageMeta,
-  TOTAL_STAGES,
   type RunSummary,
   type RunDetail as RunDetailData,
 } from '../_lib/types';
@@ -221,49 +220,50 @@ export function FactoryWorkspace() {
   const openDetail = openRunId ? detailsById[openRunId] : undefined;
 
   return (
-    <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 sm:py-10">
+    <div className="mx-auto max-w-[1600px] px-6 py-8 sm:py-10">
       {/* Live region for card-move announcements (visually hidden). */}
       <div className="sr-only" role="status" aria-live="polite">
         {announcement}
       </div>
 
-      {/* Header */}
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 via-orange-500 to-red-500 shadow-sm">
-              <Sparkles className="h-5 w-5 text-white" />
-            </span>
-            <h1 className="text-2xl font-semibold tracking-tight text-brand-accent sm:text-3xl">
-              Product Factory
-            </h1>
-          </div>
-          <p className="mt-1.5 text-sm text-brand-dark/60">
-            From a raw idea to a launched product — every project moving through {TOTAL_STAGES} cross-checked stages.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <LiveIndicator
-            lastUpdatedAt={lastUpdatedAt}
-            isRefreshing={refreshing}
-            hasError={error}
-            intervalMs={POLL_INTERVAL_MS}
-          />
+      {/* Slim status bar (KPIs demoted to quiet chrome) + live indicator. */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <KpiRow runs={runs} />
+        <LiveIndicator
+          lastUpdatedAt={lastUpdatedAt}
+          isRefreshing={refreshing}
+          hasError={error}
+          intervalMs={POLL_INTERVAL_MS}
+        />
+      </div>
+
+      {/* Welcome hero — one clear idea, one low-friction CTA. The optional hint
+          field lives INSIDE the create modal, never here, so the hero stays a
+          single button. */}
+      <section className="mb-6 rounded-2xl bg-gradient-to-br from-brand-light to-brand-surface px-8 py-10 text-center ring-1 ring-brand-line">
+        <p className="flex items-center justify-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-primary">
+          <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+          Product Factory
+        </p>
+        <h1 className="mx-auto mt-3 max-w-2xl text-3xl font-semibold tracking-tight text-brand-accent md:text-4xl">
+          From a raw idea to a ready-to-sell product.
+        </h1>
+        <p className="mx-auto mt-3 max-w-2xl text-base text-brand-dark/70">
+          Pick a market, let the factory build it, and get a finished digital product — automated and
+          quality-checked at every step.
+        </p>
+        <div className="mt-6 flex flex-col items-center gap-1.5">
           <button
             type="button"
             onClick={() => setCreateOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-primary px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40"
           >
             <Plus className="h-4 w-4" />
-            Create a project
+            Create a new project
           </button>
+          <p className="text-xs text-brand-muted">Optional: add a hint to steer the genre.</p>
         </div>
-      </header>
-
-      {/* KPI row */}
-      <div className="mb-6">
-        <KpiRow runs={runs} />
-      </div>
+      </section>
 
       {/* Toolbar: view toggle + manual refresh */}
       <div className="mb-4 flex items-center justify-between">
@@ -388,16 +388,16 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
 
 function BoardSkeleton() {
   return (
-    <div className="flex gap-4 overflow-hidden" aria-hidden="true">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="w-72 shrink-0 rounded-2xl bg-slate-50 ring-1 ring-slate-200/70">
-          <div className="px-3.5 py-3">
-            <div className="h-5 w-24 animate-pulse rounded bg-slate-200" />
-          </div>
-          <div className="space-y-2.5 px-2.5 pb-3">
-            <div className="h-24 animate-pulse rounded-xl bg-white" />
-            <div className="h-24 animate-pulse rounded-xl bg-white/60" />
-          </div>
+    <div
+      className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4"
+      aria-hidden="true"
+    >
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="min-w-0 rounded-xl bg-brand-surface p-4 shadow-sm ring-1 ring-brand-line">
+          <div className="h-7 w-7 animate-pulse rounded-lg bg-brand-line" />
+          <div className="mt-2 h-4 w-24 animate-pulse rounded bg-brand-line" />
+          <div className="mt-2 h-3 w-full animate-pulse rounded bg-brand-line-soft" />
+          <div className="mt-3 h-20 animate-pulse rounded-lg bg-brand-line-soft" />
         </div>
       ))}
     </div>

@@ -1,6 +1,15 @@
 'use client';
 
 import { useLayoutEffect, useRef } from 'react';
+import {
+  Compass,
+  ClipboardList,
+  Package,
+  Swords,
+  Tag,
+  Rocket,
+  type LucideIcon,
+} from 'lucide-react';
 import { cn } from '../_lib/cn';
 import {
   ACTIVE_STAGES,
@@ -11,18 +20,49 @@ import {
 import { RunCard } from './RunCard';
 
 /**
- * KanbanBoard — the hero. Columns = the active stages (1–6 by default; stages
+ * KanbanBoard — the hero. Panels = the active stages (1–6 by default; stages
  * 7–8 are parked, see ACTIVE_STAGES); each run is a card in its
- * current-stage column. When a run's `stage` increments between polls the card
- * physically MOVES to the next column with a FLIP animation (slide from its old
+ * current-stage panel. When a run's `stage` increments between polls the card
+ * physically MOVES to the next panel with a FLIP animation (slide from its old
  * position) + an arrival pulse. Respects prefers-reduced-motion (the slide is
  * skipped; arrival cross-fades instead).
+ *
+ * LAYOUT (2026-06-20 redesign — Vinci spec): the old `flex … overflow-x-auto`
+ * with fixed `w-72` columns is GONE. The panels now live in a FLUID auto-fit
+ * grid that always sums to 100% of the container — six panels share the row at
+ * ≥~1180px and WRAP (never side-scroll) below that. Each panel is `min-w-0`
+ * so a track can shrink below its content width and truncate instead of forcing
+ * a horizontal scrollbar. There is NO `overflow-x-auto` anywhere in this file.
+ *
+ * Each panel is self-explaining: numbered badge + lucide icon + a LOCKED
+ * plain-language label + a ≤10-word explainer, so a newcomer reads the journey
+ * (1 Find Your Market → 6 Launch It) without prior context. Populated panels
+ * stack RunCards and scroll VERTICALLY when many; empty panels read as a guide.
  *
  * FLIP without a motion library: before each paint we read every card's screen
  * rect; after the DOM updates we compare to the previous rect and, for cards
  * that moved, apply an inverse transform then transition it to zero — the
  * browser interpolates the real layout change.
  */
+
+/** The locked plain-language label, ≤10-word explainer, and icon per stage. */
+const STAGE_GUIDE: Record<
+  number,
+  { label: string; explainer: string; icon: LucideIcon }
+> = {
+  1: { label: 'Find Your Market', explainer: 'We surface real niches with painful, paying problems.', icon: Compass },
+  2: { label: 'See the Build Plan', explainer: 'The full blueprint and prompts behind your product.', icon: ClipboardList },
+  3: { label: 'Get the Product', explainer: 'The finished product — text or a live Excel tool.', icon: Package },
+  4: { label: 'Beat Competitors', explainer: "Who you're up against and how you win.", icon: Swords },
+  5: { label: 'Brand It', explainer: 'A sellable name and a brand voice.', icon: Tag },
+  6: { label: 'Launch It', explainer: 'Where and how to sell it, ranked.', icon: Rocket },
+};
+
+/** Defensive fallback so a parked stage (7/8) never renders without a guide. */
+function guideFor(n: number, short: string) {
+  return STAGE_GUIDE[n] ?? { label: short, explainer: '', icon: Compass };
+}
+
 export function KanbanBoard({
   runs,
   detailsById,
@@ -44,7 +84,9 @@ export function KanbanBoard({
 }) {
   const prevRects = useRef<Map<string, DOMRect>>(new Map());
 
-  // FLIP: after the DOM commits, animate any card whose position changed.
+  // FLIP: after the DOM commits, animate any card whose position changed. The
+  // grid (not a scroll container) is the positioning context now, but the FLIP
+  // math is layout-agnostic — it diffs screen rects, so it works unchanged.
   useLayoutEffect(() => {
     const reduce =
       typeof window !== 'undefined' &&
@@ -86,74 +128,110 @@ export function KanbanBoard({
   }, [runs]);
 
   return (
-    <div
-      className="flex gap-4 overflow-x-auto pb-3"
-      role="list"
-      aria-label="Product Factory kanban board — projects by stage"
-    >
-      {ACTIVE_STAGES.map((stage, idx) => {
-        // Cards sit in their own stage's column. A run that somehow sits beyond
-        // the last active stage (a parked 7/8 run) is shown in the final active
-        // column so it never silently vanishes from the board.
-        const isLastActive = idx === ACTIVE_STAGES.length - 1;
-        const inColumn = runs.filter(
-          (r) => r.stage === stage.n || (isLastActive && r.stage > stage.n),
-        );
-        return (
-          <section
-            key={stage.n}
-            role="listitem"
-            aria-label={`Stage ${stage.n}: ${stage.name} — ${inColumn.length} ${
-              inColumn.length === 1 ? 'project' : 'projects'
-            }`}
-            className="flex w-72 shrink-0 flex-col rounded-2xl bg-slate-50/80 ring-1 ring-slate-200/70"
-          >
-            <header className="flex items-center justify-between gap-2 px-3.5 pb-2 pt-3">
-              <div className="flex min-w-0 items-center gap-2">
+    <div>
+      <div className="mb-3">
+        <h2 className="text-sm font-semibold text-brand-accent">The 6-stage build</h2>
+        <p className="text-xs text-brand-muted">Each step is quality-checked before the next begins.</p>
+      </div>
+
+      {/*
+        THE no-horizontal-scroll grid (Vinci §2). auto-fit keeps a 180px floor
+        per panel; when six can't fit at ≥180px the row WRAPS (6 → 3+3 → 2+2+2
+        → 1). No media-query juggling, and no `overflow-x-auto` is possible.
+      */}
+      <div
+        className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4"
+        role="list"
+        aria-label="Product Factory pipeline — projects by stage"
+      >
+        {ACTIVE_STAGES.map((stage, idx) => {
+          // Cards sit in their own stage's panel. A run beyond the last active
+          // stage (a parked 7/8 run) shows in the final active panel so it never
+          // silently vanishes from the board.
+          const isLastActive = idx === ACTIVE_STAGES.length - 1;
+          const inColumn = runs.filter(
+            (r) => r.stage === stage.n || (isLastActive && r.stage > stage.n),
+          );
+          // A panel is "active" (teal wash) when at least one project sits in it.
+          const active = inColumn.length > 0;
+          const guide = guideFor(stage.n, stage.short);
+          const Icon = guide.icon;
+
+          return (
+            <section
+              key={stage.n}
+              role="listitem"
+              aria-label={`Stage ${stage.n}: ${guide.label} — ${inColumn.length} ${
+                inColumn.length === 1 ? 'project' : 'projects'
+              }`}
+              className={cn(
+                'flex min-w-0 flex-col gap-2 overflow-hidden rounded-xl p-4 shadow-sm ring-1 transition-colors',
+                active
+                  ? 'bg-brand-tint ring-brand-primary/30'
+                  : 'bg-brand-surface ring-brand-line',
+              )}
+            >
+              {/* Numbered badge + stage icon */}
+              <div className="flex items-center gap-2">
                 <span
-                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand-primary/10 text-xs font-bold text-brand-primary"
+                  className={cn(
+                    'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-sm font-bold',
+                    active ? 'bg-brand-primary text-white' : 'bg-brand-primary/10 text-brand-primary',
+                  )}
                   aria-hidden="true"
                 >
                   {stage.n}
                 </span>
-                <h3 className="truncate text-sm font-semibold text-brand-accent">{stage.short}</h3>
+                <Icon className="h-4 w-4 shrink-0 text-brand-primary" aria-hidden="true" />
               </div>
-              <span
-                className={cn(
-                  'inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-xs font-semibold',
-                  inColumn.length > 0
-                    ? 'bg-brand-primary/15 text-brand-primary'
-                    : 'bg-slate-200 text-brand-dark/40',
-                )}
-              >
-                {inColumn.length}
-              </span>
-            </header>
 
-            <ul className="flex flex-1 flex-col gap-2.5 px-2.5 pb-3" aria-label={`${stage.name} projects`}>
-              {inColumn.length === 0 ? (
-                <li className="rounded-xl border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-brand-dark/30">
-                  No projects here
-                </li>
-              ) : (
-                inColumn.map((run) => (
-                  <RunCard
-                    key={run.id}
-                    run={run}
-                    gate={detailsById[run.id]?.pendingGate?.gate}
-                    headlineScore={headlineScoreForStage(detailsById[run.id]?.artifacts, run.stage)}
-                    onOpen={() => onOpen(run.id)}
-                    onReview={() => onReview(run.id)}
-                    onResume={() => onResume(run.id)}
-                    onDelete={() => onDelete(run.id)}
-                    justArrived={recentlyMoved.has(run.id)}
-                  />
-                ))
+              {/* Locked plain-language label + explainer */}
+              <div>
+                <h3 className="truncate text-sm font-semibold text-brand-accent">{guide.label}</h3>
+                <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-brand-dark/70">
+                  {guide.explainer}
+                </p>
+              </div>
+
+              {/* Count pill — only when populated (newcomer panels stay un-cluttered) */}
+              {active && (
+                <span
+                  className="mt-0.5 inline-flex h-5 w-fit min-w-[1.25rem] items-center justify-center rounded-full bg-brand-primary/15 px-2 text-xs font-semibold text-brand-primary"
+                  aria-hidden="true"
+                >
+                  {inColumn.length} {inColumn.length === 1 ? 'project' : 'projects'}
+                </span>
               )}
-            </ul>
-          </section>
-        );
-      })}
+
+              {/* Cards (vertical scroll inside the panel when many) or empty tile */}
+              <ul
+                className="mt-1 flex max-h-[28rem] flex-col gap-2.5 overflow-y-auto"
+                aria-label={`${guide.label} projects`}
+              >
+                {inColumn.length === 0 ? (
+                  <li className="rounded-lg border border-dashed border-brand-line px-3 py-5 text-center text-xs text-brand-muted">
+                    Nothing here yet
+                  </li>
+                ) : (
+                  inColumn.map((run) => (
+                    <RunCard
+                      key={run.id}
+                      run={run}
+                      gate={detailsById[run.id]?.pendingGate?.gate}
+                      headlineScore={headlineScoreForStage(detailsById[run.id]?.artifacts, run.stage)}
+                      onOpen={() => onOpen(run.id)}
+                      onReview={() => onReview(run.id)}
+                      onResume={() => onResume(run.id)}
+                      onDelete={() => onDelete(run.id)}
+                      justArrived={recentlyMoved.has(run.id)}
+                    />
+                  ))
+                )}
+              </ul>
+            </section>
+          );
+        })}
+      </div>
     </div>
   );
 }
