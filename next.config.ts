@@ -36,32 +36,28 @@ const nextConfig: NextConfig = {
       { source: '/auth/login', destination: '/login', permanent: true },
       { source: '/auth/forgot-password', destination: '/forgot-password', permanent: true },
 
+
       // ───────────────────────────────────────────────────────────────────────
-      // Studio index canonicalization (2026-06-22 — fix ERR_TOO_MANY_REDIRECTS).
+      // Studio index: NO redirect (2026-06-22 — land bare /studio on the
+      // creative suite, not Trends).
       //
-      // BUG: a bare `GET /studio` (no path) was not matched by the `/studio/:path*`
-      // rewrite below, so it fell through to the studio Express container, whose
-      // `express.static('/studio', dist)` mount issued a serve-static DIRECTORY
-      // redirect 301 → `/studio/`. The front layer (Next default trailingSlash:
-      // false) then 308-stripped `/studio/` back to `/studio`. The two layers
-      // disagreed on the trailing slash and bounced forever (infinite loop).
+      // There is intentionally NO `/studio` → `/studio/...` redirect here. An
+      // earlier fix landed `/studio` on `/studio/ai-trends` (Trends) via a 307;
+      // that bounced the trailing slash against Next's `trailingSlash:false` and
+      // re-created ERR_TOO_MANY_REDIRECTS in production. It is removed.
       //
-      // FIX: canonicalize the studio index to a known-good 200 SPA route
-      // (`/studio/ai-trends`, the editor landing) at the FRONT, before the
-      // rewrite. Next evaluates redirects ahead of rewrites and applies its
-      // trailing-slash normalization first, so BOTH `/studio` and `/studio/`
-      // resolve here in a single, terminating hop. `/studio/ai-trends` is then
-      // matched by the `/studio/:path*` rewrite → forwarded to the studio
-      // container → served 200 (React Router renders <AITrends/>).
-      //
-      // 307 (temporary) on purpose: this is an index landing, not a permanent
-      // URL move — we don't want browsers/SEO to cache the bare /studio → /studio/
-      // ai-trends mapping as immutable. Paired with `redirect: false` on the
-      // studio serve-static mount (studio/server/index.ts) so the studio layer
-      // no longer emits the conflicting 301 even on a direct internal hit.
+      // Bare `GET /studio` is matched by the `/studio/:path*` rewrite below
+      // (Next `:path*` matches zero segments) and forwarded to the studio
+      // container, where an explicit `app.get(['/studio','/studio/'])` handler
+      // (studio/server/index.ts), registered BEFORE the serve-static mounts,
+      // returns index.html with 200 — so serve-static's mount-root 301 can never
+      // fire. React Router (basename '/studio') then resolves `/studio` → route
+      // `/` → <App/>, the full creative suite (the destination Dennis wants).
+      // `/studio/` → Next 308 → `/studio` → 200 (single terminating hop, no loop).
+      // Verified locally end-to-end through `next start` + the studio Express
+      // server: GET/HEAD /studio = 200 (not 301); /studio/ai-trends and
+      // /studio/video-editor unchanged (200).
       // ───────────────────────────────────────────────────────────────────────
-      { source: '/studio', destination: '/studio/ai-trends', permanent: false },
-      { source: '/studio/', destination: '/studio/ai-trends', permanent: false },
     ];
   },
 

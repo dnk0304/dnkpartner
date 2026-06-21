@@ -8341,10 +8341,31 @@ if (process.env.NODE_ENV === "production") {
   // front sits in front of us with Next's default `trailingSlash: false`, which
   // 308-strips `/studio/` back to `/studio` — so the two layers disagreed on the
   // slash and bounced forever. Disabling the directory redirect here means this
-  // layer never flips the slash; bare `/studio` falls through to the SPA
-  // index.html fallback below and serves 200. (The front also canonicalizes the
-  // index to /studio/ai-trends via a Next redirect — this is defense in depth so
-  // a direct internal hit to /studio can't reintroduce the loop.)
+  // layer never flips the slash; bare `/studio` falls through to the explicit
+  // handler / SPA fallback below and serves 200. (The Next front no longer adds
+  // a `/studio` → `/studio/ai-trends` redirect — that earlier canonicalization
+  // was removed because it landed on Trends and re-introduced the loop; serving
+  // index.html directly at bare `/studio` is now the single source of truth.)
+  // Explicit 200 handler for the bare studio mount root, registered BEFORE the
+  // static mounts (2026-06-22 — fix the /studio landing for real). Two reasons
+  // this must come first and be explicit rather than relying on the SPA
+  // fallback below:
+  //   1. serve-static's mount-root directory redirect (the 301 /studio →
+  //      /studio/ that ping-ponged with Next's trailingSlash:false 308) can
+  //      never fire if a terminating handler answers /studio before the static
+  //      mount is reached. `{ redirect: false }` already suppresses that 301,
+  //      but this makes the bare-root 200 explicit and order-independent — the
+  //      load-bearing guarantee, not an emergent side effect of fallback order.
+  //   2. The SPA fallback below bails on non-GET (`req.method !== "GET"`), so a
+  //      HEAD /studio (health check / proxy probe) would 404. `app.get` answers
+  //      HEAD automatically (Express runs the GET handler, strips the body), so
+  //      both GET and HEAD /studio return 200 index.html.
+  // React Router (basename '/studio') then resolves '/studio' → route '/' →
+  // <App/>, the full creative suite — the destination Dennis wants (NOT Trends).
+  app.get(["/studio", "/studio/"], (_req, res) => {
+    res.sendFile(path.join(distDir, "index.html"))
+  })
+
   app.use("/studio", express.static(distDir, { redirect: false }))
   // Also serve at root for direct internal probes (Coolify health checks /
   // container-internal curl during debugging).
