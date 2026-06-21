@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { randomUUID } from 'crypto';
+import { query, execute } from '@/lib/db';
 import { Resend } from 'resend';
 import { createAuctionAlertEmail } from '@/lib/email-templates';
 import { requireAdminOrCron } from '@/lib/auth-helpers';
@@ -153,6 +154,31 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ── FIX A — DEDUP lot-split rows to ONE card per real property ──────────
+    // (wave113, 2026-06-21) Auctions are LOT-SPLIT: one property becomes many
+    // Auction rows `SUB-…-L1 / -L2 / …`, each a separate `boeId`. The email
+    // template renders one card PER ROW, so after the wave112 address-as-
+    // headline change a 15-lot property rendered 15 near-identical cards.
+    //
+    // We collapse per-alert (the same property can legitimately match different
+    // alerts) by the LOT-SPLIT base key = boeId with the `-L<n>` suffix stripped.
+    // Within a base group we keep ONE representative row: prefer a row that
+    // already carries a populated imageUrl (so the card shows a photo), then the
+    // lowest lot number (-L1 first), then a stable boeId tie-break. Single-lot
+    // rows (no `-L` suffix) are their own base — unaffected.
+    for (const entry of Object.values(matchesByAlert)) {
+      entry.auctions = dedupeByBaseProperty(entry.auctions);
+    }
+
+    // ── FIX B (exclude) — drop anything already emailed ────────────────────
+    // (wave113) The rolling-24h SELECT re-finds the same rows every run; with
+    // no record of past sends, Dennis got the same properties three days in a
+    // row. We now record one Notification row per emailed (alert, auction) and
+    // exclude any candidate that already has one for channel='email'. ONE
+    // set-membership query keyed to the surviving (alertId, auctionId) pairs —
+    // not N queries.
+    await excludeAlreadyNotified(matchesByAlert);
+
     // Send notifications via email
     const sentNotifications = await sendNotifications(matchesByAlert);
 
@@ -171,6 +197,135 @@ export async function POST(request: NextRequest) {
       { success: false, error: 'Failed to check alerts' },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * FIX A helper (wave113): collapse lot-split rows to ONE representative row per
+ * real property. Base key = `boeId` with a trailing `-L<digits>` lot suffix
+ * stripped (case-insensitive). Representative pick within a base group:
+ *   1. prefer a row whose `imageUrl` is populated (card shows a photo),
+ *   2. then the lowest numeric `lotNumber` (so `-L1` wins over `-L7`),
+ *   3. then the lexically-smallest `boeId` as a stable tie-break.
+ * Rows with no `boeId` are passed through untouched (keyed by their own id) so
+ * a missing key can never silently drop a match.
+ */
+function dedupeByBaseProperty(auctions: any[]): any[] {
+  const baseKeyOf = (a: any): string => {
+    const boeId = typeof a?.boeId === 'string' ? a.boeId : null;
+    if (!boeId) return `__no-boeId__:${a?.id ?? Math.random()}`;
+    return boeId.replace(/-L\d+$/i, '');
+  };
+  const hasImage = (a: any): boolean =>
+    typeof a?.imageUrl === 'string' && a.imageUrl.trim().length > 0;
+  const lotNum = (a: any): number => {
+    const n = Number.parseInt(String(a?.lotNumber ?? ''), 10);
+    return Number.isFinite(n) ? n : Number.POSITIVE_INFINITY;
+  };
+  // Lower "rank" wins. (image first, then lowest lot, then smallest boeId.)
+  const better = (candidate: any, current: any): boolean => {
+    const ci = hasImage(candidate), ui = hasImage(current);
+    if (ci !== ui) return ci; // a row with an image beats one without
+    const cl = lotNum(candidate), ul = lotNum(current);
+    if (cl !== ul) return cl < ul;
+    return String(candidate?.boeId ?? '') < String(current?.boeId ?? '');
+  };
+
+  const best = new Map<string, any>();
+  for (const auction of auctions) {
+    const key = baseKeyOf(auction);
+    const current = best.get(key);
+    if (!current || better(auction, current)) best.set(key, auction);
+  }
+  return Array.from(best.values());
+}
+
+/**
+ * FIX B (exclude) helper (wave113): in a SINGLE query, find every
+ * (alertId, auctionId) pair that already has a channel='email' Notification row
+ * among the current candidates, then strip those auctions from each alert's
+ * list. Tracked by `auction.id` (the PK used in the email URL and stored in
+ * `Notification.auctionId`). Mutates `matchesByAlert` in place. Fail-CLOSED is
+ * NOT desired here — if the lookup throws we let the send proceed rather than
+ * suppress a legitimate alert; the ON CONFLICT on insert still prevents a
+ * duplicate Notification row, and a worst case is one repeated email, never a
+ * dropped one.
+ */
+async function excludeAlreadyNotified(
+  matchesByAlert: Record<string, { alert: any; auctions: any[] }>,
+): Promise<void> {
+  // Collect candidate (alertId, auctionId) pairs.
+  const pairs: Array<{ alertId: string; auctionId: string }> = [];
+  for (const entry of Object.values(matchesByAlert)) {
+    const alertId = entry.alert?.id;
+    if (!alertId) continue;
+    for (const auction of entry.auctions) {
+      if (auction?.id) pairs.push({ alertId, auctionId: auction.id });
+    }
+  }
+  if (pairs.length === 0) return;
+
+  // One set-membership query. We over-fetch by the candidate auctionIds (a
+  // small, bounded set per run) and filter the (alertId,auctionId) tuple in
+  // memory — avoids building a huge VALUES list while staying a single query.
+  const auctionIds = Array.from(new Set(pairs.map((p) => p.auctionId)));
+  const placeholders = auctionIds.map(() => '?').join(', ');
+  let sentRows: Array<{ alertId: string | null; auctionId: string }> = [];
+  try {
+    sentRows = await query<{ alertId: string | null; auctionId: string }>(
+      `SELECT alertId, auctionId
+         FROM Notification
+        WHERE channel = 'email'
+          AND auctionId IN (${placeholders})`,
+      auctionIds,
+    );
+  } catch (error) {
+    console.error('[alerts/check] already-notified lookup failed, proceeding without exclusion:', error);
+    return;
+  }
+
+  const sentSet = new Set(sentRows.map((r) => `${r.alertId} ${r.auctionId}`));
+  for (const entry of Object.values(matchesByAlert)) {
+    const alertId = entry.alert?.id;
+    if (!alertId) continue;
+    entry.auctions = entry.auctions.filter(
+      (a) => !sentSet.has(`${alertId} ${a.id}`),
+    );
+  }
+}
+
+/**
+ * FIX B (record) helper (wave113): after a SUCCESSFUL email send, write one
+ * Notification row per auction actually emailed so the next run excludes it.
+ * - channel = 'email', type = 'NEW_MATCH'. (The NotificationType enum has no
+ *   'alert' value — NEW_MATCH is the semantically-correct "a new auction matched
+ *   your alert"; the brief's `type='alert'` does not exist in the schema.)
+ * - id is app-generated (the column has no DB cuid default) — matches the
+ *   existing raw-insert pattern in notification-service.ts (randomUUID()).
+ * - ON CONFLICT on the new UNIQUE (alertId, auctionId, channel) DO NOTHING so a
+ *   race (two overlapping runs) can never double-insert.
+ * - Called ONLY on send success — a failed send writes nothing, so it retries
+ *   next run. Never throws (a logging failure must not break delivery).
+ */
+async function recordNotifications(
+  alertId: string,
+  userId: string,
+  auctions: any[],
+): Promise<void> {
+  const now = new Date().toISOString();
+  for (const auction of auctions) {
+    if (!auction?.id || !userId) continue;
+    try {
+      await execute(
+        `INSERT INTO Notification
+           (id, userId, alertId, auctionId, channel, type, read, sentAt, deliveredAt)
+         VALUES (?, ?, ?, ?, 'email'::"NotificationChannel", 'NEW_MATCH'::"NotificationType", false, ?, ?)
+         ON CONFLICT ("alertId", "auctionId", "channel") DO NOTHING`,
+        [randomUUID(), userId, alertId, auction.id, now, now],
+      );
+    } catch (error) {
+      console.error(`[alerts/check] failed to record Notification for auction ${auction.id}:`, error);
+    }
   }
 }
 
@@ -258,6 +413,9 @@ async function sendNotifications(matchesByAlert: Record<string, { alert: any; au
           text,
         });
         sent += auctions.length;
+        // FIX B (record): one Notification row per auction in the group, only
+        // after a successful send, so the next run excludes them.
+        await recordNotifications(alert.id, alert.uId, auctions);
       } catch (error) {
         console.error(`Failed to send notification to ${alert.uEmail}:`, error);
       }
@@ -301,6 +459,8 @@ async function sendNotifications(matchesByAlert: Record<string, { alert: any; au
             text,
           });
           sent += 1;
+          // FIX B (record): record the single emailed auction on success.
+          await recordNotifications(alert.id, alert.uId, [auction]);
         } catch (error) {
           console.error(`Failed to send notification to ${alert.uEmail}:`, error);
         }

@@ -545,6 +545,12 @@ model Notification {
   @@index([read])
   // Inbox feed: latest unread first by user.
   @@index([userId, read, sentAt(sort: Desc)])
+  // Idempotency key (wave113, 2026-06-21): one row per (alert, auction, channel)
+  // so the alert-email route can ON CONFLICT DO NOTHING and never re-email a
+  // property it already sent. Migration: 20260621_notification_dedup_unique.
+  // NOTE: alertId is nullable; Postgres treats NULLs as distinct in a UNIQUE
+  // constraint, but the alert-email writer always supplies a concrete alertId.
+  @@unique([alertId, auctionId, channel])
 }
 
 model PushSubscription {
