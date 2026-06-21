@@ -35,6 +35,33 @@ const nextConfig: NextConfig = {
     return [
       { source: '/auth/login', destination: '/login', permanent: true },
       { source: '/auth/forgot-password', destination: '/forgot-password', permanent: true },
+
+      // ───────────────────────────────────────────────────────────────────────
+      // Studio index canonicalization (2026-06-22 — fix ERR_TOO_MANY_REDIRECTS).
+      //
+      // BUG: a bare `GET /studio` (no path) was not matched by the `/studio/:path*`
+      // rewrite below, so it fell through to the studio Express container, whose
+      // `express.static('/studio', dist)` mount issued a serve-static DIRECTORY
+      // redirect 301 → `/studio/`. The front layer (Next default trailingSlash:
+      // false) then 308-stripped `/studio/` back to `/studio`. The two layers
+      // disagreed on the trailing slash and bounced forever (infinite loop).
+      //
+      // FIX: canonicalize the studio index to a known-good 200 SPA route
+      // (`/studio/ai-trends`, the editor landing) at the FRONT, before the
+      // rewrite. Next evaluates redirects ahead of rewrites and applies its
+      // trailing-slash normalization first, so BOTH `/studio` and `/studio/`
+      // resolve here in a single, terminating hop. `/studio/ai-trends` is then
+      // matched by the `/studio/:path*` rewrite → forwarded to the studio
+      // container → served 200 (React Router renders <AITrends/>).
+      //
+      // 307 (temporary) on purpose: this is an index landing, not a permanent
+      // URL move — we don't want browsers/SEO to cache the bare /studio → /studio/
+      // ai-trends mapping as immutable. Paired with `redirect: false` on the
+      // studio serve-static mount (studio/server/index.ts) so the studio layer
+      // no longer emits the conflicting 301 even on a direct internal hit.
+      // ───────────────────────────────────────────────────────────────────────
+      { source: '/studio', destination: '/studio/ai-trends', permanent: false },
+      { source: '/studio/', destination: '/studio/ai-trends', permanent: false },
     ];
   },
 

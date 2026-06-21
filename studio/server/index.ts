@@ -8334,10 +8334,21 @@ if (process.env.NODE_ENV === "production") {
   const distDir = path.resolve(__dirname, "..", "dist")
   // Serve built assets under /studio (Vite base is /studio/, so emitted HTML
   // references e.g. /studio/assets/index-abc.js — match that prefix here).
-  app.use("/studio", express.static(distDir))
+  //
+  // `redirect: false` (2026-06-22 — fix ERR_TOO_MANY_REDIRECTS): by default
+  // serve-static issues a 301 directory redirect for a request that targets the
+  // mount root WITHOUT a trailing slash (`/studio` → `/studio/`). The dnkpartner
+  // front sits in front of us with Next's default `trailingSlash: false`, which
+  // 308-strips `/studio/` back to `/studio` — so the two layers disagreed on the
+  // slash and bounced forever. Disabling the directory redirect here means this
+  // layer never flips the slash; bare `/studio` falls through to the SPA
+  // index.html fallback below and serves 200. (The front also canonicalizes the
+  // index to /studio/ai-trends via a Next redirect — this is defense in depth so
+  // a direct internal hit to /studio can't reintroduce the loop.)
+  app.use("/studio", express.static(distDir, { redirect: false }))
   // Also serve at root for direct internal probes (Coolify health checks /
   // container-internal curl during debugging).
-  app.use(express.static(distDir))
+  app.use(express.static(distDir, { redirect: false }))
 
   // SPA fallback: any GET request that is NOT an API/static prefix and is not
   // a file-extension request falls back to index.html so React Router can
