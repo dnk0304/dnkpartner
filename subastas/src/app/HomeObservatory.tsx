@@ -171,16 +171,21 @@ export default function HomeObservatory() {
   }, [router]);
 
   /**
-   * Click on a category row in the compact landing rail. We don't filter the
-   * landing map in-place (it's a preview card, not the working surface) —
-   * we navigate to the full map view with the category locked in via
-   * `?mapCategory=<key>`. Empty key (the "Todas" row) lands on the unfiltered
-   * map. The map's own click is wired separately and still routes to the
-   * unfiltered full view.
+   * Click on a category row in the compact landing rail. Dennis (2026-06-27):
+   * clicking a category must land the user on the LIST of auctions in that
+   * category — not the pin map. So we route to the default /subastas list view
+   * with the category locked in via `?mapCategory=<key>` (already honored by
+   * `filtersFromParams` → `filtersToApiParams`, so the list returns only that
+   * category server-side). We pin `when=activas` so the landed result count
+   * matches the active-scoped count shown in the rail (e.g. "Vivienda 207" =
+   * 207 active) — landing on the default `when=todas` would inflate the count
+   * and confuse. Empty key (the "Todas" row) lands on `/subastas?when=activas`
+   * (all active, no category). The map preview's own click is wired separately
+   * (`openFullMap`) and still routes to the full map view.
    */
-  const openFullMapWithCategory = React.useCallback(
+  const openListWithCategory = React.useCallback(
     (key: string) => {
-      const qs = new URLSearchParams({ view: "map" });
+      const qs = new URLSearchParams({ when: "activas" });
       if (key) qs.set("mapCategory", key);
       router.push(`/subastas?${qs.toString()}`);
     },
@@ -320,12 +325,12 @@ export default function HomeObservatory() {
                 C4a #7 (2026-06-07): scope counts to ACTIVAS via `status=active`
                 so the per-category numbers reconcile with the map pins above
                 (which are also activas-only) and with the full-map view (whose
-                URL-less default is `when=activas` per C2). The rail click
-                still routes to the full unfiltered map view — users widen by
-                landing there. */}
+                URL-less default is `when=activas` per C2). The rail click now
+                routes to the /subastas LIST pre-filtered to that category
+                (`?when=activas&mapCategory=<key>`) — Dennis 2026-06-27. */}
             <MapCategorySidebar
               selected=""
-              onChange={openFullMapWithCategory}
+              onChange={openListWithCategory}
               variant="compact"
               heading={t("mapHeading")}
               apiSearchParams={LANDING_MAP_COUNTS_PARAMS}

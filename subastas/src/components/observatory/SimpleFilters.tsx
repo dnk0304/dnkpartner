@@ -28,6 +28,7 @@ import {
 } from "./filters";
 import { getSourceLabel } from "@/lib/source-labels";
 import { provinceLabelForSlug } from "@/lib/seo/slugs";
+import { MAP_CATEGORY_LABEL } from "@/lib/map-category";
 import { cn } from "@/lib/utils";
 
 export type SimpleFiltersProps = {
@@ -276,6 +277,22 @@ export function ActiveFilterChips({
   if (filters.kind !== "todo" && filters.categories.length === 0) {
     const opt = SIMPLE_KIND_OPTIONS.find((o) => o.id === filters.kind);
     if (opt) chips.push({ key: "kind", label: opt.label, onRemove: () => onChange({ kind: "todo" }) });
+  }
+  // Map-category chip — set when the user clicks a category row on the home
+  // landing rail (lands on `/subastas?...&mapCategory=<key>`). The list view
+  // has no category rail of its own, so without this chip the filtered result
+  // would have no visible cause and no granular way to clear it. Label comes
+  // from the canonical map-category taxonomy; falls back to the raw key for any
+  // off-taxonomy value. Removing it clears just this dimension.
+  if (filters.mapCategory) {
+    const label =
+      MAP_CATEGORY_LABEL[filters.mapCategory as keyof typeof MAP_CATEGORY_LABEL] ??
+      filters.mapCategory;
+    chips.push({
+      key: "mapCategory",
+      label,
+      onRemove: () => onChange({ mapCategory: "" }),
+    });
   }
   if (filters.province) {
     chips.push({
