@@ -12,18 +12,22 @@
  *   1. "Crear alerta" CTA — opens AlertsModal seeded with the current filter
  *      set (province / municipality / category).
  *   2. Origen — BOE family (Judicial / Hacienda / Otras tributarias /
- *      Notarial / Administrativas). Multi-select, maps to filters.types.
+ *      Notarial / Administrativas). SINGLE-SELECT radio (leading "Todos los
+ *      orígenes" clears). Maps to filters.types as an at-most-one array.
+ *   2b. Fuente — scraper portal (BOE / Seguridad Social / PLABI).
+ *      SINGLE-SELECT radio (leading "Todas las fuentes" clears). Maps to
+ *      filters.sources as an at-most-one array.
  *   3. Tipo de bien — broad kind buckets (Vivienda / Vehículo / Local /
  *      Terreno). Radio, maps to filters.kind.
  *   4. ¿Dónde? — province + municipality dropdowns.
  *   5. Valor Subasta — Mínimo / Máximo price inputs.
- *   6. Depósito — Mín / Máx. NOT WIRED today (no backend filter param).
- *      Rendered DISABLED with a "próximamente" hint. FLAGGED to Ken.
- *   7. Pujas — Cualquiera / Con puja / Sin puja. NOT WIRED today (no API
- *      filter param). Rendered DISABLED. FLAGGED to Ken.
- *   8. Fecha de finalización — endsBefore (wired). endsAfter NOT WIRED;
- *      hint-only. FLAGGED to Ken.
- *   9. Fecha de publicación — NOT WIRED today. Hint-only. FLAGGED to Ken.
+ *   6. Fecha de finalización — endsAfter ("Desde") + endsBefore ("Hasta").
+ *      Both WIRED (Forge wired endsAfter; enabled here).
+ *   7. Fecha de publicación — publishedAfter ("Desde") + publishedBefore
+ *      ("Hasta"). Both WIRED (Forge backend; enabled here).
+ *
+ * REMOVED (failed the prod-coverage gate, Dennis ruling): the old "Depósito"
+ * and "Pujas" blocks — no backend filter, deleted rather than left disabled.
  *
  * Locked dimension support: when `lockedFilter` is passed (SEO pages), the
  * corresponding control is rendered DISABLED so users can't escape the
@@ -134,15 +138,14 @@ export function FiltersSidebar({
     onChange({ priceMin: parseN(pMin), priceMax: parseN(pMax) });
   };
 
-  // Origen (BOE family) — multi-select. Locked when lockedFilter.type is set.
+  // Origen (BOE family) — SINGLE-SELECT. The data model stays an array
+  // (filters.types / ?types= contract is untouched); single-select just means
+  // it holds at most one element. Locked when lockedFilter.type is set.
   const isTypeActive = (t: AuctionType) =>
-    lockedFilter?.type === t || filters.types.includes(t);
-  const toggleType = (t: AuctionType) => {
-    if (lockedFilter?.type) return; // locked
-    const next = filters.types.includes(t)
-      ? filters.types.filter((x) => x !== t)
-      : [...filters.types, t];
-    onChange({ types: next });
+    lockedFilter?.type === t || filters.types[0] === t;
+  const selectType = (t: AuctionType | null) => {
+    if (lockedFilter?.type) return; // locked — SEO type page owns the dimension
+    onChange({ types: t ? [t] : [] });
   };
 
   // Fuente (scraper origin: BOE / Seguridad Social / PLABI) — multi-select.
@@ -155,12 +158,10 @@ export function FiltersSidebar({
     { id: "SEGSOCIAL", label: getSourceLabel("SEGSOCIAL") ?? "Seguridad Social" },
     { id: "PLABI", label: getSourceLabel("PLABI") ?? "PLABI" },
   ];
-  const isSourceActive = (s: string) => filters.sources.includes(s);
-  const toggleSource = (s: string) => {
-    const next = filters.sources.includes(s)
-      ? filters.sources.filter((x) => x !== s)
-      : [...filters.sources, s];
-    onChange({ sources: next });
+  // Fuente — SINGLE-SELECT (same array-as-at-most-one model as Origen).
+  const isSourceActive = (s: string) => filters.sources[0] === s;
+  const selectSource = (s: string | null) => {
+    onChange({ sources: s ? [s] : [] });
   };
 
   const provinceLocked = Boolean(lockedFilter?.province);
@@ -243,9 +244,28 @@ export function FiltersSidebar({
         </div>
       )}
 
-      {/* 2. ORIGEN — BOE family (vertical list, not horizontal chips). */}
+      {/* 2. ORIGEN — BOE family. SINGLE-SELECT radio (vertical list). Leading
+            "Todos los orígenes" clears back to no type filter. On a locked SEO
+            type page the matching radio is forced active and every other
+            (incl. "Todos") is disabled so users can't widen out. */}
       <FilterBlock label="Origen">
         <div className="space-y-1">
+          <label
+            className={cn(
+              "flex items-center gap-2 cursor-pointer text-[var(--color-ink-primary)]",
+              Boolean(lockedFilter?.type) && "opacity-40 cursor-not-allowed",
+            )}
+          >
+            <input
+              type="radio"
+              name="origen"
+              className="h-3.5 w-3.5 accent-[var(--color-brand)]"
+              checked={!lockedFilter?.type && filters.types.length === 0}
+              disabled={Boolean(lockedFilter?.type)}
+              onChange={() => selectType(null)}
+            />
+            <span>Todos los orígenes</span>
+          </label>
           {(["judicial", "aeat", "otras_tributarias", "notarial", "administrativas"] as AuctionType[]).map(
             (t) => {
               const meta = ALL_TYPES.find((x) => x.id === t);
@@ -261,11 +281,12 @@ export function FiltersSidebar({
                   )}
                 >
                   <input
-                    type="checkbox"
+                    type="radio"
+                    name="origen"
                     className="h-3.5 w-3.5 accent-[var(--color-brand)]"
                     checked={active}
                     disabled={disabled}
-                    onChange={() => toggleType(t)}
+                    onChange={() => selectType(t)}
                   />
                   <span>{meta.label}</span>
                 </label>
@@ -275,12 +296,22 @@ export function FiltersSidebar({
         </div>
       </FilterBlock>
 
-      {/* 2b. FUENTE — scraper origin (BOE vs Seguridad Social). Multi-select.
-            Distinct from the Origen block above (which splits BOE rows by
-            BOE-family sub-type). Whitelisted server-side; unknown values
-            are silently dropped. */}
+      {/* 2b. FUENTE — scraper origin (BOE vs Seguridad Social vs PLABI).
+            SINGLE-SELECT radio. Leading "Todas las fuentes" clears. Distinct
+            from the Origen block above (which splits BOE rows by BOE-family
+            sub-type). Whitelisted server-side; unknown values dropped. */}
       <FilterBlock label="Fuente">
         <div className="space-y-1">
+          <label className="flex items-center gap-2 cursor-pointer text-[var(--color-ink-primary)]">
+            <input
+              type="radio"
+              name="fuente"
+              className="h-3.5 w-3.5 accent-[var(--color-brand)]"
+              checked={filters.sources.length === 0}
+              onChange={() => selectSource(null)}
+            />
+            <span>Todas las fuentes</span>
+          </label>
           {SOURCE_OPTIONS.map((opt) => {
             const active = isSourceActive(opt.id);
             return (
@@ -289,10 +320,11 @@ export function FiltersSidebar({
                 className="flex items-center gap-2 cursor-pointer text-[var(--color-ink-primary)]"
               >
                 <input
-                  type="checkbox"
+                  type="radio"
+                  name="fuente"
                   className="h-3.5 w-3.5 accent-[var(--color-brand)]"
                   checked={active}
-                  onChange={() => toggleSource(opt.id)}
+                  onChange={() => selectSource(opt.id)}
                 />
                 <span>{opt.label}</span>
               </label>
@@ -401,38 +433,14 @@ export function FiltersSidebar({
         </div>
       </FilterBlock>
 
-      {/* 6. DEPÓSITO — disabled (no backend filter param). Flagged in brief. */}
-      <FilterBlock label="Depósito" disabledHint="Próximamente">
-        <div className="grid grid-cols-2 gap-2 opacity-50 pointer-events-none">
-          <NumberInput label="Mínimo" value="" onChange={() => {}} onCommit={() => {}} placeholder="€ Min" ariaLabel="Depósito mínimo" disabled />
-          <NumberInput label="Máximo" value="" onChange={() => {}} onCommit={() => {}} placeholder="€ Max" ariaLabel="Depósito máximo" disabled />
-        </div>
-      </FilterBlock>
-
-      {/* 7. PUJAS — disabled (pujaStatus isn't an API filter param today).
-            We DO surface the field on the result rows already (PujaBadge),
-            but server-side filtering would need a Forge follow-up. */}
-      <FilterBlock label="Pujas" disabledHint="Próximamente">
-        <div className="space-y-1 opacity-50 pointer-events-none">
-          {["Cualquiera", "Con puja", "Sin puja"].map((lbl) => (
-            <label key={lbl} className="flex items-center gap-2 text-[var(--color-ink-primary)] cursor-not-allowed">
-              <input type="radio" name="pujas" disabled className="h-3.5 w-3.5 accent-[var(--color-brand)]" />
-              <span>{lbl}</span>
-            </label>
-          ))}
-        </div>
-      </FilterBlock>
-
-      {/* 8. FECHA DE FINALIZACIÓN — endsBefore (wired). endsAfter not
-            supported by the API today; rendered DISABLED. */}
+      {/* 6. FECHA DE FINALIZACIÓN — both wired. "Desde" → endsAfter,
+            "Hasta" → endsBefore. */}
       <FilterBlock label="Fecha de finalización">
         <div className="grid grid-cols-2 gap-2">
           <DateInput
             label="Desde"
-            value=""
-            onChange={() => {}}
-            disabled
-            disabledHint="Próximamente"
+            value={filters.endsAfter ? filters.endsAfter.slice(0, 10) : ""}
+            onChange={(v) => onChange({ endsAfter: v ? new Date(v).toISOString() : null })}
             ariaLabel="Finaliza desde"
           />
           <DateInput
@@ -444,11 +452,22 @@ export function FiltersSidebar({
         </div>
       </FilterBlock>
 
-      {/* 9. FECHA DE PUBLICACIÓN — disabled. No API filter today. */}
-      <FilterBlock label="Fecha de publicación" disabledHint="Próximamente">
-        <div className="grid grid-cols-2 gap-2 opacity-50 pointer-events-none">
-          <DateInput label="Desde" value="" onChange={() => {}} disabled ariaLabel="Publicada desde" />
-          <DateInput label="Hasta" value="" onChange={() => {}} disabled ariaLabel="Publicada hasta" />
+      {/* 7. FECHA DE PUBLICACIÓN — both wired. "Desde" → publishedAfter,
+            "Hasta" → publishedBefore. */}
+      <FilterBlock label="Fecha de publicación">
+        <div className="grid grid-cols-2 gap-2">
+          <DateInput
+            label="Desde"
+            value={filters.publishedAfter ? filters.publishedAfter.slice(0, 10) : ""}
+            onChange={(v) => onChange({ publishedAfter: v ? new Date(v).toISOString() : null })}
+            ariaLabel="Publicada desde"
+          />
+          <DateInput
+            label="Hasta"
+            value={filters.publishedBefore ? filters.publishedBefore.slice(0, 10) : ""}
+            onChange={(v) => onChange({ publishedBefore: v ? new Date(v).toISOString() : null })}
+            ariaLabel="Publicada hasta"
+          />
         </div>
       </FilterBlock>
 
