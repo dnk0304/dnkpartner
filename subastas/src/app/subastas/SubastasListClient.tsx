@@ -137,14 +137,6 @@ export default function SubastasListClient({
       // Wave 56 — town SEO page. Always paired with province.
       next.municipality = lockedFilter.municipality;
     }
-    // wave69 — multi-select arrays NEVER apply on locked SEO routes. The
-    // single-town/single-province pages exist as canonical 1-dim listings;
-    // letting a hand-edited `?municipios=` widen them out would defeat the
-    // SEO contract. We surface the multi-select UI only on bare /subastas.
-    if (lockedFilter.province || lockedFilter.municipality || lockedFilter.category || lockedFilter.type) {
-      next.provincias = [];
-      next.municipios = [];
-    }
     if (lockedFilter.type) {
       if (!next.types.includes(lockedFilter.type)) {
         next.types = [lockedFilter.type, ...next.types];
@@ -209,11 +201,6 @@ export default function SubastasListClient({
       const qs = paramsFromFilters(next);
       if (lockedFilter?.province) qs.delete("province");
       if (lockedFilter?.municipality) qs.delete("municipality");
-      // wave69 — locked SEO routes don't carry the multi-select arrays.
-      if (lockedFilter) {
-        qs.delete("provincias");
-        qs.delete("municipios");
-      }
       if (lockedFilter?.type) {
         if (next.types.length === 1 && next.types[0] === lockedFilter.type) {
           qs.delete("types");
