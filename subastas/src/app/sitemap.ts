@@ -1,12 +1,15 @@
 /**
  * sitemap — chunked via `generateSitemaps()` (07 §4).
  *
- * Doctrine (updated, town-pages Phase 2): the sitemap ships every URL that is
- * EITHER indexable today OR a permanent clean page whose index state flips
- * with inventory. Concretely: ALL clean town pages ship (any-status pairs);
- * 0-active towns are noindex,follow at the page until inventory returns —
- * the sitemap is no longer strictly "the indexable set" for towns. Everything
- * else (categories below threshold, finished auction details) stays excluded.
+ * Doctrine (08 §4.3 — town tightening): the sitemap ships only URLs that are
+ * indexable RIGHT NOW. For towns that means ≥1 auction in the SEO
+ * ACTIVE_STATUSES set (active + upcoming/PROXIMA) — the SAME predicate the
+ * town page's index gate uses (countActiveAuctions > 0), so the sitemap town
+ * set == the indexable town set by construction. A 0-active town drops out of
+ * the sitemap but its page stays 200 + noindex,follow + reachable; it re-enters
+ * automatically when inventory returns (live request-time recompute, 300s
+ * unstable_cache TTL — no nightly job). Everything else (categories below
+ * threshold, finished auction details) stays excluded.
  *
  * Chunk layout (fixed IDs so NO DB query is needed to enumerate chunks —
  * keeps the route fully request-time, never build-time):
@@ -38,7 +41,7 @@ import {
   isOfficialCategory,
   type CategorySlug,
 } from '@/lib/seo/slugs';
-import { categoryActiveCounts, allMunicipalityPairs } from '@/lib/seo/page-data';
+import { categoryActiveCounts, activeMunicipalityPairs } from '@/lib/seo/page-data';
 import { buildAuctionSlug } from '@/lib/seo/auction-slug';
 
 const SITE = 'https://subastasactivas.com';
@@ -120,12 +123,14 @@ export default async function sitemap({ id }: { id: number }): Promise<MetadataR
     });
   }
 
-  // --- Town pages (town-pages Phase 2) ---
-  // ALL clean towns (any-status inventory; off-taxonomy junk filtered inside
-  // allMunicipalityPairs()). 0-active towns are noindex,follow at the page —
-  // see the doctrine note in the header. ~2.7k pairs today.
+  // --- Town pages (08 §4.3 — active-gated) ---
+  // Only clean towns with ≥1 auction in SEO ACTIVE_STATUSES (active + upcoming;
+  // off-taxonomy junk filtered inside activeMunicipalityPairs()). This is the
+  // SAME predicate the town page's index gate uses, so the sitemap town set ==
+  // the indexable town set. 0-active towns drop out here but their page stays
+  // 200 + noindex,follow + reachable — see the doctrine note in the header.
   try {
-    const pairs = await allMunicipalityPairs();
+    const pairs = await activeMunicipalityPairs();
     for (const p of pairs) {
       entries.push({
         url: `${SITE}/subastas/${p.provinceSlug}/${p.municipioSlug}`,
