@@ -32,6 +32,7 @@
  */
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Bell, X } from "lucide-react";
 import {
   ObservatoryFilters,
@@ -41,10 +42,12 @@ import {
   SORT_OPTIONS,
   DEFAULT_SORT,
   ALL_STATUSES,
+  paramsFromFilters,
 } from "./filters";
 import { AuctionType } from "@/types";
 import { cn } from "@/lib/utils";
 import { ProvinceTownTree } from "./ProvinceTownTree";
+import { PROVINCE_DB_KEY_TO_SLUG, slugify } from "@/lib/seo/slugs";
 import { getSourceLabel } from "@/lib/source-labels";
 
 /**
@@ -108,6 +111,8 @@ export function FiltersSidebar({
   className,
   hideInternalHeading,
 }: FiltersSidebarProps) {
+  const router = useRouter();
+
   // Local price strings — avoid spamming the parent during typing.
   const [pMin, setPMin] = React.useState(
     filters.priceMin == null ? "" : String(filters.priceMin),
@@ -169,6 +174,28 @@ export function FiltersSidebar({
   const munisuffix = (name: string) => {
     const n = municipalityCounts?.[name] ?? 0;
     return `${name} (${n})`;
+  };
+
+  // Locked-province town picker → NAVIGATE (not in-place filter). Picking a
+  // town on a province SEO page lands on the indexable town route
+  // /subastas/{provincia}/{municipio}, keeping town navigation consistent with
+  // the unlocked tree. Other active filters travel along as residual query
+  // (province + municipality are path-encoded, so they're stripped). Clearing
+  // the select ("Todos los municipios") returns to the bare province page.
+  const goLockedTown = (municipalityName: string) => {
+    const provSlug = lockedFilter?.province
+      ? PROVINCE_DB_KEY_TO_SLUG[lockedFilter.province]
+      : undefined;
+    if (!provSlug) return;
+    const qs = paramsFromFilters(filters);
+    qs.delete("province");
+    qs.delete("municipality");
+    const residual = qs.toString();
+    const muniSlug = municipalityName ? slugify(municipalityName) : "";
+    const path = muniSlug
+      ? `/subastas/${provSlug}/${muniSlug}`
+      : `/subastas/${provSlug}`;
+    router.push(residual ? `${path}?${residual}` : path);
   };
 
   return (
@@ -320,10 +347,13 @@ export function FiltersSidebar({
                 {lockedFilter?.municipality}
               </div>
             ) : (
-              /* Municipality stays editable — narrows within the locked province. */
+              /* Municipality picker — NAVIGATES to the clean town route
+                 /subastas/{provincia}/{municipio} (was an in-place
+                 ?municipality= filter) so town nav is consistent and lands on
+                 the indexable town page. */
               <select
                 value={filters.municipality}
-                onChange={(e) => onChange({ municipality: e.target.value })}
+                onChange={(e) => goLockedTown(e.target.value)}
                 className="tnum w-full rounded-md border border-[var(--color-hairline)] bg-white px-3 py-2 text-sm text-[var(--color-ink-primary)] focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15"
                 aria-label="Municipio"
                 disabled={municipalities.length === 0}
@@ -338,18 +368,12 @@ export function FiltersSidebar({
             )}
           </div>
         ) : (
-          /* Wave 69 — multi-select mode. The expandable PROVINCE→TOWN tree
-             now renders checkboxes (province + town) when the page is
-             unlocked. Ticking accumulates into `filters.provincias[]` /
-             `filters.municipios[]` rather than navigating to a clean SEO
-             URL — the single-town SEO routes (/subastas/{prov}/{muni}) stay
-             intact behind the lockedFilter branch above. The tree owns its
-             own data fetches against /api/auctions/counts. */
-          <ProvinceTownTree
-            filters={filters}
-            selectMode="multi"
-            onChange={onChange}
-          />
+          /* Single-select navigation. The expandable PROVINCE→TOWN tree
+             navigates on click: a province name → /subastas/{provincia}, a
+             town name → /subastas/{provincia}/{municipio} — real, indexable
+             pages. Other active filters travel along as residual query. The
+             tree owns its own data fetches against /api/auctions/counts. */
+          <ProvinceTownTree filters={filters} />
         )}
       </FilterBlock>
 

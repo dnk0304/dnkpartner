@@ -27,7 +27,6 @@ import {
   DEFAULT_SORT,
 } from "./filters";
 import { getSourceLabel } from "@/lib/source-labels";
-import { provinceLabelForSlug } from "@/lib/seo/slugs";
 import { MAP_CATEGORY_LABEL } from "@/lib/map-category";
 import { cn } from "@/lib/utils";
 
@@ -306,37 +305,6 @@ export function ActiveFilterChips({
       key: "municipality",
       label: filters.municipality,
       onRemove: () => onChange({ municipality: "" }),
-    });
-  }
-  // wave69 — multi-select location chips. Each picked province/town gets a
-  // dismissible chip above the result list. Labels are the prettified display
-  // name (with accent + casing) where we have one, falling back to a
-  // title-cased slug for municipalities (we don't carry a global slug→label
-  // map for the 8k+ towns — close enough for a chip). Chips are intentionally
-  // prefixed ("Provincia: …" / "Municipio: …") so they don't blur into the
-  // bare province/municipality chips above when the lockedFilter SEO path is
-  // also active. Wave 80 — switched from raw-slug labels to display names so
-  // the chips read as language, not URL fragments.
-  const titleCaseSlug = (s: string) =>
-    s
-      .split("-")
-      .map((w) => (w.length ? w[0].toUpperCase() + w.slice(1) : w))
-      .join(" ");
-  for (const slug of filters.provincias) {
-    const label = provinceLabelForSlug(slug) ?? titleCaseSlug(slug);
-    chips.push({
-      key: `provs-${slug}`,
-      label: `Provincia: ${label}`,
-      onRemove: () =>
-        onChange({ provincias: filters.provincias.filter((x) => x !== slug) }),
-    });
-  }
-  for (const slug of filters.municipios) {
-    chips.push({
-      key: `munis-${slug}`,
-      label: `Municipio: ${titleCaseSlug(slug)}`,
-      onRemove: () =>
-        onChange({ municipios: filters.municipios.filter((x) => x !== slug) }),
     });
   }
   // ¿Cuándo? — always surface a chip when no explicit statuses[] is set, INCLUDING

@@ -78,20 +78,6 @@ export type ProvinceTownTreeProps = {
    *  bound, not the primary scroll affordance. */
   maxHeightClass?: string;
   className?: string;
-  /**
-   * wave69 — multi-select mode. When `selectMode === "multi"` (the unlocked
-   * /subastas surface), province + town rows render checkboxes that toggle
-   * the `provincias[]` / `municipios[]` filter arrays via `onChange` instead
-   * of navigating away. When omitted (locked SEO pages) the legacy
-   * navigation behaviour is preserved exactly.
-   */
-  selectMode?: "navigate" | "multi";
-  /**
-   * Required when `selectMode === "multi"` — patches filter state up to the
-   * list client. Called with `{ provincias: [...] }` or `{ municipios: [...] }`
-   * deltas. Untouched in navigate mode.
-   */
-  onChange?: (patch: { provincias?: string[]; municipios?: string[] }) => void;
 };
 
 // ---------------------------------------------------------------------------
@@ -112,45 +98,9 @@ export function ProvinceTownTree({
   filters,
   maxHeightClass = "max-h-[360px]",
   className,
-  selectMode = "navigate",
-  onChange,
 }: ProvinceTownTreeProps) {
   const router = useRouter();
-  const isMulti = selectMode === "multi";
 
-  // Fast lookup sets for the current selection — avoids O(n*m) scans on every
-  // row render when the user has many towns ticked.
-  const selectedProvincias = React.useMemo(
-    () => new Set(filters.provincias),
-    [filters.provincias],
-  );
-  const selectedMunicipios = React.useMemo(
-    () => new Set(filters.municipios),
-    [filters.municipios],
-  );
-
-  // Toggle helpers — pure delta patches; parent owns canonical state.
-  const toggleProvincia = React.useCallback(
-    (slug: string) => {
-      if (!onChange) return;
-      const next = selectedProvincias.has(slug)
-        ? filters.provincias.filter((s) => s !== slug)
-        : [...filters.provincias, slug];
-      onChange({ provincias: next });
-    },
-    [onChange, filters.provincias, selectedProvincias],
-  );
-
-  const toggleMunicipio = React.useCallback(
-    (slug: string) => {
-      if (!onChange) return;
-      const next = selectedMunicipios.has(slug)
-        ? filters.municipios.filter((s) => s !== slug)
-        : [...filters.municipios, slug];
-      onChange({ municipios: next });
-    },
-    [onChange, filters.municipios, selectedMunicipios],
-  );
   const [provinceCounts, setProvinceCounts] = React.useState<Record<string, ProvinceCounts>>({});
   const [provinceLoading, setProvinceLoading] = React.useState(true);
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
@@ -346,8 +296,6 @@ export function ProvinceTownTree({
             const isExpanded = expanded.has(p.key);
             const isLoadingTowns = townsLoading.has(p.key);
             const towns = townsByProvince[p.key];
-            const provSlug = PROVINCE_DB_KEY_TO_SLUG[p.key];
-            const provChecked = isMulti && provSlug ? selectedProvincias.has(provSlug) : false;
 
             return (
               <li key={p.key} role="treeitem" aria-expanded={isExpanded}>
@@ -379,34 +327,12 @@ export function ProvinceTownTree({
                     )}
                   </button>
 
-                  {/* wave69 — multi-select mode: checkbox toggles whole-province
-                       selection. Sits left of the name so it reads "tick →
-                       label" left-to-right. */}
-                  {isMulti && provSlug && (
-                    <input
-                      type="checkbox"
-                      checked={provChecked}
-                      onChange={() => toggleProvincia(provSlug)}
-                      aria-label={`Seleccionar provincia ${p.label}`}
-                      className={cn(
-                        "h-4 w-4 shrink-0 cursor-pointer accent-[var(--color-brand)]",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40",
-                      )}
-                    />
-                  )}
-
-                  {/* Name — in navigate mode this button pushes a clean SEO URL;
-                       in multi mode it acts as a second hit-area for the
-                       province checkbox so users can tap the label to tick. */}
+                  {/* Name — single-select navigation: pushes the clean SEO URL
+                       /subastas/{provincia}, preserving other active filters as
+                       residual query. Separate tap target from the chevron. */}
                   <button
                     type="button"
-                    onClick={() => {
-                      if (isMulti && provSlug) {
-                        toggleProvincia(provSlug);
-                      } else {
-                        goProvince(p.key);
-                      }
-                    }}
+                    onClick={() => goProvince(p.key)}
                     className={cn(
                       "flex-1 min-w-0 truncate text-left text-sm font-medium",
                       "text-[var(--color-ink-primary)]",
@@ -438,15 +364,12 @@ export function ProvinceTownTree({
                     ) : towns && towns.length > 0 ? (
                       <ul className="space-y-0.5" role="group">
                         {towns.map((t) => {
-                          // In navigate mode only the active towns survive the
-                          // server-side resolver — 0-active rows are rendered
-                          // as plain text (clicking would 404). In multi mode
-                          // EVERY town is selectable (the muni filter resolves
-                          // against the global distinct-muni cache by slug, no
-                          // SEO-route resolver involved), so we drop the
-                          // "only-active" gate inside the tree's multi path.
-                          const isClickable = isMulti ? true : t.active > 0;
-                          const townChecked = isMulti && selectedMunicipios.has(t.slug);
+                          // Only towns with active inventory are navigable —
+                          // 0-active historical towns render as plain text so we
+                          // never hand the user a near-empty town page from the
+                          // tree. The province PAGE's "Por municipio" cluster
+                          // still carries the full town crawl path for Google.
+                          const isClickable = t.active > 0;
                           const rowClass = cn(
                             "flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-xs",
                             isClickable
@@ -456,21 +379,6 @@ export function ProvinceTownTree({
                           );
                           const inner = (
                             <>
-                              {isMulti && (
-                                <input
-                                  type="checkbox"
-                                  checked={townChecked}
-                                  onChange={(e) => {
-                                    e.stopPropagation();
-                                    toggleMunicipio(t.slug);
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                  aria-label={`Seleccionar ${t.name}`}
-                                  className={cn(
-                                    "h-3.5 w-3.5 shrink-0 cursor-pointer accent-[var(--color-brand)]",
-                                  )}
-                                />
-                              )}
                               <span className="flex-1 min-w-0 truncate">{t.name}</span>
                               {/* Total-only count per Dennis brief — see the
                                    province row comment above for rationale. */}
@@ -486,13 +394,7 @@ export function ProvinceTownTree({
                               {isClickable ? (
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    if (isMulti) {
-                                      toggleMunicipio(t.slug);
-                                    } else {
-                                      goTown(p.key, t.slug);
-                                    }
-                                  }}
+                                  onClick={() => goTown(p.key, t.slug)}
                                   className={rowClass}
                                 >
                                   {inner}
