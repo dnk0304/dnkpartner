@@ -400,6 +400,36 @@ export function ActiveFilterChips({
       onRemove: () => onChange({ endsBefore: null }),
     });
   }
+  // Newly-wired date dimensions (Forge backend, enabled in FiltersSidebar):
+  // finaliza-desde / publicada-desde / publicada-hasta. Same short-date format
+  // as the endsBefore chip above; each removable to clear just that bound.
+  const shortDate = (iso: string): string => {
+    const d = new Date(iso);
+    return isNaN(d.getTime())
+      ? iso
+      : d.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+  };
+  if (filters.endsAfter) {
+    chips.push({
+      key: "endsAfter",
+      label: `Finaliza desde: ${shortDate(filters.endsAfter)}`,
+      onRemove: () => onChange({ endsAfter: null }),
+    });
+  }
+  if (filters.publishedAfter) {
+    chips.push({
+      key: "publishedAfter",
+      label: `Publicada desde: ${shortDate(filters.publishedAfter)}`,
+      onRemove: () => onChange({ publishedAfter: null }),
+    });
+  }
+  if (filters.publishedBefore) {
+    chips.push({
+      key: "publishedBefore",
+      label: `Publicada hasta: ${shortDate(filters.publishedBefore)}`,
+      onRemove: () => onChange({ publishedBefore: null }),
+    });
+  }
   if (filters.hasImage) {
     chips.push({
       key: "hasImage",
