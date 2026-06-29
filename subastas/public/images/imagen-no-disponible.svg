@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none" role="img" aria-label="Imagen no disponible — Subastas Activas">
+  <!--
+    Branded "Imagen no disponible" card placeholder for PROPERTY auctions that
+    have NEITHER a real photo NOR geocoded coords (rung-3 of resolve-card-image).
+    Replaces the generic, un-branded /images/map-placeholder.svg for properties.
+    Geocoded properties still get a live OSM map (rung-2) — this is ONLY the
+    true no-photo-no-coords case (Dennis, Option A, 2026-06-24).
+
+    Visual language deliberately matches public/images/email-placeholder.svg
+    (Vinci art direction 2026-06-19): calm frost field, full-tile hairline so it
+    never reads as a blank cell, one centred mint badge holding a single pine
+    line-mark, a quiet muted label, and a tiny low-opacity SUBASTAS ACTIVAS
+    wordmark. 4:3 viewBox so it sits correctly in card thumbnails AND the
+    detail hero (which renders placeholders object-contain p-10 opacity-80).
+
+    Pure vector, no raster, no embedded/external fonts — text uses the system
+    sans-serif stack so it renders identically on every platform. At a 64×48
+    thumbnail the badge + image-off glyph carry the meaning; the full label
+    reads on larger surfaces. Glyph is an "image off" picture frame (honest to
+    the copy and mirrors the <ImageOff> icon already used in the detail caption).
+  -->
+  <defs>
+    <linearGradient id="ind-badge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F1F7F4"/>
+      <stop offset="100%" stop-color="#EAF2EE"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Calm light field. Solid near-white so it reads as a deliberate card. -->
+  <rect width="800" height="600" fill="#FBFCFD"/>
+
+  <!-- Full-tile hairline: guarantees the tile reads as an intentional filled
+       card, never as a blank/unrendered cell. -->
+  <rect x="1" y="1" width="798" height="598" fill="none" stroke="#E5EAEC" stroke-width="2"/>
+
+  <!-- Centred soft mint-frost badge holding the image-off mark. -->
+  <g transform="translate(400 248)">
+    <circle r="118" fill="url(#ind-badge)" stroke="#E5EAEC" stroke-width="2"/>
+
+    <!-- Image-off picture mark: framed photo (sun + mountains) struck through
+         by a single diagonal. Saturated winter-green at full strength, round
+         joins/caps so it reads as 'designed', matching the email asset's mark. -->
+    <g stroke="#17926D" stroke-width="9" stroke-linejoin="round" stroke-linecap="round" fill="none">
+      <!-- photo frame -->
+      <rect x="-66" y="-50" width="132" height="100" rx="12"/>
+      <!-- sun -->
+      <circle cx="-30" cy="-18" r="11" fill="#17926D" stroke="none"/>
+      <!-- mountain range -->
+      <path d="M-58 34 L-20 -6 L6 18 L30 -10 L58 30"/>
+    </g>
+    <!-- Negation slash. Carries a 1px frost casing (drawn under) so it reads as
+         an overlay strike, not part of the picture — same trick lucide uses. -->
+    <line x1="-78" y1="-62" x2="78" y2="62" stroke="#FBFCFD" stroke-width="17" stroke-linecap="round"/>
+    <line x1="-78" y1="-62" x2="78" y2="62" stroke="#17926D" stroke-width="9" stroke-linecap="round"/>
+  </g>
+
+  <!-- Primary label. Sentence case, the strongest piece of type on the tile so
+       the message is unambiguous on card + hero surfaces. -->
+  <text x="400" y="452" text-anchor="middle"
+        font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+        font-size="46" font-weight="600" letter-spacing="0.2" fill="#374151">Imagen no disponible</text>
+
+  <!-- Tiny, quiet brand mark. Tasteful, low-opacity pine, never a headline. -->
+  <text x="400" y="528" text-anchor="middle"
+        font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+        font-size="22" font-weight="600" letter-spacing="2.8" fill="#1F4A3A" opacity="0.42">SUBASTAS ACTIVAS</text>
+</svg>
