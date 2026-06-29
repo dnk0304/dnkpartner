@@ -802,6 +802,38 @@ export async function GET(request: NextRequest) {
       if (Number.isNaN(t)) return null;
       return new Date(t).toISOString();
     })();
+    // endsAfter: user LOWER bound on endsAt. Same ISO validation as endsBefore.
+    // NOTE: deliberately NO ">= NOW()" guard (unlike endsBefore) — a user may
+    // legitimately set a past lower bound when browsing finished auctions.
+    const endsAfterRaw = searchParams.get('endsAfter');
+    const endsAfter = (() => {
+      if (!endsAfterRaw) return null;
+      const t = Date.parse(endsAfterRaw);
+      if (Number.isNaN(t)) return null;
+      return new Date(t).toISOString();
+    })();
+    // publishedAfter / publishedBefore: ISO bounds on publishedAt (NOT NULL,
+    // indexed, the default-sort column). Same Date.parse validation.
+    const publishedAfterRaw = searchParams.get('publishedAfter');
+    const publishedAfter = (() => {
+      if (!publishedAfterRaw) return null;
+      const t = Date.parse(publishedAfterRaw);
+      if (Number.isNaN(t)) return null;
+      return new Date(t).toISOString();
+    })();
+    const publishedBeforeRaw = searchParams.get('publishedBefore');
+    const publishedBefore = (() => {
+      if (!publishedBeforeRaw) return null;
+      const t = Date.parse(publishedBeforeRaw);
+      if (Number.isNaN(t)) return null;
+      return new Date(t).toISOString();
+    })();
+    // pujaStatus: strict whitelist — only CON_PUJA / SIN_PUJA engage; any other
+    // value is ignored (no constraint). SIN_PUJA excludes nulls server-side
+    // (null = unscraped/unknown, NOT "no bid").
+    const pujaStatusRaw = searchParams.get('pujaStatus');
+    const pujaStatus: 'CON_PUJA' | 'SIN_PUJA' | null =
+      pujaStatusRaw === 'CON_PUJA' || pujaStatusRaw === 'SIN_PUJA' ? pujaStatusRaw : null;
     // hasImage: only the literal "true" engages the filter (any other value => no constraint).
     const hasImage = hasImageRaw === 'true';
     // categories: comma-separated list; trim, dedupe, drop empties.
@@ -1186,6 +1218,29 @@ export async function GET(request: NextRequest) {
     if (endsBefore) {
       sql += ' AND "endsAt" IS NOT NULL AND "endsAt" >= NOW() AND "endsAt" <= ?';
       params.push(endsBefore);
+    }
+    // endsAfter: user LOWER bound. NO NOW() guard (see parse note) — past
+    // lower bounds are valid for finished-auction browsing. Sits in the same
+    // region as endsBefore so totalCount + teaserCounts honor it (count=list).
+    if (endsAfter) {
+      sql += ' AND "endsAt" IS NOT NULL AND "endsAt" >= ?';
+      params.push(endsAfter);
+    }
+    // publishedAfter / publishedBefore: window on publishedAt (NOT NULL, indexed).
+    if (publishedAfter) {
+      sql += ' AND "publishedAt" >= ?';
+      params.push(publishedAfter);
+    }
+    if (publishedBefore) {
+      sql += ' AND "publishedAt" <= ?';
+      params.push(publishedBefore);
+    }
+    // pujaStatus: low-cardinality equality on the already-narrowed pool.
+    // SIN_PUJA excludes nulls (null = unscraped/unknown, not "no bids") — this
+    // is the correct semantic per the schema #16 comment. Whitelisted at parse.
+    if (pujaStatus) {
+      sql += ' AND "pujaStatus" = ?';
+      params.push(pujaStatus);
     }
     // hasImage=true: real photo only (resolver-populated /api/auction-image/ OR legacy /streetview/).
     // Category placeholders must NOT satisfy this filter — mirrors isRealAuctionImage().
