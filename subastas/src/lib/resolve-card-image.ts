@@ -74,6 +74,11 @@ const PLACEHOLDER_PATH_FRAGMENTS = [
   '/images/vehicle-',
   '/images/map-placeholder',
   '/images/email-placeholder',
+  // Wave (Pixel 2026-06-24): branded "Imagen no disponible" card placeholder.
+  // Same reasoning as email-placeholder above — if this path ever lands in the
+  // `imageUrl` slot, the rung-1 "untagged real photo" guard must NOT promote
+  // it; it's terminal rung-3 content, not a real photo.
+  '/images/imagen-no-disponible',
 ] as const;
 
 const PROPERTY_CATEGORIES = new Set([
@@ -104,15 +109,28 @@ const VEHICLE_CATEGORIES = new Set([
 ]);
 
 /**
- * Neutral, location-shaped placeholder used when a PROPERTY (or any
- * non-vehicle row) reaches rung 3 with no real photo and no coords, OR when a
- * rung-2 map tile fails to load in the browser. The category house/property
- * cartoon SVG is forbidden for property rows because (per Dennis 2026-06-03)
- * a property with an address must read as "a located property we don't have
- * a photo of yet", not as a generic house mock-up. The cartoon is reserved
- * exclusively for vehicle rows, which legitimately have no location.
+ * Neutral, location-shaped placeholder (generic grey grid + red pin).
+ *
+ * RETAINED but no longer the default property fallback: as of 2026-06-24
+ * (Dennis, Option A) `placeholderFor` returns the BRANDED
+ * BRANDED_NO_IMAGE_PLACEHOLDER_SRC for property/non-vehicle rows at rung 3 and
+ * on a failed-map onError. This constant is kept (a) for clean reversibility of
+ * that swap, and (b) as a documented reference to the prior behaviour. The
+ * category house/property cartoon SVG remains forbidden for property rows (per
+ * Dennis 2026-06-03) — the cartoon is reserved exclusively for vehicle rows.
  */
 export const NEUTRAL_MAP_PLACEHOLDER_SRC = '/images/map-placeholder.svg';
+
+/**
+ * Branded SubastasActivas "Imagen no disponible" card placeholder. Used at
+ * rung-3 for PROPERTY (non-vehicle) rows that have NEITHER a real photo NOR
+ * coords — the only no-photo-no-coords case (geocoded properties still get the
+ * rung-2 OSM map). Replaces the generic, un-branded NEUTRAL_MAP_PLACEHOLDER_SRC
+ * for properties (Dennis, Option A, 2026-06-24). NEUTRAL_MAP_PLACEHOLDER_SRC is
+ * intentionally kept above for clean reversibility and as the onError floor for
+ * a failed map tile (see fallbackImageFor → placeholderFor).
+ */
+export const BRANDED_NO_IMAGE_PLACEHOLDER_SRC = '/images/imagen-no-disponible.svg';
 
 /**
  * Categorical predicate exposed so card surfaces and the detail hero can apply
@@ -220,7 +238,11 @@ function placeholderFor(category: string | null | undefined): string {
   if (category && VEHICLE_CATEGORIES.has(category)) {
     return getVehicleCategoryImageUrl(category);
   }
-  return NEUTRAL_MAP_PLACEHOLDER_SRC;
+  // Property / niche / unknown rows with no photo and no coords get the branded
+  // "Imagen no disponible" card (Dennis, Option A, 2026-06-24) instead of the
+  // generic grey NEUTRAL_MAP_PLACEHOLDER_SRC. Vehicles keep their per-type SVG
+  // above; geocoded properties never reach here (they resolve at rung-2 map).
+  return BRANDED_NO_IMAGE_PLACEHOLDER_SRC;
 }
 
 /**
@@ -356,16 +378,16 @@ export function resolveCardImage(input: ResolveCardImageInput): ResolvedCardImag
  *   - resolved.rung === 'placeholder'  → keep `resolved.src` (already the
  *     terminal local SVG; cannot 404, nothing to fall to).
  *   - resolved.rung === 'photo' that failed → step DOWN one rung:
- *     map-pin if the row has coords, else neutral map placeholder /
- *     vehicle SVG. We approximate this here by routing through
- *     `placeholderFor(category)` — which, per the rule, returns the vehicle
- *     SVG only for vehicles and the neutral map placeholder for everything
- *     else (NEVER the property cartoon).
+ *     map-pin if the row has coords, else the rung-3 placeholder. We route
+ *     through `placeholderFor(category)` — which returns the vehicle SVG for
+ *     vehicles and the branded "Imagen no disponible" card for everything else
+ *     (NEVER the property cartoon).
  *   - resolved.rung === 'map' that failed (OSM tile throttled / 418 / 429)
  *     → CRITICAL: for a property this is exactly the case Dennis flagged.
- *     Fall to the NEUTRAL map placeholder so the card still reads "located
- *     property" rather than "house cartoon". For a vehicle (vanishingly
- *     rare — vehicles don't normally have coords) fall to the vehicle SVG.
+ *     Fall to the branded "Imagen no disponible" placeholder (2026-06-24) so
+ *     the card still reads as an intentional SubastasActivas card rather than a
+ *     "house cartoon". For a vehicle (vanishingly rare — vehicles don't normally
+ *     have coords) fall to the vehicle SVG.
  *
  * Callers pass the SAME `resolved` they got from `resolveCardImage` plus the
  * row's category. They DON'T re-call `resolveCardImage({ category })` because
