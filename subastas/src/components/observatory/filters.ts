@@ -206,6 +206,18 @@ export type ObservatoryFilters = {
   pctTasacionMax: number | null;
   /** ISO timestamp — only auctions ending before this date. */
   endsBefore: string | null;
+  /** ISO timestamp — only auctions ending on/after this date (lower bound).
+   *  Unlike endsBefore there is NO "future-only" guard server-side: a past
+   *  lower bound is legitimate when browsing finished auctions. */
+  endsAfter: string | null;
+  /** ISO timestamp — only auctions published on/after this date. */
+  publishedAfter: string | null;
+  /** ISO timestamp — only auctions published on/before this date. */
+  publishedBefore: string | null;
+  /** Bid state — "" = no filter, "CON_PUJA" = has at least one bid,
+   *  "SIN_PUJA" = BOE explicitly says no bids yet. Nulls (unknown) are
+   *  excluded by the SIN_PUJA branch server-side — null != "no bid". */
+  pujaStatus: "" | "CON_PUJA" | "SIN_PUJA";
   /** When true, restrict to rows that have a real photo. */
   hasImage: boolean;
   /**
@@ -242,6 +254,10 @@ export const DEFAULT_FILTERS: ObservatoryFilters = {
   advanced: false,
   pctTasacionMax: null,
   endsBefore: null,
+  endsAfter: null,
+  publishedAfter: null,
+  publishedBefore: null,
+  pujaStatus: "",
   hasImage: false,
   mapCategory: "",
 };
@@ -275,6 +291,13 @@ export function filtersFromParams(p: URLSearchParams): ObservatoryFilters {
     advanced: p.get("advanced") === "1",
     pctTasacionMax: num(p.get("pctTasacionMax")),
     endsBefore: p.get("endsBefore") || null,
+    endsAfter: p.get("endsAfter") || null,
+    publishedAfter: p.get("publishedAfter") || null,
+    publishedBefore: p.get("publishedBefore") || null,
+    pujaStatus: ((): ObservatoryFilters["pujaStatus"] => {
+      const raw = p.get("pujaStatus");
+      return raw === "CON_PUJA" || raw === "SIN_PUJA" ? raw : "";
+    })(),
     hasImage: p.get("hasImage") === "true",
     mapCategory: p.get("mapCategory") ?? "",
   };
@@ -299,6 +322,10 @@ export function paramsFromFilters(f: ObservatoryFilters): URLSearchParams {
   if (f.advanced) p.set("advanced", "1");
   if (f.pctTasacionMax != null) p.set("pctTasacionMax", String(f.pctTasacionMax));
   if (f.endsBefore) p.set("endsBefore", f.endsBefore);
+  if (f.endsAfter) p.set("endsAfter", f.endsAfter);
+  if (f.publishedAfter) p.set("publishedAfter", f.publishedAfter);
+  if (f.publishedBefore) p.set("publishedBefore", f.publishedBefore);
+  if (f.pujaStatus) p.set("pujaStatus", f.pujaStatus);
   if (f.hasImage) p.set("hasImage", "true");
   if (f.mapCategory) p.set("mapCategory", f.mapCategory);
   return p;
@@ -403,6 +430,10 @@ export function filtersToApiParams(f: ObservatoryFilters): URLSearchParams {
   if (f.priceMax != null) p.set("priceMax", String(f.priceMax));
   if (f.pctTasacionMax != null) p.set("pctTasacionMax", String(f.pctTasacionMax));
   if (f.endsBefore) p.set("endsBefore", f.endsBefore);
+  if (f.endsAfter) p.set("endsAfter", f.endsAfter);
+  if (f.publishedAfter) p.set("publishedAfter", f.publishedAfter);
+  if (f.publishedBefore) p.set("publishedBefore", f.publishedBefore);
+  if (f.pujaStatus) p.set("pujaStatus", f.pujaStatus);
   if (f.hasImage) p.set("hasImage", "true");
 
   // Wave81 — curated map-sidebar key. The API expands this to the underlying
@@ -444,6 +475,10 @@ export function isDefaultFilters(f: ObservatoryFilters): boolean {
     f.sort === DEFAULT_SORT &&
     f.pctTasacionMax == null &&
     !f.endsBefore &&
+    !f.endsAfter &&
+    !f.publishedAfter &&
+    !f.publishedBefore &&
+    !f.pujaStatus &&
     !f.hasImage
   );
 }
@@ -500,6 +535,10 @@ export function presetFilters(id: PresetId, opts?: { province?: string; now?: Da
     sources: [],
     pctTasacionMax: null,
     endsBefore: null,
+    endsAfter: null,
+    publishedAfter: null,
+    publishedBefore: null,
+    pujaStatus: "",
     hasImage: false,
   };
   switch (id) {
