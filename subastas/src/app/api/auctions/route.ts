@@ -943,6 +943,10 @@ export async function GET(request: NextRequest) {
       priceMax: priceMax ?? 'none',
       pctTasacionMax: pctTasacionMax ?? 'none',
       endsBefore: endsBefore ?? 'none',
+      endsAfter: endsAfter ?? 'none',
+      publishedAfter: publishedAfter ?? 'none',
+      publishedBefore: publishedBefore ?? 'none',
+      pujaStatus: pujaStatus ?? 'none',
       hasImage: hasImage ? 'true' : 'none',
       categories: categoriesList ? categoriesList.join('|') : 'none',
       // Keyed on the FOLDED form (post-normalizeText) so "Arguineguin" and
