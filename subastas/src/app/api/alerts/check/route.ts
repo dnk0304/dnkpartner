@@ -366,6 +366,16 @@ async function sendNotifications(matchesByAlert: Record<string, { alert: any; au
       continue;
     }
 
+    // FIX (wave120, 2026-07-01): gate the send on the FINAL post-dedup /
+    // post-exclusion array. wave113 excludeAlreadyNotified() empties an
+    // alert's `auctions` in place when every match was already emailed on a
+    // prior run, but the entry itself survives — so without this guard the
+    // "Encontramos nuevas subastas…" header + send still fired with an empty
+    // body. Skipping empty entries makes the subject/header/count derive from
+    // the same non-empty array. App-only; no regression to wave109 future-end
+    // gate, wave113 dedup/no-repeat, or wave50 card-strip.
+    if (auctions.length === 0) continue;
+
     const sendGrouped = alert.notificationType !== 'individual';
 
     if (sendGrouped) {
