@@ -332,8 +332,14 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
 
           {showGenericPin && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="rounded-full bg-white/90 p-2 shadow-lg">
-                <MapPin className="w-6 h-6 text-red-600" />
+              <div className="flex flex-col items-center gap-2">
+                <div className="rounded-full bg-white/90 p-2 shadow-lg">
+                  <MapPin className="w-6 h-6 text-red-600" />
+                </div>
+                {/* Honest no-imagery label (Dennis, 2026-07-05) */}
+                <span className="rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-medium text-gray-700 shadow whitespace-nowrap">
+                  Foto no disponible en estos momentos
+                </span>
               </div>
             </div>
           )}

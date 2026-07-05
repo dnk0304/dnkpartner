@@ -238,6 +238,17 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             <ImageOff aria-hidden="true" /> Imagen no disponible
           </span>
         )}
+        {/* No usable imagery at all (rung-3 placeholder or failed load):
+            honest "Foto no disponible en estos momentos" chip (Dennis, 2026-07-05). */}
+        {(resolved.isPlaceholder || imgFailed) && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-[var(--color-hairline)] bg-[var(--color-surface)]/90 px-2 py-0.5 text-[10px] font-medium text-[var(--color-ink-secondary)] backdrop-blur-sm"
+          >
+            <ImageOff className="h-3 w-3" />
+            Foto no disponible en estos momentos
+          </span>
+        )}
         {/* Status / identity column (top-left). Vertical stack so the TYPE
             banner sits directly UNDER the status badge cluster (Wave C3,
             2026-06-07). Each row is its own flex group so badges wrap
