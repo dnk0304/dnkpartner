@@ -1191,13 +1191,16 @@ class BOEScraper(BaseScraper):
                         auction_data['court_name'] = detail_info['autoridad_gestora']
                 if detail_info.get('bienes_info'):
                     auction_data['lot_description'] = detail_info['bienes_info']
-                    # Extract the property street address from the same Bienes
-                    # blob so the geocoder (address -> lat/lng) can place a map
-                    # pin. Adapter persists data['address'] into the "address"
-                    # column; null-safe when BOE genuinely omits an address.
-                    addr = detail_info.get('address') or extract_address(detail_info.get('bienes_info'))
-                    if addr:
-                        auction_data['address'] = addr
+                # Property street address — INDEPENDENT of the bienes_info gate.
+                # detail_info['address'] already carries a body_text fallback
+                # (extract_address(bienes) or extract_address(body_text) in
+                # _extract_detail_from_page), so a valid address can exist even
+                # when bienes_info is None; gating it here silently dropped it.
+                # Adapter persists data['address'] into the "address" column;
+                # null-safe when BOE genuinely omits an address.
+                addr = detail_info.get('address') or extract_address(detail_info.get('bienes_info'))
+                if addr:
+                    auction_data['address'] = addr
                 if detail_info.get('pujas_info'):
                     auction_data['property_description'] = detail_info['pujas_info']
                 if detail_info.get('warning'):
@@ -2746,6 +2749,12 @@ class BOEScraper(BaseScraper):
             # a legit multi-property bien block can run long AND is consumed for
             # cadastral/address extraction below — the page-dump token check
             # alone catches the nav/JS leak without nuking long real blocks.
+            # Strip the logged-out login-footer sentence FIRST — it is legit
+            # page content inside the bien section on login-gated rows, and its
+            # "Iniciar sesión" text would false-positive the page-dump token
+            # check below and reject the entire bien blob (3f2ea9c regression:
+            # ~AEAT batches lost address/lotDescription/cadastral).
+            bienes = self._strip_login_footer(bienes)
             bienes = self._sanitize_extracted_text(bienes, enforce_length=False)
 
             cadastral_ref, cadastral_data = extract_cadastral_refs(bienes)
@@ -2930,6 +2939,30 @@ class BOEScraper(BaseScraper):
                   let el = heading.nextElementSibling;
                   while (el) {
                     if (['H2','H3','H4'].includes(el.tagName)) break;
+                    // Skip the logged-out "Información complementaria" login
+                    // footer that BOE renders INSIDE the bien section on
+                    // login-gated rows (esp. AEAT): a `.caja.gris.info` box
+                    // and/or an <h5> label + "... debe Iniciar sesión en el
+                    // Portal de Subastas." sentence. Left in, its "Iniciar
+                    // sesión" text false-positives the page-dump sanitizer
+                    // and nukes the whole bien blob (address/lot/cadastral).
+                    const cls = el.classList;
+                    if (cls && cls.contains('caja') && cls.contains('gris') && cls.contains('info')) {
+                      el = el.nextElementSibling;
+                      continue;
+                    }
+                    if (el.tagName === 'H5' &&
+                        /informaci[oó]n\\s+complementaria/i.test(el.textContent || '')) {
+                      el = el.nextElementSibling;
+                      continue;
+                    }
+                    // NOTE: when the footer is NESTED inside a section wrapper
+                    // (live SUB-AT layout: h3 -> <div> -> table + h5 + .caja.
+                    // gris.info) we deliberately DO NOT clone-and-strip here —
+                    // a detached clone's textContent loses innerText's
+                    // tab-separated table rendering that parse_bien_fields
+                    // relies on. The nested footer text is stripped Python-side
+                    // by _strip_login_footer before the sanitizer runs.
                     if (el.innerText) parts.push(el.innerText.trim());
                     el = el.nextElementSibling;
                   }
@@ -2960,6 +2993,40 @@ class BOEScraper(BaseScraper):
     # Real charges/warning text is a sentence or two. Anything past this is the
     # wrapper subtree being captured whole — reject it.
     _SANITIZE_MAX_LEN = 2000
+
+    # The logged-out "Información complementaria" login footer that BOE renders
+    # inside the bien block on login-gated rows. Its "Iniciar sesión" text
+    # false-positives the 'iniciar sesi' page-dump token and used to nuke the
+    # WHOLE bien blob (-> address/lotDescription/cadastral NULL on ~AEAT
+    # batches). Stripped BEFORE _sanitize_extracted_text; the token stays in
+    # _PAGE_DUMP_TOKENS as genuine page-dump protection.
+    _LOGIN_FOOTER_RE = re.compile(
+        r"(?:informaci[oó]n\s+complementaria(?:\s+del\s+bien)?\s*[:.]?\s*)?"
+        r"para\s+consultar\s+la\s+informaci[oó]n\s+complementaria[^.]*?"
+        r"iniciar\s+sesi[oó]n[^.]*?(?:\.|$)",
+        re.IGNORECASE,
+    )
+    # A bare trailing "Información complementaria (del bien)" label line left
+    # over once the sentence itself was removed (e.g. h5 captured separately).
+    _LOGIN_FOOTER_LABEL_RE = re.compile(
+        r"^\s*informaci[oó]n\s+complementaria(?:\s+del\s+bien)?\s*[:.]?\s*$",
+        re.IGNORECASE | re.MULTILINE,
+    )
+
+    @classmethod
+    def _strip_login_footer(cls, text: Optional[str]) -> Optional[str]:
+        """
+        Remove the legit logged-out login-footer sentence (and its bare label
+        line) from an extracted bien blob so the page-dump sanitizer does not
+        reject the whole block. Belt-and-braces alongside the JS-side skip in
+        _extract_section_text. Returns None if nothing remains.
+        """
+        if not text:
+            return text
+        t = cls._LOGIN_FOOTER_RE.sub('', text)
+        t = cls._LOGIN_FOOTER_LABEL_RE.sub('', t)
+        t = t.strip()
+        return t or None
 
     @classmethod
     def _sanitize_extracted_text(
