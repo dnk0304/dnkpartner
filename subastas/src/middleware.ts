@@ -5,9 +5,9 @@
  * Execution order:
  *  0. Locale detection (NEW):
  *       • If pathname starts with `/en` → strip prefix, remember locale='en'.
- *       • Else read NEXT_LOCALE cookie → if 'en' it's a soft preference but
- *         doesn't change the URL (Spanish is the default URL space).
- *       • Default locale = 'es'.
+ *       • Else locale = 'es' — URL wins. The NEXT_LOCALE cookie NEVER
+ *         changes the rendered language of a prefixless URL (i18n Phase 1,
+ *         2026-07-10); it only serves as a UI hint for the header switcher.
  *     The detected locale is passed downstream via the `x-locale` request
  *     header so `src/i18n/request.ts` can return the right messages bundle,
  *     and so layout.tsx can render `<html lang>` correctly.
@@ -39,7 +39,7 @@ import {
 } from '@/lib/seo/slugs';
 import { resolveProvinceSlugToCanonicalSlug } from '@/lib/province-slug';
 import { isLegacyCuid } from '@/lib/seo/legacy-rows';
-import { defaultLocale, isLocale, LOCALE_COOKIE, LOCALE_HEADER, type Locale } from '@/i18n/routing';
+import { defaultLocale, LOCALE_COOKIE, LOCALE_HEADER, type Locale } from '@/i18n/routing';
 
 /** HTML body returned with the 410 Gone response on legacy auction URLs. */
 const GONE_HTML = `<!doctype html>
@@ -127,9 +127,14 @@ function detectLocale(request: NextRequest): {
       urlHadLocale: true,
     };
   }
-  const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value;
-  const locale: Locale = isLocale(cookieLocale) ? cookieLocale : defaultLocale;
-  return { locale, pathname: original, urlHadLocale: false };
+  // i18n Phase 1 (2026-07-10, Ken-locked policy): **URL wins.**
+  // Prefixless URLs ALWAYS render Spanish, regardless of the NEXT_LOCALE
+  // cookie. Previously the cookie was a "soft preference" that flipped the
+  // rendered language of es URLs — meaning the same URL served different HTML
+  // per cookie with no `Vary`, a cache-poisoning / SEO-cloaking risk. The
+  // cookie is now ONLY a UI hint (header language switcher suggestion); it
+  // never changes the content of a prefixless URL, so no `Vary` is needed.
+  return { locale: defaultLocale, pathname: original, urlHadLocale: false };
 }
 
 /** Prepend `/en` to a path if the request was locale-prefixed. */

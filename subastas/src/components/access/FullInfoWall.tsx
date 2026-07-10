@@ -24,6 +24,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Lock } from 'lucide-react';
 import { useAccess } from '@/lib/access-client';
+import { localizePath } from '@/lib/locale-path';
 import { UpgradeModal } from '@/components/dashboard/UpgradeModal';
 
 export interface FullInfoWallProps {
@@ -50,8 +51,13 @@ export function FullInfoWall({ headline }: FullInfoWallProps) {
   const cta = isAuthed ? 'Activar plan Acceso' : 'Regístrate gratis';
 
   // Preserve where the user came from so /register can bounce them back.
-  const registerHref = pathname ? `/register?next=${encodeURIComponent(pathname)}` : '/register';
-  const loginHref = pathname ? `/login?next=${encodeURIComponent(pathname)}` : '/login';
+  // i18n Phase 1: localizePath keeps the `/en` prefix on the auth pages.
+  const registerHref = pathname
+    ? `${localizePath('/register', pathname)}?next=${encodeURIComponent(pathname)}`
+    : '/register';
+  const loginHref = pathname
+    ? `${localizePath('/login', pathname)}?next=${encodeURIComponent(pathname)}`
+    : '/login';
 
   return (
     <>

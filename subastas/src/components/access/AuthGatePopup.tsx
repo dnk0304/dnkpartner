@@ -37,6 +37,8 @@
 
 import * as React from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { localizePath } from '@/lib/locale-path';
 import { Lock } from 'lucide-react';
 import {
   Dialog,
@@ -73,9 +75,12 @@ export function AuthGatePopup({
   // The login/register pages don't all parse `next` today (Pixel 2026-06-07
   // — see /app/login + /app/register). Wiring both means this modal stays
   // correct the moment either side is plumbed in.
-  const next = encodeURIComponent(nextHref);
-  const registerHref = `/register?next=${next}&callbackUrl=${next}`;
-  const loginHref = `/login?next=${next}&callbackUrl=${next}`;
+  // i18n Phase 1: keep the `/en` prefix on both the auth page and the
+  // round-trip target when the user is browsing the English URL space.
+  const pathname = usePathname();
+  const next = encodeURIComponent(localizePath(nextHref, pathname));
+  const registerHref = `${localizePath('/register', pathname)}?next=${next}&callbackUrl=${next}`;
+  const loginHref = `${localizePath('/login', pathname)}?next=${next}&callbackUrl=${next}`;
 
   const title = headline ?? 'Crea tu cuenta gratis para ver los detalles';
 

@@ -30,6 +30,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { AuctionItem } from "@/types";
+import { buildLoginRedirect, localizePath } from "@/lib/locale-path";
 import { AuctionCard } from "@/components/dashboard/AuctionCard";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -110,13 +111,17 @@ export default function FavoritesPage() {
   // Round-trip the user back to whichever URL they came in on — `/favoritos`
   // (Spanish) or `/favorites` (legacy alias). Default to the Spanish path
   // since that's the canonical surface going forward.
-  const callbackUrl = pathname.startsWith("/favorites") ? "/favorites" : "/favoritos";
+  // i18n Phase 1: preserve the `/en` prefix across the auth redirect.
+  const callbackUrl = localizePath(
+    pathname.includes("/favorites") ? "/favorites" : "/favoritos",
+    pathname,
+  );
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
+      router.push(buildLoginRedirect(pathname, callbackUrl));
     }
-  }, [status, router, callbackUrl]);
+  }, [status, router, pathname, callbackUrl]);
 
   useEffect(() => {
     if (session?.user?.id) {
