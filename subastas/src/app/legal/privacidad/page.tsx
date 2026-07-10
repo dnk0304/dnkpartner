@@ -74,7 +74,7 @@ export default function PrivacidadPage() {
   return (
     <LegalPageLayout
       title="Política de privacidad"
-      updated="10 de junio de 2026"
+      updated="10 de julio de 2026"
     >
       <p>
         En SubastasActivas nos tomamos en serio tu privacidad. Aquí te
@@ -171,6 +171,18 @@ export default function PrivacidadPage() {
             ],
           ]}
         />
+        <p>
+          <strong className="text-[var(--color-ink-primary)]">
+            Ubicación aproximada:
+          </strong>{" "}
+          para mostrarte por defecto las subastas de tu zona, la página de
+          inicio puede estimar de forma transitoria tu provincia aproximada a
+          partir de tu conexión (dirección IP). Este dato se usa únicamente en
+          el momento de la consulta para ordenar el contenido: no se almacena,
+          no se asocia a tu cuenta ni se comparte con terceros. Tu ubicación
+          precisa (GPS del navegador) solo se utiliza si la solicitas
+          expresamente mediante la opción «Cerca de ti», y tampoco se almacena.
+        </p>
         <p>
           No solicitamos ni tratamos categorías especiales de datos (salud,
           ideología, etc.). El Servicio está dirigido a mayores de 18 años.

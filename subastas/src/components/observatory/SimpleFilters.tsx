@@ -446,7 +446,7 @@ export function ActiveFilterChips({
         <span
           key={c.key}
           // Wave 80 — switched the chip background from the bare-token shorthand
-          // (`bg-[var(--color-surface-muted)]`) to the `bg-[var(--...)]` form so the
+          // (`bg-[var(--color-surface-muted)]`) to the `bg-[var(--…)]` form so the
           // CSS variable actually paints in Tailwind v4 (see the same fix
           // documented at the top of FiltersSidebar.tsx). The previous version
           // emitted `background-color: --color-surface-muted;` which paints

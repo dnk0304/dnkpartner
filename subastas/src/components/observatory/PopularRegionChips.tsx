@@ -46,6 +46,12 @@ export type PopularRegionChipsProps = {
   max?: number;
   /** Geolocation result callback — canonical province row, or null to clear. */
   onNearProvince: (province: CanonicalProvince | null) => void;
+  /**
+   * Phase 2 (2026-07-10): when an approximate IP pin is already active, the
+   * chip's job shifts from "find me" to "refine me" — label reads "Afinar
+   * ubicación" instead of "Cerca de ti". Behavior is unchanged.
+   */
+  refine?: boolean;
   className?: string;
 };
 
@@ -58,6 +64,7 @@ export function PopularRegionChips({
   counts,
   max = 8,
   onNearProvince,
+  refine = false,
   className,
 }: PopularRegionChipsProps) {
   const t = useTranslations("home");
@@ -145,7 +152,11 @@ export function PopularRegionChips({
             ) : (
               <LocateFixed className="h-3.5 w-3.5" aria-hidden="true" />
             )}
-            {nearStatus === "locating" ? t("nearMeLocating") : t("nearMe")}
+            {nearStatus === "locating"
+              ? t("nearMeLocating")
+              : refine
+                ? t("nearMeRefine")
+                : t("nearMe")}
           </button>
         </li>
 
