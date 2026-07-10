@@ -20,6 +20,7 @@ import {
   isFinishedStatus as sharedIsFinishedStatus,
 } from '@/lib/auction-status';
 import { normalizeText } from '@/lib/normalize';
+import { OFFICIAL_CATEGORIES } from '@/lib/constants';
 import { isKnownSource } from '@/lib/source-labels';
 import { toCanonicalProvince } from '@/lib/spain-provinces';
 import { resolveProvinceSlugToCanonical } from '@/lib/province-slug';
@@ -733,6 +734,15 @@ export async function GET(request: NextRequest) {
     const municipiosList = parseCsvParam(municipiosRaw, MAX_MUNICIPIOS);
     const provinciasList = parseCsvParam(provinciasRaw, MAX_PROVINCIAS);
     const category = searchParams.get('category');
+    // FORGE 2026-07-10 (geoip-nearby brief, Task 2): `categoryGroup` mirrors
+    // carousel-mix's semantics EXACTLY (same OFFICIAL_CATEGORIES sets, same
+    // "ignored when an exact category/categories pin is present" rule) so the
+    // homepage "Ver todas" links on the Inmuebles/Vehículos tabs land on a
+    // list segmented the same way the carousel was. Only two values are
+    // valid; anything else is null (no constraint).
+    const rawCategoryGroup = (searchParams.get('categoryGroup') ?? '').trim().toLowerCase();
+    const categoryGroup: 'movable' | 'real_estate' | null =
+      rawCategoryGroup === 'movable' || rawCategoryGroup === 'real_estate' ? rawCategoryGroup : null;
     // Wave79 (2026-06-07): curated "map sidebar" filter. Optional + additive
     // — single key (e.g. ?mapCategory=vivienda). Expands to the underlying DB
     // labels via the single-source-of-truth `mapCategoryToDbLabels`. "otros"
@@ -857,6 +867,29 @@ export async function GET(request: NextRequest) {
       return folded || null;
     })();
     
+    // FORGE 2026-07-10 (geoip-nearby brief, Task 3 — radius sort). All three
+    // params must be present + valid to engage: nearLat/nearLng (finite,
+    // geodetic range) and radiusKm (positive, hard-capped at 200). When
+    // active: rows with NULL coords are excluded, a parameterized haversine
+    // bounds the set to the radius, and ORDER BY distance ASC replaces the
+    // sort plan (offset pagination — a computed distance can't be cleanly
+    // keyset-paginated, same rationale as price sorts).
+    const nearLat = (() => {
+      const n = Number(searchParams.get('nearLat'));
+      return Number.isFinite(n) && Math.abs(n) <= 90 ? n : null;
+    })();
+    const nearLng = (() => {
+      const n = Number(searchParams.get('nearLng'));
+      return Number.isFinite(n) && Math.abs(n) <= 180 ? n : null;
+    })();
+    const radiusKm = (() => {
+      const raw = searchParams.get('radiusKm');
+      if (raw == null) return null;
+      const n = Number(raw);
+      return Number.isFinite(n) && n > 0 ? Math.min(n, 200) : null;
+    })();
+    const radiusActive = nearLat != null && nearLng != null && radiusKm != null;
+
     // Pagination params
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
@@ -917,7 +950,19 @@ export async function GET(request: NextRequest) {
           return 'published_desc';
       }
     })();
-    const sortPlan = SORT_MAP[normalizedSort];
+    // Parameterized great-circle distance in km (haversine). Binds, in order:
+    // nearLat, nearLat, nearLng — NEVER interpolate the values themselves.
+    // `latitude`/`longitude` are all-lowercase columns (no quoting concerns).
+    const DISTANCE_KM_SQL =
+      '2 * 6371 * asin(sqrt(power(sin(radians(latitude - ?) / 2), 2) + cos(radians(?)) * cos(radians(latitude)) * power(sin(radians(longitude - ?) / 2), 2)))';
+
+    // Radius mode overrides the sort plan: nearest first, id tiebreak for
+    // deterministic pages. Explicit ?sort= is intentionally superseded — a
+    // radius query IS a distance ordering by definition.
+    const sortPlan: { orderBy: string; cursorMode: 'endsAt' | 'publishedAt' | 'offset' } =
+      radiusActive
+        ? { orderBy: `${DISTANCE_KM_SQL} ASC, id ASC`, cursorMode: 'offset' }
+        : SORT_MAP[normalizedSort];
 
     const tier = (tierParam || 'GUEST') as UserTier | 'GUEST';
 
@@ -929,6 +974,10 @@ export async function GET(request: NextRequest) {
       municipios: municipiosList ? [...municipiosList].map((s) => normalizeText(s)).sort().join('|') : 'none',
       provincias: provinciasList ? [...provinciasList].map((s) => normalizeText(s)).sort().join('|') : 'none',
       category: category || 'all',
+      // CACHE-KEY LAW (wave118 lesson): every new filter param MUST be keyed
+      // here in the same commit it's added to the WHERE — omission = stale
+      // cross-filter cache hits.
+      categoryGroup: categoryGroup ?? 'none',
       mapCategory: mapCategory || 'all',
       status: status || 'all',
       statuses: statuses || 'all',
@@ -954,6 +1003,10 @@ export async function GET(request: NextRequest) {
       // compares on the identical folded value.
       search: searchTerm ?? 'none',
       sources: sourcesList ? sourcesList.join('|') : 'none',
+      // Task 3 radius params (CACHE-KEY LAW — same commit as the WHERE).
+      nearLat: nearLat ?? 'none',
+      nearLng: nearLng ?? 'none',
+      radiusKm: radiusKm ?? 'none',
     };
     
     // Try cache first (30 second TTL)
@@ -1183,6 +1236,18 @@ export async function GET(request: NextRequest) {
     } else if (category) {
       sql += ' AND category = ?';
       params.push(category);
+    } else if (categoryGroup) {
+      // FORGE 2026-07-10 (Task 2): group filter engages ONLY when no exact
+      // category/categories pin is present — an explicit pin was deliberate
+      // and wins (identical precedence to carousel-mix L501-518). Placement
+      // BEFORE preStatusSqlLen so totalCount + teaserCounts honor it
+      // (count=list invariant).
+      const groupLabels =
+        categoryGroup === 'movable' ? OFFICIAL_CATEGORIES.MOVABLE : OFFICIAL_CATEGORIES.REAL_ESTATE;
+      if (groupLabels.length > 0) {
+        sql += ` AND category IN (${groupLabels.map(() => '?').join(', ')})`;
+        params.push(...groupLabels);
+      }
     }
 
     // Wave79 (2026-06-07): curated `mapCategory` filter. Applied AFTER the
@@ -1259,6 +1324,16 @@ export async function GET(request: NextRequest) {
     if (sourcesList && sourcesList.length > 0) {
       sql += ` AND source IN (${sourcesList.map(() => '?').join(', ')})`;
       params.push(...sourcesList);
+    }
+
+    // FORGE 2026-07-10 (Task 3): radius filter — NULL-coord rows are excluded
+    // when active (~79% coverage on the active pool; a row without coords
+    // cannot honestly claim to be "within N km"). Fully parameterized. Sits
+    // BEFORE preStatusSqlLen so totalCount + teaserCounts honor the radius
+    // (count=list invariant).
+    if (radiusActive) {
+      sql += ` AND latitude IS NOT NULL AND longitude IS NOT NULL AND ${DISTANCE_KM_SQL} <= ?`;
+      params.push(nearLat, nearLat, nearLng, radiusKm);
     }
 
     // FORGE 2026-06-03 (search across ALL card-text columns, accent +
@@ -1499,6 +1574,13 @@ export async function GET(request: NextRequest) {
 
     // Whitelisted ORDER BY (safe; never interpolates user input)
     sql += ` ORDER BY ${sortPlan.orderBy}`;
+    if (radiusActive) {
+      // The radius ORDER BY embeds DISTANCE_KM_SQL — bind its 3 placeholders
+      // (nearLat, nearLat, nearLng) here, in string order, BEFORE the LIMIT
+      // bind below. These sit past preCursorParamsLen so the count/teaser
+      // predicate slices are unaffected.
+      params.push(nearLat, nearLat, nearLng);
+    }
 
     // Add limit (+1 to detect hasMore) and optional offset for price sorts
     sql += ' LIMIT ?';
