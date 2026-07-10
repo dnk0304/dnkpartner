@@ -571,7 +571,7 @@ export default function SubastasListClient({
           shorthand. In Tailwind v4 the shorthand resolves to the invalid
           declaration `background-color: --color-page;` which paints nothing —
           that was the root cause of the transparent-drawer bug Dennis flagged.
-          Always use bg-[var(--...)] for CSS-variable arbitrary colors here. */}
+          Always use bg-[var(--…)] for CSS-variable arbitrary colors here. */}
       {mobileFiltersOpen && (
         <div
           className="fixed inset-0 z-[60] lg:hidden"
