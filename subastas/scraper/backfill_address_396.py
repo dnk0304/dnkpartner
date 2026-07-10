@@ -161,7 +161,7 @@ def main():
                 # Address NEWLY populated -> centroid coords are junk; clear
                 # them + geocodeAttemptedAt so geocode-drain re-pins for real.
                 if addr:
-                    set_clause += ', lat = NULL, lng = NULL, "geocodeAttemptedAt" = NULL'
+                    set_clause += ', "latitude" = NULL, "longitude" = NULL, "geocodeAttemptedAt" = NULL'
                     coords_cleared += 1
                 set_clause += ', "updatedAt" = NOW()'
                 vals = tuple(list(updates.values()) + [boe_id])
@@ -186,6 +186,10 @@ def main():
         except Exception as e:
             errors += 1
             logger.warning(f"  re-fetch failed for {boe_id}: {e}")
+            try:
+                conn.rollback()  # never leave the shared txn aborted (2026-07-08 lesson)
+            except Exception:
+                pass
             done.add(boe_id)  # honest failure; don't loop forever
     _save_ckpt(done)
     logger.info(
