@@ -48,14 +48,15 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Search, X } from "lucide-react";
+import { Search } from "lucide-react";
 import { HomeCarouselSection } from "@/components/observatory/HomeCarouselSection";
 import { MapCategorySidebar } from "@/components/observatory/MapCategorySidebar";
 import { PopularRegionChips } from "@/components/observatory/PopularRegionChips";
+import { NearMeStrip, type NearMeSource } from "@/components/observatory/NearMeStrip";
 import { apiFetch } from "@/lib/api-path";
 import { AuctionItem } from "@/types";
 import { PROVINCE_DB_KEY_TO_SLUG, slugify } from "@/lib/seo/slugs";
-import type { CanonicalProvince } from "@/lib/spain-provinces";
+import { toCanonicalProvince, type CanonicalProvince } from "@/lib/spain-provinces";
 
 /**
  * Build the canonical clean SEO URL for a province click. Wave 56 (Option A):
@@ -106,6 +107,14 @@ const ProvinceGrid = dynamic(
 /** Destination of the click-to-expand affordance on the compact map. */
 const FULL_MAP_HREF = "/subastas?view=map";
 
+/**
+ * sessionStorage flag set when the user dismisses the near-you pin ("Ver
+ * toda España" / "Quitar"). While present, the IP auto-pin never re-fires
+ * this session; the explicit GPS chip still works. Session-scoped on
+ * purpose — a fresh visit tomorrow gets the nearby default again.
+ */
+const NEAR_DISMISSED_KEY = "sa:nearby-dismissed";
+
 export default function HomeObservatory() {
   const router = useRouter();
   const t = useTranslations("home");
@@ -126,11 +135,72 @@ export default function HomeObservatory() {
     [router, searchTerm],
   );
 
-  // "Cerca de ti" (funnel redesign #4, Phase 1). The resolved nearest
-  // province pins the carousel's existing `province` param inline; the note
-  // above the carousel links out to the full province page and offers a
-  // one-click clear back to the national feed.
-  const [nearProvince, setNearProvince] = React.useState<CanonicalProvince | null>(null);
+  // Near-you pin (phase 2, 2026-07-10). One state object so the province and
+  // its provenance can never drift apart:
+  //   - source "ip"  → auto-pinned on load from GET /api/geo/nearest-province
+  //     (Cloudflare edge headers, server-side — no permission prompt).
+  //   - source "gps" → the user clicked the "Cerca de ti" chip (explicit,
+  //     browser geolocation) — always wins over the IP pin.
+  // Clearing the pin records a dismissal in sessionStorage so navigation
+  // within the session never re-pins behind the user's back.
+  const [near, setNear] = React.useState<{
+    province: CanonicalProvince;
+    source: NearMeSource;
+  } | null>(null);
+  const nearProvince = near?.province ?? null;
+
+  // GPS refinement from the chip — explicit user action, replaces any IP pin.
+  const onGpsProvince = React.useCallback((row: CanonicalProvince | null) => {
+    setNear(row ? { province: row, source: "gps" } : null);
+  }, []);
+
+  // Clear from the strip: unpin AND remember the choice for this session.
+  const clearNear = React.useCallback(() => {
+    setNear(null);
+    try {
+      window.sessionStorage.setItem(NEAR_DISMISSED_KEY, "1");
+    } catch {
+      /* storage blocked — clearing still works for this page view */
+    }
+  }, []);
+
+  // Auto-detect on load (phase 2). Locked contract:
+  //   GET /api/geo/nearest-province → 200 { province: {key,label,slug} | null, source: "ip" }
+  // Degrade to full-Spain silently on 404 / error / null / off-taxonomy —
+  // zero UI noise, and first paint is NEVER blocked on this fetch (the
+  // carousel renders full-Spain immediately and re-pins when this lands).
+  React.useEffect(() => {
+    let cancelled = false;
+    try {
+      if (window.sessionStorage.getItem(NEAR_DISMISSED_KEY) === "1") return;
+    } catch {
+      /* storage blocked — proceed; worst case the strip reappears */
+    }
+    (async () => {
+      try {
+        const res = await apiFetch("/api/geo/nearest-province");
+        if (!res.ok || cancelled) return;
+        const body = await res.json();
+        if (cancelled) return;
+        const p = body?.province;
+        if (!p || typeof p.key !== "string" || typeof p.label !== "string") return;
+        // Taxonomy guard: resolve through the canonical table so an
+        // unexpected spelling from the geo endpoint can't feed the carousel
+        // a filter value that matches nothing.
+        const row =
+          toCanonicalProvince(p.key) ?? toCanonicalProvince(p.label);
+        if (!row) return;
+        // Never overwrite an existing pin (e.g. the user beat us to the GPS
+        // chip) — functional update keeps this race-free.
+        setNear((prev) => prev ?? { province: row, source: "ip" });
+      } catch {
+        /* endpoint absent (Forge ships in parallel) or network — silent */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Map auctions — ACTIVAS only (C4a #7, 2026-06-07). Dennis: the landing
   // map defaults to Activas, not "active + upcoming". We hit the canonical
@@ -307,7 +377,8 @@ export default function HomeObservatory() {
             <PopularRegionChips
               className="mt-6 max-w-2xl"
               counts={provinceCounts}
-              onNearProvince={setNearProvince}
+              onNearProvince={onGpsProvince}
+              refine={near?.source === "ip"}
             />
 
             {/* CTA row. */}
@@ -413,29 +484,13 @@ export default function HomeObservatory() {
             page). When "Cerca de ti" resolved a province, a small note
             explains the pinned feed and offers the province page + clear. */}
         <section aria-label={t("carouselSectionAria")} className="space-y-3">
-          {nearProvince && (
-            <div
-              aria-live="polite"
-              className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-[var(--color-ink-secondary)]"
-            >
-              <span>
-                {t("nearMeShowing", { province: nearProvince.label })}
-              </span>
-              <Link
-                href={provinceHref(nearProvince.key)}
-                className="font-medium text-[var(--color-action)] hover:underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/40 rounded"
-              >
-                {t("nearMeViewAll", { province: nearProvince.label })}
-              </Link>
-              <button
-                type="button"
-                onClick={() => setNearProvince(null)}
-                className="inline-flex items-center gap-1 rounded-full border border-[var(--color-hairline)] px-2 py-0.5 text-xs font-medium text-[var(--color-ink-secondary)] hover:bg-[var(--color-surface-muted)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/40"
-              >
-                <X className="h-3 w-3" aria-hidden="true" />
-                {t("nearMeClear")}
-              </button>
-            </div>
+          {near && (
+            <NearMeStrip
+              province={near.province}
+              source={near.source}
+              provinceHref={provinceHref(near.province.key)}
+              onClear={clearNear}
+            />
           )}
           {/* `label` (not `key`) — Auction.province stores the label
               spelling in production (verified 2026-07-10: "Vizcaya",

@@ -73,7 +73,7 @@ function LegalTable({
 
 export default function CookiesPage() {
   return (
-    <LegalPageLayout title="Política de cookies" updated="10 de junio de 2026">
+    <LegalPageLayout title="Política de cookies" updated="10 de julio de 2026">
       <p>
         Esta política explica qué son las cookies, cuáles usamos en
         SubastasActivas, para qué sirven y cómo puedes gestionarlas. Tratamos las
@@ -147,6 +147,15 @@ export default function CookiesPage() {
           Nota técnica: los nombres y duraciones exactos de las cookies de sesión
           deben verificarse con la configuración real del sitio antes de la
           publicación final.
+        </p>
+        <p className={noteCls}>
+          Tecnologías similares: el sitio también utiliza el almacenamiento de
+          sesión del navegador (sessionStorage) para recordar, solo durante la
+          sesión actual, preferencias técnicas como haber descartado la vista de
+          «subastas cerca de ti». Esta información no sale de tu navegador y se
+          elimina al cerrar la pestaña. La provincia aproximada que permite esa
+          vista se estima de forma transitoria a partir de tu conexión (IP) y no
+          se almacena.
         </p>
 
         <h3 className="pt-2 font-display text-base font-semibold text-[var(--color-ink-primary)]">
