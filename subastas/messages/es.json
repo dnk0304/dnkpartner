@@ -317,5 +317,15 @@
     "faqA4": "Pierdes el acceso a las funciones de Acceso, pero conservamos tus alertas guardadas por si vuelves más adelante.",
     "trustNote": "IVA incluido cuando aplique",
     "checkoutConsent": "Al hacer clic en «Suscribirme», aceptas nuestros <terms>Términos y Condiciones</terms> y <privacy>Política de Privacidad</privacy>."
+  },
+  "domain": {
+    "tasacion": "TASACIÓN",
+    "valorSubasta": "VALOR SUBASTA",
+    "cantidadReclamada": "CANTIDAD RECLAMADA",
+    "fechaPorConfirmar": "Fecha por confirmar",
+    "reanudacion": "Reanudación",
+    "inicio": "Inicio",
+    "terminaEn": "Termina en {time}",
+    "proximaApertura": "Próxima apertura"
   }
 }

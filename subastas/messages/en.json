@@ -317,5 +317,15 @@
     "faqA4": "You lose access to Acceso features, but we keep your saved alerts in case you come back later.",
     "trustNote": "VAT included where applicable",
     "checkoutConsent": "By clicking “Subscribe”, you accept our <terms>Terms and Conditions</terms> and <privacy>Privacy Policy</privacy>."
+  },
+  "domain": {
+    "tasacion": "APPRAISAL",
+    "valorSubasta": "AUCTION VALUE",
+    "cantidadReclamada": "AMOUNT CLAIMED",
+    "fechaPorConfirmar": "Date to be confirmed",
+    "reanudacion": "Resumption",
+    "inicio": "Starts",
+    "terminaEn": "Ends in {time}",
+    "proximaApertura": "Opens soon"
   }
 }

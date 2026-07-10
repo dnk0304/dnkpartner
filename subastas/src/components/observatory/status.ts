@@ -95,9 +95,29 @@ const STATUS_META: Record<AuctionStatus, StatusMeta> = {
   "finished": CONCLUDED,
 };
 
-export function getStatusMeta(status: AuctionStatus | string | null | undefined): StatusMeta {
-  if (!status) return STATUS_META["concluida-portal"];
-  return STATUS_META[status as AuctionStatus] ?? STATUS_META["concluida-portal"];
+// i18n Phase 1 (2026-07-10): English label/helper overlay. ONLY the display
+// strings change — colors, glyphs, pulse and the status KEYS (which mirror DB
+// values / filter params) are untouched.
+const EN_TEXT: Record<AuctionStatus, { label: string; helper: string }> = {
+  "celebrandose": { label: "Ongoing", helper: "Open for bidding now on the official BOE portal." },
+  "active": { label: "Ongoing", helper: "Open for bidding now on the official BOE portal." },
+  "proxima-apertura": { label: "Opening soon", helper: "Published but not yet open for bidding." },
+  "pre-auction": { label: "Opening soon", helper: "Published but not yet open for bidding." },
+  "suspendida": { label: "Suspended", helper: "The court has suspended this auction. It may resume." },
+  "cancelada": { label: "Cancelled", helper: "Auction cancelled by the managing authority." },
+  "concluida-portal": { label: "Concluded", helper: "Concluded on the official BOE auction portal." },
+  "finalizada-autoridad": { label: "Ended", helper: "Ended and settled by the managing authority." },
+  "finished": { label: "Ended", helper: "Auction ended." },
+};
+
+export function getStatusMeta(
+  status: AuctionStatus | string | null | undefined,
+  locale: "es" | "en" = "es",
+): StatusMeta {
+  const key = (status && STATUS_META[status as AuctionStatus] ? status : "concluida-portal") as AuctionStatus;
+  const base = STATUS_META[key];
+  if (locale === "en") return { ...base, ...EN_TEXT[key] };
+  return base;
 }
 
 /** True if the status represents an actively-bidding auction. */
