@@ -12,12 +12,24 @@
  *                  full-map view (the existing "Abrir mapa completo"
  *                  destination — `/subastas?view=map`). On mobile the card
  *                  stacks underneath the hero copy as a full-width card.
- *   3. HomeCarouselSection — two carousels side-by-side on desktop, stacked
- *      on mobile:
- *        - "Últimos inmuebles" (REAL_ESTATE-only feed) — left on desktop.
- *        - "Últimos vehículos" (MOVABLE-only feed) — right on desktop.
+ *   3. HomeCarouselSection — ONE carousel row with an Inmuebles / Vehículos
+ *      segmented toggle (2026-07-10 funnel redesign; both groups fetched +
+ *      cached client-side, toggle is instant).
  *   4. ProvinceGrid (province → town tree).
- *   5. "Cómo funciona" plain-spoken explainer block.
+ *   5. Condensed official-sources SEO block (relocated from the hero —
+ *      see below) + "Cómo funciona" plain-spoken explainer block.
+ *
+ * Funnel redesign (2026-07-10, Pixel — Dennis directive):
+ *   - Hero LEFT now carries a QUICK SEARCH box (existing accent-folded
+ *     `?search=` on the list API — plain submit, no typeahead) and the
+ *     POPULAR REGIONS chips (top provinces by active count + the "Cerca de
+ *     ti" Phase-1 geolocation chip). Chips navigate to `/subastas/{slug}`.
+ *   - The keyword-rich sources copy that used to sit here was NOT deleted
+ *     (it carries SEO weight): a condensed version now renders below the
+ *     fold, directly above "Cómo funciona" — same i18n keys, same DOM text.
+ *   - "Cerca de ti" pins the carousel's existing `province` param inline
+ *     (Phase 1: nearest-province snap via static centroids; true radius
+ *     sorting is Phase 2 / Forge).
  *
  * What changed vs. the previous layout:
  *   - The big bottom-of-page full-width map block is REMOVED. The compact
@@ -36,11 +48,14 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { Search, X } from "lucide-react";
 import { HomeCarouselSection } from "@/components/observatory/HomeCarouselSection";
 import { MapCategorySidebar } from "@/components/observatory/MapCategorySidebar";
+import { PopularRegionChips } from "@/components/observatory/PopularRegionChips";
 import { apiFetch } from "@/lib/api-path";
 import { AuctionItem } from "@/types";
 import { PROVINCE_DB_KEY_TO_SLUG, slugify } from "@/lib/seo/slugs";
+import type { CanonicalProvince } from "@/lib/spain-provinces";
 
 /**
  * Build the canonical clean SEO URL for a province click. Wave 56 (Option A):
@@ -96,6 +111,26 @@ export default function HomeObservatory() {
   const t = useTranslations("home");
   const [mapItems, setMapItems] = React.useState<AuctionItem[]>([]);
   const [provinceCounts, setProvinceCounts] = React.useState<Record<string, { active: number; preAuction: number; finished: number; total: number }>>({});
+
+  // Quick search (funnel redesign #3). Plain submit → the list's existing
+  // accent-folded `?search=` (matches all card-text columns server-side).
+  // No typeahead this wave — submit-only, so no debounce needed.
+  const [searchTerm, setSearchTerm] = React.useState("");
+  const onSearchSubmit = React.useCallback(
+    (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      const term = searchTerm.trim();
+      if (!term) return;
+      router.push(`/subastas?when=activas&search=${encodeURIComponent(term)}`);
+    },
+    [router, searchTerm],
+  );
+
+  // "Cerca de ti" (funnel redesign #4, Phase 1). The resolved nearest
+  // province pins the carousel's existing `province` param inline; the note
+  // above the carousel links out to the full province page and offers a
+  // one-click clear back to the national feed.
+  const [nearProvince, setNearProvince] = React.useState<CanonicalProvince | null>(null);
 
   // Map auctions — ACTIVAS only (C4a #7, 2026-06-07). Dennis: the landing
   // map defaults to Activas, not "active + upcoming". We hit the canonical
@@ -223,69 +258,57 @@ export default function HomeObservatory() {
               </p>
             </div>
 
-            {/* Official-sources block (Pixel, 2026-06-08 — boxes removed).
-                Dennis: "so text don't overlap and without boxes... write it in
-                a way that we can use it for SEO." The old 3-card grid (bordered
-                boxes, with the long "Boletín Oficial del Estado" wrapping and
-                overlapping inside its box) is gone. It's now clean flowing,
-                keyword-rich Spanish copy:
-
-                  • one SEO sentence enumerating the real auction keywords
-                    (subastas judiciales, de Hacienda/AEAT, notariales,
-                    administrativas, de la Seguridad Social, concursales) so the
-                    landing carries genuine keyword density that reads naturally;
-                  • beneath it, the three live source families as inline pills —
-                    bold name + decorative winter-green dot, NO borders/boxes —
-                    so BOE / Seguridad Social / PLABI stay prominent and
-                    scannable. We list ONLY sources live in the scraper today
-                    (no banks / TEJU) so the claim stays honest.
-
-                The inline list is a semantic <ul> so screen readers still
-                announce a 3-item list; the green dots are decorative. The bold
-                <strong>s in the prose carry the keywords for SEO without any
-                visual box chrome. */}
-            <div className="mt-6 max-w-2xl">
-              <p
-                id="hero-sources-label"
-                className="text-xs font-semibold uppercase tracking-wide text-[var(--color-ink-tertiary)]"
+            {/* Quick search (funnel redesign #3). One prominent input +
+                submit — the fastest path from "I'm looking for X" to a
+                filtered result list. Semantic <form role="search"> so
+                assistive tech announces it as the page's search landmark. */}
+            <form
+              role="search"
+              onSubmit={onSearchSubmit}
+              className="mt-6 flex max-w-2xl items-stretch gap-2"
+            >
+              <label htmlFor="home-quick-search" className="sr-only">
+                {t("searchAria")}
+              </label>
+              <div className="relative min-w-0 flex-1">
+                <Search
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-ink-tertiary)]"
+                />
+                <input
+                  id="home-quick-search"
+                  type="search"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder={t("searchPlaceholder")}
+                  enterKeyHint="search"
+                  className={[
+                    "h-11 w-full rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)]",
+                    "pl-10 pr-3 text-[15px] text-[var(--color-ink-primary)]",
+                    "placeholder:text-[var(--color-ink-tertiary)] shadow-[var(--shadow-card)]",
+                    "focus:outline-none focus:ring-2 focus:ring-[var(--color-action)]/50 focus:border-[var(--color-action)]/50",
+                  ].join(" ")}
+                />
+              </div>
+              <button
+                type="submit"
+                className="cta-gradient h-11 shrink-0 rounded-lg px-5 text-sm cursor-pointer"
               >
-                {t("heroSourcesLabel")}
-              </p>
-              <p className="mt-2.5 text-[15px] leading-relaxed text-[var(--color-ink-secondary)]">
-                {t.rich("heroSourcesSeo", {
-                  b: (chunks) => (
-                    <strong className="font-semibold text-[var(--color-ink-primary)]">
-                      {chunks}
-                    </strong>
-                  ),
-                })}
-              </p>
-              <ul
-                aria-labelledby="hero-sources-label"
-                className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2"
-              >
-                {[
-                  { name: t("heroSourceBoeName"), detail: t("heroSourceBoeDetail") },
-                  { name: t("heroSourceSsName"), detail: t("heroSourceSsDetail") },
-                  { name: t("heroSourcePlabiName"), detail: t("heroSourcePlabiDetail") },
-                ].map((src) => (
-                  <li key={src.name} className="flex items-center gap-2">
-                    <span
-                      aria-hidden="true"
-                      className="h-2 w-2 shrink-0 rounded-full bg-[var(--color-brand)]"
-                    />
-                    <span className="text-sm leading-tight">
-                      <strong className="font-semibold text-[var(--color-ink-primary)]">
-                        {src.name}
-                      </strong>
-                      <span className="ml-1.5 text-[var(--color-ink-tertiary)]">
-                        {src.detail}
-                      </span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+                {t("searchSubmit")}
+              </button>
+            </form>
+
+            {/* Popular regions (funnel redesign #2) — replaces the SEO
+                sources text block that used to sit here. The sources copy
+                was NOT deleted: a condensed version renders below the fold
+                (above "Cómo funciona") so the keyword text stays in the DOM.
+                Chips navigate to the clean province pages; "Cerca de ti"
+                pins the carousel's province param via geolocation. */}
+            <PopularRegionChips
+              className="mt-6 max-w-2xl"
+              counts={provinceCounts}
+              onNearProvince={setNearProvince}
+            />
 
             {/* CTA row. */}
             <div className="mt-7 flex flex-wrap items-center gap-3">
@@ -385,10 +408,45 @@ export default function HomeObservatory() {
           </div>
         </section>
 
-        {/* Endless marquee — two category carousels (inmuebles + vehículos)
-            side-by-side on desktop, stacked on mobile. Modal popup is OFF
-            (cards link to detail page). */}
-        <HomeCarouselSection limit={30} seeAllHref="/subastas?when=activas" />
+        {/* Endless marquee — ONE row with the Inmuebles / Vehículos toggle
+            (funnel redesign #1). Modal popup is OFF (cards link to detail
+            page). When "Cerca de ti" resolved a province, a small note
+            explains the pinned feed and offers the province page + clear. */}
+        <section aria-label={t("carouselSectionAria")} className="space-y-3">
+          {nearProvince && (
+            <div
+              aria-live="polite"
+              className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-[var(--color-ink-secondary)]"
+            >
+              <span>
+                {t("nearMeShowing", { province: nearProvince.label })}
+              </span>
+              <Link
+                href={provinceHref(nearProvince.key)}
+                className="font-medium text-[var(--color-action)] hover:underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/40 rounded"
+              >
+                {t("nearMeViewAll", { province: nearProvince.label })}
+              </Link>
+              <button
+                type="button"
+                onClick={() => setNearProvince(null)}
+                className="inline-flex items-center gap-1 rounded-full border border-[var(--color-hairline)] px-2 py-0.5 text-xs font-medium text-[var(--color-ink-secondary)] hover:bg-[var(--color-surface-muted)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/40"
+              >
+                <X className="h-3 w-3" aria-hidden="true" />
+                {t("nearMeClear")}
+              </button>
+            </div>
+          )}
+          {/* `label` (not `key`) — Auction.province stores the label
+              spelling in production (verified 2026-07-10: "Vizcaya",
+              "Guipúzcoa"); carousel-mix's province filter is exact-equals
+              (case-insensitive), so the label is the value that matches. */}
+          <HomeCarouselSection
+            limit={30}
+            seeAllHref="/subastas?when=activas"
+            province={nearProvince?.label ?? null}
+          />
+        </section>
 
         {/* Province grid — renders its own internal heading ("Buscar subastas
             por provincia") inside a white card. Sits directly beneath the
@@ -403,6 +461,55 @@ export default function HomeObservatory() {
             router.push(townHref(province, municipality))
           }
         />
+
+        {/* Official-sources SEO block — RELOCATED from the hero (funnel
+            redesign #2, 2026-07-10). The keyword-rich prose + the three live
+            source pills keep the exact same i18n keys (`heroSourcesSeo`,
+            `heroSourceBoe*`, …) so nothing leaves the DOM — the hero slot
+            they occupied now belongs to the popular-region chips. Condensed
+            presentation: same copy, quieter type, below the fold. */}
+        <section
+          aria-labelledby="hero-sources-label"
+          className="max-w-readable"
+        >
+          <p
+            id="hero-sources-label"
+            className="text-xs font-semibold uppercase tracking-wide text-[var(--color-ink-tertiary)]"
+          >
+            {t("heroSourcesLabel")}
+          </p>
+          <p className="mt-2 text-sm leading-relaxed text-[var(--color-ink-secondary)]">
+            {t.rich("heroSourcesSeo", {
+              b: (chunks) => (
+                <strong className="font-semibold text-[var(--color-ink-primary)]">
+                  {chunks}
+                </strong>
+              ),
+            })}
+          </p>
+          <ul className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
+            {[
+              { name: t("heroSourceBoeName"), detail: t("heroSourceBoeDetail") },
+              { name: t("heroSourceSsName"), detail: t("heroSourceSsDetail") },
+              { name: t("heroSourcePlabiName"), detail: t("heroSourcePlabiDetail") },
+            ].map((src) => (
+              <li key={src.name} className="flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="h-2 w-2 shrink-0 rounded-full bg-[var(--color-brand)]"
+                />
+                <span className="text-sm leading-tight">
+                  <strong className="font-semibold text-[var(--color-ink-primary)]">
+                    {src.name}
+                  </strong>
+                  <span className="ml-1.5 text-[var(--color-ink-tertiary)]">
+                    {src.detail}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
 
         {/* How it works — plain Spanish, no marketing fluff */}
         <section className="rounded-lg bg-[var(--color-surface-muted)] p-6 md:p-8 max-w-readable">

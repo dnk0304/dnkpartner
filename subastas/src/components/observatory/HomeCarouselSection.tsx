@@ -1,92 +1,84 @@
 "use client";
 
 /**
- * HomeCarouselSection — TWO carousels: latest properties + latest vehicles.
- * Side-by-side on desktop, stacked on mobile (2026-06-08, Pixel — Dennis:
- * "carousels side by side"). Replaces the earlier single-row marquee + chip
- * filters + modal popup (2026-06-07, brief "landing-map-carousel").
+ * HomeCarouselSection — ONE carousel row with an Inmuebles / Vehículos
+ * segmented toggle (2026-07-10, Pixel — home-funnel-redesign brief; Dennis:
+ * "one row, toggle between property and vehicle"). Replaces the previous
+ * two side-by-side carousels (2026-06-08 layout).
  *
- *   Desktop (lg+, 2 columns ~50/50):
- *   ┌─ Últimos inmuebles ──────────┐ ┌─ Últimos vehículos ──────────┐
- *   │  [card] [card] [card] …       │ │  [card] [card] [card] …       │
- *   └──────────────────────────────┘ └──────────────────────────────┘
+ *   ┌─ [ Inmuebles | Vehículos ] ─────────────────────────────────┐
+ *   │ ┌─ Últimos inmuebles ────────────────────── Ver todas ────┐ │
+ *   │ │  [card] [card] [card] [card] [card] [card] …            │ │
+ *   │ └──────────────────────────────────────────────────────────┘ │
+ *   └──────────────────────────────────────────────────────────────┘
  *
- *   Mobile (<lg, stacked):
- *   ┌─ Últimos inmuebles ──────────────────────────────────────┐
- *   │  [card] [card] [card] [card] [card] [card] [card] …      │
- *   └──────────────────────────────────────────────────────────┘
- *   ┌─ Últimos vehículos ──────────────────────────────────────┐
- *   │  [card] [card] [card] [card] [card] [card] [card] …      │
- *   └──────────────────────────────────────────────────────────┘
+ * Fetch strategy — BOTH groups mounted, inactive panel `hidden`:
+ *   Each ForexCarousel fetches its own `categoryGroup` slice from
+ *   `/api/auctions/carousel-mix?categoryGroup=<real_estate|movable>` on mount
+ *   (the route's `rawGroup` parser accepts exactly those two values). We keep
+ *   both instances mounted and toggle visibility, so switching tabs is
+ *   INSTANT — no refetch, no loading flash — and each panel's own 60s poll
+ *   keeps it fresh in the background. Cost: one extra fetch on page load,
+ *   which is exactly what the previous two-row layout already paid. The
+ *   hidden panel's marquee is paused (`pause` prop) so it burns no rAF work
+ *   while invisible; its ResizeObserver re-measures the track on unhide.
  *
- * Each carousel is now ~half width on desktop, so fewer cards are visible at
- * once — the endless marquee is unaffected: ForexCarousel re-measures its own
- * track via ResizeObserver and the modulo-wrap loop is width-agnostic, and the
- * inner track sits in an `overflow-hidden` box so a narrower column simply
- * clips the strip (no card-layout break, fixed 195px compact cards unchanged).
+ * Pro-tier modularity: the toggle + panels are prop-driven (limit /
+ * seeAllHref / province) with no free-tier assumptions baked in — a Pro
+ * upsell band can be slotted between the toggle and the row, or a gated
+ * third tab added, without restructuring this component.
  *
- * Card-click behaviour (Pixel 2026-06-07, brief contrast-popup-c5):
- *  - LOGGED-OUT viewer → opens a floating register/log-in popup
- *    (`AuthGatePopup`) with `?next=<detail-href>` baked into both CTAs. The
- *    underlying detail page is access-gated anyway; surfacing the gate at
- *    click-time turns the carousel into a tighter conversion funnel — the
- *    user just expressed intent on a specific card, we ask them to register
- *    while that intent is fresh and bounce them back the moment they do.
- *  - LOGGED-IN viewer (trial / paid / even trial-expired) → cards keep
- *    behaving as plain `<Link>`s to `/subastas/subasta/{slug}` (the canonical
- *    SEO route + funnel destination). They already have site access; another
- *    auth modal would be pointless friction. ForexCarousel renders `<Link>`
- *    cards whenever `onCardClick` is omitted, so we just don't pass the
- *    handler in this case.
- *
- * What did NOT change (call out for the next session):
- *  - The chip steering wheel is still removed. Each row is category-locked.
- *  - Cards keep the `compact` flag (25 % smaller).
- *  - The marquee pause prop is wired to the popup's open state so the cards
- *    don't keep drifting behind the modal — important so the card the user
- *    clicked stays where they expect when the modal closes.
- *
- * Property vs. vehicle split:
- *  - `/api/auctions/carousel-mix` only accepts a single `category` param.
- *    Instead of fanning out one fetch per category, we fetch the full mix
- *    inside each `ForexCarousel` instance and pass a category-group filter
- *    (`'real_estate' | 'movable'`). The carousel applies the predicate
- *    client-side after the standard fetch. Both rows still benefit from the
- *    50/30/20 status mix the endpoint provides — the property split keeps
- *    that mix among REAL_ESTATE rows, the vehicle split among MOVABLE rows.
+ * Card-click behaviour is unchanged from the two-row layout: logged-out
+ * viewers get the AuthGatePopup at click time with `?next=` preserved;
+ * logged-in viewers navigate straight to the canonical detail page
+ * (ForexCarousel renders `<Link>` cards when `onCardClick` is omitted).
+ * The FeedItem→card mapping inside ForexCarousel is untouched.
  */
 
 import * as React from "react";
 import { useTranslations } from "next-intl";
-import { ForexCarousel, type FeedAuction } from "./ForexCarousel";
+import { ForexCarousel, type FeedAuction, type CategoryGroup } from "./ForexCarousel";
 import { AuthGatePopup } from "@/components/access/AuthGatePopup";
 import { useAccess } from "@/lib/access-client";
 import { buildAuctionSlug } from "@/lib/seo/auction-slug";
 import { cn } from "@/lib/utils";
 
 export type HomeCarouselSectionProps = {
-  /** How many cards to fetch per row. Default 30. */
+  /** How many cards to fetch per group. Default 30. */
   limit?: number;
-  /** Where the "Ver todas" header link routes. */
+  /** Where the "Ver todas" header link routes for the INMUEBLES tab. The
+   *  vehicles tab always appends the `mapCategory=vehiculos` list filter. */
   seeAllHref?: string;
+  /** Exact DB province value (label spelling, e.g. "Vizcaya") — forwarded to carousel-mix's
+   *  existing `province` param. Set by the home page's "Cerca de ti"
+   *  geolocation flow; null = national feed. */
+  province?: string | null;
   className?: string;
 };
+
+const GROUPS: ReadonlyArray<{ group: CategoryGroup; labelKey: string }> = [
+  { group: "real_estate", labelKey: "carouselTabInmuebles" },
+  { group: "movable", labelKey: "carouselTabVehiculos" },
+];
 
 export function HomeCarouselSection({
   limit = 30,
   seeAllHref = "/subastas?when=activas",
+  province = null,
   className,
 }: HomeCarouselSectionProps) {
   const t = useTranslations("home");
   const access = useAccess();
 
+  const [active, setActive] = React.useState<CategoryGroup>("real_estate");
   const [popupOpen, setPopupOpen] = React.useState(false);
   const [nextHref, setNextHref] = React.useState<string>("/subastas?when=activas");
+  const tabRefs = React.useRef<Array<HTMLButtonElement | null>>([]);
+  const baseId = React.useId();
 
   // Logged-out viewers get the click-time auth gate; everyone else lets
-  // cards navigate directly (ForexCarousel falls back to <Link> when
-  // onCardClick is omitted). We still treat the loading window as gated so
-  // we don't briefly flash an open detail page before the session resolves.
+  // cards navigate directly. The loading window stays gated so we never
+  // flash an open detail page before the session resolves.
   const shouldGate = access.loading || access.state === "logged-out";
 
   const handleCardClick = React.useCallback((auction: FeedAuction) => {
@@ -100,48 +92,103 @@ export function HomeCarouselSection({
     setPopupOpen(true);
   }, []);
 
-  // Only wire onCardClick when the popup gate is active. When the user is
-  // signed in, omitting the handler tells ForexCarousel to render its cards
-  // as <Link>s (its existing G-not-shipped fallback) — no extra prop dance.
   const cardClickProp = shouldGate ? handleCardClick : undefined;
 
-  return (
-    // Side-by-side on desktop (lg+: 2 equal columns), stacked on mobile.
-    // `min-w-0` on each cell is load-bearing: the inner marquee track is a
-    // `w-max` flex row inside an `overflow-hidden` box — without min-w-0 the
-    // grid track would resolve to that intrinsic content width and blow the
-    // 50/50 split. With it, each column holds ~half the row and the track
-    // clips cleanly to the narrower viewport.
-    <div className={cn("grid grid-cols-1 gap-6 lg:grid-cols-2", className)}>
-      <ForexCarousel
-        className="min-w-0"
-        limit={limit}
-        seeAllHref={seeAllHref}
-        compact
-        heading={t("propertiesHeading")}
-        categoryGroup="real_estate"
-        onCardClick={cardClickProp}
-        pause={popupOpen}
-      />
-      <ForexCarousel
-        className="min-w-0"
-        limit={limit}
-        seeAllHref={seeAllHref}
-        compact
-        heading={t("vehiclesHeading")}
-        categoryGroup="movable"
-        onCardClick={cardClickProp}
-        pause={popupOpen}
-      />
+  // Roving-tabindex arrow navigation between the two tabs (WAI-ARIA tabs
+  // pattern): Left/Right/Home/End move focus AND selection (selection
+  // follows focus — there are only two tabs, both instantly available).
+  const onTabKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let next: number | null = null;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") next = (index + 1) % GROUPS.length;
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = (index - 1 + GROUPS.length) % GROUPS.length;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = GROUPS.length - 1;
+    if (next == null) return;
+    e.preventDefault();
+    setActive(GROUPS[next].group);
+    tabRefs.current[next]?.focus();
+  };
 
-      {/* Single shared popup — both rows route through the same gate. The
-          `nextHref` state captures which auction was clicked so register /
-          log-in bounces the user straight back to that detail page. */}
-      <AuthGatePopup
-        open={popupOpen}
-        onOpenChange={setPopupOpen}
-        nextHref={nextHref}
-      />
+  // "Ver todas" per tab. The list has no all-real-estate group param today,
+  // so the inmuebles tab lands on the active list (property-dominant);
+  // vehicles pin the existing `mapCategory=vehiculos` curated filter so the
+  // landing list matches what the row shows.
+  const seeAllFor = (group: CategoryGroup): string => {
+    if (group !== "movable") return seeAllHref;
+    const [path, qs] = seeAllHref.split("?");
+    const params = new URLSearchParams(qs ?? "");
+    params.set("mapCategory", "vehiculos");
+    return `${path}?${params.toString()}`;
+  };
+
+  return (
+    <div className={cn("space-y-3", className)}>
+      {/* Segmented control. */}
+      <div
+        role="tablist"
+        aria-label={t("carouselTabsAria")}
+        className="inline-flex rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] p-0.5 shadow-[var(--shadow-card)]"
+      >
+        {GROUPS.map(({ group, labelKey }, i) => {
+          const selected = active === group;
+          return (
+            <button
+              key={group}
+              ref={(el) => {
+                tabRefs.current[i] = el;
+              }}
+              type="button"
+              role="tab"
+              id={`${baseId}-tab-${group}`}
+              aria-selected={selected}
+              aria-controls={`${baseId}-panel-${group}`}
+              tabIndex={selected ? 0 : -1}
+              onClick={() => setActive(group)}
+              onKeyDown={(e) => onTabKeyDown(e, i)}
+              className={cn(
+                "rounded-md px-4 py-1.5 text-sm font-semibold transition-colors cursor-pointer",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/50",
+                selected
+                  ? "bg-[var(--color-ink-primary)] text-white"
+                  : "text-[var(--color-ink-secondary)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-ink-primary)]",
+              )}
+            >
+              {t(labelKey)}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Panels — both mounted (fetch once + background poll), inactive one
+          hidden + paused. `hidden` keeps the DOM/a11y tree honest: hidden
+          panels are skipped by screen readers and the tab order. */}
+      {GROUPS.map(({ group }) => {
+        const selected = active === group;
+        return (
+          <div
+            key={group}
+            role="tabpanel"
+            id={`${baseId}-panel-${group}`}
+            aria-labelledby={`${baseId}-tab-${group}`}
+            hidden={!selected}
+          >
+            <ForexCarousel
+              className="min-w-0"
+              limit={limit}
+              seeAllHref={seeAllFor(group)}
+              compact
+              heading={t(group === "movable" ? "vehiclesHeading" : "propertiesHeading")}
+              categoryGroup={group}
+              province={province}
+              onCardClick={cardClickProp}
+              pause={popupOpen || !selected}
+            />
+          </div>
+        );
+      })}
+
+      {/* Single shared popup — both tabs route through the same gate. */}
+      <AuthGatePopup open={popupOpen} onOpenChange={setPopupOpen} nextHref={nextHref} />
     </div>
   );
 }
