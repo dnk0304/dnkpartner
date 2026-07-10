@@ -37,6 +37,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { usePathname } from 'next/navigation';
 import { localizePath } from '@/lib/locale-path';
 import { Lock } from 'lucide-react';
@@ -77,12 +78,13 @@ export function AuthGatePopup({
   // correct the moment either side is plumbed in.
   // i18n Phase 1: keep the `/en` prefix on both the auth page and the
   // round-trip target when the user is browsing the English URL space.
+  const t = useTranslations('auctionDetail');
   const pathname = usePathname();
   const next = encodeURIComponent(localizePath(nextHref, pathname));
   const registerHref = `${localizePath('/register', pathname)}?next=${next}&callbackUrl=${next}`;
   const loginHref = `${localizePath('/login', pathname)}?next=${next}&callbackUrl=${next}`;
 
-  const title = headline ?? 'Crea tu cuenta gratis para ver los detalles';
+  const title = headline ?? t('popupTitle');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -109,8 +111,7 @@ export function AuthGatePopup({
           </DialogTitle>
 
           <DialogDescription className="mx-auto mt-2.5 max-w-[360px] text-sm leading-relaxed text-[var(--color-ink-secondary)]">
-            Regístrate gratis para ver dirección exacta, documentos, edicto y
-            crear alertas. Sin tarjeta.
+            {t('popupDesc')}
           </DialogDescription>
 
           <div className="mt-6 flex flex-col gap-2.5">
@@ -122,21 +123,20 @@ export function AuthGatePopup({
             <Link
               href={registerHref}
               className="inline-flex items-center justify-center rounded-md bg-[var(--color-action)] px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--color-action-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/40 focus-visible:ring-offset-2 transition-colors"
-              aria-label="Crear una cuenta gratuita"
+              aria-label={t('popupRegisterAria')}
             >
-              Regístrate gratis
+              {t('popupRegister')}
             </Link>
             <Link
               href={loginHref}
               className="inline-flex items-center justify-center rounded-md border border-[var(--color-hairline)] bg-white px-5 py-2.5 text-sm font-medium text-[var(--color-ink-primary)] hover:bg-[var(--color-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/30 transition-colors"
             >
-              Iniciar sesión
+              {t('popupLogin')}
             </Link>
           </div>
 
           <p className="mt-5 text-[11px] text-[var(--color-ink-tertiary)]">
-            Buscar y navegar el catálogo es siempre gratis. La cuenta desbloquea
-            el detalle completo de cada subasta.
+            {t('gateFootnote')}
           </p>
         </div>
       </DialogContent>

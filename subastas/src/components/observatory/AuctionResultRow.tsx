@@ -26,6 +26,7 @@
  */
 
 import * as React from "react";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import Image from "next/image";
 import { MapPin, ImageOff } from "lucide-react";
@@ -61,6 +62,9 @@ export type AuctionResultRowProps = {
 };
 
 export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
+  const t = useTranslations("listUi");
+  const tDomain = useTranslations("domain");
+  const locale = useLocale() as "es" | "en";
   const effective = effectiveStatus(item.status, item.endDate) as AuctionStatus;
 
   // Town==Province dedupe (2026-06-19): show the town ONCE when municipality
@@ -138,26 +142,26 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
   // currentBid (rare last resort). Whichever wins is rendered large; the
   // others slide into the secondary caption row below.
   const primaryPrice = hasTasacion
-    ? { key: "tasacion", label: "Tasación", amount: item.appraisalValue as number }
+    ? { key: "tasacion", label: tDomain("tasacion"), amount: item.appraisalValue as number }
     : hasValorSubasta
-    ? { key: "valorSubasta", label: "Valor subasta", amount: item.valorSubasta as number }
+    ? { key: "valorSubasta", label: tDomain("valorSubasta"), amount: item.valorSubasta as number }
     : hasCurrentBid
-    ? { key: "currentBid", label: "Puja actual", amount: item.currentBid as number }
+    ? { key: "currentBid", label: t("pujaActual"), amount: item.currentBid as number }
     : null;
   // Secondary lines — only the values NOT used as the headline, and only
   // when present (honest-NULL).
   const secondaryLines: Array<{ key: string; label: string; amount: number }> = [];
   if (hasValorSubasta && primaryPrice?.key !== "valorSubasta") {
-    secondaryLines.push({ key: "valorSubasta", label: "Valor subasta", amount: item.valorSubasta as number });
+    secondaryLines.push({ key: "valorSubasta", label: tDomain("valorSubasta"), amount: item.valorSubasta as number });
   }
   if (hasClaimed) {
-    secondaryLines.push({ key: "claimedAmount", label: "Cantidad reclamada", amount: item.claimedAmount as number });
+    secondaryLines.push({ key: "claimedAmount", label: tDomain("cantidadReclamada"), amount: item.claimedAmount as number });
   }
   if (hasCurrentBid && primaryPrice?.key !== "currentBid" && primaryPrice?.key === "tasacion") {
     // Only show "Puja actual" as a secondary caption when Tasación is the
     // headline (matches the original Pixel intent — never bury a bid under
     // the lower-tier Valor subasta).
-    secondaryLines.push({ key: "currentBid", label: "Puja actual", amount: item.currentBid as number });
+    secondaryLines.push({ key: "currentBid", label: t("pujaActual"), amount: item.currentBid as number });
   }
 
   const hasEndDate =
@@ -173,17 +177,17 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
   // already says Finalizada / Concluida elsewhere).
   const dateLabel = statusDateLabel(effective);
   const isActiveLabel = dateLabel === "Termina";
-  const daysBadge = isActiveLabel && hasEndDate ? formatDaysLeft(item.endDate) : null;
+  const daysBadge = isActiveLabel && hasEndDate ? formatDaysLeft(item.endDate, locale) : null;
   const opensLabel = (() => {
     if (!item.opensAt) return null;
     const d = new Date(item.opensAt);
-    return Number.isNaN(d.getTime()) ? null : formatDateMed(d);
+    return Number.isNaN(d.getTime()) ? null : formatDateMed(d, locale);
   })();
   const resumeDateStr = (() => {
     const v = (item as { resumeAt?: string | null }).resumeAt;
     if (!v) return null;
     const d = new Date(v);
-    return Number.isNaN(d.getTime()) ? null : formatDateMed(d);
+    return Number.isNaN(d.getTime()) ? null : formatDateMed(d, locale);
   })();
 
   // Short description excerpt — propertyDescription wins when present, else
@@ -209,7 +213,7 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
           map is panned to put lat/lng under the centre point. */}
       <Link
         href={`/auction/${encodeURIComponent(item.id)}`}
-        aria-label={`Ver detalle de ${title}`}
+        aria-label={t("verDetalleDe", { title })}
         className={cn(
           "relative shrink-0 overflow-hidden rounded-md bg-[var(--color-surface-muted)]",
           "border border-[var(--color-hairline)]",
@@ -247,7 +251,7 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
         )}
         {imgFailed && resolved.rung !== "placeholder" && (
           <span className="sr-only">
-            <ImageOff aria-hidden="true" /> Imagen no disponible
+            <ImageOff aria-hidden="true" /> {t("imagenNoDisponible")}
           </span>
         )}
         {daysBadge && (
@@ -255,7 +259,7 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
             className={cn(
               "pointer-events-none absolute bottom-1 left-1 tnum rounded-full px-1.5 py-0.5 text-[10px] font-semibold border",
               "text-[var(--color-ink-primary)]",
-              daysBadge === "Hoy" || daysBadge === "1 d"
+              daysBadge === "Hoy" || daysBadge === "Today" || daysBadge === "1 d"
                 ? "bg-[var(--color-warn-critical-soft)] border-[var(--color-warn-critical)]/40"
                 : "bg-[var(--color-surface)]/95 border-[var(--color-hairline)] backdrop-blur-sm",
             )}
@@ -317,7 +321,7 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
           </div>
         ) : (
           <div className="mt-2 text-sm text-[var(--color-ink-secondary)]">
-            Precio no disponible
+            {t("precioNoDisponible")}
           </div>
         )}
 
@@ -359,28 +363,28 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
             <LiveCountdown
               target={item.endDate}
               size="sm"
-              prefix="Termina en"
+              prefix={t("terminaEnPrefix")}
               effectiveStatus={effective}
             />
           </div>
         )}
         {dateLabel === "Próxima apertura" && (
           <div className="mt-2 text-xs text-[var(--color-ink-tertiary)] tnum">
-            <span className="text-[var(--color-ink-secondary)]">Próxima apertura</span>
+            <span className="text-[var(--color-ink-secondary)]">{tDomain("proximaApertura")}</span>
             {opensLabel ? (
               <>: <span className="text-[var(--color-ink-primary)]">{opensLabel}</span></>
             ) : (
-              <> · <span className="text-[var(--color-ink-quiet)]">Fecha por confirmar</span></>
+              <> · <span className="text-[var(--color-ink-quiet)]">{tDomain("fechaPorConfirmar")}</span></>
             )}
           </div>
         )}
         {dateLabel === "Fecha prevista de reanudación" && (
           <div className="mt-2 text-xs text-[var(--color-ink-tertiary)] tnum">
-            <span className="text-[var(--color-ink-secondary)]">Fecha prevista de reanudación</span>
+            <span className="text-[var(--color-ink-secondary)]">{t("fechaPrevistaReanudacion")}</span>
             {resumeDateStr ? (
               <>: <span className="text-[var(--color-ink-primary)]">{resumeDateStr}</span></>
             ) : (
-              <> · <span className="text-[var(--color-ink-quiet)]">Fecha por confirmar</span></>
+              <> · <span className="text-[var(--color-ink-quiet)]">{tDomain("fechaPorConfirmar")}</span></>
             )}
           </div>
         )}
@@ -403,7 +407,7 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
               href={mapsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="Ver ubicación en Google Maps"
+              aria-label={t("verUbicacionGoogleMaps")}
               className={cn(
                 "mt-2 inline-flex items-center gap-1 text-xs font-medium",
                 "text-[var(--color-brand-soft)] hover:underline",
@@ -411,7 +415,7 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
               )}
             >
               <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
-              Ver en Google Maps
+              {t("verEnGoogleMaps")}
             </a>
           );
         })()}

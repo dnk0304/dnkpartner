@@ -23,6 +23,7 @@
 
 import * as React from "react";
 import dynamic from "next/dynamic";
+import { useTranslations } from "next-intl";
 import { ExternalLink, MapPin, Eye } from "lucide-react";
 import type { AuctionItem } from "@/types";
 import { cn } from "@/lib/utils";
@@ -76,6 +77,7 @@ export function AuctionMapPanel({
   variant = "default",
   className,
 }: AuctionMapPanelProps) {
+  const t = useTranslations("auctionDetail");
   const lat = typeof auction.latitude === "number" ? auction.latitude : null;
   const lng = typeof auction.longitude === "number" ? auction.longitude : null;
   const hasCoords = lat != null && lng != null;
@@ -113,8 +115,7 @@ export function AuctionMapPanel({
             </p>
           )}
           <p className="mt-1 text-[11px] text-[var(--color-ink-tertiary)]">
-            Ubicación aproximada. La dirección puede no ser exacta; verifícala
-            siempre con el edicto oficial.
+            {t("mapDisclaimer")}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -128,10 +129,10 @@ export function AuctionMapPanel({
                 "hover:border-[var(--color-brand)]/40 hover:bg-[var(--color-brand)]/5 hover:text-[var(--color-ink-primary)]",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40",
               )}
-              aria-label="Abrir en Google Maps (se abre en nueva pestaña)"
+              aria-label={t("mapGoogleMapsAria")}
             >
               <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
-              Ver en Google Maps
+              {t("mapGoogleMaps")}
               <ExternalLink className="h-3 w-3 opacity-60" aria-hidden="true" />
             </a>
           )}
@@ -145,10 +146,10 @@ export function AuctionMapPanel({
                 "hover:border-[var(--color-brand)]/40 hover:bg-[var(--color-brand)]/5 hover:text-[var(--color-ink-primary)]",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40",
               )}
-              aria-label="Ver vista de calle (se abre en nueva pestaña)"
+              aria-label={t("mapStreetViewAria")}
             >
               <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-              Ver vista de calle
+              {t("mapStreetView")}
               <ExternalLink className="h-3 w-3 opacity-60" aria-hidden="true" />
             </a>
           )}

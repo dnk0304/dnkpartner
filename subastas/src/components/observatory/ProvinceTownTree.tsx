@@ -41,6 +41,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import { apiFetch } from "@/lib/api-path";
 import {
@@ -106,6 +107,7 @@ export function ProvinceTownTree({
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
   const [townsByProvince, setTownsByProvince] = React.useState<Record<string, TownRow[]>>({});
   const [townsLoading, setTownsLoading] = React.useState<Set<string>>(new Set());
+  const t = useTranslations("listUi");
   const [search, setSearch] = React.useState("");
 
   // -------------------------------------------------------------------------
@@ -271,8 +273,8 @@ export function ProvinceTownTree({
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar provincia…"
-          aria-label="Buscar provincia"
+          placeholder={t("buscarProvinciaPlaceholder")}
+          aria-label={t("buscarProvincia")}
           className={cn(
             "w-full rounded-md border border-[var(--color-hairline)] bg-white",
             "pl-8 pr-2 py-1.5 text-xs text-[var(--color-ink-primary)]",

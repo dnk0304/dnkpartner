@@ -38,6 +38,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Loader2, Map as MapIcon, SlidersHorizontal, X } from "lucide-react";
+import { useTranslations, useLocale } from "next-intl";
 import { AuctionItem } from "@/types";
 import { apiFetch } from "@/lib/api-path";
 import { ActiveFilterChips } from "@/components/observatory/SimpleFilters";
@@ -98,6 +99,9 @@ export default function SubastasListClient({
   seoIntroSlot,
   seoFooterSlot,
 }: SubastasListClientProps = {}) {
+  const t = useTranslations("subastasList");
+  const locale = useLocale() as "es" | "en";
+  const numberLocale = locale === "en" ? "en-US" : "es-ES";
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -378,23 +382,25 @@ export default function SubastasListClient({
                 seoTitle
               ) : (
                 <>
-                  <span className="tnum">{renderedCount.toLocaleString("es-ES")}</span>{" "}
+                  <span className="tnum">{renderedCount.toLocaleString(numberLocale)}</span>{" "}
                   <span className="font-sans text-base font-normal text-[var(--color-ink-secondary)]">
-                    resultados
+                    {t("resultados")}
                   </span>
                 </>
               )}
             </h1>
             {seoTitle && (
               <p className="mt-1 text-sm text-[var(--color-ink-tertiary)] tnum">
-                {renderedCount.toLocaleString("es-ES")} subastas
-                {filters.when === "finalizadas"
-                  ? " finalizadas"
-                  : filters.when === "proximas"
-                  ? " próximas"
-                  : filters.when === "todas"
-                  ? " (activas + próximas)"
-                  : " activas"}
+                {t(
+                  filters.when === "finalizadas"
+                    ? "subtitleFinalizadas"
+                    : filters.when === "proximas"
+                    ? "subtitleProximas"
+                    : filters.when === "todas"
+                    ? "subtitleTodas"
+                    : "subtitleActivas",
+                  { count: renderedCount.toLocaleString(numberLocale) },
+                )}
               </p>
             )}
           </div>
@@ -416,7 +422,7 @@ export default function SubastasListClient({
               )}
             >
               <MapIcon className="h-3.5 w-3.5" aria-hidden="true" />
-              {viewMode === "map" ? "Ver lista" : "Ver mapa"}
+              {viewMode === "map" ? t("verLista") : t("verMapa")}
             </button>
           </div>
         </header>
@@ -458,21 +464,21 @@ export default function SubastasListClient({
                 className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-brand)]/30 bg-[var(--color-surface)] px-3 py-1.5 text-sm font-medium text-[var(--color-brand)]"
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
-                Filtros
+                {t("filtros")}
               </button>
               <button
                 type="button"
                 onClick={() => setAlertsOpen(true)}
                 className="inline-flex items-center gap-1.5 rounded-md bg-[var(--color-brand)] text-white px-3 py-1.5 text-sm font-medium"
               >
-                Crear alerta
+                {t("crearAlerta")}
               </button>
               <button
                 type="button"
                 onClick={clearFilters}
                 className="text-xs text-[var(--color-ink-tertiary)] ml-auto"
               >
-                Limpiar
+                {t("limpiar")}
               </button>
             </div>
 
@@ -553,7 +559,7 @@ export default function SubastasListClient({
                   className="inline-flex items-center gap-2 rounded-md border border-[var(--color-brand)]/30 px-5 py-2 text-sm font-medium text-[var(--color-brand)] hover:bg-[var(--color-brand)]/5 disabled:opacity-60"
                 >
                   {loadingMore && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-                  {loadingMore ? "Cargando…" : "Cargar más"}
+                  {loadingMore ? t("cargando") : t("cargarMas")}
                 </button>
               </div>
             )}
@@ -577,7 +583,7 @@ export default function SubastasListClient({
           className="fixed inset-0 z-[60] lg:hidden"
           role="dialog"
           aria-modal="true"
-          aria-label="Filtros"
+          aria-label={t("filtros")}
         >
           {/* Scrim — fully opaque enough to separate the drawer from the
               list behind it, but still let the user see they're in a
@@ -595,20 +601,20 @@ export default function SubastasListClient({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[var(--color-hairline)] bg-[var(--color-surface)] px-4 py-3">
-              <h2 className="font-serif text-lg text-[var(--color-ink-primary)]">Filtros</h2>
+              <h2 className="font-serif text-lg text-[var(--color-ink-primary)]">{t("filtros")}</h2>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={clearFilters}
                   className="text-xs text-[var(--color-ink-tertiary)] hover:text-[var(--color-brand)] focus-visible:outline-none focus-visible:underline transition-colors"
                 >
-                  Limpiar
+                  {t("limpiar")}
                 </button>
                 <button
                   type="button"
                   onClick={() => setMobileFiltersOpen(false)}
                   className="inline-flex items-center justify-center rounded-md p-2 -m-2 text-[var(--color-ink-secondary)] hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-brand)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40"
-                  aria-label="Cerrar filtros"
+                  aria-label={t("cerrarFiltros")}
                 >
                   <X className="h-5 w-5" aria-hidden="true" />
                 </button>
@@ -638,7 +644,9 @@ export default function SubastasListClient({
                   onClick={() => setMobileFiltersOpen(false)}
                   className="w-full inline-flex items-center justify-center gap-2 rounded-md bg-[var(--color-action)] text-white font-medium px-4 py-2.5 hover:bg-[var(--color-action-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/40"
                 >
-                  Ver {totalCount != null ? totalCount.toLocaleString("es-ES") : ""} resultados
+                  {t("verResultados", {
+                    count: totalCount != null ? totalCount.toLocaleString(numberLocale) : "",
+                  })}
                 </button>
               </div>
             </div>
@@ -691,26 +699,28 @@ function LoadingBody() {
 }
 
 function ErrorBody() {
+  const t = useTranslations("subastasList");
   return (
     <div className="rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] p-8 text-center">
       <p className="font-serif text-lg text-[var(--color-ink-primary)]">
-        No pudimos cargar las subastas.
+        {t("errorTitle")}
       </p>
       <p className="mt-1 text-sm text-[var(--color-ink-tertiary)]">
-        Reintenta en unos segundos.
+        {t("errorBody")}
       </p>
     </div>
   );
 }
 
 function EmptyBody({ onClear }: { onClear: () => void }) {
+  const t = useTranslations("subastasList");
   return (
     <div className="rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] p-8 text-center">
       <p className="font-serif text-lg text-[var(--color-ink-primary)]">
-        No hay subastas que coincidan con tu búsqueda.
+        {t("emptyTitle")}
       </p>
       <p className="mt-1 text-sm text-[var(--color-ink-tertiary)]">
-        Prueba a ampliar el rango de precio o cambiar la provincia.
+        {t("emptyBody")}
       </p>
       <div className="mt-4 flex items-center justify-center gap-3">
         <button
@@ -718,13 +728,13 @@ function EmptyBody({ onClear }: { onClear: () => void }) {
           onClick={onClear}
           className="text-sm font-medium text-[var(--color-brand)] hover:underline"
         >
-          Limpiar filtros
+          {t("limpiarFiltros")}
         </button>
         <Link
           href="/"
           className="text-sm text-[var(--color-ink-tertiary)] hover:text-[var(--color-brand)]"
         >
-          Volver al inicio
+          {t("volverInicio")}
         </Link>
       </div>
     </div>

@@ -20,6 +20,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Lock } from 'lucide-react';
@@ -33,6 +34,7 @@ export interface FullInfoWallProps {
 }
 
 export function FullInfoWall({ headline }: FullInfoWallProps) {
+  const t = useTranslations('auctionDetail');
   const access = useAccess();
   const pathname = usePathname();
   const [upgradeOpen, setUpgradeOpen] = useState(false);
@@ -42,13 +44,9 @@ export function FullInfoWall({ headline }: FullInfoWallProps) {
   if (access.hasFullAccess) return null;
 
   const isAuthed = access.state !== 'logged-out';
-  const title = headline ?? (isAuthed
-    ? 'Activa el plan Acceso para el expediente completo'
-    : 'Regístrate gratis para ver los detalles');
-  const sub = isAuthed
-    ? 'Tu periodo de prueba ha terminado. Activa el plan Acceso para ver dirección exacta, edicto, panel del juzgado y crear alertas.'
-    : 'Crea una cuenta gratuita para ver la dirección exacta, los documentos, el edicto y el panel del juzgado. Sin tarjeta.';
-  const cta = isAuthed ? 'Activar plan Acceso' : 'Regístrate gratis';
+  const title = headline ?? (isAuthed ? t('wallTitleAuthed') : t('wallTitle'));
+  const sub = isAuthed ? t('wallSubAuthed') : t('wallSub');
+  const cta = isAuthed ? t('wallCtaAuthed') : t('wallCta');
 
   // Preserve where the user came from so /register can bounce them back.
   // i18n Phase 1: localizePath keeps the `/en` prefix on the auth pages.
@@ -86,7 +84,7 @@ export function FullInfoWall({ headline }: FullInfoWallProps) {
               type="button"
               onClick={() => setUpgradeOpen(true)}
               className="inline-flex items-center justify-center rounded-md bg-[var(--color-action)] px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--color-action-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/40 focus-visible:ring-offset-2 transition-colors"
-              aria-label="Activar plan Acceso"
+              aria-label={t('wallCtaAuthed')}
             >
               {cta}
             </button>
@@ -94,7 +92,7 @@ export function FullInfoWall({ headline }: FullInfoWallProps) {
             <Link
               href={registerHref}
               className="inline-flex items-center justify-center rounded-md bg-[var(--color-action)] px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--color-action-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/40 focus-visible:ring-offset-2 transition-colors"
-              aria-label="Crear una cuenta gratuita para ver la información completa"
+              aria-label={t('wallCtaAria')}
             >
               {cta}
             </Link>
@@ -104,12 +102,12 @@ export function FullInfoWall({ headline }: FullInfoWallProps) {
               href={loginHref}
               className="inline-flex items-center justify-center rounded-md border border-[var(--color-hairline)] bg-[var(--color-surface)] px-5 py-2.5 text-sm font-medium text-[var(--color-ink-primary)] hover:bg-[var(--color-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/30 transition-colors"
             >
-              Ya tengo cuenta
+              {t('wallLogin')}
             </Link>
           )}
         </div>
         <p className="mt-5 text-[11px] text-[var(--color-ink-tertiary)]">
-          Buscar y navegar el catálogo es siempre gratis. La cuenta desbloquea el detalle completo de cada subasta.
+          {t('gateFootnote')}
         </p>
       </section>
       {isAuthed && (

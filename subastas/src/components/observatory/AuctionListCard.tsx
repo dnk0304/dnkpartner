@@ -13,6 +13,7 @@
  */
 
 import * as React from "react";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import Image from "next/image";
 import { ImageOff, MapPin, Calendar } from "lucide-react";
@@ -39,6 +40,9 @@ export type AuctionListCardProps = {
 };
 
 export function AuctionListCard({ item, className }: AuctionListCardProps) {
+  const t = useTranslations("listUi");
+  const tDomain = useTranslations("domain");
+  const locale = useLocale() as "es" | "en";
   // Clock-wins: stale celebrandose row with past endDate renders as concluded
   // so badge + countdown agree.
   const effective = effectiveStatus(item.status, item.endDate) as AuctionStatus;
@@ -123,9 +127,9 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
   // the rest render as smaller secondary lines in the same block. This list
   // is what drives the responsive 1/2/3-column layout in the price block.
   const valueLines: Array<{ key: string; label: string; amount: number }> = [];
-  if (hasTasacion) valueLines.push({ key: "tasacion", label: "Tasación", amount: item.appraisalValue as number });
-  if (hasValorSubasta) valueLines.push({ key: "valorSubasta", label: "Valor subasta", amount: item.valorSubasta as number });
-  if (hasClaimed) valueLines.push({ key: "claimedAmount", label: "Cantidad reclamada", amount: item.claimedAmount as number });
+  if (hasTasacion) valueLines.push({ key: "tasacion", label: tDomain("tasacion"), amount: item.appraisalValue as number });
+  if (hasValorSubasta) valueLines.push({ key: "valorSubasta", label: tDomain("valorSubasta"), amount: item.valorSubasta as number });
+  if (hasClaimed) valueLines.push({ key: "claimedAmount", label: tDomain("cantidadReclamada"), amount: item.claimedAmount as number });
   // Ghost may split multi-lot auctions into per-lote rows tagged "Varios Lotes"
   // with no usable price. Render a clean "Precio no disponible" affordance
   // instead of an empty price block.
@@ -155,7 +159,7 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
   const opensDate = item.opensAt ? new Date(item.opensAt) : null;
   const opensLabel =
     opensDate && !Number.isNaN(opensDate.getTime())
-      ? formatDateMed(opensDate)
+      ? formatDateMed(opensDate, locale)
       : null;
   const hasEndDate =
     item.endDate instanceof Date
@@ -166,12 +170,12 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
   // active only. PROXIMA never shows "Termina en" or a fake "N d" badge.
   const dateLabel = statusDateLabel(effective);
   const isActiveLabel = dateLabel === "Termina";
-  const daysBadge = isActiveLabel && hasEndDate ? formatDaysLeft(item.endDate) : null;
+  const daysBadge = isActiveLabel && hasEndDate ? formatDaysLeft(item.endDate, locale) : null;
   const resumeDateStr = (() => {
     const v = (item as { resumeAt?: string | null }).resumeAt;
     if (!v) return null;
     const d = new Date(v);
-    return Number.isNaN(d.getTime()) ? null : formatDateMed(d);
+    return Number.isNaN(d.getTime()) ? null : formatDateMed(d, locale);
   })();
 
   return (
@@ -186,7 +190,7 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
           The ladder guarantees no blank tile and no layout shift. */}
       <Link
         href={`/auction/${encodeURIComponent(item.id)}`}
-        aria-label={`Ver detalle de ${item.title}`}
+        aria-label={t("verDetalleDe", { title: item.title })}
         className="relative block aspect-[16/9] w-full bg-[var(--color-surface-muted)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40"
       >
         <Image
@@ -230,12 +234,12 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             className="pointer-events-none absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full border border-[var(--color-hairline)] bg-[var(--color-surface)]/90 px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-ink-secondary)] backdrop-blur-sm"
           >
             <MapPin className="h-3 w-3" />
-            Ubicación
+            {t("ubicacion")}
           </span>
         )}
         {imgFailed && resolved.rung !== "placeholder" && (
           <span className="sr-only">
-            <ImageOff aria-hidden="true" /> Imagen no disponible
+            <ImageOff aria-hidden="true" /> {t("imagenNoDisponible")}
           </span>
         )}
         {/* No usable imagery at all (rung-3 placeholder or failed load):
@@ -246,7 +250,7 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-[var(--color-hairline)] bg-[var(--color-surface)]/90 px-2 py-0.5 text-[10px] font-medium text-[var(--color-ink-secondary)] backdrop-blur-sm"
           >
             <ImageOff className="h-3 w-3" />
-            Foto no disponible en estos momentos
+            {t("fotoNoDisponible")}
           </span>
         )}
         {/* Status / identity column (top-left). Vertical stack so the TYPE
@@ -270,7 +274,7 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             className={cn(
               "pointer-events-none absolute bottom-2 left-2 tnum rounded-full px-2 py-0.5 text-[11px] font-semibold border",
               "text-[var(--color-ink-primary)]",
-              daysBadge === "Hoy" || daysBadge === "1 d"
+              daysBadge === "Hoy" || daysBadge === "Today" || daysBadge === "1 d"
                 ? "bg-[var(--color-warn-critical-soft)] border-[var(--color-warn-critical)]/40"
                 : "bg-[var(--color-surface)] border-[var(--color-hairline)]",
             )}
@@ -329,10 +333,10 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
         {noPriceData && (
           <div className="hairline-t pt-1 flex items-center justify-between gap-2 text-[11px]">
             <span className="uppercase tracking-wide text-[10px] text-[var(--color-ink-tertiary)]">
-              {isVariosLotes ? "Varios lotes" : "Precio"}
+              {isVariosLotes ? t("variosLotes") : t("precio")}
             </span>
             <span className="font-medium text-[var(--color-ink-secondary)]">
-              No disponible
+              {t("noDisponible")}
             </span>
           </div>
         )}
@@ -366,7 +370,7 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             {hasCurrentBid && (
               <div className="flex items-baseline justify-between gap-2 min-w-0">
                 <span className="text-[10px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
-                  Puja actual
+                  {t("pujaActual")}
                 </span>
                 <span className="tnum font-semibold text-[12px] text-[var(--color-ink-primary)]">
                   {formatPrice(item.currentBid)}
@@ -381,7 +385,7 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
         {valueLines.length === 0 && hasCurrentBid && !noPriceData && (
           <div className="hairline-t pt-1 flex items-baseline justify-between gap-2">
             <span className="text-[10px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
-              Puja actual
+              {t("pujaActual")}
             </span>
             <span className="tnum font-semibold text-sm text-[var(--color-ink-primary)]">
               {formatPrice(item.currentBid)}
@@ -422,7 +426,7 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             typeLabel.toLowerCase() === "vivienda" || item.category === "Viviendas" ? (
               <span
                 className="inline-flex items-center rounded-full border border-[var(--color-brand)]/30 bg-[var(--color-brand)]/[0.06] px-2 py-0.5 text-[10px] uppercase tracking-wide font-semibold text-[var(--color-brand)] truncate"
-                aria-label={`Tipo: ${typeLabel}`}
+                aria-label={t("tipoAria", { type: typeLabel })}
                 title={typeLabel}
               >
                 {typeLabel}
@@ -441,7 +445,7 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
               never render "Termina en"; their status-appropriate date line
               shows in the row below this strip. */}
           {dateLabel === "Termina" && hasEndDate && (
-            <LiveCountdown target={item.endDate} size="sm" prefix="Termina en" effectiveStatus={effective} />
+            <LiveCountdown target={item.endDate} size="sm" prefix={t("terminaEnPrefix")} effectiveStatus={effective} />
           )}
         </div>
 
@@ -461,11 +465,11 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             dateNode = (
               <span className="inline-flex items-center gap-1 tnum">
                 <Calendar className="h-3 w-3" aria-hidden="true" />
-                <span className="text-[var(--color-ink-secondary)]">Próxima apertura</span>
+                <span className="text-[var(--color-ink-secondary)]">{tDomain("proximaApertura")}</span>
                 {opensLabel ? (
                   <>: <span className="text-[var(--color-ink-primary)]">{opensLabel}</span></>
                 ) : (
-                  <> · <span className="text-[var(--color-ink-quiet)]">Fecha por confirmar</span></>
+                  <> · <span className="text-[var(--color-ink-quiet)]">{tDomain("fechaPorConfirmar")}</span></>
                 )}
               </span>
             );
@@ -473,11 +477,11 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             dateNode = (
               <span className="inline-flex items-center gap-1 tnum">
                 <Calendar className="h-3 w-3" aria-hidden="true" />
-                <span className="text-[var(--color-ink-secondary)]">Fecha prevista de reanudación</span>
+                <span className="text-[var(--color-ink-secondary)]">{t("fechaPrevistaReanudacion")}</span>
                 {resumeDateStr ? (
                   <>: <span className="text-[var(--color-ink-primary)]">{resumeDateStr}</span></>
                 ) : (
-                  <> · <span className="text-[var(--color-ink-quiet)]">Fecha por confirmar</span></>
+                  <> · <span className="text-[var(--color-ink-quiet)]">{tDomain("fechaPorConfirmar")}</span></>
                 )}
               </span>
             );
@@ -486,7 +490,7 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             dateNode = (
               <span className="inline-flex items-center gap-1 tnum">
                 <Calendar className="h-3 w-3" aria-hidden="true" />
-                <span className="text-[var(--color-ink-quiet)]">Inicio </span>
+                <span className="text-[var(--color-ink-quiet)]">{tDomain("inicio")} </span>
                 <span className="text-[var(--color-ink-secondary)]">{opensLabel}</span>
               </span>
             );
@@ -518,7 +522,7 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-soft)]/40",
             )}
           >
-            Ir al BOE oficial →
+            {t("irAlBoe")}
           </a>
         )}
 
@@ -540,7 +544,7 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              aria-label="Ver ubicación en Google Maps"
+              aria-label={t("verUbicacionGoogleMaps")}
               className={cn(
                 "inline-flex items-center justify-center gap-1 rounded-md",
                 "border border-[var(--color-brand-soft)]/30 px-2 py-1 text-[11px] font-medium",
@@ -549,7 +553,7 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
               )}
             >
               <MapPin className="h-3 w-3" aria-hidden="true" />
-              Ver en Google Maps
+              {t("verEnGoogleMaps")}
             </a>
           );
         })()}

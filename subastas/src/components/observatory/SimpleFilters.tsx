@@ -16,6 +16,7 @@
  */
 
 import * as React from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { SlidersHorizontal, X } from "lucide-react";
 import {
   ObservatoryFilters,
@@ -55,6 +56,7 @@ export function SimpleFilters({
   resultCount,
   className,
 }: SimpleFiltersProps) {
+  const t = useTranslations("listUi");
   // Local price inputs so we don't spam the parent during typing.
   const [minStr, setMinStr] = React.useState(
     filters.priceMin == null ? "" : String(filters.priceMin),
@@ -87,21 +89,21 @@ export function SimpleFilters({
         "rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] p-4 md:p-5 space-y-5",
         className,
       )}
-      aria-label="Filtros"
+      aria-label={t("filtros")}
     >
       <div className="flex items-baseline justify-between">
-        <h2 className="font-serif text-base text-[var(--color-ink-primary)]">Filtros</h2>
+        <h2 className="font-serif text-base text-[var(--color-ink-primary)]">{t("filtros")}</h2>
         <button
           type="button"
           onClick={onClear}
           className="text-xs text-[var(--color-ink-tertiary)] hover:text-[var(--color-brand)] focus-visible:outline-none focus-visible:underline transition-colors"
         >
-          Limpiar
+          {t("limpiar")}
         </button>
       </div>
 
       {/* ¿Qué buscas? */}
-      <FilterBlock label="¿Qué buscas?">
+      <FilterBlock label={t("queBuscas")}>
         <div className="flex flex-wrap gap-1.5">
           {SIMPLE_KIND_OPTIONS.map((opt) => {
             const active = filters.kind === opt.id && filters.categories.length === 0;
@@ -127,15 +129,15 @@ export function SimpleFilters({
       </FilterBlock>
 
       {/* ¿Dónde? */}
-      <FilterBlock label="¿Dónde?">
+      <FilterBlock label={t("donde")}>
         <div className="space-y-2">
           <select
             value={filters.province}
             onChange={(e) => onChange({ province: e.target.value, municipality: "" })}
             className="tnum w-full rounded-md border border-[var(--color-hairline)] bg-white px-3 py-2 text-sm text-[var(--color-ink-primary)] focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15"
-            aria-label="Provincia"
+            aria-label={t("provincia")}
           >
-            <option value="">Todas las provincias</option>
+            <option value="">{t("todasLasProvincias")}</option>
             {provinces.map((p) => (
               <option key={p} value={p}>
                 {p}
@@ -148,10 +150,10 @@ export function SimpleFilters({
               value={filters.municipality}
               onChange={(e) => onChange({ municipality: e.target.value })}
               className="tnum w-full rounded-md border border-[var(--color-hairline)] bg-white px-3 py-2 text-sm text-[var(--color-ink-primary)] focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15"
-              aria-label="Municipio"
+              aria-label={t("municipio")}
               disabled={municipalities.length === 0}
             >
-              <option value="">Todos los municipios</option>
+              <option value="">{t("todosLosMunicipios")}</option>
               {municipalities.map((m) => (
                 <option key={m} value={m}>
                   {m}
@@ -163,7 +165,7 @@ export function SimpleFilters({
       </FilterBlock>
 
       {/* ¿Cuándo? */}
-      <FilterBlock label="¿Cuándo?">
+      <FilterBlock label={t("cuando")}>
         <div className="space-y-1.5">
           {SIMPLE_WHEN_OPTIONS.map((opt) => {
             const active = filters.when === opt.id && filters.statuses.length === 0;
@@ -188,7 +190,7 @@ export function SimpleFilters({
       </FilterBlock>
 
       {/* ¿Cuánto? */}
-      <FilterBlock label="¿Cuánto?">
+      <FilterBlock label={t("cuanto")}>
         <div className="flex items-center gap-2">
           <input
             type="number"
@@ -197,9 +199,9 @@ export function SimpleFilters({
             value={minStr}
             onChange={(e) => setMinStr(e.target.value)}
             onBlur={commitPrice}
-            placeholder="Min €"
+            placeholder={t("simpleMinPlaceholder")}
             className="tnum w-full rounded-md border border-[var(--color-hairline)] bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15"
-            aria-label="Precio mínimo"
+            aria-label={t("precioMinimo")}
           />
           <span aria-hidden="true" className="text-[var(--color-ink-tertiary)]">
             –
@@ -211,9 +213,9 @@ export function SimpleFilters({
             value={maxStr}
             onChange={(e) => setMaxStr(e.target.value)}
             onBlur={commitPrice}
-            placeholder="Max €"
+            placeholder={t("simpleMaxPlaceholder")}
             className="tnum w-full rounded-md border border-[var(--color-hairline)] bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15"
-            aria-label="Precio máximo"
+            aria-label={t("precioMaximo")}
           />
         </div>
       </FilterBlock>
@@ -226,14 +228,14 @@ export function SimpleFilters({
           className="inline-flex items-center gap-2 text-sm font-medium text-[var(--color-brand)] hover:underline focus-visible:outline-none focus-visible:underline"
         >
           <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-          Más filtros
+          {t("masFiltros")}
         </button>
         {resultCount != null && (
           <p className="mt-3 text-xs text-[var(--color-ink-tertiary)] tnum">
             <span className="font-semibold text-[var(--color-ink-primary)]">
               {resultCount.toLocaleString("es-ES")}
             </span>{" "}
-            subastas coinciden
+            {t("subastasCoinciden")}
           </p>
         )}
       </div>
@@ -271,6 +273,8 @@ export function ActiveFilterChips({
   onChange: (next: Partial<ObservatoryFilters>) => void;
   onClear: () => void;
 }) {
+  const t = useTranslations("listUi");
+  const locale = useLocale();
   const chips: Array<{ key: string; label: string; onRemove: () => void }> = [];
 
   if (filters.kind !== "todo" && filters.categories.length === 0) {
@@ -361,7 +365,7 @@ export function ActiveFilterChips({
   for (const s of filters.sources) {
     chips.push({
       key: `src-${s}`,
-      label: `Fuente: ${getSourceLabel(s) ?? s}`,
+      label: t("fuenteChip", { label: getSourceLabel(s) ?? s }),
       onRemove: () => onChange({ sources: filters.sources.filter((x) => x !== s) }),
     });
   }
@@ -377,7 +381,7 @@ export function ActiveFilterChips({
     if (opt) {
       chips.push({
         key: "sort",
-        label: `Orden: ${opt.label}`,
+        label: t("ordenChip", { label: opt.label }),
         onRemove: () => onChange({ sort: DEFAULT_SORT }),
       });
     }
@@ -385,7 +389,7 @@ export function ActiveFilterChips({
   if (filters.pctTasacionMax != null) {
     chips.push({
       key: "pctTasacion",
-      label: `≤ ${filters.pctTasacionMax}% tasación`,
+      label: t("pctTasacionChip", { pct: filters.pctTasacionMax }),
       onRemove: () => onChange({ pctTasacionMax: null }),
     });
   }
@@ -393,10 +397,10 @@ export function ActiveFilterChips({
     const d = new Date(filters.endsBefore);
     const fmt = isNaN(d.getTime())
       ? filters.endsBefore
-      : d.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+      : d.toLocaleDateString(locale === "en" ? "en-GB" : "es-ES", { day: "numeric", month: "short" });
     chips.push({
       key: "endsBefore",
-      label: `Termina antes del ${fmt}`,
+      label: t("terminaAntesChip", { date: fmt }),
       onRemove: () => onChange({ endsBefore: null }),
     });
   }
@@ -407,33 +411,33 @@ export function ActiveFilterChips({
     const d = new Date(iso);
     return isNaN(d.getTime())
       ? iso
-      : d.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+      : d.toLocaleDateString(locale === "en" ? "en-GB" : "es-ES", { day: "numeric", month: "short" });
   };
   if (filters.endsAfter) {
     chips.push({
       key: "endsAfter",
-      label: `Finaliza desde: ${shortDate(filters.endsAfter)}`,
+      label: t("finalizaDesdeChip", { date: shortDate(filters.endsAfter) }),
       onRemove: () => onChange({ endsAfter: null }),
     });
   }
   if (filters.publishedAfter) {
     chips.push({
       key: "publishedAfter",
-      label: `Publicada desde: ${shortDate(filters.publishedAfter)}`,
+      label: t("publicadaDesdeChip", { date: shortDate(filters.publishedAfter) }),
       onRemove: () => onChange({ publishedAfter: null }),
     });
   }
   if (filters.publishedBefore) {
     chips.push({
       key: "publishedBefore",
-      label: `Publicada hasta: ${shortDate(filters.publishedBefore)}`,
+      label: t("publicadaHastaChip", { date: shortDate(filters.publishedBefore) }),
       onRemove: () => onChange({ publishedBefore: null }),
     });
   }
   if (filters.hasImage) {
     chips.push({
       key: "hasImage",
-      label: "Con foto",
+      label: t("conFoto"),
       onRemove: () => onChange({ hasImage: false }),
     });
   }
@@ -458,7 +462,7 @@ export function ActiveFilterChips({
           <button
             type="button"
             onClick={c.onRemove}
-            aria-label={`Quitar filtro ${c.label}`}
+            aria-label={t("quitarFiltro", { label: c.label })}
             className="ml-0.5 inline-flex items-center justify-center rounded-full p-0.5 text-[var(--color-ink-tertiary)] hover:bg-[var(--color-surface)] hover:text-[var(--color-brand)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40"
           >
             <X className="h-3 w-3" aria-hidden="true" />
@@ -470,7 +474,7 @@ export function ActiveFilterChips({
         onClick={onClear}
         className="text-xs font-medium text-[var(--color-ink-tertiary)] hover:text-[var(--color-brand)] focus-visible:outline-none focus-visible:underline"
       >
-        Limpiar
+        {t("limpiar")}
       </button>
     </div>
   );

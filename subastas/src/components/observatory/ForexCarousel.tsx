@@ -48,6 +48,7 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useLocale, useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight, ArrowRight, Loader2, MapPin } from "lucide-react";
 import { apiFetch } from "@/lib/api-path";
 import { StatusBadge } from "./StatusBadge";
@@ -261,9 +262,9 @@ export type ForexCarouselProps = {
   /** Notify parent of the current drifting card count (for the "Todas" pill). */
   onItemsCountChange?: (count: number) => void;
 
-  /** Header text — defaults to "Últimas actualizaciones" for backwards
-   *  compatibility. The home page passes "Últimos inmuebles" / "Últimos
-   *  vehículos" via this prop. */
+  /** Header text — defaults to the localized "Últimas actualizaciones" for
+   *  backwards compatibility. The home page passes "Últimos inmuebles" /
+   *  "Últimos vehículos" via this prop. */
   heading?: string;
 
   /** Compact card mode — shrinks card width + image + typography by ~25 %
@@ -291,10 +292,12 @@ export function ForexCarousel({
   onCardClick,
   pause = false,
   onItemsCountChange,
-  heading = "Últimas actualizaciones",
+  heading,
   compact = false,
   categoryGroup = null,
 }: ForexCarouselProps) {
+  const t = useTranslations("carousel");
+  const headingText = heading ?? t("latestUpdates");
   // Unique id so two carousels on the same page (home: properties + vehicles)
   // don't collide on `aria-labelledby`.
   const headingId = React.useId();
@@ -597,7 +600,7 @@ export function ForexCarousel({
             id={headingId}
             className="font-display text-base md:text-lg text-[var(--color-ink-primary)] whitespace-nowrap"
           >
-            {heading}
+            {headingText}
           </h2>
           {/* Per Dennis (2026-06-03): removed the "{items.length} activas"
               indicator. `items.length` is the carousel's fetch cap (30), not
@@ -616,7 +619,7 @@ export function ForexCarousel({
               <button
                 type="button"
                 onClick={() => scrollBy(-1)}
-                aria-label="Anterior"
+                aria-label={t("previous")}
                 className="h-8 w-8 inline-flex items-center justify-center text-[var(--color-ink-secondary)] hover:bg-[var(--color-surface-muted)] focus-visible:outline-none focus-visible:bg-[var(--color-surface-muted)] cursor-pointer"
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -624,7 +627,7 @@ export function ForexCarousel({
               <button
                 type="button"
                 onClick={() => scrollBy(1)}
-                aria-label="Siguiente"
+                aria-label={t("next")}
                 className="h-8 w-8 inline-flex items-center justify-center text-[var(--color-ink-secondary)] hover:bg-[var(--color-surface-muted)] focus-visible:outline-none focus-visible:bg-[var(--color-surface-muted)] cursor-pointer"
               >
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
@@ -641,7 +644,7 @@ export function ForexCarousel({
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/40",
             )}
           >
-            Ver todas
+            {t("verTodas")}
             <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
           </Link>
         </div>
@@ -650,11 +653,11 @@ export function ForexCarousel({
       {loading && items.length === 0 ? (
         <div className="flex items-center justify-center gap-2 py-8 text-sm text-[var(--color-ink-tertiary)]">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Cargando subastas activas…
+          {t("loading")}
         </div>
       ) : items.length === 0 ? (
         <div className="px-4 py-8 text-center text-sm text-[var(--color-ink-tertiary)]">
-          Sin subastas activas con este filtro.
+          {t("empty")}
         </div>
       ) : useStaticScroller ? (
         /* Reduced-motion fallback: a plain horizontally-scrollable strip. No
@@ -662,7 +665,7 @@ export function ForexCarousel({
         <div
           ref={scrollerRef}
           role="region"
-          aria-label="Carrusel de subastas activas"
+          aria-label={t("regionAria")}
           className={cn(
             "flex gap-2 overflow-x-auto overflow-y-hidden px-3 py-3",
             "snap-x snap-mandatory scroll-px-3 scroll-smooth",
@@ -714,7 +717,7 @@ export function ForexCarousel({
           <div
             ref={trackRef}
             role="region"
-            aria-label="Carrusel de subastas activas"
+            aria-label={t("regionAria")}
             className="flex gap-2 px-3 py-3 w-max will-change-transform"
             style={{ transform: "translate3d(0,0,0)" }}
           >
@@ -791,6 +794,9 @@ function ExpandedCard({
    *  address + municipality phrasing. Null → infer from category. */
   categoryGroup?: CategoryGroup | null;
 }) {
+  const t = useTranslations("carousel");
+  const tDomain = useTranslations("domain");
+  const locale = useLocale() as "es" | "en";
   // Status-branched date intent (Wave52, Pixel 2026-06-04). The carousel was
   // the surface in Dennis's screenshot showing "Termina en 6d 13h" + a
   // floating "6 d" badge on a PROXIMA card — both fake (pre-auctions have no
@@ -848,21 +854,21 @@ function ExpandedCard({
   // their own status-branched date line below). Distinct from the floating
   // top-right badge which shows just days.
   const terminaEn = isActiveLabel ? formatEndsInCompact(endsAt) : null;
-  const endDateLabel = isActiveLabel ? formatDateMed(endsAt) : "—";
+  const endDateLabel = isActiveLabel ? formatDateMed(endsAt, locale) : "—";
   // Pre-parsed PROXIMA / SUSPENDIDA date strings used below.
   const opensLabel = (() => {
     if (!auction.opensAt) return null;
     const d = new Date(auction.opensAt);
     return Number.isNaN(d.getTime())
       ? null
-      : d.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+      : d.toLocaleDateString(locale === "en" ? "en-GB" : "es-ES", { day: "numeric", month: "short" });
   })();
   const resumeLabel = (() => {
     if (!auction.resumeAt) return null;
     const d = new Date(auction.resumeAt);
     return Number.isNaN(d.getTime())
       ? null
-      : d.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+      : d.toLocaleDateString(locale === "en" ? "en-GB" : "es-ES", { day: "numeric", month: "short" });
   })();
 
   // Wave C1b (2026-06-07): the Ref. BOE + Docs pill have been removed from
@@ -899,9 +905,9 @@ function ExpandedCard({
       : null;
   // Build the labelled price-line list — used by the bottom price grid.
   const priceLines: Array<{ key: string; label: string; amount: number }> = [];
-  if (tasacion != null) priceLines.push({ key: 'tasacion', label: 'Tasación', amount: tasacion });
-  if (valorSubasta != null) priceLines.push({ key: 'valorSubasta', label: 'Valor subasta', amount: valorSubasta });
-  if (reclamada != null) priceLines.push({ key: 'claimedAmount', label: 'Cantidad reclamada', amount: reclamada });
+  if (tasacion != null) priceLines.push({ key: 'tasacion', label: tDomain('tasacion'), amount: tasacion });
+  if (valorSubasta != null) priceLines.push({ key: 'valorSubasta', label: tDomain('valorSubasta'), amount: valorSubasta });
+  if (reclamada != null) priceLines.push({ key: 'claimedAmount', label: tDomain('cantidadReclamada'), amount: reclamada });
   const [imgFailed, setImgFailed] = React.useState(false);
   // Image resolver still wants a "title" for the placeholder alt text; pass
   // the type headline (always populated and human-readable) rather than the
@@ -986,7 +992,7 @@ function ExpandedCard({
             className="absolute bottom-1 right-1 inline-flex items-center gap-1 rounded-full border border-[var(--color-hairline)] bg-[var(--color-surface)]/90 px-1.5 py-0.5 text-[9px] font-medium text-[var(--color-ink-secondary)]"
           >
             <MapPin className="h-2.5 w-2.5" />
-            Ubicación
+            {t("location")}
           </span>
         )}
         {/* Status + TYPE banner column (top-left). Vertical stack so the
@@ -1012,7 +1018,7 @@ function ExpandedCard({
                 : "bg-[var(--color-surface)] border-[var(--color-hairline)]",
             )}
           >
-            {ended ? "Finalizada" : formatDaysLeft(endsAt)}
+            {ended ? t("finalizada") : formatDaysLeft(endsAt, locale)}
           </span>
         )}
       </div>
@@ -1061,11 +1067,11 @@ function ExpandedCard({
             return (
               <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0 text-[10px] text-[var(--color-ink-secondary)]">
                 <span className="tnum">
-                  <span className="text-[var(--color-ink-tertiary)]">Próxima apertura</span>
+                  <span className="text-[var(--color-ink-tertiary)]">{tDomain("proximaApertura")}</span>
                   {opensLabel ? (
                     <> · <span className="text-[var(--color-ink-primary)]">{opensLabel}</span></>
                   ) : (
-                    <> · <span className="text-[var(--color-ink-quiet)]">Fecha por confirmar</span></>
+                    <> · <span className="text-[var(--color-ink-quiet)]">{tDomain("fechaPorConfirmar")}</span></>
                   )}
                 </span>
               </div>
@@ -1076,11 +1082,11 @@ function ExpandedCard({
             return (
               <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0 text-[10px] text-[var(--color-ink-secondary)]">
                 <span className="tnum">
-                  <span className="text-[var(--color-ink-tertiary)]">Reanudación</span>
+                  <span className="text-[var(--color-ink-tertiary)]">{tDomain("reanudacion")}</span>
                   {resumeLabel ? (
                     <> · <span className="text-[var(--color-ink-primary)]">{resumeLabel}</span></>
                   ) : (
-                    <> · <span className="text-[var(--color-ink-quiet)]">Fecha por confirmar</span></>
+                    <> · <span className="text-[var(--color-ink-quiet)]">{tDomain("fechaPorConfirmar")}</span></>
                   )}
                 </span>
               </div>
@@ -1092,7 +1098,7 @@ function ExpandedCard({
           if (opensLabel) {
             parts.push(
               <span key="opens" className="tnum">
-                <span className="text-[var(--color-ink-tertiary)]">Inicio </span>
+                <span className="text-[var(--color-ink-tertiary)]">{tDomain("inicio")} </span>
                 <span className="text-[var(--color-ink-primary)]">{opensLabel}</span>
               </span>,
             );
@@ -1100,7 +1106,13 @@ function ExpandedCard({
           if (terminaEn) {
             parts.push(
               <span key="ends" className="tnum">
-                <span className="text-[var(--color-ink-tertiary)]">Termina en </span>
+                {/* domain.terminaEn = "Termina en {time}". We need the time
+                    styled bolder than the label, so format with an empty
+                    {time} for the label text and render the value in its own
+                    span (both locales keep the placeholder trailing). */}
+                <span className="text-[var(--color-ink-tertiary)]">
+                  {tDomain("terminaEn", { time: "" }).trimEnd()}{" "}
+                </span>
                 <span className="font-semibold text-[var(--color-ink-primary)]">{terminaEn}</span>
               </span>,
             );
@@ -1133,10 +1145,10 @@ function ExpandedCard({
           {noPriceData && (
             <div className="flex items-baseline justify-between gap-2 min-w-0">
               <span className="text-[9px] uppercase tracking-wide text-[var(--color-ink-tertiary)] truncate">
-                {isVariosLotes ? "Varios lotes" : "Precio"}
+                {isVariosLotes ? t("variosLotes") : t("precio")}
               </span>
               <span className="text-[11px] font-medium text-[var(--color-ink-secondary)] shrink-0">
-                No disponible
+                {t("noDisponible")}
               </span>
             </div>
           )}
@@ -1163,7 +1175,7 @@ function ExpandedCard({
           {deposit != null && (
             <div className="flex items-baseline justify-between gap-2 min-w-0">
               <span className="text-[9px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
-                Depósito
+                {t("deposito")}
               </span>
               <span className="tnum text-[12.5px] font-semibold text-[var(--color-ink-primary)] shrink-0">
                 {formatPrice(deposit)}
@@ -1201,7 +1213,7 @@ function ExpandedCard({
         tabIndex={duplicate ? -1 : 0}
         className={cardClass}
         title={cardHeadline}
-        aria-label={`Ver detalles: ${cardHeadline}`}
+        aria-label={t("verDetalles", { title: cardHeadline })}
       >
         {innerBody}
       </button>

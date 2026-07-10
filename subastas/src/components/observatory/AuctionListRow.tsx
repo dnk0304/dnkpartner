@@ -13,6 +13,7 @@
  */
 
 import * as React from "react";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import Image from "next/image";
 import { MapPin, Calendar } from "lucide-react";
@@ -37,10 +38,13 @@ export type AuctionListRowProps = {
 };
 
 export function AuctionListRow({ item, className }: AuctionListRowProps) {
+  const t = useTranslations("listUi");
+  const tDomain = useTranslations("domain");
+  const locale = useLocale() as "es" | "en";
   // Clock-wins: a stale celebrandose row whose endDate has passed must render
   // as concluded so the dot + label + countdown agree.
   const effective = effectiveStatus(item.status, item.endDate) as AuctionStatus;
-  const meta = getStatusMeta(effective);
+  const meta = getStatusMeta(effective, locale);
   // Town==Province dedupe (2026-06-19): show the town ONCE when municipality
   // and province are the same place — never "Valencia · Valencia".
   const where = (() => {
@@ -109,20 +113,20 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
   // value wins is the prominent number in the primary price cell; the
   // remaining present values stack in the secondary cell.
   const headlinePrice = hasTasacion
-    ? { key: "tasacion", label: "tasación", amount: item.appraisalValue as number }
+    ? { key: "tasacion", label: tDomain("tasacion"), amount: item.appraisalValue as number }
     : hasValorSubasta
-    ? { key: "valorSubasta", label: "valor subasta", amount: item.valorSubasta as number }
+    ? { key: "valorSubasta", label: tDomain("valorSubasta"), amount: item.valorSubasta as number }
     : hasCurrentBid
-    ? { key: "currentBid", label: "puja actual", amount: item.currentBid as number }
+    ? { key: "currentBid", label: t("pujaActual"), amount: item.currentBid as number }
     : null;
   // Secondary stacked lines — only ones NOT used as the headline, in display
   // order (Valor subasta → Cantidad reclamada).
   const secondaryStack: Array<{ key: string; label: string; amount: number }> = [];
   if (hasValorSubasta && headlinePrice?.key !== "valorSubasta") {
-    secondaryStack.push({ key: "valorSubasta", label: "valor subasta", amount: item.valorSubasta as number });
+    secondaryStack.push({ key: "valorSubasta", label: tDomain("valorSubasta"), amount: item.valorSubasta as number });
   }
   if (hasClaimed) {
-    secondaryStack.push({ key: "claimedAmount", label: "cant. reclamada", amount: item.claimedAmount as number });
+    secondaryStack.push({ key: "claimedAmount", label: t("cantReclamada"), amount: item.claimedAmount as number });
   }
   const isVariosLotes = isVariosLotesTitle(item.title);
   // Type label — propertyType (from doc-archive backfill) preferred over the
@@ -132,7 +136,7 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
   const opensDate = item.opensAt ? new Date(item.opensAt) : null;
   const opensLabel =
     opensDate && !Number.isNaN(opensDate.getTime())
-      ? formatDateMed(opensDate)
+      ? formatDateMed(opensDate, locale)
       : null;
   // Status-branched date intent (Wave52, Pixel 2026-06-04). The "termina en"
   // column is gated to active rows; PROXIMA and SUSPENDIDA show the static
@@ -142,7 +146,7 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
     const v = (item as { resumeAt?: string | null }).resumeAt;
     if (!v) return null;
     const d = new Date(v);
-    return Number.isNaN(d.getTime()) ? null : formatDateMed(d);
+    return Number.isNaN(d.getTime()) ? null : formatDateMed(d, locale);
   })();
 
   return (
@@ -252,7 +256,7 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
         {typeLabel.toLowerCase() === "vivienda" || item.category === "Viviendas" ? (
           <span
             className="inline-flex items-center rounded-full border border-[var(--color-brand)]/30 bg-[var(--color-brand)]/[0.06] px-2 py-0.5 text-[11px] font-semibold text-[var(--color-brand)]"
-            aria-label={`Tipo: ${typeLabel}`}
+            aria-label={t("tipoAria", { type: typeLabel })}
             title={typeLabel}
           >
             {typeLabel}
@@ -269,7 +273,7 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
           <div className="mt-0.5 flex items-center gap-2 text-[10px] text-[var(--color-ink-tertiary)] font-normal tnum">
             <span className="inline-flex items-center gap-1">
               <Calendar className="h-2.5 w-2.5" aria-hidden="true" />
-              Inicio {opensLabel}
+              {tDomain("inicio")} {opensLabel}
             </span>
           </div>
         )}
@@ -310,10 +314,10 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
         ) : noPriceData ? (
           <div className="text-right">
             <div className="text-[10px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
-              {isVariosLotes ? "Varios lotes" : "Sin datos"}
+              {isVariosLotes ? t("variosLotes") : t("sinDatos")}
             </div>
             <div className="text-[11px] text-[var(--color-ink-secondary)]">
-              Precio no disponible
+              {t("precioNoDisponible")}
             </div>
           </div>
         ) : (
@@ -355,19 +359,19 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
         ) : dateLabel === "Próxima apertura" ? (
           <span className="tnum">
             <span className="block text-[10px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
-              Próx. apertura
+              {t("proxApertura")}
             </span>
             <span className="text-[var(--color-ink-primary)]">
-              {opensLabel ?? <span className="text-[var(--color-ink-quiet)]">Fecha por confirmar</span>}
+              {opensLabel ?? <span className="text-[var(--color-ink-quiet)]">{tDomain("fechaPorConfirmar")}</span>}
             </span>
           </span>
         ) : dateLabel === "Fecha prevista de reanudación" ? (
           <span className="tnum">
             <span className="block text-[10px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
-              Reanudación
+              {tDomain("reanudacion")}
             </span>
             <span className="text-[var(--color-ink-primary)]">
-              {resumeDateStr ?? <span className="text-[var(--color-ink-quiet)]">Fecha por confirmar</span>}
+              {resumeDateStr ?? <span className="text-[var(--color-ink-quiet)]">{tDomain("fechaPorConfirmar")}</span>}
             </span>
           </span>
         ) : (

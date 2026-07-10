@@ -23,13 +23,14 @@ import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Suspense } from 'react';
+import { getLocale, getTranslations } from 'next-intl/server';
+import { buildAlternates, ogLocale } from '@/lib/seo/alternates';
+import type { Locale } from '@/i18n/routing';
 import {
   resolveSubastasSlug,
-  CATEGORY_LABEL_PLURAL,
   isOfficialCategory,
   CATEGORY_INDEX_THRESHOLD,
   TIPO_SLUGS,
-  TIPO_LABEL_PLURAL,
   type CategorySlug,
 } from '@/lib/seo/slugs';
 import {
@@ -52,33 +53,40 @@ const SITE = 'https://subastasactivas.com';
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const r = resolveSubastasSlug(slug);
+  const t = await getTranslations('listTemplates');
   if (r.kind === 'reserved' || r.kind === 'invalid' || r.kind === 'redirect') {
-    return { title: 'Página no encontrada' };
+    return { title: t('notFoundTitle') };
   }
+  const locale = (await getLocale()) as Locale;
+  const nf = locale === 'en' ? 'en-US' : 'es-ES';
 
   if (r.kind === 'category') {
-    const plural = CATEGORY_LABEL_PLURAL[r.slug];
+    const plural = t(`categoryLabel.${r.slug}`);
     const count = await countActiveAuctions({ category: r.dbLabel });
-    const title = `${count.toLocaleString('es-ES')} subastas de ${plural} · estado en vivo | SubastasActivas`;
-    const description = `${count.toLocaleString('es-ES')} subastas de ${plural} activas en toda España con estado en vivo, precio de salida y enlace al BOE. Encuentra ${plural} embargadas. Actualizado a diario.`.slice(0, 158);
+    const title = t('categoryMetaTitle', { count: count.toLocaleString(nf), plural });
+    const description = t('categoryMetaDescription', { count: count.toLocaleString(nf), plural }).slice(0, 158);
     const indexable = isOfficialCategory(r.dbLabel) && count >= CATEGORY_INDEX_THRESHOLD;
     return {
       title,
       description,
-      alternates: { canonical: `${SITE}/subastas/${slug}` },
+      // Self-canonical per locale + es/en/x-default hreflang (i18n Phase 1).
+      ...buildAlternates(`/subastas/${slug}`, locale),
+      openGraph: { locale: ogLocale(locale) },
       robots: indexable ? 'index,follow' : 'noindex,follow',
     };
   }
 
   // kind === 'province'
   const count = await countActiveAuctions({ province: r.dbKey });
-  const title = `${count.toLocaleString('es-ES')} subastas en ${r.label} · estado en vivo | SubastasActivas`;
-  const description = `${count.toLocaleString('es-ES')} subastas públicas activas en ${r.label}: judiciales, de Hacienda, notariales y más, con su estado en vivo y enlace oficial al BOE. Actualizado a diario.`.slice(0, 158);
+  const title = t('provinceMetaTitle', { count: count.toLocaleString(nf), province: r.label });
+  const description = t('provinceMetaDescription', { count: count.toLocaleString(nf), province: r.label }).slice(0, 158);
   return {
     title,
     description,
-    // CLEAN canonical (Wave 56 — no /provincia/ prefix).
-    alternates: { canonical: `${SITE}/subastas/${slug}` },
+    // CLEAN canonical (Wave 56 — no /provincia/ prefix), self-canonical per
+    // locale + hreflang cluster (i18n Phase 1).
+    ...buildAlternates(`/subastas/${slug}`, locale),
+    openGraph: { locale: ogLocale(locale) },
     robots: count > 0 ? 'index,follow' : 'noindex,follow',
   };
 }
@@ -93,7 +101,8 @@ async function renderCategoryPage(slugUrl: string, r: {
   dbLabel: string;
 }) {
   const { slug: cat, dbLabel } = r;
-  const plural = CATEGORY_LABEL_PLURAL[cat];
+  const t = await getTranslations('listTemplates');
+  const plural = t(`categoryLabel.${cat}`);
 
   const [count, minPrice] = await Promise.all([
     countActiveAuctions({ category: dbLabel }),
@@ -104,18 +113,18 @@ async function renderCategoryPage(slugUrl: string, r: {
     <>
       <Breadcrumbs
         items={[
-          { label: 'Inicio', href: '/' },
-          { label: 'Subastas', href: '/subastas' },
-          { label: `Subastas de ${plural}`, href: `/subastas/${slugUrl}` },
+          { label: t('breadcrumbHome'), href: '/' },
+          { label: t('breadcrumbSubastas'), href: '/subastas' },
+          { label: t('categoryTitle', { plural }), href: `/subastas/${slugUrl}` },
         ]}
       />
       <SeoIntroBlock
         count={count}
-        noun={`subastas de ${plural}`}
-        location="España"
+        noun={t('categoryNoun', { plural })}
+        location={t('spain')}
         minPrice={minPrice}
         guideHref={`/guia/subastas-de-${slugUrl}`}
-        guideLabel={`Guía: subastas de ${plural}`}
+        guideLabel={t('categoryGuideLabel', { plural })}
       />
     </>
   );
@@ -124,7 +133,7 @@ async function renderCategoryPage(slugUrl: string, r: {
     <Suspense fallback={<div className="min-h-screen bg-[var(--color-page)]" />}>
       <SubastasListClient
         lockedFilter={{ category: dbLabel }}
-        seoTitle={`Subastas de ${plural}`}
+        seoTitle={t('categoryTitle', { plural })}
         seoIntroSlot={introSlot}
       />
     </Suspense>
@@ -144,6 +153,7 @@ async function renderProvincePage(slugUrl: string, r: {
   label: string;
 }) {
   const { dbKey, label } = r;
+  const t = await getTranslations('listTemplates');
   const [count, minPrice, municipalities] = await Promise.all([
     countActiveAuctions({ province: dbKey }),
     minStartingPrice({ province: dbKey }),
@@ -163,18 +173,18 @@ async function renderProvincePage(slugUrl: string, r: {
     <>
       <Breadcrumbs
         items={[
-          { label: 'Inicio', href: '/' },
-          { label: 'Subastas', href: '/subastas' },
+          { label: t('breadcrumbHome'), href: '/' },
+          { label: t('breadcrumbSubastas'), href: '/subastas' },
           { label, href: `/subastas/${slugUrl}` },
         ]}
       />
       <SeoIntroBlock
         count={count}
-        noun="subastas públicas"
+        noun={t('publicAuctionsNoun')}
         location={label}
         minPrice={minPrice}
         guideHref="/guia/como-funcionan-las-subastas-boe"
-        guideLabel="Cómo funcionan las subastas BOE"
+        guideLabel={t('boeGuideLabel')}
       />
     </>
   );
@@ -183,7 +193,7 @@ async function renderProvincePage(slugUrl: string, r: {
     <>
       {municipalities.length > 0 && (
         <section className="mt-2">
-          <h2 className="text-lg font-semibold mb-3">Por municipio en {label}</h2>
+          <h2 className="text-lg font-semibold mb-3">{t('byMunicipality', { province: label })}</h2>
           <ul className="flex flex-wrap gap-2">
             {municipalities.map((m) => (
               <li key={m.municipioSlug}>
@@ -201,15 +211,15 @@ async function renderProvincePage(slugUrl: string, r: {
       )}
 
       <section className="mt-10">
-        <h2 className="text-lg font-semibold mb-3">Por tipo de subasta en {label}</h2>
+        <h2 className="text-lg font-semibold mb-3">{t('byTipoIn', { province: label })}</h2>
         <ul className="flex flex-wrap gap-2">
-          {TIPO_SLUGS.map((t) => (
-            <li key={t}>
+          {TIPO_SLUGS.map((ts) => (
+            <li key={ts}>
               <Link
-                href={`/subastas/tipo/${t}`}
+                href={`/subastas/tipo/${ts}`}
                 className="inline-block px-3 py-1 rounded-full border border-[var(--color-border)] text-xs hover:bg-[var(--color-surface-muted)]"
               >
-                {TIPO_LABEL_PLURAL[t]}
+                {t(`tipoLabel.${ts}`)}
               </Link>
             </li>
           ))}
@@ -224,7 +234,7 @@ async function renderProvincePage(slugUrl: string, r: {
     <Suspense fallback={<div className="min-h-screen bg-[var(--color-page)]" />}>
       <SubastasListClient
         lockedFilter={{ province: dbKey }}
-        seoTitle={`Subastas públicas en ${label}`}
+        seoTitle={t('provinceTitle', { province: label })}
         seoIntroSlot={introSlot}
         seoFooterSlot={footerSlot}
       />

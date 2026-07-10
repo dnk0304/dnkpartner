@@ -25,6 +25,7 @@
  */
 
 import * as React from "react";
+import { useTranslations } from "next-intl";
 import { ChevronDown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -33,26 +34,26 @@ import { cn } from "@/lib/utils";
  * does exact-match against these. Order is the visual L→R chip order
  * (properties-first; Viviendas leads).
  */
-const PRIMARY_CATEGORIES: ReadonlyArray<{ id: string; label: string }> = [
-  { id: "Viviendas", label: "Viviendas" },
-  { id: "Otros inmuebles", label: "Otros inmuebles" },
-  { id: "Terrenos", label: "Terrenos" },
-  { id: "Locales", label: "Locales" },
-  { id: "Garajes", label: "Garajes" },
-  { id: "Trasteros", label: "Trasteros" },
+const PRIMARY_CATEGORIES: ReadonlyArray<{ id: string; labelKey: string }> = [
+  { id: "Viviendas", labelKey: "catViviendas" },
+  { id: "Otros inmuebles", labelKey: "catOtrosInmuebles" },
+  { id: "Terrenos", labelKey: "catTerrenos" },
+  { id: "Locales", labelKey: "catLocales" },
+  { id: "Garajes", labelKey: "catGarajes" },
+  { id: "Trasteros", labelKey: "catTrasteros" },
 ];
 
 /** "Más" reveals the long tail (vehicles + arte). Same DB-label exact-match. */
-const SECONDARY_CATEGORIES: ReadonlyArray<{ id: string; label: string }> = [
-  { id: "Fincas rústicas", label: "Fincas rústicas" },
-  { id: "Naves industriales", label: "Naves industriales" },
-  { id: "Turismos", label: "Turismos" },
-  { id: "Motocicletas", label: "Motocicletas" },
-  { id: "Vehículos Industriales", label: "Vehículos industriales" },
-  { id: "Barcos", label: "Barcos" },
-  { id: "Maquinaria", label: "Maquinaria" },
-  { id: "Joyas", label: "Joyas" },
-  { id: "Arte", label: "Arte" },
+const SECONDARY_CATEGORIES: ReadonlyArray<{ id: string; labelKey: string }> = [
+  { id: "Fincas rústicas", labelKey: "catFincasRusticas" },
+  { id: "Naves industriales", labelKey: "catNavesIndustriales" },
+  { id: "Turismos", labelKey: "catTurismos" },
+  { id: "Motocicletas", labelKey: "catMotocicletas" },
+  { id: "Vehículos Industriales", labelKey: "catVehiculosIndustriales" },
+  { id: "Barcos", labelKey: "catBarcos" },
+  { id: "Maquinaria", labelKey: "catMaquinaria" },
+  { id: "Joyas", labelKey: "catJoyas" },
+  { id: "Arte", labelKey: "catArte" },
 ];
 
 /**
@@ -101,6 +102,7 @@ export function HomeQuickFilterChips({
   driftingCount,
   className,
 }: HomeQuickFilterChipsProps) {
+  const t = useTranslations("listUi");
   const [showMore, setShowMore] = React.useState(false);
 
   const isAllActive =
@@ -125,7 +127,7 @@ export function HomeQuickFilterChips({
 
   return (
     <section
-      aria-label="Filtrar el carrusel de subastas"
+      aria-label={t("filtrarCarrusel")}
       className={cn("w-full", className)}
     >
       <div
@@ -145,7 +147,7 @@ export function HomeQuickFilterChips({
           aria-pressed={isAllActive}
           className={chipClass(isAllActive)}
         >
-          <span>Todas</span>
+          <span>{t("todas")}</span>
         </button>
 
         {/* Primary properties-first category chips */}
@@ -165,9 +167,9 @@ export function HomeQuickFilterChips({
                 // visual without screaming.
                 !active && isViviendas && "ring-1 ring-[var(--color-brand-soft)]/40",
               )}
-              title={cat.label}
+              title={t(cat.labelKey)}
             >
-              {cat.label}
+              {t(cat.labelKey)}
             </button>
           );
         })}
@@ -180,7 +182,7 @@ export function HomeQuickFilterChips({
           aria-controls="home-chips-more"
           className={chipClass(false)}
         >
-          <span>Más</span>
+          <span>{t("mas")}</span>
           <ChevronDown
             className={cn(
               "h-3.5 w-3.5 transition-transform",
@@ -192,7 +194,7 @@ export function HomeQuickFilterChips({
 
         {/* Province picker — styled as a chip; tap target is the whole pill. */}
         <label className={cn(chipClass(value.province !== null), "relative cursor-pointer pr-7")}>
-          <span>{value.province ?? "Provincia"}</span>
+          <span>{value.province ?? t("provincia")}</span>
           <ChevronDown
             className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none"
             aria-hidden="true"
@@ -200,10 +202,10 @@ export function HomeQuickFilterChips({
           <select
             value={value.province ?? ""}
             onChange={(e) => setProvince(e.target.value)}
-            aria-label="Filtrar por provincia"
+            aria-label={t("filtrarPorProvincia")}
             className="absolute inset-0 w-full opacity-0 cursor-pointer"
           >
-            <option value="">Todas las provincias</option>
+            <option value="">{t("todasLasProvincias")}</option>
             {PROVINCES.map((p) => (
               <option key={p} value={p}>{p}</option>
             ))}
@@ -217,7 +219,7 @@ export function HomeQuickFilterChips({
           aria-pressed={value.when === "termina-esta-semana"}
           className={chipClass(value.when === "termina-esta-semana")}
         >
-          Termina esta semana
+          {t("terminaEstaSemana")}
         </button>
 
         {/* Clear-all affordance when any chip is set. */}
@@ -230,10 +232,10 @@ export function HomeQuickFilterChips({
               "text-[var(--color-ink-tertiary)] hover:text-[var(--color-ink-primary)] cursor-pointer",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40",
             )}
-            aria-label="Limpiar filtros"
+            aria-label={t("limpiarFiltros")}
           >
             <X className="h-3.5 w-3.5" aria-hidden="true" />
-            Limpiar
+            {t("limpiar")}
           </button>
         )}
       </div>
@@ -256,9 +258,9 @@ export function HomeQuickFilterChips({
                 onClick={() => setCategory(cat.id)}
                 aria-pressed={active}
                 className={chipClass(active)}
-                title={cat.label}
+                title={t(cat.labelKey)}
               >
-                {cat.label}
+                {t(cat.labelKey)}
               </button>
             );
           })}
