@@ -15,3 +15,6 @@ scraper
 docs
 *.md
 !FORGE_PLAN.md
+# /noticias content must reach the build image (root *.md above only
+# matches root-level files, but keep this explicit + future-proof)
+!content/noticias/*.md

@@ -204,6 +204,14 @@ export function SiteFooter() {
                 </li>
                 <li>
                   <Link
+                    href="/noticias"
+                    className="text-[var(--color-ink-secondary)] hover:text-[var(--color-ink-primary)] focus-visible:outline-none focus-visible:underline underline-offset-4"
+                  >
+                    {t("footer.linkNews")}
+                  </Link>
+                </li>
+                <li>
+                  <Link
                     href="/precios"
                     className="text-[var(--color-ink-secondary)] hover:text-[var(--color-ink-primary)] focus-visible:outline-none focus-visible:underline underline-offset-4"
                   >
