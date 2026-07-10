@@ -692,9 +692,7 @@ export function ForexCarousel({
         <div
           className={cn(
             "relative overflow-hidden select-none",
-            // Subtle horizontal fade so cards don't pop in/out at hard edges.
-            "[mask-image:linear-gradient(to_right,transparent,black_24px,black_calc(100%-24px),transparent)]",
-            "[-webkit-mask-image:linear-gradient(to_right,transparent,black_24px,black_calc(100%-24px),transparent)]",
+            // Edge fade mask removed per Dennis 2026-07-10 — cards render to hard edges.
             // Cursor affordance: open hand at rest, closed when scrubbing.
             dragging ? "cursor-grabbing" : "cursor-grab",
           )}
