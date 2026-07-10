@@ -27,6 +27,8 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
+import { getLocale, getTranslations } from 'next-intl/server';
+import type { Locale } from '@/i18n/routing';
 import { Calendar, MapPin } from 'lucide-react';
 import { PROVINCE_DB_KEY_TO_SLUG } from '@/lib/seo/slugs';
 import { capitalize, titleCase, formatDateLong } from '@/components/observatory/format';
@@ -123,7 +125,10 @@ function teaserSnippet(a: AuctionTeaserData, frontendStatus: string): string | n
   });
 }
 
-export function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
+export async function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
+  const locale = (await getLocale()) as Locale;
+  const t = await getTranslations('auctionDetail');
+  const td = await getTranslations('domain');
   const rawFrontendStatus = DB_TO_FRONTEND_STATUS[data.status] ?? 'celebrandose';
   const endsAt = data.endsAt instanceof Date ? data.endsAt.toISOString() : data.endsAt;
   const status = effectiveStatus(rawFrontendStatus, endsAt);
@@ -167,13 +172,13 @@ export function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
   return (
     <section aria-labelledby="auction-teaser-heading" className="space-y-6">
       {/* Breadcrumb */}
-      <nav className="text-xs text-[var(--color-ink-tertiary)] tnum" aria-label="Migas de pan">
+      <nav className="text-xs text-[var(--color-ink-tertiary)] tnum" aria-label={t('breadcrumbAria')}>
         <Link href="/" className="hover:text-[var(--color-brand)]">
-          Inicio
+          {t('breadcrumbHome')}
         </Link>
         <span aria-hidden="true" className="mx-2">·</span>
         <Link href="/subastas" className="hover:text-[var(--color-brand)]">
-          Subastas
+          {t('breadcrumbAuctions')}
         </Link>
         {data.province && (
           <>
@@ -214,7 +219,7 @@ export function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
           {hero.rung === 'map' && (
             <p className="text-[11px] text-[var(--color-ink-tertiary)] flex items-center gap-1.5">
               <MapPin className="h-3 w-3" aria-hidden="true" />
-              Ubicación aproximada. La dirección exacta requiere cuenta.
+              {t('approxLocationTeaser')}
             </p>
           )}
         </div>
@@ -254,14 +259,14 @@ export function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
                 {startingBid ? (
                   <>
                     <div className="text-[11px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
-                      Valor subasta
+                      {td('valorSubasta')}
                     </div>
                     <div className="mt-1 font-serif text-3xl md:text-[2.25rem] font-semibold leading-none tracking-tight text-[var(--color-ink-primary)] tnum">
                       {startingBid}
                     </div>
                     {valuation && (
                       <div className="mt-1.5 text-xs text-[var(--color-ink-tertiary)] tnum">
-                        Tasación {valuation}
+                        {t('tasacionValue', { value: valuation })}
                       </div>
                     )}
                   </>
@@ -269,7 +274,7 @@ export function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
                   // No bid — just valuation
                   <>
                     <div className="text-[11px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
-                      Tasación
+                      {td('tasacion')}
                     </div>
                     <div className="mt-1 font-serif text-3xl md:text-[2.25rem] font-semibold leading-none tracking-tight text-[var(--color-ink-primary)] tnum">
                       {valuation}
@@ -287,15 +292,15 @@ export function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
                   <div className="flex items-baseline justify-between gap-3">
                     <dt className="text-[var(--color-ink-tertiary)]">
                       <Calendar className="inline h-3 w-3 mr-1 align-[-0.05em]" aria-hidden="true" />
-                      Inicio
+                      {td('inicio')}
                     </dt>
-                    <dd className="text-[var(--color-ink-primary)]">{formatDateLong(data.opensAt)}</dd>
+                    <dd className="text-[var(--color-ink-primary)]">{formatDateLong(data.opensAt, locale)}</dd>
                   </div>
                 )}
                 {data.endsAt && (
                   <div className="flex items-baseline justify-between gap-3">
-                    <dt className="text-[var(--color-ink-tertiary)]">Fin</dt>
-                    <dd className="text-[var(--color-ink-primary)]">{formatDateLong(data.endsAt)}</dd>
+                    <dt className="text-[var(--color-ink-tertiary)]">{t('fin')}</dt>
+                    <dd className="text-[var(--color-ink-primary)]">{formatDateLong(data.endsAt, locale)}</dd>
                   </div>
                 )}
               </dl>
@@ -308,7 +313,7 @@ export function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
       {snippet && (
         <div>
           <h2 className="font-serif text-lg text-[var(--color-ink-primary)]">
-            Descripción
+            {t('descripcion')}
           </h2>
           <p className="mt-2 max-w-readable text-[15px] leading-relaxed text-[var(--color-ink-secondary)] whitespace-pre-line">
             {snippet}

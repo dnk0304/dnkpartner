@@ -31,7 +31,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { apiFetch } from "@/lib/api-path";
 import { formatUpdatedDayEs } from "./format";
 
@@ -59,15 +59,16 @@ const TOP_PROVINCES: ReadonlyArray<{ slug: string; label: string }> = [
  * in src/lib/seo/slugs.ts (TIPO_SLUG_TO_DB_KEYS). Plain Spanish labels;
  * we don't say "BOE" anywhere user-facing per Dennis.
  */
-const TIPOS: ReadonlyArray<{ slug: string; label: string }> = [
-  { slug: "judicial", label: "Judiciales" },
-  { slug: "hacienda", label: "Hacienda (AEAT)" },
-  { slug: "notarial", label: "Notariales" },
-  { slug: "administrativas", label: "Administrativas" },
+const TIPOS: ReadonlyArray<{ slug: string; labelKey: string }> = [
+  { slug: "judicial", labelKey: "footer.tipoJudicial" },
+  { slug: "hacienda", labelKey: "footer.tipoHacienda" },
+  { slug: "notarial", labelKey: "footer.tipoNotarial" },
+  { slug: "administrativas", labelKey: "footer.tipoAdministrativas" },
 ];
 
 export function SiteFooter() {
   const t = useTranslations();
+  const locale = useLocale() as "es" | "en";
   const { status } = useSession();
   const router = useRouter();
   const [lastUpdateTime, setLastUpdateTime] = React.useState<string | null>(null);
@@ -182,7 +183,7 @@ export function SiteFooter() {
                       href={`/subastas/tipo/${tipo.slug}`}
                       className="text-[var(--color-ink-secondary)] hover:text-[var(--color-ink-primary)] focus-visible:outline-none focus-visible:underline underline-offset-4"
                     >
-                      {tipo.label}
+                      {t(tipo.labelKey)}
                     </Link>
                   </li>
                 ))}
@@ -286,7 +287,7 @@ export function SiteFooter() {
           <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="tnum">
               {lastUpdateTime
-                ? t("home.footerTagWithUpdate", { when: formatUpdatedDayEs(lastUpdateTime) })
+                ? t("home.footerTagWithUpdate", { when: formatUpdatedDayEs(lastUpdateTime, locale) })
                 : t("home.footerTagSyncing")}
             </p>
             <p className="text-[rgba(255,255,255,0.7)]">

@@ -8,9 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { CheckCircle2, Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { apiFetch } from "@/lib/api-path";
 
 function ResetPasswordContent() {
+  const t = useTranslations('authReset');
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
@@ -25,17 +27,17 @@ function ResetPasswordContent() {
 
   useEffect(() => {
     if (!token) {
-      setError('Invalid or missing reset token');
+      setError(t('invalidTokenMissing'));
     }
-  }, [token]);
+  }, [token, t]);
 
   const validatePassword = () => {
     if (password.length < 8) {
-      setError('Password must be at least 8 characters long');
+      setError(t('passwordTooShort'));
       return false;
     }
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('passwordsMismatch'));
       return false;
     }
     return true;
@@ -45,7 +47,7 @@ function ResetPasswordContent() {
     e.preventDefault();
     
     if (!token) {
-      setError('Invalid reset token');
+      setError(t('invalidToken'));
       return;
     }
     
@@ -72,7 +74,7 @@ function ResetPasswordContent() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Failed to reset password. Please try again.');
+        setError(data.error || t('resetFailed'));
       } else {
         setIsSuccess(true);
         // Redirect to login after 2 seconds
@@ -81,7 +83,7 @@ function ResetPasswordContent() {
         }, 2000);
       }
     } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
+      setError(t('unexpectedError'));
       console.error('Reset password error:', err);
     } finally {
       setIsLoading(false);
@@ -104,13 +106,13 @@ function ResetPasswordContent() {
                   <AlertCircle className="h-6 w-6 text-red-600" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Invalid Reset Link</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">{t('invalidLinkTitle')}</h3>
                   <p className="mt-2 text-sm text-gray-600">
-                    This password reset link is invalid or has expired.
+                    {t('invalidLinkText')}
                   </p>
                 </div>
                 <Button asChild className="w-full">
-                  <Link href="/forgot-password">Request New Link</Link>
+                  <Link href="/forgot-password">{t('requestNewLink')}</Link>
                 </Button>
               </div>
             </CardContent>
@@ -133,28 +135,28 @@ function ResetPasswordContent() {
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-black text-white shadow-xl">
             <span className="text-xl font-bold">S</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Reset your password</h1>
-          <p className="mt-2 text-sm text-gray-500">Enter your new password below</p>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">{t('title')}</h1>
+          <p className="mt-2 text-sm text-gray-500">{t('resetSubtitle')}</p>
         </div>
 
         <Card className="border-gray-200 shadow-xl">
           {!isSuccess ? (
             <>
               <CardHeader className="space-y-1">
-                <CardTitle className="text-xl">Create new password</CardTitle>
+                <CardTitle className="text-xl">{t('createTitle')}</CardTitle>
                 <CardDescription>
-                  Choose a strong password for your account
+                  {t('createDescription')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="password">New Password</Label>
+                    <Label htmlFor="password">{t('newPasswordLabel')}</Label>
                     <div className="relative">
                       <Input
                         id="password"
                         type={showPassword ? "text" : "password"}
-                        placeholder="Enter your new password"
+                        placeholder={t('newPasswordPlaceholder')}
                         className="bg-gray-50/50 pr-10"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
@@ -171,17 +173,17 @@ function ResetPasswordContent() {
                       </button>
                     </div>
                     <p className="text-xs text-gray-500">
-                      Must be at least 8 characters long
+                      {t('passwordHint')}
                     </p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                    <Label htmlFor="confirmPassword">{t('confirmPasswordLabel')}</Label>
                     <div className="relative">
                       <Input
                         id="confirmPassword"
                         type={showConfirmPassword ? "text" : "password"}
-                        placeholder="Confirm your new password"
+                        placeholder={t('confirmPasswordPlaceholder')}
                         className="bg-gray-50/50 pr-10"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
@@ -212,10 +214,10 @@ function ResetPasswordContent() {
                     {isLoading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Resetting password...
+                        {t('resetting')}
                       </>
                     ) : (
-                      'Reset Password'
+                      t('resetButton')
                     )}
                   </Button>
                 </form>
@@ -228,12 +230,12 @@ function ResetPasswordContent() {
                   <CheckCircle2 className="h-6 w-6 text-green-600" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Password reset successful!</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">{t('resetSuccessTitle')}</h3>
                   <p className="mt-2 text-sm text-gray-600">
-                    Your password has been successfully reset.
+                    {t('resetSuccessText')}
                   </p>
                   <p className="mt-2 text-sm text-gray-500">
-                    Redirecting you to login...
+                    {t('redirecting')}
                   </p>
                 </div>
               </div>

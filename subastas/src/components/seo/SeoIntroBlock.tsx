@@ -5,9 +5,14 @@
  * Variable hooks: live count, min starting price, current date. These make
  * each page genuinely unique even with a shared template — competitors can't
  * dup what they don't have (07 wedge).
+ *
+ * i18n Phase 1: async server component; copy lives under the `seoIntro`
+ * namespace. Callers pass already-localized `noun` / `location` /
+ * `guideLabel` strings.
  */
 
 import Link from 'next/link';
+import { getLocale, getTranslations } from 'next-intl/server';
 
 type Props = {
   count: number;
@@ -18,36 +23,39 @@ type Props = {
   guideLabel?: string;
 };
 
-const EUR = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+export async function SeoIntroBlock({ count, noun, location, minPrice, guideHref, guideLabel }: Props) {
+  const t = await getTranslations('seoIntro');
+  const locale = await getLocale();
+  const intlLocale = locale === 'en' ? 'en-US' : 'es-ES';
+  const eur = new Intl.NumberFormat(intlLocale, { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+  const today = new Intl.DateTimeFormat(intlLocale, { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
 
-function todayEs(): string {
-  return new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
-}
-
-export function SeoIntroBlock({ count, noun, location, minPrice, guideHref, guideLabel }: Props) {
-  const where = location ? ` en ${location}` : ' en España';
   const priceLine =
     minPrice && minPrice > 0
-      ? `El precio de salida más bajo ahora mismo es de ${EUR.format(minPrice)}.`
-      : `Cada ficha enlaza directamente al BOE oficial para verificar precios y plazos.`;
+      ? t('priceLineMin', { price: eur.format(minPrice) })
+      : t('priceLineFallback');
+
   return (
     <section className="prose prose-sm max-w-none text-[var(--color-text)] mb-6">
       <p>
-        En SubastasActivas seguimos <strong>{count.toLocaleString('es-ES')} {noun}{where}</strong> y
-        te mostramos el estado en vivo de cada una: si está abierta,
-        celebrándose, suspendida o concluida. {priceLine}{' '}
-        Cada ficha enlaza directamente al BOE oficial.
+        {t.rich('lead', {
+          count: count.toLocaleString(intlLocale),
+          noun,
+          location: location ?? t('defaultLocation'),
+          strong: (chunks) => <strong>{chunks}</strong>,
+        })}{' '}
+        {priceLine} {t('boeLine')}
         {guideHref ? (
           <>
             {' '}
-            ¿Cómo funcionan? →{' '}
+            {t('guidePrompt')}{' '}
             <Link href={guideHref} className="underline">
-              {guideLabel ?? 'Lee la guía'}
+              {guideLabel ?? t('guideLabelFallback')}
             </Link>
             .
           </>
         ) : null}{' '}
-        Datos actualizados el {todayEs()}.
+        {t('updated', { date: today })}
       </p>
     </section>
   );

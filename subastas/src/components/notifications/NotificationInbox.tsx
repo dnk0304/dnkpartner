@@ -19,7 +19,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
+import { buildLoginRedirect } from "@/lib/locale-path";
 import { useSession } from "next-auth/react";
 import {
   Bell,
@@ -45,6 +46,7 @@ type Filter = "all" | "unread";
 export function NotificationInbox() {
   const { status } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
 
   const [items, setItems] = React.useState<NotificationRow[]>([]);
   const [cursor, setCursor] = React.useState<string | null>(null);
@@ -56,9 +58,10 @@ export function NotificationInbox() {
 
   React.useEffect(() => {
     if (status === "unauthenticated") {
-      router.push(`/login?callbackUrl=${encodeURIComponent("/notifications")}`);
+      // i18n Phase 1: preserve the `/en` prefix across the auth redirect.
+      router.push(buildLoginRedirect(pathname, "/notifications"));
     }
-  }, [status, router]);
+  }, [status, router, pathname]);
 
   const load = React.useCallback(
     async (opts: { append?: boolean; cursor?: string | null; filterOverride?: Filter } = {}) => {

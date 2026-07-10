@@ -27,11 +27,13 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Suspense } from 'react';
+import { getLocale, getTranslations } from 'next-intl/server';
+import { buildAlternates, ogLocale } from '@/lib/seo/alternates';
+import type { Locale } from '@/i18n/routing';
 import {
   resolveSubastasSlug,
   RESERVED_SEGMENTS,
   TIPO_SLUGS,
-  TIPO_LABEL_PLURAL,
 } from '@/lib/seo/slugs';
 import {
   countActiveAuctions,
@@ -101,16 +103,27 @@ async function loadTown(slug: string, municipio: string): Promise<Resolved | nul
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug, municipio } = await params;
   const data = await loadTown(slug, municipio);
-  if (!data) return { title: 'Página no encontrada' };
+  const t = await getTranslations('listTemplates');
+  if (!data) return { title: t('notFoundTitle') };
+  const locale = (await getLocale()) as Locale;
+  const nf = locale === 'en' ? 'en-US' : 'es-ES';
   const muniLabel = capitalizeLocation(data.municipalityName);
-  const title = `${data.count.toLocaleString('es-ES')} subastas en ${muniLabel} (${data.provinceLabel}) · estado en vivo | SubastasActivas`;
-  const description = `${data.count.toLocaleString('es-ES')} subastas públicas activas en ${muniLabel} (${data.provinceLabel}) con estado en vivo, precio de salida y enlace al BOE. Actualizado a diario.`.slice(0, 158);
+  const title = t('townMetaTitle', {
+    count: data.count.toLocaleString(nf),
+    town: muniLabel,
+    province: data.provinceLabel,
+  });
+  const description = t('townMetaDescription', {
+    count: data.count.toLocaleString(nf),
+    town: muniLabel,
+    province: data.provinceLabel,
+  }).slice(0, 158);
   return {
     title,
     description,
-    alternates: {
-      canonical: `${SITE}/subastas/${data.provinceSlug}/${data.municipioSlug}`,
-    },
+    // Self-canonical per locale + es/en/x-default hreflang (i18n Phase 1).
+    ...buildAlternates(`/subastas/${data.provinceSlug}/${data.municipioSlug}`, locale),
+    openGraph: { locale: ogLocale(locale) },
     robots: data.count > 0 ? 'index,follow' : 'noindex,follow',
   };
 }
@@ -119,6 +132,7 @@ export default async function MunicipioPage({ params }: PageProps) {
   const { slug, municipio } = await params;
   const data = await loadTown(slug, municipio);
   if (!data) notFound();
+  const t = await getTranslations('listTemplates');
   const muniLabel = capitalizeLocation(data.municipalityName);
 
   // BreadcrumbList + CollectionPage JSON-LD (mirror province page).
@@ -154,19 +168,19 @@ export default async function MunicipioPage({ params }: PageProps) {
     <>
       <Breadcrumbs
         items={[
-          { label: 'Inicio', href: '/' },
-          { label: 'Subastas', href: '/subastas' },
+          { label: t('breadcrumbHome'), href: '/' },
+          { label: t('breadcrumbSubastas'), href: '/subastas' },
           { label: data.provinceLabel, href: `/subastas/${data.provinceSlug}` },
           { label: muniLabel, href: `/subastas/${data.provinceSlug}/${data.municipioSlug}` },
         ]}
       />
       <SeoIntroBlock
         count={data.count}
-        noun="subastas públicas"
+        noun={t('publicAuctionsNoun')}
         location={`${muniLabel} (${data.provinceLabel})`}
         minPrice={data.minPrice}
         guideHref="/guia/como-funcionan-las-subastas-boe"
-        guideLabel="Cómo funcionan las subastas BOE"
+        guideLabel={t('boeGuideLabel')}
       />
     </>
   );
@@ -181,7 +195,7 @@ export default async function MunicipioPage({ params }: PageProps) {
           href={`/subastas/${data.provinceSlug}`}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--color-border)] text-sm font-medium hover:bg-[var(--color-surface-muted)]"
         >
-          <span>Ver todas las subastas en {data.provinceLabel}</span>
+          <span>{t('viewAllInProvince', { province: data.provinceLabel })}</span>
           <span className="text-[var(--color-text-muted)] tnum">
             ({data.provinceTotal.toLocaleString('es-ES')})
           </span>
@@ -194,7 +208,7 @@ export default async function MunicipioPage({ params }: PageProps) {
       {data.siblings.length > 0 && (
         <section className="mt-10">
           <h2 className="text-lg font-semibold mb-3">
-            Otros municipios en {data.provinceLabel}
+            {t('otherMunicipalities', { province: data.provinceLabel })}
           </h2>
           <ul className="flex flex-wrap gap-2">
             {data.siblings.map((m) => (
@@ -218,15 +232,15 @@ export default async function MunicipioPage({ params }: PageProps) {
           location-agnostic so this is the same set everywhere; it preserves
           the crawl path the brief calls out. */}
       <section className="mt-10">
-        <h2 className="text-lg font-semibold mb-3">Por tipo de subasta</h2>
+        <h2 className="text-lg font-semibold mb-3">{t('byTipoHeading')}</h2>
         <ul className="flex flex-wrap gap-2">
-          {TIPO_SLUGS.map((t) => (
-            <li key={t}>
+          {TIPO_SLUGS.map((ts) => (
+            <li key={ts}>
               <Link
-                href={`/subastas/tipo/${t}`}
+                href={`/subastas/tipo/${ts}`}
                 className="inline-block px-3 py-1 rounded-full border border-[var(--color-border)] text-xs hover:bg-[var(--color-surface-muted)]"
               >
-                {TIPO_LABEL_PLURAL[t]}
+                {t(`tipoLabel.${ts}`)}
               </Link>
             </li>
           ))}
@@ -253,7 +267,7 @@ export default async function MunicipioPage({ params }: PageProps) {
         }}
         // Single indexable H1, mirrors the brief: "Subastas en {Municipio}
         // ({Provincia})" — proper-cased via capitalizeLocation.
-        seoTitle={`Subastas en ${muniLabel} (${data.provinceLabel})`}
+        seoTitle={t('townTitle', { town: muniLabel, province: data.provinceLabel })}
         seoIntroSlot={introSlot}
         seoFooterSlot={footerSlot}
       />

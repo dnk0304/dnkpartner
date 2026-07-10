@@ -23,6 +23,7 @@ import {
   Euro
 } from 'lucide-react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { apiFetch } from "@/lib/api-path";
 
 interface Alert {
@@ -104,6 +105,7 @@ const PROPERTY_TYPES = [
 const CATEGORIES = PROPERTY_TYPES;  // For compatibility
 
 export default function AlertsPage() {
+  const t = useTranslations('alertsPage');
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
@@ -220,12 +222,12 @@ export default function AlertsPage() {
             <div className="flex items-center gap-4">
               <Bell className="w-8 h-8 text-blue-600" />
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Alertas Personalizadas</h1>
-                <p className="text-sm text-gray-600">Recibe notificaciones de las subastas que te interesan</p>
+                <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
+                <p className="text-sm text-gray-600">{t('subtitle')}</p>
               </div>
             </div>
             <Link href="/">
-              <Button variant="outline">Volver al Dashboard</Button>
+              <Button variant="outline">{t('backToDashboard')}</Button>
             </Link>
           </div>
         </div>
@@ -237,38 +239,38 @@ export default function AlertsPage() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-gray-600">
-                Alertas Activas
+                {t('statActiveAlerts')}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">{alerts.length}</div>
-              <p className="text-xs text-gray-500 mt-1">Configuradas</p>
+              <p className="text-xs text-gray-500 mt-1">{t('statConfigured')}</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-gray-600">
-                Coincidencias Hoy
+                {t('statMatchesToday')}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-blue-600">
                 {alerts.reduce((sum, a) => sum + (a.matchCount || 0), 0)}
               </div>
-              <p className="text-xs text-gray-500 mt-1">Nuevas subastas</p>
+              <p className="text-xs text-gray-500 mt-1">{t('statNewAuctions')}</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-gray-600">
-                Notificaciones Enviadas
+                {t('statNotificationsSent')}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-green-600">24</div>
-              <p className="text-xs text-gray-500 mt-1">Últimos 7 días</p>
+              <p className="text-xs text-gray-500 mt-1">{t('statLast7Days')}</p>
             </CardContent>
           </Card>
         </div>
@@ -279,34 +281,34 @@ export default function AlertsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>
-                  {isCreating || editingId ? 'Nueva Alerta' : 'Crear Alerta'}
+                  {isCreating || editingId ? t('formTitleNew') : t('formTitleCreate')}
                 </CardTitle>
                 <CardDescription>
-                  Define los criterios para recibir notificaciones
+                  {t('formDescription')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label htmlFor="name">Nombre de la alerta</Label>
+                  <Label htmlFor="name">{t('nameLabel')}</Label>
                   <Input
                     id="name"
-                    placeholder="Ej: Pisos en Las Palmas"
+                    placeholder={t('namePlaceholder')}
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="source">Origen (opcional)</Label>
+                  <Label htmlFor="source">{t('sourceLabel')}</Label>
                   <Select
                     value={formData.source || ALL}
                     onValueChange={(value) => setFormData({ ...formData, source: value === ALL ? '' : value })}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Todos los orígenes" />
+                      <SelectValue placeholder={t('sourcePlaceholder')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={ALL}>Todos</SelectItem>
+                      <SelectItem value={ALL}>{t('allMasculine')}</SelectItem>
                       {SOURCES.map(s => (
                         <SelectItem key={s} value={s}>{s}</SelectItem>
                       ))}
@@ -315,16 +317,16 @@ export default function AlertsPage() {
                 </div>
 
                 <div>
-                  <Label htmlFor="propertyType">Tipo de bien (opcional)</Label>
+                  <Label htmlFor="propertyType">{t('propertyTypeLabel')}</Label>
                   <Select
                     value={formData.propertyType || ALL}
                     onValueChange={(value) => setFormData({ ...formData, propertyType: value === ALL ? '' : value })}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Todos los tipos" />
+                      <SelectValue placeholder={t('propertyTypePlaceholder')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={ALL}>Todos</SelectItem>
+                      <SelectItem value={ALL}>{t('allMasculine')}</SelectItem>
                       {PROPERTY_TYPES.map(pt => (
                         <SelectItem key={pt} value={pt}>{pt}</SelectItem>
                       ))}
@@ -333,16 +335,16 @@ export default function AlertsPage() {
                 </div>
 
                 <div>
-                  <Label htmlFor="province">Provincia (opcional)</Label>
+                  <Label htmlFor="province">{t('provinceLabel')}</Label>
                   <Select
                     value={formData.province || ALL}
                     onValueChange={(value) => setFormData({ ...formData, province: value === ALL ? '' : value })}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Todas las provincias" />
+                      <SelectValue placeholder={t('provincePlaceholder')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={ALL}>Todas</SelectItem>
+                      <SelectItem value={ALL}>{t('allFeminine')}</SelectItem>
                       {PROVINCES.map(p => (
                         <SelectItem key={p} value={p}>{p}</SelectItem>
                       ))}
@@ -351,26 +353,26 @@ export default function AlertsPage() {
                 </div>
 
                 <div>
-                  <Label htmlFor="municipality">Municipio (opcional)</Label>
+                  <Label htmlFor="municipality">{t('municipalityLabel')}</Label>
                   <Input
                     id="municipality"
-                    placeholder="Ej: Madrid, Barcelona..."
+                    placeholder={t('municipalityPlaceholder')}
                     value={formData.municipality}
                     onChange={(e) => setFormData({ ...formData, municipality: e.target.value })}
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="category">Categoría (opcional) - Legacy</Label>
+                  <Label htmlFor="category">{t('categoryLabel')}</Label>
                   <Select
                     value={formData.category || ALL}
                     onValueChange={(value) => setFormData({ ...formData, category: value === ALL ? '' : value })}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Todas las categorías" />
+                      <SelectValue placeholder={t('categoryPlaceholder')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={ALL}>Todas</SelectItem>
+                      <SelectItem value={ALL}>{t('allFeminine')}</SelectItem>
                       {CATEGORIES.slice(0, 11).map(c => (
                         <SelectItem key={c} value={c}>{c}</SelectItem>
                       ))}
@@ -380,7 +382,7 @@ export default function AlertsPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="minPrice">Precio Mín. (€)</Label>
+                    <Label htmlFor="minPrice">{t('minPriceLabel')}</Label>
                     <Input
                       id="minPrice"
                       type="number"
@@ -390,11 +392,11 @@ export default function AlertsPage() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="maxPrice">Precio Máx. (€)</Label>
+                    <Label htmlFor="maxPrice">{t('maxPriceLabel')}</Label>
                     <Input
                       id="maxPrice"
                       type="number"
-                      placeholder="Sin límite"
+                      placeholder={t('maxPricePlaceholder')}
                       value={formData.maxPrice}
                       onChange={(e) => setFormData({ ...formData, maxPrice: e.target.value })}
                     />
@@ -404,7 +406,7 @@ export default function AlertsPage() {
                 <Separator />
 
                 <div>
-                  <Label htmlFor="notificationType">Tipo de notificación</Label>
+                  <Label htmlFor="notificationType">{t('notificationTypeLabel')}</Label>
                   <Select
                     value={formData.notificationType}
                     onValueChange={(value) => setFormData({ ...formData, notificationType: value as 'individual' | 'grouped' })}
@@ -413,8 +415,8 @@ export default function AlertsPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="individual">Individual (cada subasta)</SelectItem>
-                      <SelectItem value="grouped">Agrupada (resumen diario)</SelectItem>
+                      <SelectItem value="individual">{t('notificationIndividual')}</SelectItem>
+                      <SelectItem value="grouped">{t('notificationGrouped')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -422,7 +424,7 @@ export default function AlertsPage() {
                 <Separator />
 
                 <div className="space-y-3">
-                  <Label>Canales de notificación</Label>
+                  <Label>{t('channelsLabel')}</Label>
                   
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -457,7 +459,7 @@ export default function AlertsPage() {
                         disabled={!formData.name}
                       >
                         <Check className="w-4 h-4 mr-2" />
-                        Guardar
+                        {t('save')}
                       </Button>
                       <Button 
                         variant="outline" 
@@ -466,7 +468,7 @@ export default function AlertsPage() {
                           resetForm();
                         }}
                       >
-                        Cancelar
+                        {t('cancel')}
                       </Button>
                     </>
                   ) : (
@@ -475,7 +477,7 @@ export default function AlertsPage() {
                       onClick={() => setIsCreating(true)}
                     >
                       <Plus className="w-4 h-4 mr-2" />
-                      Crear Alerta
+                      {t('formTitleCreate')}
                     </Button>
                   )}
                 </div>
@@ -487,9 +489,9 @@ export default function AlertsPage() {
           <div className="lg:col-span-2 space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Mis Alertas ({alerts.length})</CardTitle>
+                <CardTitle>{t('myAlerts', { count: alerts.length })}</CardTitle>
                 <CardDescription>
-                  Gestiona tus alertas activas y revisa coincidencias
+                  {t('myAlertsDescription')}
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -497,14 +499,14 @@ export default function AlertsPage() {
             {loading ? (
               <div className="text-center py-12">
                 <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent"></div>
-                <p className="mt-4 text-gray-500">Cargando alertas...</p>
+                <p className="mt-4 text-gray-500">{t('loadingAlerts')}</p>
               </div>
             ) : alerts.length === 0 ? (
               <Card>
                 <CardContent className="py-12 text-center">
                   <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600 font-medium">No tienes alertas configuradas</p>
-                  <p className="text-sm text-gray-500 mt-2">Crea tu primera alerta para recibir notificaciones</p>
+                  <p className="text-gray-600 font-medium">{t('emptyTitle')}</p>
+                  <p className="text-sm text-gray-500 mt-2">{t('emptySubtitle')}</p>
                 </CardContent>
               </Card>
             ) : (
@@ -517,7 +519,7 @@ export default function AlertsPage() {
                           <h3 className="font-semibold text-lg">{alert.name}</h3>
                           {alert.matchCount && alert.matchCount > 0 && (
                             <Badge className="bg-blue-100 text-blue-700">
-                              {alert.matchCount} coincidencias
+                              {t('matchesBadge', { count: alert.matchCount })}
                             </Badge>
                           )}
                         </div>
@@ -554,7 +556,7 @@ export default function AlertsPage() {
                             <span>SMS</span>
                           </div>
                           <span>•</span>
-                          <span>Creada {alert.createdAt.toLocaleDateString('es-ES')}</span>
+                          <span>{t('createdOn', { date: alert.createdAt.toLocaleDateString('es-ES') })}</span>
                         </div>
                       </div>
 
@@ -601,7 +603,7 @@ export default function AlertsPage() {
         {/* How it Works Section */}
         <Card className="mt-8">
           <CardHeader>
-            <CardTitle>¿Cómo funcionan las alertas?</CardTitle>
+            <CardTitle>{t('howItWorksTitle')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -612,9 +614,9 @@ export default function AlertsPage() {
                   </div>
                 </div>
                 <div>
-                  <h4 className="font-semibold mb-1">Monitoreo en tiempo real</h4>
+                  <h4 className="font-semibold mb-1">{t('feature1Title')}</h4>
                   <p className="text-sm text-gray-600">
-                    Revisamos cada 15 minutos las nuevas subastas publicadas en BOE y TEJU
+                    {t('feature1Text')}
                   </p>
                 </div>
               </div>
@@ -626,9 +628,9 @@ export default function AlertsPage() {
                   </div>
                 </div>
                 <div>
-                  <h4 className="font-semibold mb-1">Notificación instantánea</h4>
+                  <h4 className="font-semibold mb-1">{t('feature2Title')}</h4>
                   <p className="text-sm text-gray-600">
-                    Recibes un email o SMS cuando encontramos una coincidencia
+                    {t('feature2Text')}
                   </p>
                 </div>
               </div>
@@ -640,9 +642,9 @@ export default function AlertsPage() {
                   </div>
                 </div>
                 <div>
-                  <h4 className="font-semibold mb-1">Sin límite de alertas</h4>
+                  <h4 className="font-semibold mb-1">{t('feature3Title')}</h4>
                   <p className="text-sm text-gray-600">
-                    Crea tantas alertas como necesites para no perder ninguna oportunidad
+                    {t('feature3Text')}
                   </p>
                 </div>
               </div>

@@ -10,32 +10,36 @@
  */
 import type { Metadata } from "next";
 import Link from "next/link";
+import { getLocale, getTranslations } from "next-intl/server";
 import { listPublishedArticles } from "@/lib/articles";
-
-const SITE = "https://subastasactivas.com";
+import { buildAlternates, ogLocale, SITE_ORIGIN } from "@/lib/seo/alternates";
+import type { Locale } from "@/i18n/routing";
 
 // Rendered on-demand; revalidate every 5 min for cheap caching without
 // requiring a DB at build time.
 export const dynamic = "force-dynamic";
 export const revalidate = 300;
 
-export const metadata: Metadata = {
-  title: "Guías sobre subastas judiciales — SubastasActivas",
-  description:
-    "Guías prácticas y comparativas sobre subastas judiciales del BOE: cómo pujar, plazos, fiscalidad, riesgos y casos reales. Información clara, sin tecnicismos vacíos.",
-  alternates: { canonical: `${SITE}/blog` },
-  openGraph: {
-    type: "website",
-    title: "Guías sobre subastas judiciales — SubastasActivas",
-    description:
-      "Guías prácticas sobre subastas judiciales del BOE: cómo pujar, plazos, fiscalidad y riesgos.",
-    url: `${SITE}/blog`,
-    siteName: "SubastasActivas",
-    locale: "es_ES",
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+  const t = await getTranslations("blogPage");
+  return {
+    title: t("metaTitle"),
+    description: t("metaDescription"),
+    ...buildAlternates("/blog", locale as Locale),
+    openGraph: {
+      type: "website",
+      title: t("metaTitle"),
+      description: t("ogDescription"),
+      url: `${SITE_ORIGIN}/blog`,
+      siteName: "SubastasActivas",
+      locale: ogLocale(locale as Locale),
+    },
+  };
+}
 
 export default async function BlogIndexPage() {
+  const t = await getTranslations("blogPage");
   const articles = await listPublishedArticles({ take: 200 });
 
   return (
@@ -45,22 +49,20 @@ export default async function BlogIndexPage() {
       <main className="mx-auto max-w-5xl px-6 py-10">
         <div className="mb-10 max-w-2xl">
           <h1 className="font-display text-3xl font-semibold leading-tight tracking-tight text-[var(--color-ink-primary)] sm:text-4xl">
-            Guías sobre subastas judiciales
+            {t("title")}
           </h1>
           <p className="mt-3 text-base leading-relaxed text-[var(--color-ink-secondary)]">
-            Material práctico para pujar mejor: plazos, fiscalidad, riesgos y
-            comparativas. Datos oficiales del BOE, redactado sin tecnicismos
-            vacíos.
+            {t("intro")}
           </p>
         </div>
 
         {articles.length === 0 ? (
           <div className="rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] p-8 text-center">
             <p className="text-base font-medium text-[var(--color-ink-primary)]">
-              Próximamente.
+              {t("comingSoonTitle")}
             </p>
             <p className="mt-2 text-sm text-[var(--color-ink-secondary)]">
-              Estamos preparando las primeras guías. Vuelve pronto.
+              {t("comingSoonText")}
             </p>
           </div>
         ) : (

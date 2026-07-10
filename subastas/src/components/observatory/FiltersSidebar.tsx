@@ -37,6 +37,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Bell, X } from "lucide-react";
 import {
   ObservatoryFilters,
@@ -116,6 +117,7 @@ export function FiltersSidebar({
   hideInternalHeading,
 }: FiltersSidebarProps) {
   const router = useRouter();
+  const t = useTranslations("listUi");
 
   // Local price strings — avoid spamming the parent during typing.
   const [pMin, setPMin] = React.useState(
@@ -201,7 +203,7 @@ export function FiltersSidebar({
 
   return (
     <aside
-      aria-label="Filtros"
+      aria-label={t("filtros")}
       className={cn(
         // Tailwind v4 requires the bg-[var(--token)] form for CSS vars; the
         // `bg-[var(--token)]` shorthand silently emits `background-color: --token`
@@ -228,18 +230,18 @@ export function FiltersSidebar({
         )}
       >
         <Bell className="h-4 w-4" aria-hidden="true" />
-        Crear alerta
+        {t("crearAlerta")}
       </button>
 
       {!hideInternalHeading && (
         <div className="flex items-baseline justify-between hairline-t pt-4">
-          <h2 className="font-serif text-base text-[var(--color-ink-primary)]">Filtros</h2>
+          <h2 className="font-serif text-base text-[var(--color-ink-primary)]">{t("filtros")}</h2>
           <button
             type="button"
             onClick={onClear}
             className="text-xs text-[var(--color-ink-tertiary)] hover:text-[var(--color-brand)] focus-visible:outline-none focus-visible:underline transition-colors"
           >
-            Limpiar
+            {t("limpiar")}
           </button>
         </div>
       )}
@@ -248,7 +250,7 @@ export function FiltersSidebar({
             "Todos los orígenes" clears back to no type filter. On a locked SEO
             type page the matching radio is forced active and every other
             (incl. "Todos") is disabled so users can't widen out. */}
-      <FilterBlock label="Origen">
+      <FilterBlock label={t("origen")}>
         <div className="space-y-1">
           <label
             className={cn(
@@ -264,7 +266,7 @@ export function FiltersSidebar({
               disabled={Boolean(lockedFilter?.type)}
               onChange={() => selectType(null)}
             />
-            <span>Todos los orígenes</span>
+            <span>{t("todosLosOrigenes")}</span>
           </label>
           {(["judicial", "aeat", "otras_tributarias", "notarial", "administrativas"] as AuctionType[]).map(
             (t) => {
@@ -300,7 +302,7 @@ export function FiltersSidebar({
             SINGLE-SELECT radio. Leading "Todas las fuentes" clears. Distinct
             from the Origen block above (which splits BOE rows by BOE-family
             sub-type). Whitelisted server-side; unknown values dropped. */}
-      <FilterBlock label="Fuente">
+      <FilterBlock label={t("fuente")}>
         <div className="space-y-1">
           <label className="flex items-center gap-2 cursor-pointer text-[var(--color-ink-primary)]">
             <input
@@ -310,7 +312,7 @@ export function FiltersSidebar({
               checked={filters.sources.length === 0}
               onChange={() => selectSource(null)}
             />
-            <span>Todas las fuentes</span>
+            <span>{t("todasLasFuentes")}</span>
           </label>
           {SOURCE_OPTIONS.map((opt) => {
             const active = isSourceActive(opt.id);
@@ -335,7 +337,7 @@ export function FiltersSidebar({
 
       {/* 3. TIPO DE BIEN — broad kind buckets. Hidden behind a locked label
             when an SEO category page locks the dimension. */}
-      <FilterBlock label="Tipo de bien">
+      <FilterBlock label={t("tipoDeBien")}>
         {categoryLocked ? (
           <div className="rounded-md border border-[var(--color-action)]/40 bg-[var(--color-action-soft)] px-2.5 py-1.5 text-xs text-[var(--color-ink-primary)]">
             {lockedFilter?.category}
@@ -366,7 +368,7 @@ export function FiltersSidebar({
 
       {/* 4. ¿DÓNDE? — province + municipality. Province locked on SEO province
             pages (rendered as a labelled, disabled chip). */}
-      <FilterBlock label="¿Dónde?">
+      <FilterBlock label={t("donde")}>
         {provinceLocked ? (
           <div className="space-y-2">
             <div className="rounded-md border border-[var(--color-action)]/40 bg-[var(--color-action-soft)] px-2.5 py-1.5 text-xs text-[var(--color-ink-primary)]">
@@ -387,10 +389,10 @@ export function FiltersSidebar({
                 value={filters.municipality}
                 onChange={(e) => goLockedTown(e.target.value)}
                 className="tnum w-full rounded-md border border-[var(--color-hairline)] bg-white px-3 py-2 text-sm text-[var(--color-ink-primary)] focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15"
-                aria-label="Municipio"
+                aria-label={t("municipio")}
                 disabled={municipalities.length === 0}
               >
-                <option value="">Todos los municipios</option>
+                <option value="">{t("todosLosMunicipios")}</option>
                 {municipalities.map((m) => (
                   <option key={m} value={m}>
                     {munisuffix(m)}
@@ -412,61 +414,61 @@ export function FiltersSidebar({
       {/* 5. VALOR SUBASTA — Min/Max price. priceMin is a client-side
             post-filter today (API only supports priceMax); the input still
             applies correctly via applyClientFilters. */}
-      <FilterBlock label="Valor Subasta">
+      <FilterBlock label={t("valorSubastaGroup")}>
         <div className="grid grid-cols-2 gap-2">
           <NumberInput
-            label="Mínimo"
+            label={t("minimo")}
             value={pMin}
             onChange={setPMin}
             onCommit={commitPrice}
-            placeholder="€ Min"
-            ariaLabel="Valor mínimo"
+            placeholder={t("minPlaceholder")}
+            ariaLabel={t("valorMinimo")}
           />
           <NumberInput
-            label="Máximo"
+            label={t("maximo")}
             value={pMax}
             onChange={setPMax}
             onCommit={commitPrice}
-            placeholder="€ Max"
-            ariaLabel="Valor máximo"
+            placeholder={t("maxPlaceholder")}
+            ariaLabel={t("valorMaximo")}
           />
         </div>
       </FilterBlock>
 
       {/* 6. FECHA DE FINALIZACIÓN — both wired. "Desde" → endsAfter,
             "Hasta" → endsBefore. */}
-      <FilterBlock label="Fecha de finalización">
+      <FilterBlock label={t("fechaFinalizacion")}>
         <div className="grid grid-cols-2 gap-2">
           <DateInput
-            label="Desde"
+            label={t("desde")}
             value={filters.endsAfter ? filters.endsAfter.slice(0, 10) : ""}
             onChange={(v) => onChange({ endsAfter: v ? new Date(v).toISOString() : null })}
-            ariaLabel="Finaliza desde"
+            ariaLabel={t("finalizaDesdeAria")}
           />
           <DateInput
-            label="Hasta"
+            label={t("hasta")}
             value={filters.endsBefore ? filters.endsBefore.slice(0, 10) : ""}
             onChange={(v) => onChange({ endsBefore: v ? new Date(v).toISOString() : null })}
-            ariaLabel="Finaliza hasta"
+            ariaLabel={t("finalizaHastaAria")}
           />
         </div>
       </FilterBlock>
 
       {/* 7. FECHA DE PUBLICACIÓN — both wired. "Desde" → publishedAfter,
             "Hasta" → publishedBefore. */}
-      <FilterBlock label="Fecha de publicación">
+      <FilterBlock label={t("fechaPublicacion")}>
         <div className="grid grid-cols-2 gap-2">
           <DateInput
-            label="Desde"
+            label={t("desde")}
             value={filters.publishedAfter ? filters.publishedAfter.slice(0, 10) : ""}
             onChange={(v) => onChange({ publishedAfter: v ? new Date(v).toISOString() : null })}
-            ariaLabel="Publicada desde"
+            ariaLabel={t("publicadaDesdeAria")}
           />
           <DateInput
-            label="Hasta"
+            label={t("hasta")}
             value={filters.publishedBefore ? filters.publishedBefore.slice(0, 10) : ""}
             onChange={(v) => onChange({ publishedBefore: v ? new Date(v).toISOString() : null })}
-            ariaLabel="Publicada hasta"
+            ariaLabel={t("publicadaHastaAria")}
           />
         </div>
       </FilterBlock>
@@ -477,7 +479,7 @@ export function FiltersSidebar({
           <span className="font-semibold text-[var(--color-ink-primary)]">
             {resultCount.toLocaleString("es-ES")}
           </span>{" "}
-          subastas coinciden
+          {t("subastasCoinciden")}
         </div>
       )}
     </aside>
@@ -598,20 +600,21 @@ export function SortTabs({
   onChange: (v: typeof SORT_OPTIONS[number]["id"]) => void;
   className?: string;
 }) {
+  const t = useTranslations("listUi");
   // The brief asks for "Fecha fin / Publicadas recientes / Baratas / Más" —
   // mapped to existing SORT_OPTIONS. "Más" routes to the dropdown via the
   // parent (here we just render the 3 quick tabs + "Más" as the default
   // category_rank, which is the urgency-first multi-tier sort).
   const QUICK: Array<{ id: typeof SORT_OPTIONS[number]["id"]; label: string }> = [
-    { id: "endsAt_asc", label: "Fecha fin" },
-    { id: "published_desc", label: "Publicadas recientes" },
-    { id: "price_asc", label: "Baratas" },
-    { id: "category_rank", label: "Destacados" },
+    { id: "endsAt_asc", label: t("fechaFin") },
+    { id: "published_desc", label: t("publicadasRecientes") },
+    { id: "price_asc", label: t("baratas") },
+    { id: "category_rank", label: t("destacados") },
   ];
   return (
     <div
       role="tablist"
-      aria-label="Ordenar resultados"
+      aria-label={t("ordenarResultados")}
       className={cn(
         "inline-flex flex-wrap gap-1 rounded-md border border-[var(--color-hairline)] bg-[var(--color-surface)] p-0.5",
         className,
@@ -665,16 +668,17 @@ export function StatusTabs({
   onChange: (v: ObservatoryFilters["when"]) => void;
   className?: string;
 }) {
+  const t = useTranslations("listUi");
   const TABS: Array<{ id: ObservatoryFilters["when"]; label: string }> = [
-    { id: "activas", label: "Activas" },
-    { id: "proximas", label: "Próximas" },
-    { id: "todas", label: "Todas" },
-    { id: "finalizadas", label: "Finalizadas" },
+    { id: "activas", label: t("activas") },
+    { id: "proximas", label: t("proximas") },
+    { id: "todas", label: t("todas") },
+    { id: "finalizadas", label: t("finalizadas") },
   ];
   return (
     <div
       role="tablist"
-      aria-label="Estado"
+      aria-label={t("estado")}
       className={cn(
         "inline-flex rounded-md border border-[var(--color-hairline)] overflow-hidden",
         className,

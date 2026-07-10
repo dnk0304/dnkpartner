@@ -32,6 +32,9 @@
 
 import { notFound, redirect } from 'next/navigation';
 import type { Metadata } from 'next';
+import { getLocale, getTranslations } from 'next-intl/server';
+import { buildAlternates, ogLocale, SITE_ORIGIN } from '@/lib/seo/alternates';
+import type { Locale } from '@/i18n/routing';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { buildAuctionSlug, resolveAuctionIdFromSlug } from '@/lib/seo/auction-slug';
@@ -43,7 +46,6 @@ import { auctionMetaTitle, auctionDisplayTitle } from '@/lib/seo/display-title';
 import { buildAuctionJsonLd } from '@/lib/seo/json-ld';
 
 type PageProps = { params: Promise<{ slug: string }> };
-const SITE = 'https://subastasactivas.com';
 
 /**
  * Lighter loader for metadata only — slug → id → 5 fields used in metadata.
@@ -82,13 +84,15 @@ async function loadAuctionMeta(slug: string) {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
+  const locale = (await getLocale()) as Locale;
+  const t = await getTranslations('auctionDetail');
   const a = await loadAuctionMeta(slug);
-  if (!a) return { title: 'Subasta no encontrada', robots: 'noindex' };
+  if (!a) return { title: t('metaNotFound'), robots: 'noindex' };
   // Legacy "junk auction" row → middleware normally serves 410 for the cuid
   // shape; this catches the residual boeId-0x edge case (UUID id but legacy
   // boeId). noindex metadata + the page itself returns notFound() (404).
   // See: src/lib/seo/legacy-rows.ts
-  if (isLegacyRow(a)) return { title: 'Subasta retirada', robots: 'noindex,follow' };
+  if (isLegacyRow(a)) return { title: t('metaRetired'), robots: 'noindex,follow' };
   const canonicalSlug = buildAuctionSlug(a);
   // Title-from-address (wave-A, 2026-06-07): the <title> now leads with the
   // real street address (or municipality fallback for vehicles/land) — the
@@ -104,7 +108,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     province: a.province,
     title: a.title,
   });
-  const where = [a.municipality, a.province].filter(Boolean).join(', ') || 'España';
+  const where = [a.municipality, a.province].filter(Boolean).join(', ') || t('metaWhereFallback');
   // Include the headline price in the meta description for CTR (Ken brief).
   // Appraisal first; fall back to valorSubasta when no appraisal.
   const priceForDescription = (() => {
@@ -123,8 +127,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     }
   })();
   const description = (priceForDescription
-    ? `Subasta pública de ${a.category} en ${where}. Tasación ${priceForDescription}. Estado en vivo, datos del BOE y enlace oficial. Sigue la subasta y recibe alertas en SubastasActivas.`
-    : `Subasta pública de ${a.category} en ${where}. Estado en vivo, datos del BOE y enlace oficial. Sigue la subasta y recibe alertas en SubastasActivas.`
+    ? t('metaDescriptionWithPrice', { category: a.category, where, price: priceForDescription })
+    : t('metaDescription', { category: a.category, where })
   ).slice(0, 158);
   // Only index ACTIVE / PRE-AUCTION states (07 §1.7 — CONCLUIDA stays noindex).
   // The gate reversal does NOT change this — the detail page was already
@@ -145,18 +149,19 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     province: a.province,
     title: a.title,
   });
-  const canonicalUrl = `${SITE}/subastas/subasta/${canonicalSlug}`;
+  const path = `/subastas/subasta/${canonicalSlug}`;
+  const canonicalUrl = locale === 'en' ? `${SITE_ORIGIN}/en${path}` : `${SITE_ORIGIN}${path}`;
   return {
     title,
     description,
-    alternates: { canonical: canonicalUrl },
+    ...buildAlternates(path, locale),
     robots: indexable ? 'index,follow' : 'noindex,follow',
     openGraph: {
       title: ogTitle,
       description,
       url: canonicalUrl,
       siteName: 'SubastasActivas',
-      locale: 'es_ES',
+      locale: ogLocale(locale),
       type: 'website',
     },
     twitter: {

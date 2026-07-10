@@ -25,6 +25,7 @@
  */
 
 import * as React from "react";
+import { useTranslations } from "next-intl";
 import { AuctionType } from "@/types";
 import { apiFetch } from "@/lib/api-path";
 import { ObservatoryFilters, ALL_TYPES } from "./filters";
@@ -52,6 +53,7 @@ export function TypeFilterChips({
   onChange,
   className,
 }: TypeFilterChipsProps) {
+  const t = useTranslations("listUi");
   const [counts, setCounts] = React.useState<CountState>({});
 
   // Live counts — one cheap totalCount probe per family, in parallel. Cached
@@ -99,11 +101,11 @@ export function TypeFilterChips({
 
   return (
     <section
-      aria-label="Filtrar por tipo de subasta"
+      aria-label={t("filtrarPorTipoDeSubasta")}
       className={cn("w-full", className)}
     >
       <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-ink-tertiary)]">
-        Tipo de subasta
+        {t("tipoDeSubasta")}
       </div>
       <div
         className={cn(
@@ -125,7 +127,7 @@ export function TypeFilterChips({
               : "border-[var(--color-hairline)] bg-[var(--color-surface)] text-[var(--color-ink-primary)] hover:border-[var(--color-action)]/40 hover:bg-[var(--color-action-soft)]/40",
           )}
         >
-          Todos
+          {t("todos")}
         </button>
         {PRIMARY_TYPES.map((id) => {
           const meta = ALL_TYPES.find((t) => t.id === id);
@@ -155,7 +157,7 @@ export function TypeFilterChips({
                       ? "bg-[var(--color-surface)] text-[var(--color-ink-primary)]"
                       : "bg-[var(--color-surface-muted)] text-[var(--color-ink-secondary)]",
                   )}
-                  aria-label={`${count} activas`}
+                  aria-label={t("countActivas", { count })}
                 >
                   {count.toLocaleString("es-ES")}
                 </span>

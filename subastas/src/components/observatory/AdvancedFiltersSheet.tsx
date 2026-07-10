@@ -16,6 +16,7 @@
  */
 
 import * as React from "react";
+import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
 import {
   Sheet,
@@ -58,6 +59,7 @@ export function AdvancedFiltersSheet({
   onSave,
   onClear,
 }: AdvancedFiltersSheetProps) {
+  const t = useTranslations("listUi");
   const toggleStatus = (s: ObservatoryFilters["statuses"][number]) => {
     const next = filters.statuses.includes(s)
       ? filters.statuses.filter((x) => x !== s)
@@ -85,15 +87,15 @@ export function AdvancedFiltersSheet({
       >
         <SheetHeader className="px-5 py-4 hairline-b">
           <SheetTitle className="font-serif text-lg text-[var(--color-ink-primary)]">
-            Filtros avanzados
+            {t("filtrosAvanzados")}
           </SheetTitle>
           <SheetDescription className="text-xs text-[var(--color-ink-tertiary)]">
-            Refina el resultado con criterios precisos.
+            {t("refinaResultado")}
           </SheetDescription>
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
-          <Section title="Estado preciso" hint="Una o más de los 6 estados oficiales BOE.">
+          <Section title={t("estadoPreciso")} hint={t("estadoPrecisoHint")}>
             <CheckGrid>
               {ALL_STATUSES.map((s) => (
                 <CheckRow
@@ -106,7 +108,7 @@ export function AdvancedFiltersSheet({
             </CheckGrid>
           </Section>
 
-          <Section title="Tipo de subasta">
+          <Section title={t("tipoDeSubasta")}>
             <CheckGrid>
               {ALL_TYPES.map((t) => (
                 <CheckRow
@@ -119,7 +121,7 @@ export function AdvancedFiltersSheet({
             </CheckGrid>
           </Section>
 
-          <Section title="Tipo de bien (preciso)" hint="Filtra a categorías individuales del catálogo.">
+          <Section title={t("tipoDeBienPreciso")} hint={t("tipoDeBienPrecisoHint")}>
             <CheckGrid>
               {ALL_CATEGORIES.map((c) => (
                 <CheckRow
@@ -132,12 +134,12 @@ export function AdvancedFiltersSheet({
             </CheckGrid>
           </Section>
 
-          <Section title="Próximamente" hint="Las características avanzadas se añadirán según se completen los datos del scraper.">
+          <Section title={t("proximamente")} hint={t("proximamenteHint")}>
             <ul className="text-xs text-[var(--color-ink-tertiary)] space-y-1.5 list-disc ml-4">
-              <li>Rango de fechas (termina entre, publicada entre)</li>
-              <li>Rangos de tasación y % sobre tasación</li>
-              <li>Solo visitables / sin cargas / desocupadas / con foto</li>
-              <li>Búsqueda por juzgado / referencia catastral / expediente</li>
+              <li>{t("comingSoonDates")}</li>
+              <li>{t("comingSoonTasacion")}</li>
+              <li>{t("comingSoonToggles")}</li>
+              <li>{t("comingSoonSearch")}</li>
             </ul>
           </Section>
         </div>
@@ -149,7 +151,7 @@ export function AdvancedFiltersSheet({
               onClick={onClear}
               className="text-xs text-[var(--color-ink-tertiary)] hover:text-[var(--color-brand)] focus-visible:outline-none focus-visible:underline"
             >
-              Limpiar todo
+              {t("limpiarTodo")}
             </button>
             <Button
               type="button"
@@ -159,7 +161,7 @@ export function AdvancedFiltersSheet({
               }}
               className="bg-[var(--color-action-soft)] border border-[var(--color-action)] text-[var(--color-ink-primary)] hover:bg-[var(--color-action-soft)]/80"
             >
-              {resultCount != null ? `Ver ${resultCount.toLocaleString("es-ES")} resultados` : "Aplicar"}
+              {resultCount != null ? t("verResultados", { count: resultCount.toLocaleString("es-ES") }) : t("aplicar")}
             </Button>
           </div>
         </SheetFooter>

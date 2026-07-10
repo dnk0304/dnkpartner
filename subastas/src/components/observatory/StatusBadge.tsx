@@ -16,6 +16,7 @@
  */
 
 import * as React from "react";
+import { useLocale } from "next-intl";
 import { AuctionStatus } from "@/types";
 import { getStatusMeta } from "./status";
 import { cn } from "@/lib/utils";
@@ -29,7 +30,8 @@ export type StatusBadgeProps = {
 };
 
 export function StatusBadge({ status, size = "sm", className, hideDot = false }: StatusBadgeProps) {
-  const meta = getStatusMeta(status);
+  const locale = useLocale() as "es" | "en";
+  const meta = getStatusMeta(status, locale);
   const isSm = size === "sm";
 
   return (
@@ -71,7 +73,8 @@ export function StatusDot({
   className?: string;
   size?: number;
 }) {
-  const meta = getStatusMeta(status);
+  const locale = useLocale() as "es" | "en";
+  const meta = getStatusMeta(status, locale);
   return (
     <span
       aria-label={`Estado: ${meta.label}`}

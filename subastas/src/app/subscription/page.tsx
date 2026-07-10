@@ -24,8 +24,9 @@
 import * as React from "react";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { buildLoginRedirect } from "@/lib/locale-path";
 import { Heart, Bell, UserCircle2, LogOut, Loader2, LifeBuoy } from "lucide-react";
 import { apiFetch } from "@/lib/api-path";
 import { cn } from "@/lib/utils";
@@ -90,6 +91,7 @@ export default function AccountPage() {
   const t = useTranslations("account");
   const { data: session, status } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
 
   const [profile, setProfile] = React.useState<ProfileData | null>(null);
   const [sub, setSub] = React.useState<SubscriptionData | null>(null);
@@ -101,9 +103,10 @@ export default function AccountPage() {
   // Logged-out → bounce to login, returning here afterwards.
   React.useEffect(() => {
     if (status === "unauthenticated") {
-      router.push(`/login?callbackUrl=${encodeURIComponent("/subscription")}`);
+      // i18n Phase 1: preserve the `/en` prefix across the auth redirect.
+      router.push(buildLoginRedirect(pathname, "/subscription"));
     }
-  }, [status, router]);
+  }, [status, router, pathname]);
 
   React.useEffect(() => {
     if (!session?.user?.id) return;

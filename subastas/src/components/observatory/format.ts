@@ -3,6 +3,18 @@
  * Centralized so every price/date/relative-time renders the same way.
  */
 
+// i18n Phase 1 (2026-07-10): date/number formatters are locale-aware. Every
+// date function takes an optional trailing `locale` (default "es" so the
+// hundreds of existing call sites keep compiling); pass `useLocale()` /
+// `getLocale()` at the call site to render en-GB dates on /en.
+import type { Locale } from "@/i18n/routing";
+
+// Cached per-locale formatter instances (Intl construction is expensive).
+// es → es-ES; en → en-GB ("7 July 2026", dd/mm/yyyy).
+function cache(build: (tag: string) => Intl.DateTimeFormat): Record<Locale, Intl.DateTimeFormat> {
+  return { es: build("es-ES"), en: build("en-GB") };
+}
+
 const EURO_FORMAT = new Intl.NumberFormat("es-ES", {
   style: "currency",
   currency: "EUR",
@@ -14,27 +26,30 @@ const NUM_FORMAT = new Intl.NumberFormat("es-ES");
 // Grouped variant — forces the Spanish thousands separator even on 4-digit
 // values (es-ES defaults to `min2` grouping, so 1450 renders without a dot).
 // Used by the m²/€/m² fact-strip helpers where "1.450 €/m²" is the spec.
+// Prices/numbers stay es-ES on both locales: "1.450 €" is the site-wide
+// figure style (audit did not flag number formats; changing them would churn
+// every snapshot).
 const NUM_FORMAT_GROUPED = new Intl.NumberFormat("es-ES", { useGrouping: "always" });
 
-const DATE_LONG = new Intl.DateTimeFormat("es-ES", {
+const DATE_LONG = cache((tag) => new Intl.DateTimeFormat(tag, {
   dateStyle: "long",
   timeStyle: "short",
-});
+}));
 
-const DATE_MED = new Intl.DateTimeFormat("es-ES", {
+const DATE_MED = cache((tag) => new Intl.DateTimeFormat(tag, {
   dateStyle: "medium",
-});
+}));
 
-const DATE_SHORT = new Intl.DateTimeFormat("es-ES", {
+const DATE_SHORT = cache((tag) => new Intl.DateTimeFormat(tag, {
   day: "2-digit",
   month: "2-digit",
   year: "numeric",
-});
+}));
 
-const TIME_HM = new Intl.DateTimeFormat("es-ES", {
+const TIME_HM = cache((tag) => new Intl.DateTimeFormat(tag, {
   hour: "2-digit",
   minute: "2-digit",
-});
+}));
 
 export function formatPrice(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "—";
@@ -72,32 +87,32 @@ export function formatPricePerM2(value: number | null | undefined): string | nul
   return `${NUM_FORMAT_GROUPED.format(Math.round(value))} €/m²`;
 }
 
-export function formatDateLong(value: string | Date | null | undefined): string {
+export function formatDateLong(value: string | Date | null | undefined, locale: Locale = "es"): string {
   if (!value) return "—";
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
-  return DATE_LONG.format(d);
+  return DATE_LONG[locale].format(d);
 }
 
-export function formatDateMed(value: string | Date | null | undefined): string {
+export function formatDateMed(value: string | Date | null | undefined, locale: Locale = "es"): string {
   if (!value) return "—";
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
-  return DATE_MED.format(d);
+  return DATE_MED[locale].format(d);
 }
 
-export function formatDateShort(value: string | Date | null | undefined): string {
+export function formatDateShort(value: string | Date | null | undefined, locale: Locale = "es"): string {
   if (!value) return "—";
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
-  return DATE_SHORT.format(d);
+  return DATE_SHORT[locale].format(d);
 }
 
-export function formatTime(value: string | Date | null | undefined): string {
+export function formatTime(value: string | Date | null | undefined, locale: Locale = "es"): string {
   if (!value) return "—";
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
-  return TIME_HM.format(d);
+  return TIME_HM[locale].format(d);
 }
 
 /**
@@ -110,7 +125,7 @@ export function formatTime(value: string | Date | null | undefined): string {
  * A day-granularity label is calmer and matches what the data actually
  * promises ("daily official sync, intra-day deltas").
  */
-export function formatUpdatedDayEs(value: string | Date | null | undefined): string {
+export function formatUpdatedDayEs(value: string | Date | null | undefined, locale: Locale = "es"): string {
   if (!value) return "—";
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
@@ -120,29 +135,30 @@ export function formatUpdatedDayEs(value: string | Date | null | undefined): str
   const today = startOfDay(new Date());
   const that = startOfDay(d);
   const diffDays = Math.round((today - that) / (24 * 60 * 60 * 1000));
-  if (diffDays <= 0) return "hoy";
-  if (diffDays === 1) return "ayer";
+  if (diffDays <= 0) return locale === "en" ? "today" : "hoy";
+  if (diffDays === 1) return locale === "en" ? "yesterday" : "ayer";
   // Older than yesterday: show the date so the user knows exactly how stale.
-  return `el ${DATE_MED.format(d)}`;
+  return locale === "en" ? `on ${DATE_MED.en.format(d)}` : `el ${DATE_MED.es.format(d)}`;
 }
 
-/** "hace 3 min", "hace 2 h", "hace 4 d", "ayer", "ahora". */
-export function formatRelativeEs(value: string | Date | null | undefined): string {
+/** es: "hace 3 min", "hace 2 h", "ayer", "ahora mismo" · en: "3 min ago", … */
+export function formatRelativeEs(value: string | Date | null | undefined, locale: Locale = "es"): string {
   if (!value) return "—";
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
+  const en = locale === "en";
   const diffMs = Date.now() - d.getTime();
   const sec = Math.floor(diffMs / 1000);
-  if (sec < 30) return "ahora mismo";
-  if (sec < 60) return `hace ${sec} s`;
+  if (sec < 30) return en ? "just now" : "ahora mismo";
+  if (sec < 60) return en ? `${sec} s ago` : `hace ${sec} s`;
   const min = Math.floor(sec / 60);
-  if (min < 60) return `hace ${min} min`;
+  if (min < 60) return en ? `${min} min ago` : `hace ${min} min`;
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `hace ${hr} h`;
+  if (hr < 24) return en ? `${hr} h ago` : `hace ${hr} h`;
   const day = Math.floor(hr / 24);
-  if (day === 1) return "ayer";
-  if (day < 7) return `hace ${day} d`;
-  return DATE_MED.format(d);
+  if (day === 1) return en ? "yesterday" : "ayer";
+  if (day < 7) return en ? `${day} d ago` : `hace ${day} d`;
+  return DATE_MED[locale].format(d);
 }
 
 /** Capitalize first letter — for province/municipality which often come lowercased. */
@@ -195,14 +211,15 @@ export function daysLeft(target: string | Date | null | undefined): number | nul
   return Math.floor(diff / (24 * 60 * 60 * 1000));
 }
 
-/** Short days-left badge: "3 d" / "Hoy" / "Finalizada". */
-export function formatDaysLeft(target: string | Date | null | undefined): string {
+/** Short days-left badge: "3 d" / "Hoy" / "Finalizada" (en: "Today"/"Ended"). */
+export function formatDaysLeft(target: string | Date | null | undefined, locale: Locale = "es"): string {
+  const en = locale === "en";
   const dl = daysLeft(target);
-  if (dl == null) return "Sin fecha";
+  if (dl == null) return en ? "No date" : "Sin fecha";
   if (dl === 0) {
     const d = target instanceof Date ? target : new Date(target as string);
-    if (d.getTime() <= Date.now()) return "Finalizada";
-    return "Hoy";
+    if (d.getTime() <= Date.now()) return en ? "Ended" : "Finalizada";
+    return en ? "Today" : "Hoy";
   }
   if (dl === 1) return "1 d";
   return `${dl} d`;

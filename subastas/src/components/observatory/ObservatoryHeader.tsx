@@ -126,7 +126,7 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
           </Link>
           <span className="hidden md:inline text-xs text-[var(--color-ink-tertiary)] tnum truncate">
             {lastUpdate
-              ? t("trustSignalUpdated", { when: formatUpdatedDayEs(lastUpdate) })
+              ? t("trustSignalUpdated", { when: formatUpdatedDayEs(lastUpdate, locale as "es" | "en") })
               : t("trustSignalSyncing")}
           </span>
         </div>
