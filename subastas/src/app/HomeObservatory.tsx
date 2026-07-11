@@ -149,11 +149,6 @@ export default function HomeObservatory() {
   } | null>(null);
   const nearProvince = near?.province ?? null;
 
-  // GPS refinement from the chip — explicit user action, replaces any IP pin.
-  const onGpsProvince = React.useCallback((row: CanonicalProvince | null) => {
-    setNear(row ? { province: row, source: "gps" } : null);
-  }, []);
-
   // Clear from the strip: unpin AND remember the choice for this session.
   const clearNear = React.useCallback(() => {
     setNear(null);
@@ -303,17 +298,30 @@ export default function HomeObservatory() {
 
       <main className="mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8 space-y-6 md:space-y-8">
         {/* ───────────────────────────────────────────────────────────────
-            HERO — two-column grid on lg+, single column below.
-            Left: headline + sources + CTA.
-            Right: compact, click-to-expand map card filling the space that
-            was previously empty (Dennis's red-box). The full-page map block
-            that previously sat below the carousel is gone.
+            HERO + carousel merged into ONE responsive grid (2026-07-12,
+            Pixel — mobile reorder brief).
+
+            Why merged: on mobile Dennis wants headline → carousel → MAP, but
+            the map must stay beside the headline on lg+. The map is a single
+            (heavy, `/api/auctions/map`-fetching) Leaflet instance — it must
+            not be duplicated. Solution: keep ONE map node and let its
+            position flow from the grid.
+
+            DOM order is headline → carousel → map, which IS the mobile order
+            (single column → natural source-order flow, no `order` hacks, and
+            it degrades correctly without CSS). On lg+ explicit grid placement
+            restores the original layout exactly: headline | map on row 1,
+            carousel spanning the full width on row 2.
+
+            Right column on lg+ = the compact, click-to-expand map card that
+            fills the space beside the headline. The full-page map block that
+            once sat below the carousel is gone.
             ─────────────────────────────────────────────────────────────── */}
-        <section
-          aria-labelledby="hero-headline"
-          className="pt-2 grid gap-6 lg:gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,560px)] lg:items-start"
-        >
-          <div className="min-w-0">
+        <div className="pt-2 grid gap-y-6 md:gap-y-8 lg:gap-x-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,560px)] lg:items-start">
+          <section
+            aria-labelledby="hero-headline"
+            className="min-w-0 lg:col-start-1 lg:row-start-1"
+          >
             {/* Headline + subhead. Simple Spanish — Dennis explicit: no "en
                 juego", no fluff explaining what BOE is. */}
             <div className="space-y-3 max-w-2xl">
@@ -372,13 +380,12 @@ export default function HomeObservatory() {
                 sources text block that used to sit here. The sources copy
                 was NOT deleted: a condensed version renders below the fold
                 (above "Cómo funciona") so the keyword text stays in the DOM.
-                Chips navigate to the clean province pages; "Cerca de ti"
-                pins the carousel's province param via geolocation. */}
+                Chips navigate to the clean province pages. Nearby detection is
+                now fully automatic (IP → NearMeStrip); the manual GPS chip was
+                removed 2026-07-12. */}
             <PopularRegionChips
               className="mt-6 max-w-2xl"
               counts={provinceCounts}
-              onNearProvince={onGpsProvince}
-              refine={near?.source === "ip"}
             />
 
             {/* CTA row. */}
@@ -397,21 +404,55 @@ export default function HomeObservatory() {
                 {t("heroCtaSecondary")}
               </Link>
             </div>
-          </div>
+          </section>
 
-          {/* ── Compact map card (right column / stacks on mobile) ─────────
-              Wave81 split: the card is now a 2-column rail + map. The rail
-              owns its own clicks (each category row routes to the full map
-              with `?mapCategory=<key>` locked in). The map portion is the
-              click-to-expand affordance — clicking anywhere on the map (or
-              the explicit "Abrir mapa completo" pill) navigates to the
-              unfiltered full map view. Stacking on mobile: rail first
-              (compact, horizontally narrow), map underneath. */}
+          {/* Endless marquee — ONE row with the Inmuebles / Vehículos toggle
+              (funnel redesign #1). Modal popup is OFF (cards link to detail
+              page). When the IP pin resolved a province, a small note explains
+              the pinned feed and offers the province page + clear.
+              Grid: full-width row 2 on lg+; on mobile it flows BETWEEN the
+              headline and the map (source order = mobile order). */}
+          <section
+            aria-label={t("carouselSectionAria")}
+            className="space-y-3 lg:col-span-2 lg:col-start-1 lg:row-start-2"
+          >
+            {near && (
+              <NearMeStrip
+                province={near.province}
+                source={near.source}
+                provinceHref={provinceHref(near.province.key)}
+                onClear={clearNear}
+              />
+            )}
+            {/* `label` (not `key`) — Auction.province stores the label
+                spelling in production (verified 2026-07-10: "Vizcaya",
+                "Guipúzcoa"); carousel-mix's province filter is exact-equals
+                (case-insensitive), so the label is the value that matches. */}
+            <HomeCarouselSection
+              limit={30}
+              seeAllHref="/subastas?when=activas"
+              province={nearProvince?.label ?? null}
+            />
+          </section>
+
+          {/* ── Compact map card ─────────────────────────────────────────
+              Wave81 split: the card is a 2-column rail + map. The rail owns
+              its own clicks (each category row routes to the full map with
+              `?mapCategory=<key>` locked in). The map portion is the
+              click-to-expand affordance — clicking anywhere on the map (or the
+              explicit "Abrir mapa completo" pill) navigates to the unfiltered
+              full map view. Internal stacking on narrow: rail first, map under.
+
+              Placement (2026-07-12): ONE map instance only. On lg+ it sits in
+              the hero's right column (row 1); on mobile it is the LAST grid
+              child, so it renders below the carousel. No duplicate map, no
+              double `/api/auctions/map` fetch. */}
           <div
             className={[
               "w-full rounded-xl overflow-hidden border border-[var(--color-hairline)]",
               "bg-white shadow-[var(--shadow-card)]",
               "grid grid-cols-1 sm:grid-cols-[160px_1fr]",
+              "lg:col-start-2 lg:row-start-1",
             ].join(" ")}
           >
             {/* Category rail — counts come from /api/auctions/counts so users
@@ -477,31 +518,7 @@ export default function HomeObservatory() {
               </div>
             </div>
           </div>
-        </section>
-
-        {/* Endless marquee — ONE row with the Inmuebles / Vehículos toggle
-            (funnel redesign #1). Modal popup is OFF (cards link to detail
-            page). When "Cerca de ti" resolved a province, a small note
-            explains the pinned feed and offers the province page + clear. */}
-        <section aria-label={t("carouselSectionAria")} className="space-y-3">
-          {near && (
-            <NearMeStrip
-              province={near.province}
-              source={near.source}
-              provinceHref={provinceHref(near.province.key)}
-              onClear={clearNear}
-            />
-          )}
-          {/* `label` (not `key`) — Auction.province stores the label
-              spelling in production (verified 2026-07-10: "Vizcaya",
-              "Guipúzcoa"); carousel-mix's province filter is exact-equals
-              (case-insensitive), so the label is the value that matches. */}
-          <HomeCarouselSection
-            limit={30}
-            seeAllHref="/subastas?when=activas"
-            province={nearProvince?.label ?? null}
-          />
-        </section>
+        </div>
 
         {/* Province grid — renders its own internal heading ("Buscar subastas
             por provincia") inside a white card. Sits directly beneath the
