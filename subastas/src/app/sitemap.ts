@@ -43,6 +43,7 @@ import {
 } from '@/lib/seo/slugs';
 import { categoryActiveCounts, activeMunicipalityPairs } from '@/lib/seo/page-data';
 import { buildAuctionSlug } from '@/lib/seo/auction-slug';
+import { listNoticias } from '@/lib/noticias';
 
 const SITE = 'https://subastasactivas.com';
 const ACTIVE_STATUSES: AuctionStatus[] = [
@@ -183,6 +184,34 @@ export default async function sitemap({ id }: { id: number }): Promise<MetadataR
     }
   } catch {
     // Article model may not be migrated yet on some envs — non-fatal.
+  }
+
+  // --- Published /noticias/ articles (markdown-file-driven, no DB) ---
+  // es URL always; /en URL only when the .en.md file exists (locked decision:
+  // missing en = 404 + omit). lastmod = updated ?? date (real content dates).
+  const noticias = listNoticias('es');
+  if (noticias.length > 0) {
+    entries.push(
+      { url: `${SITE}/noticias`, lastModified: now, changeFrequency: 'weekly', priority: 0.6 },
+      { url: `${SITE}/en/noticias`, lastModified: now, changeFrequency: 'weekly', priority: 0.5 },
+    );
+  }
+  for (const n of noticias) {
+    const lastModified = new Date(`${n.updated ?? n.date}T00:00:00Z`);
+    entries.push({
+      url: `${SITE}/noticias/${n.slug}`,
+      lastModified,
+      changeFrequency: 'weekly',
+      priority: 0.5,
+    });
+    if (n.hasBothLocales) {
+      entries.push({
+        url: `${SITE}/en/noticias/${n.slug}`,
+        lastModified,
+        changeFrequency: 'weekly',
+        priority: 0.4,
+      });
+    }
   }
 
   return entries;

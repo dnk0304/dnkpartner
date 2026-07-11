@@ -49,6 +49,7 @@ export const RESERVED_SEGMENTS: ReadonlySet<string> = new Set([
   'subasta',
   'en',
   'guia',
+  'noticias',
   'page',
   'api',
   'studio',
