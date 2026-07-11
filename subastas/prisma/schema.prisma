@@ -206,6 +206,33 @@ model Auction {
   vehicleModel        String?
   vehicleYear         Int?
 
+  // Property-portal attributes (Phase 1, 2026-07-11) — idealista-style facts
+  // parsed by Ghost's property_attribute_parser from the SAME bien/registry
+  // prose we already store (lotDescription + propertyDescription + cadastralData
+  // + title), no new fetch. All additive + nullable + HONEST-NULL: absence of a
+  // mention is NULL, never 0 / false ("the listing doesn't say" ≠ "there are
+  // zero bedrooms"). Booleans persist an explicit false ONLY on a negated
+  // mention ("sin garaje"); otherwise NULL. A bare singular room noun counts as
+  // 1 only inside a distribución enumeration; unqualified plurals stay NULL.
+  bedrooms            Int?
+  bathrooms           Int?
+  hasTerrace          Boolean?
+  hasGarden           Boolean?
+  hasGarage           Boolean?
+  hasStorageRoom      Boolean?
+  floorLevel          String?
+
+  // Catastro DNPRC enrichment (Phase 1, 2026-07-11) — from the free OVC
+  // Consulta_DNPRC web service (DG Catastro, Ley 18/2015) keyed by the 20-char
+  // cadastralRef. catastroYearBuilt = debi.ant (año construcción), catastroUse =
+  // debi.luso (uso principal). superficie (debi.sfc) fills the EXISTING surfaceM2
+  // ONLY where currently NULL (scraped values are never overwritten).
+  // catastroCheckedAt timestamps the last DNPRC lookup so dead refs (cod 4/5)
+  // are not re-hammered daily (re-checked weekly at most). Honest-NULL.
+  catastroYearBuilt   Int?
+  catastroUse         String?
+  catastroCheckedAt   DateTime?
+
   // Media
   pdfUrl   String?
   imageUrl String?

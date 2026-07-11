@@ -49,6 +49,7 @@ from ..config.municipality_province import canonical_municipality_name
 from ..config.categories import get_category_type
 from .vehicle_parser import set_vehicle_fields
 from .boe_scraper import set_surface_occupancy_fields
+from .property_attribute_parser import set_property_attribute_fields
 
 import logging
 
@@ -424,6 +425,8 @@ class SegSocialScraper(BankBaseScraper):
         set_vehicle_fields(record)
         # G1/G2 — surface m² + occupancy from the TGSS bien prose. Honest-NULL.
         set_surface_occupancy_fields(record)
+        # Property-portal attributes (bedrooms/baths/terrace/…). Honest-NULL.
+        set_property_attribute_fields(record)
         return record
 
     @staticmethod
