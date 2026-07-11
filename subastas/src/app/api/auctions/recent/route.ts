@@ -83,8 +83,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { boeLinkFor } from "@/lib/boe-link";
 import { derivePricePerM2 } from "@/lib/auction-derive";
+import { coarseCoord } from "@/lib/guest-teaser";
 import { categoryRankOf } from "@/lib/category-rank";
 import {
   ACTIVE_OR_UPCOMING_DB_STATUSES,
@@ -286,34 +286,37 @@ function projectAuction(a: {
     category: a.category,
     province: a.province ?? null,
     municipality: a.municipality ?? null,
-    address: a.address ?? null,
+    // GUEST-TEASER (Forge 2026-07-12): this feed is a PUBLIC home-page card
+    // surface (no auth). WALL the deep-detail + bid-breakdown fields the same
+    // way the detail/list teaser does; keep the card-safe fields. See
+    // @/lib/guest-teaser.
+    address: null,                              // WALL — exact street address
     status: mapStatus(a.status as string | null | undefined),
     auctionType: mapType(a.auctionType ?? null),
     propertyType: a.propertyType ?? null,
-    currentBid: a.currentBid ?? null,
-    appraisalValue: a.appraisalValue ?? null,
-    valorSubasta: a.valorSubasta ?? null,
-    claimedAmount: a.claimedAmount ?? null,
-    minimumBid: a.minimumBid ?? null,
-    depositAmount: a.depositAmount ?? null,
+    currentBid: null,                           // WALL — bid breakdown
+    appraisalValue: a.appraisalValue ?? null,   // KEEP — reference valuation
+    valorSubasta: a.valorSubasta ?? null,       // KEEP — reference valuation
+    claimedAmount: null,                        // WALL — bid breakdown
+    minimumBid: null,                           // WALL — bid breakdown
+    depositAmount: null,                        // WALL — bid breakdown
     endsAt: a.endsAt?.toISOString() ?? null,
     opensAt: a.opensAt?.toISOString() ?? null,
     resumeAt: a.resumeAt?.toISOString() ?? null,
     endDateTime: a.endDateTime?.toISOString() ?? null,
     lotNumber: a.lotNumber ?? null,
-    imageUrl: a.imageUrl ?? null,
-    boeLink: boeLinkFor(a.boeId, a.boeLink),
-    latitude: a.latitude ?? null,
-    longitude: a.longitude ?? null,
+    // Drop a stored exact-coord map tile (`/api/auction-map/m_<lat>_<lng>_z17`)
+    // so the payload can't leak precise coords via the img src; the card
+    // rebuilds a coarse pin from the coarse lat/lng below. Real photos /
+    // streetview screenshots pass through.
+    imageUrl:
+      a.imageUrl && a.imageUrl.startsWith('/api/auction-map/') ? null : (a.imageUrl ?? null),
+    boeLink: null,                              // WALL — BOE deep-link (full detail)
+    latitude: coarseCoord(a.latitude),          // KEEP (coarse) — town-level pin
+    longitude: coarseCoord(a.longitude),        // KEEP (coarse) — town-level pin
     pujaStatus:
       a.pujaStatus === 'CON_PUJA' || a.pujaStatus === 'SIN_PUJA' ? a.pujaStatus : null,
-    currentBidAmount: (() => {
-      const raw = a.currentBidAmount;
-      if (raw == null) return null;
-      const n = typeof raw === 'bigint' ? Number(raw) : Number(raw);
-      if (!Number.isFinite(n) || n <= 0) return null;
-      return n / 100; // cents -> euros
-    })(),
+    currentBidAmount: null,                     // WALL — live bid amount
     occupancy:
       a.occupancy === 'OCUPADO' || a.occupancy === 'NO_OCUPADO' || a.occupancy === 'NO_CONSTA'
         ? a.occupancy
