@@ -34,5 +34,8 @@ COPY --from=build /app/prisma.config.ts ./prisma.config.ts
 COPY --from=build /app/next.config.ts ./next.config.ts
 COPY --from=build /app/src ./src
 COPY --from=build /app/tsconfig.json ./tsconfig.json
+# /noticias markdown content — read at request time by src/lib/noticias.ts
+# (module-scope cached). Must ship in the runtime image.
+COPY --from=build /app/content ./content
 EXPOSE 3005
 CMD ["sh","-c","npx prisma migrate deploy && exec node node_modules/next/dist/bin/next start -p 3005 -H 0.0.0.0"]
