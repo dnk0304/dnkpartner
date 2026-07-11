@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/db';
+import { auth } from '@/lib/auth';
 import { UserTier } from '@/types';
+import { coarseCoord, GUEST_KEEP_VALOR_SUBASTA } from '@/lib/guest-teaser';
 import {
   getAppropriateImageUrl as sharedGetAppropriateImageUrl,
   isRealAuctionImage as sharedIsRealAuctionImage,
@@ -456,21 +458,51 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
   const pricePerM2 = derivePricePerM2(item.valorSubasta, appraisalValue, surfaceM2);
 
   if (isLocked) {
-    // Locked teaser
+    // ─────────────────────────────────────────────────────────────────────
+    // GUEST / LOCKED TEASER — the anonymous field boundary. Must equal the
+    // detail-page teaser (`/api/auctions/[id]` !isLoggedIn branch). Anything
+    // marked WALL below requires login; see @/lib/guest-teaser for the policy
+    // and the Dennis-flippable knobs. (Forge 2026-07-12, guest-teaser-gate.)
+    // ─────────────────────────────────────────────────────────────────────
+    //
+    // Coarse the card image too: the rung-2 map-tile URL
+    // (`/api/auction-map/m_<lat>_<lng>_z17`) otherwise embeds the EXACT coords
+    // in the img src, defeating the coarse-coord wall. We (a) drop a stored
+    // exact-coord map tile so it regenerates from coarse coords, and (b) feed
+    // coarse lat/lng. Real photos (REAL_IMAGE_PREFIX) and boeId-keyed
+    // /streetview screenshots carry no coords and pass through unchanged.
+    const guestImageUrl = getAppropriateImageUrl({
+      ...item,
+      latitude: coarseCoord(item.latitude),
+      longitude: coarseCoord(item.longitude),
+      imageUrl:
+        item.imageUrl && item.imageUrl.startsWith('/api/auction-map/')
+          ? null
+          : item.imageUrl,
+    });
     return {
       id: item.id,
-      title: `🔒 ${item.title}`,
+      // Address-led title is Dennis-locked PUBLIC (SEO surface). The 🔒 prefix
+      // was a paywall-era artifact — dropped so the crawlable card title is
+      // clean.
+      title: item.title,
       category: item.category,
       province: item.province,
       municipality: item.municipality,
       community: 'Canarias',
+      // WALL — valuation/bid BREAKDOWN. Only the reference valuations
+      // (appraisalValue + valorSubasta) stay public, matching the detail
+      // teaser; every bidding figure is login-gated.
       currentBid: null,
       appraisalValue,
       minimumBid: null,
-      // Locked-tier teasers withhold all price values; claimedAmount +
-      // valorSubasta follow the same posture as minimumBid above.
-      valorSubasta: null,
       claimedAmount: null,
+      // KEEP (public) — valorSubasta is a BOE reference figure, same posture
+      // as appraisalValue. Judicial rows often carry only this, so keeping it
+      // guarantees the SEO card has a price signal. Flip GUEST_KEEP_VALOR_SUBASTA
+      // to wall it.
+      valorSubasta: GUEST_KEEP_VALOR_SUBASTA ? (item.valorSubasta ?? null) : null,
+      // WALL — court fields + BOE source links.
       courtName: null,
       procedureNumber: null,
       boeLink: null,
@@ -493,29 +525,35 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
       // type field on AuctionItem is already `string` — keep the cast off so
       // values like 'SEGSOCIAL' don't have to be widened in five places.
       source: item.source || 'BOE',
-      imageUrl,
+      imageUrl: guestImageUrl,
       hasImage: isRealAuctionImage(item.imageUrl),
       isLocked: true,
+      // WALL — exact street address.
       address: null,
-      latitude: item.latitude,
-      longitude: item.longitude,
-      // Map URLs - null for locked
+      // KEEP (coarse) — town-level coords so the card map-pin still renders;
+      // exact parcel is walled. See GUEST_COORD_MODE.
+      latitude: coarseCoord(item.latitude),
+      longitude: coarseCoord(item.longitude),
+      // WALL — precise map deep-links.
       mapUrl: null,
       streetViewUrl: null,
       placeUrl: null,
       directionsUrl: null,
-      generalInfo,
-      warning,
-      propertyDescription: item.propertyDescription,
-      lotDescription: item.lotDescription,
-      chargesDetail: item.chargesDetail,
-      // Catastro RC — projected for the detail "Ver en Catastro" link.
-      // Locked-tier teasers still carry the RC because the link is
-      // public-government data, not a premium signal.
-      cadastralRef: item.cadastralRef,
-      // #16 / #17 — null-safe; null = no badge on the card.
+      // WALL — the primary leak. generalInfo aggregates the full
+      // property/vehicle description (VIN/bastidor, plate, ITV, cargas,
+      // cadastral, registry, contact); `warning` is derived from chargesDetail.
+      // Both login-gated. propertyDescription / lotDescription / chargesDetail
+      // full text and cadastralRef are login-gated too.
+      generalInfo: null,
+      warning: null,
+      propertyDescription: null,
+      lotDescription: null,
+      chargesDetail: null,
+      cadastralRef: null,
+      // #16 / #17 — pujaStatus + occupancy are low-info badges (kept public);
+      // the live bid EUR amount is bid data → walled.
       pujaStatus,
-      currentBidAmount,
+      currentBidAmount: null,
       occupancy,
       // Document-archive wave (2026-06-03). Even locked teasers expose the
       // boolean — the BOE document set is public information; locking it
@@ -624,21 +662,26 @@ function applyTierMasking(auctions: AuctionFromDB[], userTier: UserTier | 'GUEST
   const activePerMunicipality: Map<string, number> = new Map();
 
   for (const item of auctions) {
-    // A. Finished/cancelled - always show to everyone
+    // GUEST (anonymous) — teaser ALWAYS, regardless of status. This MUST run
+    // before the finished/suspended branches below: those call
+    // transformAuction(..., false) unconditionally, so leaving a guest to fall
+    // into them would leak the full shape on finished/suspended rows. Guest
+    // sees the teaser everywhere; full detail requires registration.
+    // (Forge 2026-07-12, guest-teaser-gate — replaces the old "LOGIN DISABLED:
+    // show everything unlocked" switch.)
+    if (userTier === 'GUEST') {
+      maskedList.push(transformAuction(item, userTier, true));
+      continue;
+    }
+
+    // A. Finished/cancelled - always show to everyone (logged-in)
     if (isFinishedStatus(item.status)) {
       maskedList.push(transformAuction(item, userTier, false));
       continue;
     }
 
-    // B. Suspended - show but mark appropriately
+    // B. Suspended - show but mark appropriately (logged-in)
     if (item.status === 'SUSPENDED' || item.status === 'SUSPENDIDA') {
-      maskedList.push(transformAuction(item, userTier, false));
-      continue;
-    }
-
-    // C. GUEST users - LOGIN DISABLED: show everything unlocked
-    // TODO: Re-enable guest masking after auction system is fully working
-    if (userTier === 'GUEST') {
       maskedList.push(transformAuction(item, userTier, false));
       continue;
     }
@@ -964,7 +1007,29 @@ export async function GET(request: NextRequest) {
         ? { orderBy: `${DISTANCE_KM_SQL} ASC, id ASC`, cursorMode: 'offset' }
         : SORT_MAP[normalizedSort];
 
-    const tier = (tierParam || 'GUEST') as UserTier | 'GUEST';
+    // Tier resolution — server-side, mirroring the detail route's gate.
+    //
+    // The frontend does NOT send a `tier` param, so a client value can never be
+    // trusted to unlock; the login signal comes from the session. Fail-closed:
+    // any auth() error is treated as logged-out so a session-store blip can
+    // never hand a guest the full payload.
+    //   - anonymous            → 'GUEST'  (teaser; a spoofed ?tier= is ignored)
+    //   - any registered user  → full     (binary gate, exactly like
+    //                            /api/auctions/[id] which unlocks on isLoggedIn
+    //                            with no tier distinction). We default a
+    //                            logged-in caller to 'diamond' (full access);
+    //                            an explicit ?tier= is still honoured so a
+    //                            future freemium client can opt into gating.
+    let isLoggedIn = false;
+    try {
+      const session = await auth();
+      isLoggedIn = !!session?.user?.id;
+    } catch {
+      isLoggedIn = false;
+    }
+    const tier: UserTier | 'GUEST' = isLoggedIn
+      ? ((tierParam as UserTier) || 'diamond')
+      : 'GUEST';
 
     // Create cache key (include sort so different orderings don't collide)
     const cacheKey = {
