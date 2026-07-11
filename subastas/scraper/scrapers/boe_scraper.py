@@ -22,6 +22,7 @@ from ..config.provinces import (
 )
 from ..config.categories import get_category_type
 from .vehicle_parser import is_vehicle_category, parse_vehicle_fields
+from .property_attribute_parser import parse_property_attributes
 from ..config.municipality_province import (
     municipality_to_province, province_from_text, normalize_municipality,
     canonical_municipality_name,
@@ -2396,6 +2397,14 @@ class BOEScraper(BaseScraper):
             'bien_type': None,
             'property_type': None,
             'surface_m2': None,
+            # Property-portal attributes (Phase 1) — honest-NULL by default.
+            'bedrooms': None,
+            'bathrooms': None,
+            'has_terrace': None,
+            'has_garden': None,
+            'has_garage': None,
+            'has_storage_room': None,
+            'floor_level': None,
             # G2/G3 documents (filled by _capture_documents_and_snapshot)
             'documents': [],
             # SUSPENDIDA — resume date + motive (honest-NULL by default)
@@ -2426,6 +2435,13 @@ class BOEScraper(BaseScraper):
             ('vivienda_habitual', 'vivienda_habitual'),
             ('property_type', 'property_type'),
             ('surface_m2', 'surface_m2'),
+            ('bedrooms', 'bedrooms'),
+            ('bathrooms', 'bathrooms'),
+            ('has_terrace', 'has_terrace'),
+            ('has_garden', 'has_garden'),
+            ('has_garage', 'has_garage'),
+            ('has_storage_room', 'has_storage_room'),
+            ('floor_level', 'floor_level'),
         ]
         for src, dst in passthrough:
             v = detail_info.get(src)
@@ -2813,6 +2829,14 @@ class BOEScraper(BaseScraper):
             # (already in body_text). Honest-NULL on non-suspended / bare rows.
             resume_at, suspension_motive = self._extract_suspension_info(body_text)
 
+            # Property attributes (bedrooms/bathrooms/terrace/garden/garage/
+            # storage/floor) parsed from the SAME already-fetched prose — no new
+            # fetch. Bien block preferred, then cadastral data, then whole body.
+            # Honest-NULL: every key is None unless the prose states it.
+            prop_attrs = parse_property_attributes(
+                " ".join(filter(None, [bienes, cadastral_data, body_text]))
+            )
+
             return {
                 'general_info': general_info,
                 'autoridad_gestora': autoridad,
@@ -2862,6 +2886,14 @@ class BOEScraper(BaseScraper):
                 # (bien block preferred, whole body as fallback). Honest-NULL when
                 # no parseable surface is present; land cabida is skipped.
                 'surface_m2': parse_surface_m2(bienes) or parse_surface_m2(body_text),
+                # Property-portal attributes (Phase 1). Honest-NULL by default.
+                'bedrooms': prop_attrs['bedrooms'],
+                'bathrooms': prop_attrs['bathrooms'],
+                'has_terrace': prop_attrs['has_terrace'],
+                'has_garden': prop_attrs['has_garden'],
+                'has_garage': prop_attrs['has_garage'],
+                'has_storage_room': prop_attrs['has_storage_room'],
+                'floor_level': prop_attrs['floor_level'],
                 # SUSPENDIDA — "Fecha de reanudación prevista" (reuses resumeAt)
                 # + the BOE suspension motive (new suspensionMotive column).
                 'resume_at': resume_at,

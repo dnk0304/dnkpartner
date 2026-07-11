@@ -44,6 +44,22 @@ _VEHICLE_FIELD_COLS = [
     ('vehicle_year',  'vehicleYear'),
 ]
 
+# Property-portal attribute columns (Phase 1, 20260711). (data_key, db_col).
+# Parsed from the bien/registry prose (property_attribute_parser). Guarded by the
+# information_schema probe so a pre-migration DB is a safe no-op, and written
+# only when the parser found a value so a transient miss never blanks a good
+# column (honest-NULL). Mixed types: bedrooms/bathrooms INT, hasX BOOL,
+# floorLevel TEXT.
+_PROPERTY_ATTR_COLS = [
+    ('bedrooms',         'bedrooms'),
+    ('bathrooms',        'bathrooms'),
+    ('has_terrace',      'hasTerrace'),
+    ('has_garden',       'hasGarden'),
+    ('has_garage',       'hasGarage'),
+    ('has_storage_room', 'hasStorageRoom'),
+    ('floor_level',      'floorLevel'),
+]
+
 
 class DatabaseAdapter:
     """
@@ -428,7 +444,10 @@ class DatabaseAdapter:
                                       'vehicleMake', 'vehicleModel', 'vehicleYear',
                                       'postalCode', 'idufir', 'registryInscription',
                                       'legalTitle', 'bienLocalidad', 'bienProvincia',
-                                      'viviendaHabitual', 'surfaceM2')
+                                      'viviendaHabitual', 'surfaceM2',
+                                      'bedrooms', 'bathrooms', 'hasTerrace', 'hasGarden',
+                                      'hasGarage', 'hasStorageRoom', 'floorLevel',
+                                      'catastroYearBuilt', 'catastroUse', 'catastroCheckedAt')
             """)
             forge_cols = {r[0] for r in cursor.fetchall()}
         except Exception:
@@ -574,6 +593,13 @@ class DatabaseAdapter:
                 if _col in forge_cols and data.get(_data_key) is not None:
                     update_fields.append(f'"{_col}" = %s')
                     params.append(data[_data_key])
+            # Property-portal attributes (Phase 1, guarded). Honest-NULL: only
+            # written when the prose parser found a value (never blanks a good
+            # column on a transient miss). booleans persist False when negated.
+            for _data_key, _col in _PROPERTY_ATTR_COLS:
+                if _col in forge_cols and data.get(_data_key) is not None:
+                    update_fields.append(f'"{_col}" = %s')
+                    params.append(data[_data_key])
 
             if not update_fields:
                 # Nothing to update — still stamp updatedAt
@@ -714,6 +740,12 @@ class DatabaseAdapter:
                     vals.append(data[_vk])
             # G1 discrete "Datos del bien" columns (Forge 20260603, guarded).
             for _data_key, _col in _BIEN_FIELD_COLS:
+                if _col in forge_cols and data.get(_data_key) is not None:
+                    col_names.append(f'"{_col}"')
+                    placeholders.append('%s')
+                    vals.append(data[_data_key])
+            # Property-portal attributes (Phase 1, guarded). Honest-NULL.
+            for _data_key, _col in _PROPERTY_ATTR_COLS:
                 if _col in forge_cols and data.get(_data_key) is not None:
                     col_names.append(f'"{_col}"')
                     placeholders.append('%s')

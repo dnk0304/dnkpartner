@@ -893,6 +893,146 @@ class ScraperScheduler:
         )
 
     # -----------------------------------------------------------------------
+    # run_catastro_enrichment — Catastro DNPRC daily leg (Phase 1 Leg B, Ghost)
+    # -----------------------------------------------------------------------
+    # Enriches active rows that carry a 20-char cadastralRef with año-
+    # construcción / uso / superficie from the FREE OVC Consulta_DNPRC web
+    # service (DG Catastro, Ley 18/2015). Pure requests (urllib) — NO Playwright,
+    # so no _run_sync_scrape lifecycle is needed.
+    #
+    #   scope     : cadastralRef IS NOT NULL AND (catastroCheckedAt IS NULL OR
+    #               catastroCheckedAt < NOW() - 7 days). Fresh refs drain daily;
+    #               everything with a ref is re-confirmed weekly at most — dead
+    #               refs (cod 4/5) are stamped so they are NOT re-hammered daily.
+    #   rate limit: 1 req/s HARD (jittered), sequential, timeout + retry-once.
+    #               ~473 active refs -> full pool < 10 min.
+    #   writes     : catastroYearBuilt (debi.ant), catastroUse (debi.luso),
+    #               surfaceM2 = COALESCE(surfaceM2, debi.sfc) — fills the EXISTING
+    #               surfaceM2 ONLY where NULL (scraped values never overwritten),
+    #               catastroCheckedAt = NOW() on every resolved fetch AND on
+    #               cod 4 / cod 5 / bad-checksum (so we stop retrying dead refs).
+    #               A network error does NOT stamp -> retried next run.
+    # -----------------------------------------------------------------------
+    CATASTRO_RATE_SECONDS = 1.0        # 1 req/s hard floor
+    CATASTRO_RECHECK_DAYS = 7          # re-confirm a ref weekly at most
+    CATASTRO_ACTIVE_STATUSES = ("CELEBRANDOSE", "PROXIMA_APERTURA", "SUSPENDIDA")
+
+    def run_catastro_enrichment(self, limit=None):
+        """Daily Catastro DNPRC enrichment over ref-bearing active rows."""
+        self.log("Running Catastro DNPRC enrichment...")
+
+        is_postgres = DATABASE_URL and ('postgresql://' in DATABASE_URL or 'postgres://' in DATABASE_URL)
+        if not is_postgres:
+            self.log("  Catastro enrichment skipped (not Postgres — no DATABASE_URL)")
+            return
+
+        import random
+        sys.path.insert(0, '/')
+        try:
+            from app.scrapers.catastro_client import consulta_dnprc
+        except ImportError:
+            from scrapers.catastro_client import consulta_dnprc
+
+        # Guard: the catastro columns must exist (pre-migration safety).
+        try:
+            conn = self._get_pg_conn()
+            cur = conn.cursor()
+            cur.execute(
+                """SELECT column_name FROM information_schema.columns
+                   WHERE table_name = 'Auction'
+                     AND column_name IN ('catastroYearBuilt','catastroUse','catastroCheckedAt')"""
+            )
+            present = {r[0] for r in cur.fetchall()}
+            if 'catastroCheckedAt' not in present:
+                self.log("  Catastro enrichment skipped (columns absent — apply "
+                         "migration 20260711_add_property_attrs_catastro first)")
+                cur.close(); conn.close()
+                return
+
+            cur.execute(
+                f"""
+                SELECT id, "boeId", "cadastralRef", "surfaceM2"
+                FROM "Auction"
+                WHERE "cadastralRef" IS NOT NULL
+                  AND (status = ANY(%s::"AuctionStatus"[]))
+                  AND ("catastroCheckedAt" IS NULL
+                       OR "catastroCheckedAt" < NOW() - INTERVAL '{self.CATASTRO_RECHECK_DAYS} days')
+                ORDER BY "catastroCheckedAt" ASC NULLS FIRST, id ASC
+                {"LIMIT %s" if limit else ""}
+                """,
+                (list(self.CATASTRO_ACTIVE_STATUSES),) + ((limit,) if limit else ()),
+            )
+            rows = cur.fetchall()
+            cur.close(); conn.close()
+        except Exception as e:
+            self.log(f"  Catastro enrichment: scope query failed: {e}")
+            return
+
+        if not rows:
+            self.log("  No cadastralRef rows due for Catastro enrichment")
+            return
+
+        self.log(f"  Enriching {len(rows)} ref-bearing rows @ 1 req/s")
+
+        ok = malformed = not_found = bad_checksum = errors = 0
+        surf_filled = year_filled = use_filled = 0
+        conn = self._get_pg_conn()
+
+        for i, (auction_id, boe_id, ref, surface_m2) in enumerate(rows):
+            try:
+                res = consulta_dnprc(ref, timeout=20.0)
+                stamp = True   # stamp catastroCheckedAt unless it's a network error
+                sets, params = [], []
+
+                if res.status == "ok":
+                    ok += 1
+                    if res.year_built is not None:
+                        sets.append('"catastroYearBuilt" = %s'); params.append(res.year_built); year_filled += 1
+                    if res.use:
+                        sets.append('"catastroUse" = %s'); params.append(res.use); use_filled += 1
+                    # Fill surfaceM2 ONLY where currently NULL (never overwrite a
+                    # scraped value). COALESCE keeps it idempotent.
+                    if surface_m2 is None and res.surface_m2 is not None:
+                        sets.append('"surfaceM2" = COALESCE("surfaceM2", %s)'); params.append(res.surface_m2); surf_filled += 1
+                elif res.status == "malformed":      # cod 4 — corrupt ref (BOE source)
+                    malformed += 1
+                    self.log(f"  Catastro cod4 (malformed ref) {boe_id}: {ref}")
+                elif res.status == "not_found":       # cod 5 — no existe
+                    not_found += 1
+                elif res.status == "checksum":        # local reject (bad control letters)
+                    bad_checksum += 1
+                    self.log(f"  Catastro checksum-defect {boe_id}: {ref}")
+                else:                                  # network / parse error
+                    errors += 1
+                    stamp = False                      # retry next run
+
+                if stamp:
+                    sets.append('"catastroCheckedAt" = NOW()')
+                if sets:
+                    params.append(auction_id)
+                    c = conn.cursor()
+                    c.execute(f'UPDATE "Auction" SET {", ".join(sets)} WHERE id = %s', params)
+                    conn.commit(); c.close()
+            except Exception as e:
+                errors += 1
+                self.log(f"  Catastro error for {boe_id} ({ref}): {e}")
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+
+            # 1 req/s HARD floor, jittered up, between requests (skip after last).
+            if i < len(rows) - 1:
+                time.sleep(self.CATASTRO_RATE_SECONDS + random.random() * 0.4)
+
+        conn.close()
+        self.log(
+            f"  Catastro enrichment complete: ok={ok} cod4={malformed} "
+            f"cod5={not_found} checksum={bad_checksum} errors={errors} | "
+            f"surfaceM2+{surf_filled} yearBuilt+{year_filled} use+{use_filled}"
+        )
+
+    # -----------------------------------------------------------------------
     # run_daily_update_scraper — Wave 1 close-out (inline BOEParallelScraper)
     # -----------------------------------------------------------------------
 
@@ -1230,6 +1370,13 @@ class ScraperScheduler:
         # one staggered daily slot clear of the category browsers above.
         schedule.every().day.at("05:30").do(self.recheck_suspended_auctions)
 
+        # Catastro DNPRC enrichment — daily. Fills año-construcción / uso and
+        # NULL-only surfaceM2 on ref-bearing active rows from the free OVC web
+        # service @ 1 req/s (~473 refs < 10 min). Dead refs (cod 4/5) are
+        # stamped so they are not re-hammered; everything re-confirmed weekly.
+        # Staggered clear of the browser jobs above.
+        schedule.every().day.at("05:45").do(self.run_catastro_enrichment)
+
         # Wave 2b: dispatcher drain — every DISPATCH_INTERVAL_MIN minutes
         schedule.every(DISPATCH_INTERVAL_MIN).minutes.do(self.dispatch_outbox)
 
@@ -1256,6 +1403,7 @@ class ScraperScheduler:
         self.log(f"  Administrativas:      07:15, 13:15, 19:15, 00:15 (4x/day)")
         self.log(f"  SegSocial (TGSS):     06:10 daily (source='SEGSOCIAL', weekly-refreshed)")
         self.log(f"  PLABI (MdJ liquid.):  06:20 daily (source='PLABI', off-BOE concursal)")
+        self.log(f"  Catastro DNPRC:       05:45 daily (año/uso/surfaceM2 @ 1 req/s, ref-bearing rows)")
         self.log(f"  Pre-auction (PA):     Every 6h (PROXIMA_APERTURA discovery, ORIGEN=J)")
         self.log(f"  Dispatch outbox:      Every {DISPATCH_INTERVAL_MIN} min")
         self.log(f"  Geocode drain (fast): Every {geocode_interval} min (active rows only)")
@@ -1302,6 +1450,10 @@ def main():
                         help='Run one Seguridad Social (TGSS) national pull and exit')
     parser.add_argument('--plabi-once', action='store_true',
                         help='Run one PLABI (Ministerio de Justicia) national pull and exit')
+    parser.add_argument('--catastro-once', action='store_true',
+                        help='Run one Catastro DNPRC enrichment pass and exit')
+    parser.add_argument('--catastro-limit', type=int, default=0,
+                        help='Cap rows processed by --catastro-once (0 = all due)')
 
     args = parser.parse_args()
     scheduler = ScraperScheduler()
@@ -1327,6 +1479,9 @@ def main():
     elif args.plabi_once:
         scheduler.log("Running PLABI (Ministerio de Justicia) national pull once...")
         scheduler.run_plabi_update()
+    elif args.catastro_once:
+        scheduler.log("Running Catastro DNPRC enrichment once...")
+        scheduler.run_catastro_enrichment(limit=args.catastro_limit or None)
     else:
         scheduler.run()
 
