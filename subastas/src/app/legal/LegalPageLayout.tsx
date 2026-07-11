@@ -17,11 +17,18 @@ import * as React from "react";
 export function LegalPageLayout({
   title,
   updated,
+  updatedLabel = "Última actualización",
   children,
 }: {
   title: string;
   /** Human-readable "last reviewed" date, e.g. "10 de junio de 2026". */
   updated?: string;
+  /**
+   * Localised prefix for the "last updated" line. Defaults to the Spanish
+   * "Última actualización" so the es pages render byte-for-byte as before;
+   * the en legal pages pass "Last updated" (i18n Phase 2).
+   */
+  updatedLabel?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -32,7 +39,7 @@ export function LegalPageLayout({
         </h1>
         {updated ? (
           <p className="mt-3 text-sm text-[var(--color-ink-tertiary)]">
-            Última actualización: {updated}
+            {updatedLabel}: {updated}
           </p>
         ) : null}
       </header>
@@ -40,6 +47,71 @@ export function LegalPageLayout({
         {children}
       </div>
     </main>
+  );
+}
+
+/**
+ * LegalTable — lightweight, muted, hairline-bordered table for the cookie /
+ * privacy schedules (name / purpose / duration read clearer than prose).
+ * Shared by the cookies and privacidad pages, es + en (i18n Phase 2).
+ */
+export function LegalTable({
+  head,
+  rows,
+}: {
+  head: string[];
+  rows: React.ReactNode[][];
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse text-left text-sm">
+        <thead>
+          <tr className="border-b border-[var(--color-hairline)]">
+            {head.map((h) => (
+              <th
+                key={h}
+                scope="col"
+                className="py-2 pr-4 align-top font-semibold text-[var(--color-ink-primary)]"
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((cells, i) => (
+            <tr
+              key={i}
+              className="border-b border-[var(--color-hairline-soft)] last:border-0"
+            >
+              {cells.map((cell, j) => (
+                <td
+                  key={j}
+                  className="py-2.5 pr-4 align-top text-[var(--color-ink-secondary)]"
+                >
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/**
+ * BindingNotice — the prevailing-language notice shown only on the English
+ * legal pages (i18n Phase 2). Lex-validated wording (2026-07-10); the es
+ * pages render no notice. Styled as a quiet, hairline-bordered callout,
+ * consistent with the muted note style used inside the legal bodies.
+ */
+export function BindingNotice() {
+  return (
+    <p className="rounded-md border-l-2 border-[var(--color-hairline)] bg-[var(--color-surface-muted)] px-4 py-3 text-sm text-[var(--color-ink-tertiary)]">
+      This English translation is provided for convenience only. The Spanish
+      version is the legally binding text.
+    </p>
   );
 }
 
