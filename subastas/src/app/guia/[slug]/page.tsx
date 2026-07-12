@@ -17,8 +17,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getLocale, getTranslations } from "next-intl/server";
+import type { Locale } from "@/i18n/routing";
 import { getPublishedArticleBySlug } from "@/lib/articles";
+import { resolveArticleCoverImage } from "@/lib/article-cover";
 import { ArticleContent } from "@/components/blog/ArticleContent";
+import { ArticleCover } from "@/components/blog/ArticleCover";
+import { resolveTheme, THEME_META } from "@/components/blog/article-theme";
 
 const SITE = "https://subastasactivas.com";
 
@@ -67,6 +72,15 @@ export default async function ArticlePage(
   const { slug } = await params;
   const article = await getPublishedArticleBySlug(slug);
   if (!article) notFound();
+
+  const locale = (await getLocale()) as Locale;
+  const t = await getTranslations("blogPage");
+  const theme = resolveTheme(article.cluster);
+  const cover = resolveArticleCoverImage({
+    imageUrl: article.imageUrl,
+    cluster: article.cluster,
+    slug: article.slug,
+  });
 
   const url = `${SITE}/guia/${article.slug}`;
   const jsonLd = {
@@ -132,6 +146,14 @@ export default async function ArticlePage(
         </nav>
 
         <article>
+          {/* Cover hero — shared surface with the listing cards. */}
+          <ArticleCover
+            src={cover.src}
+            alt={article.imageAlt ?? article.title}
+            theme={theme}
+            chipLabel={THEME_META[theme].label[locale]}
+          />
+
           <header className="mb-8 border-b border-[var(--color-hairline-soft)] pb-6">
             <h1 className="font-display text-3xl font-semibold leading-tight tracking-tight text-[var(--color-ink-primary)] sm:text-4xl">
               {article.title}
@@ -141,18 +163,26 @@ export default async function ArticlePage(
                 {article.metaDescription}
               </p>
             ) : null}
-            {article.publishedAt ? (
-              <p className="mt-4 text-xs text-[var(--color-ink-quiet)]">
-                <time dateTime={article.publishedAt.toISOString()}>
-                  Publicado el{" "}
-                  {article.publishedAt.toLocaleDateString("es-ES", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })}
-                </time>
-              </p>
-            ) : null}
+            {/* Byline + publish date. Byline is localized (t("byline")); the
+                rest of the page chrome stays hardcoded Spanish (out of scope). */}
+            <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--color-ink-quiet)]">
+              <span className="font-medium text-[var(--color-ink-tertiary)]">
+                {t("byline")}
+              </span>
+              {article.publishedAt ? (
+                <>
+                  <span aria-hidden>·</span>
+                  <time dateTime={article.publishedAt.toISOString()}>
+                    Publicado el{" "}
+                    {article.publishedAt.toLocaleDateString("es-ES", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </time>
+                </>
+              ) : null}
+            </p>
           </header>
 
           {/*

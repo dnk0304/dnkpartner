@@ -629,7 +629,13 @@
     "title": "Guías sobre subastas judiciales",
     "intro": "Material práctico para pujar mejor: plazos, fiscalidad, riesgos y comparativas. Datos oficiales del BOE, redactado sin tecnicismos vacíos.",
     "comingSoonTitle": "Próximamente.",
-    "comingSoonText": "Estamos preparando las primeras guías. Vuelve pronto."
+    "comingSoonText": "Estamos preparando las primeras guías. Vuelve pronto.",
+    "byline": "Escrito por SubastasActivas",
+    "browseByCategory": "Explora por categoría",
+    "viewAll": "Ver todas",
+    "viewLess": "Ver menos",
+    "prevAria": "Anterior",
+    "nextAria": "Siguiente"
   },
   "contactPage": {
     "metaTitle": "Contacto — SubastasActivas",
