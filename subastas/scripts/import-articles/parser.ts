@@ -160,6 +160,219 @@ export function stripScaffolding(body: string, title?: string): string {
   return kept.join('\n').replace(/\n{3,}/g, '\n\n');
 }
 
+/**
+ * Strip writer's-room placeholder callouts and trailing scaffolding appendices
+ * that survive into the article body. These are supplementary/authoring blocks
+ * that must NEVER publish — some literally say "(no publicar)". The existing
+ * stripAuthorNotes()/stripScaffolding() passes miss them because they are
+ * multi-line blockquotes and heading-anchored sections, not single lines.
+ *
+ * Removed constructs (identified empirically across the 55-article corpus):
+ *
+ *  1. Placeholder blockquotes — a contiguous `>`-block whose text contains any
+ *     junk marker: `DATA CALLOUT`, `[DATO BOE]`, `229k`, `{N}`, `{X}`,
+ *     `Spec para Pixel`, `Spec Pixel`. These are unfilled live-counter specs
+ *     with a stale hardcoded "229k". LEGIT data blockquotes (`> 📊 **Dato de
+ *     nuestra base:** …240.266…`, `> **Dato real:** …`, `> **Dato propio:** …`)
+ *     contain NONE of these markers and are preserved untouched.
+ *
+ *  2. Trailing writer's-room meta sections — a heading whose text is an
+ *     English/label writer's-room marker (`INTERNAL LINKS`, `TOOL / DATA
+ *     CALLOUTS`, `IMAGE / ALT`, `COMPETITOR-BEAT NOTE`, `REVIEW FLAGS`,
+ *     `SCHEMA`, `META / SEO`, or any heading containing `(no publicar)`) plus
+ *     its body, up to the next heading of equal-or-higher level (or EOF). Real
+ *     reader-facing Spanish sections (`## Preguntas frecuentes`, `## Lo que
+ *     dicen nuestros datos`, `## Artículos relacionados`, `## Conclusión`, …)
+ *     are sentence-case Spanish and never match, so they pass through.
+ *
+ *  3. `## CTA` / `### CTA final` headings — DE-LABELLED (heading line dropped,
+ *     the real call-to-action prose beneath is kept).
+ *
+ *  4. Orphan author-note lines — line-leading (after optional `>`):
+ *     `**Unique-data callout …`, `*Competitor-beat note …`, `**Out-competes…`,
+ *     `**How:**`.
+ *
+ *  5. Inline authoring parentheticals — `*(Spec Forge: …)*` / `*(Spec Pixel…)*`
+ *     / `*(Nota …)*` embedded mid-sentence.
+ *
+ * IMPORTANT: `240.266` is NOT a strip trigger. It is the real, SAGA-audited
+ * database figure that appears in legit prose AND legit data blockquotes across
+ * ~27 articles; triggering on it would destroy published content.
+ *
+ * Exported for unit testing.
+ */
+const JUNK_BLOCKQUOTE = /DATA CALLOUT|\[DATO BOE\]|DATO BOE|229k|\{N\}|\{X\}|Spec\s+para\s+Pixel|Spec\s+Pixel/i;
+
+function isJunkHeadingText(text: string): boolean {
+  const t = text
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[.:]+$/, '');
+  if (/\(no publicar\)/.test(t)) return true;
+  return (
+    t === 'internal links' ||
+    t === 'data callouts' ||
+    t === 'data callout' ||
+    /^tool\s*\/\s*data\s*callouts?$/.test(t) ||
+    /^image\s*\/\s*alt$/.test(t) ||
+    t === 'competitor-beat note' ||
+    t === 'review flags' ||
+    t === 'schema' ||
+    t === 'meta' ||
+    /^meta\s*\/\s*seo$/.test(t)
+  );
+}
+
+function isCtaLabelHeading(text: string): boolean {
+  const t = text.trim().toLowerCase().replace(/\s+/g, ' ').replace(/[.:]+$/, '');
+  return t === 'cta' || t === 'cta final';
+}
+
+/** Normalize a bold-label (`**Label (paren):**`) to a bare lowercase key. */
+function normalizeLabel(raw: string): string {
+  return raw
+    .replace(/\([^)]*\)/g, '') // drop parentheticals e.g. "(resuelto)"
+    .replace(/[:.]+$/, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+/** A `**Label:**` writer's-room note whose whole line (+ bullets) is dropped. */
+function isJunkBoldLabel(label: string): boolean {
+  const t = normalizeLabel(label);
+  return (
+    t === 'internal links' ||
+    t === 'enlaces internos' ||
+    t === 'schema' ||
+    t === 'how' ||
+    t === 'owner' ||
+    t === 'cluster' ||
+    t === 'review flags' ||
+    t === 'disclaimer a renderizar' ||
+    t.startsWith('image') ||
+    t.startsWith('imagen') ||
+    t.startsWith('out-compet') ||
+    t.startsWith('competitor') ||
+    t.startsWith('unique-data callout')
+  );
+}
+
+/** A `**Label:**` note kept as visible text with only the label removed. */
+function isDeLabelBold(label: string): boolean {
+  const t = normalizeLabel(label);
+  return t === 'cta' || t.startsWith('disclaimer visible');
+}
+
+export function stripWritersRoomBlocks(body: string): string {
+  const lines = body.split('\n');
+  const out: string[] = [];
+  let i = 0;
+
+  const dropTrailingSeparator = () => {
+    while (out.length && out[out.length - 1].trim() === '') out.pop();
+    if (out.length && /^\s*---+\s*$/.test(out[out.length - 1])) out.pop();
+  };
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // ---- (1) Blockquote blocks ----
+    if (/^\s*>/.test(line)) {
+      let j = i;
+      const block: string[] = [];
+      while (j < lines.length && /^\s*>/.test(lines[j])) {
+        block.push(lines[j]);
+        j++;
+      }
+      if (JUNK_BLOCKQUOTE.test(block.join('\n'))) {
+        // Drop the junk placeholder block + any now-orphaned `---` separator.
+        dropTrailingSeparator();
+        i = j;
+        while (i < lines.length && lines[i].trim() === '') i++;
+        if (i < lines.length && /^\s*---+\s*$/.test(lines[i])) i++;
+        continue;
+      }
+      // Legit blockquote — keep, but de-label a `> Disclaimer (pie):` prefix.
+      for (const b of block) {
+        out.push(b.replace(/^(\s*>\s*)Disclaimer\s*(?:\([^)]*\))?\s*:\s*/i, '$1'));
+      }
+      i = j;
+      continue;
+    }
+
+    // ---- (2) / (3) Heading-anchored sections ----
+    const hm = /^(#{1,6})\s+(.*)$/.exec(line);
+    if (hm) {
+      const level = hm[1].length;
+      const text = hm[2];
+      if (isJunkHeadingText(text)) {
+        // Drop heading + body up to next heading of level <= this (or EOF).
+        dropTrailingSeparator();
+        i++;
+        while (i < lines.length) {
+          const nh = /^(#{1,6})\s+/.exec(lines[i]);
+          if (nh && nh[1].length <= level) break;
+          i++;
+        }
+        continue;
+      }
+      if (isCtaLabelHeading(text)) {
+        // De-label: drop the heading line only, keep the CTA prose beneath.
+        i++;
+        continue;
+      }
+    }
+
+    // ---- (4) Bold-label writer's-room notes (line + continuation bullets) ----
+    const bm = /^\s*\*\*([^*]+?)\*\*/.exec(line);
+    if (bm) {
+      const label = bm[1];
+      if (isJunkBoldLabel(label)) {
+        dropTrailingSeparator();
+        i++;
+        // Consume contiguous continuation bullet lines.
+        while (i < lines.length && /^\s*[-*]\s/.test(lines[i])) i++;
+        continue;
+      }
+      if (isDeLabelBold(label)) {
+        // Keep the text, strip only the `**Label:**` prefix.
+        out.push(line.replace(/^(\s*)\*\*[^*]+?\*\*\s*/, '$1'));
+        i++;
+        continue;
+      }
+    }
+
+    // ---- (5) Orphan author-note lines (italic/bold single-line forms) ----
+    const bare = line.replace(/^\s*>\s?/, '').trim();
+    if (
+      /^\*{1,2}\s*Out-competes\b/i.test(bare) ||
+      /^\*\*How:\*\*/i.test(bare) ||
+      /^\*{1,2}\s*Competitor-beat note\b/i.test(bare) ||
+      /^\*{1,2}\s*Competitor (it beats|a batir)\b/i.test(bare)
+    ) {
+      i++;
+      continue;
+    }
+
+    // ---- (6) Inline authoring parentheticals ----
+    const processed = line.replace(
+      /\s*\*?\((?:Spec|Nota)\s+(?:Forge|Pixel|para)[^)]*\)\*?/gi,
+      '',
+    );
+    out.push(processed);
+    i++;
+  }
+
+  // Normalize: collapse consecutive `---`, collapse 3+ blank lines, trim
+  // trailing blank/`---` lines left behind by a stripped appendix.
+  let result = out.join('\n').replace(/\n{3,}/g, '\n\n');
+  result = result.replace(/(^|\n)(?:\s*---+\s*\n\s*)+---+\s*(\n|$)/g, '$1---$2');
+  result = result.replace(/(?:\s*\n\s*---+\s*)+\s*$/g, '');
+  return result.trimEnd() + '\n';
+}
+
 // Match a `Key: value` line (or with bold markdown), normalized to lowercase.
 const KEY_ALIASES: Record<string, keyof ParsedArticle | 'secondaryKeywordsRaw'> = {
   'slug': 'slug',
@@ -414,6 +627,14 @@ export function parseArticleFile(filePath: string): ParseResult {
   // for the 44 clean articles (yaml/bold-after-h1 styles where the H1 line
   // immediately precedes the body and is a near-duplicate of the title).
   body = body.replace(/^\s*#\s+.+\n+/, '');
+
+  // Remove placeholder callout blockquotes + trailing writer's-room appendix
+  // sections that would otherwise publish as visible junk. Root-cause, pattern
+  // based: preserves all legit Spanish prose + legit data blockquotes. MUST run
+  // before stripAuthorNotes(), which removes bold-label LINES (`**Image…`,
+  // `**Schema…`) but not their continuation bullets — leaving orphans this pass
+  // would then never see a label for.
+  body = stripWritersRoomBlocks(body);
 
   body = stripAuthorNotes(body);
 
