@@ -705,6 +705,7 @@ model Article {
   canonicalUrl       String?
   cluster            String?
   imageAlt           String?
+  imageUrl           String?
 
   bodyMarkdown       String
 

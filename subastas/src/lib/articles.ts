@@ -18,6 +18,8 @@ export type PublicArticleListItem = {
   metaDescription: string | null;
   primaryKeyword: string | null;
   cluster: string | null;
+  imageUrl: string | null;
+  imageAlt: string | null;
   publishedAt: Date | null;
   updatedAt: Date;
 };
@@ -26,7 +28,6 @@ export type PublicArticle = PublicArticleListItem & {
   id: string;
   secondaryKeywords: string[];
   canonicalUrl: string | null;
-  imageAlt: string | null;
   bodyMarkdown: string;
 };
 
@@ -41,6 +42,8 @@ export async function listPublishedArticles(opts?: { take?: number; skip?: numbe
       metaDescription: true,
       primaryKeyword: true,
       cluster: true,
+      imageUrl: true,
+      imageAlt: true,
       publishedAt: true,
       updatedAt: true,
     },
@@ -66,6 +69,7 @@ export async function getPublishedArticleBySlug(slug: string): Promise<PublicArt
     primaryKeyword: a.primaryKeyword,
     secondaryKeywords: a.secondaryKeywords,
     cluster: a.cluster,
+    imageUrl: a.imageUrl,
     imageAlt: a.imageAlt,
     canonicalUrl: a.canonicalUrl,
     bodyMarkdown: a.bodyMarkdown,
