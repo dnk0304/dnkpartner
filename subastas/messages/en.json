@@ -629,7 +629,13 @@
     "title": "Guides to judicial auctions",
     "intro": "Practical material to bid better: deadlines, taxes, risks and comparisons. Official BOE data, written without empty jargon.",
     "comingSoonTitle": "Coming soon.",
-    "comingSoonText": "We're preparing the first guides. Check back soon."
+    "comingSoonText": "We're preparing the first guides. Check back soon.",
+    "byline": "Written by SubastasActivas",
+    "browseByCategory": "Browse by category",
+    "viewAll": "View all",
+    "viewLess": "Show less",
+    "prevAria": "Previous",
+    "nextAria": "Next"
   },
   "contactPage": {
     "metaTitle": "Contact — SubastasActivas",

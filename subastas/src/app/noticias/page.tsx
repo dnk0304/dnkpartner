@@ -12,15 +12,19 @@
  * missing en = 404 + omit — no thin duplicates).
  */
 import type { Metadata } from "next";
-import Link from "next/link";
 import { getLocale } from "next-intl/server";
 import type { Locale } from "@/i18n/routing";
 import { buildAlternates, ogLocale } from "@/lib/seo/alternates";
 import { listNoticias, formatNoticiaDate } from "@/lib/noticias";
+import { resolveArticleCoverImage } from "@/lib/article-cover";
+import { ArticleCard } from "@/components/blog/ArticleCard";
 
 const SITE = "https://subastasactivas.com";
 
-const COPY: Record<Locale, { title: string; metaTitle: string; intro: string; empty: string; emptySub: string }> = {
+const COPY: Record<
+  Locale,
+  { title: string; metaTitle: string; intro: string; empty: string; emptySub: string; chip: string }
+> = {
   es: {
     title: "Noticias",
     metaTitle: "Noticias sobre subastas judiciales — SubastasActivas",
@@ -28,6 +32,7 @@ const COPY: Record<Locale, { title: string; metaTitle: string; intro: string; em
       "Actualidad sobre subastas judiciales del BOE: cambios normativos, datos del mercado y novedades de SubastasActivas.",
     empty: "Próximamente.",
     emptySub: "Estamos preparando las primeras noticias. Vuelve pronto.",
+    chip: "Noticia",
   },
   en: {
     title: "News",
@@ -36,6 +41,7 @@ const COPY: Record<Locale, { title: string; metaTitle: string; intro: string; em
       "News on Spanish judicial (BOE) auctions: regulatory changes, market data and SubastasActivas product updates.",
     empty: "Coming soon.",
     emptySub: "We are preparing the first news posts. Check back soon.",
+    chip: "News",
   },
 };
 
@@ -66,11 +72,16 @@ export default async function NoticiasIndexPage() {
   const noticias = listNoticias(locale);
   const prefix = locale === "en" ? "/en" : "";
 
+  const [featured, ...rest] = noticias;
+
+  const coverFor = (slug: string, ogImage?: string) =>
+    resolveArticleCoverImage({ imageUrl: ogImage ?? null, cluster: null, slug });
+
   return (
     <div className="min-h-screen bg-[var(--color-page)]">
       {/* Header + footer come from SiteChrome in the root layout. */}
 
-      <main className="mx-auto max-w-5xl px-6 py-10">
+      <main className="mx-auto max-w-6xl px-6 py-10">
         <div className="mb-10 max-w-2xl">
           <h1 className="font-display text-3xl font-semibold leading-tight tracking-tight text-[var(--color-ink-primary)] sm:text-4xl">
             {c.title}
@@ -90,26 +101,41 @@ export default async function NoticiasIndexPage() {
             </p>
           </div>
         ) : (
-          <ul className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            {noticias.map((n) => (
-              <li
-                key={n.slug}
-                className="group rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] p-5 transition hover:shadow-[var(--shadow-card)]"
-              >
-                <Link href={`${prefix}/noticias/${n.slug}`} className="block">
-                  <h2 className="font-display text-lg font-semibold leading-snug tracking-tight text-[var(--color-ink-primary)] group-hover:underline">
-                    {n.title}
-                  </h2>
-                  <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-[var(--color-ink-secondary)]">
-                    {n.description}
-                  </p>
-                  <div className="mt-3 flex items-center gap-2 text-xs text-[var(--color-ink-quiet)]">
-                    <time dateTime={n.date}>{formatNoticiaDate(n.date, locale)}</time>
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <div className="flex flex-col gap-8">
+            {/* Featured lead — the newest story, full width. */}
+            <ArticleCard
+              variant="feature"
+              href={`${prefix}/noticias/${featured.slug}`}
+              title={featured.title}
+              description={featured.description}
+              theme="generic"
+              chipLabel={c.chip}
+              coverSrc={coverFor(featured.slug, featured.ogImage).src}
+              coverAlt={featured.title}
+              dateISO={featured.date}
+              dateLabel={formatNoticiaDate(featured.date, locale)}
+              priority
+            />
+
+            {rest.length > 0 ? (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {rest.map((n) => (
+                  <ArticleCard
+                    key={n.slug}
+                    href={`${prefix}/noticias/${n.slug}`}
+                    title={n.title}
+                    description={n.description}
+                    theme="generic"
+                    chipLabel={c.chip}
+                    coverSrc={coverFor(n.slug, n.ogImage).src}
+                    coverAlt={n.title}
+                    dateISO={n.date}
+                    dateLabel={formatNoticiaDate(n.date, locale)}
+                  />
+                ))}
+              </div>
+            ) : null}
+          </div>
         )}
       </main>
     </div>
