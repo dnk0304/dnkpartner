@@ -721,5 +721,16 @@
     "emptyBody": "Try widening the price range or changing the province.",
     "emptyBodyPropertySparse": "Few listings detail these property characteristics (floor, use, garage or year). Filtering by them hides the ones without that data. Try removing one of these filters.",
     "volverInicio": "Back to home"
+  },
+  "benchmark": {
+    "chipBelow": "{pct}% below area",
+    "chipAbove": "{pct}% above area",
+    "chipInline": "in line with the area",
+    "tooltipSample": "Median of {n} comparable properties in {region}",
+    "detailBelow": "{pct}% below the {region} median",
+    "detailAbove": "{pct}% above the {region} median",
+    "detailInline": "in line with the {region} median",
+    "detailBand": "Most of the area: {p25}–{p75}",
+    "detailSampleFootnote": "Based on {n} comparable properties"
   }
 }

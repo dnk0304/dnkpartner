@@ -59,6 +59,7 @@ import { cn } from "@/lib/utils";
 // cadastral, lastUpdated). Each is dynamic-safe and self-contained; the
 // detail page composes them, it does not own their rendering logic.
 import { AuctionFinancialsTable, type FinancialEntry } from "@/components/auction/AuctionFinancialsTable";
+import { RegionBenchmarkChip } from "@/components/observatory/RegionBenchmarkChip";
 import { AuctionCountdownBadge } from "@/components/auction/AuctionCountdownBadge";
 import { AuctionSourceLinks, type SourceLink } from "@/components/auction/AuctionSourceLinks";
 import { AuctionMapPanel } from "@/components/auction/AuctionMapPanel";
@@ -600,6 +601,29 @@ export default function AuctionDetailClient({
                   <ImageOff className="h-3 w-3" aria-hidden="true" />
                   Aún no disponemos de foto ni ubicación geocodificada para esta subasta.
                 </p>
+              </section>
+            )}
+
+            {/* Region €/m² value signal (Phase 3, wave141) — "vs área" line.
+                Honest-null: RegionBenchmarkChip returns null when the payload
+                carries no benchmark, so this whole block collapses. Scope is
+                honoured inside the chip (regionLabel is the municipality OR the
+                province, whichever bucket answered). Placed just above the
+                financial breakdown so the €/m² reads next to the money. */}
+            {raw.regionBenchmark && (
+              <section aria-labelledby="benchmark-heading">
+                <h2
+                  id="benchmark-heading"
+                  className="font-serif text-xl text-[var(--color-ink-primary)]"
+                >
+                  Precio por m² frente a la zona
+                </h2>
+                <div className="mt-3 rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] p-4">
+                  <RegionBenchmarkChip
+                    benchmark={raw.regionBenchmark}
+                    variant="detail"
+                  />
+                </div>
               </section>
             )}
 

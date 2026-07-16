@@ -23,6 +23,7 @@ import { AuctionTypeBadge } from "./AuctionTypeBadge";
 import { SourceBadge } from "./SourceBadge";
 import { PujaBadge, OccupancyBadge } from "./PujaOccupancyBadges";
 import { PropertyFactsBadges } from "./PropertyFactsBadges";
+import { RegionBenchmarkChip } from "./RegionBenchmarkChip";
 import { LiveCountdown } from "./LiveCountdown";
 import { FollowButton } from "@/components/notifications/FollowButton";
 import { formatPrice, capitalize, titleCase, formatDaysLeft, formatDateMed, prettifyAuctionType, formatM2, formatPricePerM2 } from "./format";
@@ -413,6 +414,10 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
                 {pricePerM2Label}
               </span>
             )}
+            {/* "vs área" value signal — renders ONLY when regionBenchmark is
+                non-null (honest-null: absent on most historical rows). Sits
+                directly after the €/m² pill it contextualises. */}
+            <RegionBenchmarkChip benchmark={item.regionBenchmark} variant="card" />
             {hasOccupancyBadge && (surfaceLabel || pricePerM2Label) && (
               <span aria-hidden="true" className="text-[var(--color-ink-quiet)]">·</span>
             )}
