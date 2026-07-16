@@ -975,6 +975,35 @@ export async function GET(request: NextRequest) {
     })();
     const radiusActive = nearLat != null && nearLng != null && radiusKm != null;
 
+    // --- Phase-2 honest property-attribute filters (Forge 2026-07-16) --------
+    // Back Pixel's AdvancedFiltersSheet follow-up. All parameterized, additive,
+    // backward-compatible (absent param => no constraint). Columns already exist
+    // (populated by the property-attribute parser); NO migration. Honest-null:
+    // an ACTIVE filter EXCLUDES rows with NULL in the filtered column (standard
+    // SQL predicate) — "filter by floor 3" must NOT return rows with unknown
+    // floor. See the WHERE block + cacheKey additions below (CACHE-KEY LAW).
+    const MAX_PROPERTY_ATTR_VALUES = 25;
+    // floorLevel / catastroUse: single value or comma-separated IN list. Reuse
+    // the generic CSV parser (trim, dedupe, cap count, drop empties/oversized).
+    const floorLevelList = parseCsvParam(searchParams.get('floorLevel'), MAX_PROPERTY_ATTR_VALUES);
+    const catastroUseList = parseCsvParam(searchParams.get('catastroUse'), MAX_PROPERTY_ATTR_VALUES);
+    // hasGarage: ONLY the literal "true" engages ("show only garaged"). Any
+    // other value (incl. "false") => no constraint — false is a sparse,
+    // honest-null-equivalent signal we must never filter to.
+    const hasGarageOnly = searchParams.get('hasGarage') === 'true';
+    // yearBuiltMin / yearBuiltMax: inclusive int range on catastroYearBuilt;
+    // each bound independent + optional; non-numeric ignored. Bounded to a sane
+    // calendar window so a garbage probe can't push absurd bounds into the plan.
+    const parseYearBound = (raw: string | null): number | null => {
+      if (raw == null) return null;
+      const n = Number(raw);
+      if (!Number.isFinite(n)) return null;
+      const y = Math.trunc(n);
+      return y >= 1000 && y <= 3000 ? y : null;
+    };
+    const yearBuiltMin = parseYearBound(searchParams.get('yearBuiltMin'));
+    const yearBuiltMax = parseYearBound(searchParams.get('yearBuiltMax'));
+
     // Pagination params
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
@@ -1114,6 +1143,14 @@ export async function GET(request: NextRequest) {
       nearLat: nearLat ?? 'none',
       nearLng: nearLng ?? 'none',
       radiusKm: radiusKm ?? 'none',
+      // Phase-2 property-attribute filters (CACHE-KEY LAW — same commit as the
+      // WHERE; wave118→119 lesson: an unkeyed filter param collides with the
+      // cached unfiltered entry and silently no-ops).
+      floorLevel: floorLevelList ? floorLevelList.join('|') : 'none',
+      catastroUse: catastroUseList ? catastroUseList.join('|') : 'none',
+      hasGarage: hasGarageOnly ? 'true' : 'none',
+      yearBuiltMin: yearBuiltMin ?? 'none',
+      yearBuiltMax: yearBuiltMax ?? 'none',
     };
     
     // Try cache first (30 second TTL)
@@ -1441,6 +1478,38 @@ export async function GET(request: NextRequest) {
     if (radiusActive) {
       sql += ` AND latitude IS NOT NULL AND longitude IS NOT NULL AND ${DISTANCE_KM_SQL} <= ?`;
       params.push(nearLat, nearLat, nearLng, radiusKm);
+    }
+
+    // --- Phase-2 honest property-attribute filters (Forge 2026-07-16) --------
+    // Parameterized; each ACTIVE filter EXCLUDES NULLs in its column (an IN(...)
+    // never matches NULL; the year-range predicate guards IS NOT NULL). This is
+    // the correct honest behavior — an unknown floor/use/year does NOT satisfy a
+    // floor/use/year filter. Placed BEFORE preStatusSqlLen so totalCount +
+    // teaserCounts honor the narrowing (count=list invariant, same as every
+    // advanced filter above). Additive: absent param => no constraint.
+    if (floorLevelList && floorLevelList.length > 0) {
+      sql += ` AND "floorLevel" IN (${floorLevelList.map(() => '?').join(', ')})`;
+      params.push(...floorLevelList);
+    }
+    if (catastroUseList && catastroUseList.length > 0) {
+      sql += ` AND "catastroUse" IN (${catastroUseList.map(() => '?').join(', ')})`;
+      params.push(...catastroUseList);
+    }
+    // hasGarage=true → garaged rows only. `= true` excludes both NULL and false
+    // (false = "sin garaje"/sparse-unknown, which this toggle must not surface).
+    if (hasGarageOnly) {
+      sql += ' AND "hasGarage" = true';
+    }
+    // yearBuiltMin / yearBuiltMax → inclusive range on catastroYearBuilt; each
+    // bound independent. Explicit IS NOT NULL so a NULL year is excluded under
+    // an active bound (an unknown build year cannot honestly satisfy a range).
+    if (yearBuiltMin != null) {
+      sql += ' AND "catastroYearBuilt" IS NOT NULL AND "catastroYearBuilt" >= ?';
+      params.push(yearBuiltMin);
+    }
+    if (yearBuiltMax != null) {
+      sql += ' AND "catastroYearBuilt" IS NOT NULL AND "catastroYearBuilt" <= ?';
+      params.push(yearBuiltMax);
     }
 
     // FORGE 2026-06-03 (search across ALL card-text columns, accent +
