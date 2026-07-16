@@ -721,5 +721,16 @@
     "emptyBody": "Prueba a ampliar el rango de precio o cambiar la provincia.",
     "emptyBodyPropertySparse": "Pocos anuncios detallan estas características del inmueble (planta, uso, garaje o año). Al filtrar por ellas se ocultan los que no tienen ese dato. Prueba a quitar alguno de estos filtros.",
     "volverInicio": "Volver al inicio"
+  },
+  "benchmark": {
+    "chipBelow": "{pct}% por debajo de la zona",
+    "chipAbove": "{pct}% por encima de la zona",
+    "chipInline": "en línea con la zona",
+    "tooltipSample": "Mediana de {n} inmuebles comparables en {region}",
+    "detailBelow": "{pct}% por debajo de la media de {region}",
+    "detailAbove": "{pct}% por encima de la media de {region}",
+    "detailInline": "en línea con la media de {region}",
+    "detailBand": "La mayoría de la zona: {p25}–{p75}",
+    "detailSampleFootnote": "Basado en {n} inmuebles comparables"
   }
 }

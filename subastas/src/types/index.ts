@@ -1,5 +1,30 @@
+/**
+ * RegionBenchmarkSignal — the per-auction "vs área" value signal projected onto
+ * the API payload by wave140 (see src/lib/benchmark.ts for the authoritative
+ * definition; mirrored here so client components can type it without importing
+ * server-only benchmark code). Honest-null when there is no computable €/m² or
+ * no qualifying benchmark bucket.
+ */
+export interface RegionBenchmarkSignal {
+  /** This auction's own €/m² (whole euros). */
+  eurM2: number;
+  /** Benchmark median €/m² for the resolved scope. */
+  benchmarkEurM2: number;
+  /** Which bucket answered: town-level or province fallback. */
+  scope: 'municipality' | 'province';
+  /** Human region label the benchmark refers to (municipality or province). */
+  regionLabel: string;
+  /** Comparables behind the benchmark (>=5 guaranteed). */
+  sampleSize: number;
+  /** Signed % delta vs benchmark, rounded. NEGATIVE = cheaper than area. */
+  deltaPct: number;
+  /** Interquartile band €/m², when stored. */
+  p25EurM2: number | null;
+  p75EurM2: number | null;
+}
+
 // New BOE-accurate status values
-export type AuctionStatus = 
+export type AuctionStatus =
   | 'proxima-apertura'   // Pre-auction (Prox. apertura)
   | 'celebrandose'       // Currently active
   | 'suspendida'         // Suspended
@@ -221,6 +246,11 @@ export interface AuctionItem {
   floorLevel?: string | null;
   catastroYearBuilt?: number | null;
   catastroUse?: string | null;
+  // regionBenchmark (wave140, 2026-07-16) — "vs área" value signal comparing
+  // this auction's €/m² against the area median. Honest-null when no €/m² or no
+  // qualifying benchmark bucket (present on ~53/80 real-estate items). Rendered
+  // as a compact chip next to the €/m² pill (Phase 3 UI).
+  regionBenchmark?: RegionBenchmarkSignal | null;
 }
 
 /**

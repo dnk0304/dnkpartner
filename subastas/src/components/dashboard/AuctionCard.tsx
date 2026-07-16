@@ -12,6 +12,7 @@ import { resolveCardImage, fallbackImageFor, isVariosLotesTitle } from '@/lib/re
 import { statusDateLabel } from '@/lib/auction-status';
 import { formatM2, formatPricePerM2, titleCase } from '@/components/observatory/format';
 import { OccupancyBadge } from '@/components/observatory/PujaOccupancyBadges';
+import { RegionBenchmarkChip } from '@/components/observatory/RegionBenchmarkChip';
 import { auctionCardTitle } from '@/lib/seo/display-title';
 import { OFFICIAL_CATEGORIES } from '@/lib/constants';
 
@@ -506,6 +507,9 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
                     {pricePerM2Label}
                   </span>
                 )}
+                {/* "vs área" value signal — honest-null (absent unless
+                    regionBenchmark is present on the payload). */}
+                <RegionBenchmarkChip benchmark={item.regionBenchmark} variant="card" />
                 {hasOccupancyBadge && (surfaceLabel || pricePerM2Label) && (
                   <span aria-hidden="true" className="text-[var(--color-ink-quiet)]">·</span>
                 )}
