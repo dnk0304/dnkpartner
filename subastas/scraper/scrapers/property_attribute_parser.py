@@ -207,6 +207,49 @@ def _floor_level(t: str) -> Optional[str]:
     return None
 
 
+def dedupe_prose(*parts: Optional[str]) -> Optional[str]:
+    """
+    Join prose fields for the room/attribute parser WITHOUT double-counting.
+
+    Several ingest paths concatenate overlapping description columns:
+      - BOE feeds ``bienes + cadastral_data + body_text`` where ``cadastral_data``
+        is extracted FROM ``bienes`` and ``body_text`` is the whole page (which
+        CONTAINS ``bienes``) — so a "cuatro dormitorios" mention appears 2-3× and
+        ``_count_rooms`` (which sums every ``finditer`` hit) reports 8 instead of 4.
+      - SEGSOCIAL/PLABI feed ``property_description + title`` where the title is
+        sometimes echoed inside the description.
+
+    Fix: drop any part whose normalized text is fully contained in another part
+    (a strict substring, or an exact duplicate keeping the first occurrence), then
+    join the survivors with a single space. This preserves genuine multi-lot prose
+    (distinct lot descriptions are NOT substrings of each other) while collapsing
+    the overlap that caused the doubling. Do NOT cap or halve counts — the parser's
+    per-mention sum is correct once the input prose carries each mention once.
+    """
+    cleaned = [p for p in parts if p]
+    if not cleaned:
+        return None
+    norms = [_norm(p) for p in cleaned]
+    keep = []
+    for i, part in enumerate(cleaned):
+        ni = norms[i]
+        if not ni:
+            continue
+        redundant = False
+        for j, nj in enumerate(norms):
+            if i == j or not nj:
+                continue
+            if ni in nj:
+                # ni is contained in nj: drop ni unless they are identical, in
+                # which case keep only the FIRST occurrence (i < j).
+                if len(ni) < len(nj) or i > j:
+                    redundant = True
+                    break
+        if not redundant:
+            keep.append(part)
+    return " ".join(keep) or None
+
+
 def parse_property_attributes(text: Optional[str]) -> Dict[str, Any]:
     """
     Parse property attributes from concatenated prose. Returns a dict with keys
@@ -250,12 +293,12 @@ def set_property_attribute_fields(record: Dict[str, Any]) -> None:
     re-run never blanks a good column. Source prose = lot_description +
     property_description + cadastral_data + title (whatever the record carries).
     """
-    prose = " ".join(filter(None, [
+    prose = dedupe_prose(
         record.get("lot_description"),
         record.get("property_description"),
         record.get("cadastral_data"),
         record.get("title"),
-    ])) or None
+    )
     if not prose:
         return
     attrs = parse_property_attributes(prose)

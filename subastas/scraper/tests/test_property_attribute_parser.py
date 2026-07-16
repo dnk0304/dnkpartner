@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scrapers"))
 from property_attribute_parser import (  # noqa: E402
     parse_property_attributes,
     set_property_attribute_fields,
+    dedupe_prose,
 )
 
 
@@ -219,3 +220,56 @@ def test_set_fields_no_prose_is_noop():
            "cadastral_data": None, "title": None, "bedrooms": None}
     set_property_attribute_fields(rec)
     assert rec["bedrooms"] is None
+
+
+# ---- dedupe_prose: overlapping ingest fields must NOT double-count --------
+# Regression for the WAVE128 bed/bath OVER-COUNT (prod row
+# 56f4a12b-...: "cuatro dormitorios ... baño" stored 8/2 instead of 4/1).
+# Root cause: BOE fed bienes + cadastral_data(extracted FROM bienes) +
+# body_text(CONTAINS bienes), so every room mention was counted 2-3×.
+
+_BIEN = ("VIVIENDA. DEPENDENCIAS: VESTIBULO, ESTAR-COMEDOR, CUATRO DORMITORIOS, "
+         "COCINA, BAÑO Y TERRAZA. Referencia catastral 1234567AB1234C0001DE")
+
+
+def test_dedupe_body_contains_bien_no_double_count():
+    # body_text is the whole page and CONTAINS the bien block verbatim; the
+    # cadastral_data is a substring of the bien block. Naive concat -> 3× count.
+    cadastral = "Referencia catastral 1234567AB1234C0001DE"
+    body_text = "Anuncio BOE. " + _BIEN + " Iniciar sesion. Fin del anuncio."
+    prose = dedupe_prose(_BIEN, cadastral, body_text)
+    a = parse_property_attributes(prose)
+    assert a["bedrooms"] == 4      # NOT 8 / 12
+    assert a["bathrooms"] == 1     # NOT 2 / 3
+    assert a["has_terrace"] is True
+
+
+def test_dedupe_exact_duplicate_fields():
+    # Same description mirrored into two keys -> count once.
+    a = parse_property_attributes(dedupe_prose(_BIEN, _BIEN))
+    assert a["bedrooms"] == 4
+    assert a["bathrooms"] == 1
+
+
+def test_dedupe_preserves_distinct_multilot_prose():
+    # Two DISTINCT lots must both be counted — dedupe only drops substrings.
+    lot1 = "Lote 1: vivienda con tres dormitorios y un baño."
+    lot2 = "Lote 2: vivienda con dos dormitorios y un baño."
+    a = parse_property_attributes(dedupe_prose(lot1, lot2))
+    assert a["bedrooms"] == 5      # 3 + 2, genuine multi-lot sum preserved
+    assert a["bathrooms"] == 2
+
+
+def test_set_fields_boe_style_overlap_not_doubled():
+    rec = {
+        "lot_description": _BIEN,
+        "property_description": None,
+        "cadastral_data": "Referencia catastral 1234567AB1234C0001DE",
+        "title": "Subasta de vivienda en Madrid",
+        "bedrooms": None, "bathrooms": None, "has_terrace": None,
+        "has_garden": None, "has_garage": None, "has_storage_room": None,
+        "floor_level": None,
+    }
+    set_property_attribute_fields(rec)
+    assert rec["bedrooms"] == 4    # cadastral substring of lot_description collapsed
+    assert rec["bathrooms"] == 1
