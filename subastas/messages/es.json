@@ -445,6 +445,16 @@
     "tipoDeSubasta": "Tipo de subasta",
     "tipoDeBienPreciso": "Tipo de bien (preciso)",
     "tipoDeBienPrecisoHint": "Filtra a categorías individuales del catálogo.",
+    "caracteristicasInmueble": "Características del inmueble",
+    "caracteristicasInmuebleHint": "Datos de Catastro/BOE, disponibles solo en parte de los anuncios. Al filtrar se ocultan los que no tienen el dato.",
+    "soloConGaraje": "Solo con garaje",
+    "plantaLabel": "Planta",
+    "usoCatastralLabel": "Uso catastral",
+    "anoConstruccion": "Año de construcción",
+    "anoDesdePlaceholder": "Desde",
+    "anoHastaPlaceholder": "Hasta",
+    "anoConstruccionDesdeAria": "Año de construcción desde",
+    "anoConstruccionHastaAria": "Año de construcción hasta",
     "proximamente": "Próximamente",
     "proximamenteHint": "Las características avanzadas se añadirán según se completen los datos del scraper.",
     "comingSoonDates": "Rango de fechas (termina entre, publicada entre)",
@@ -709,6 +719,7 @@
     "errorBody": "Reintenta en unos segundos.",
     "emptyTitle": "No hay subastas que coincidan con tu búsqueda.",
     "emptyBody": "Prueba a ampliar el rango de precio o cambiar la provincia.",
+    "emptyBodyPropertySparse": "Pocos anuncios detallan estas características del inmueble (planta, uso, garaje o año). Al filtrar por ellas se ocultan los que no tienen ese dato. Prueba a quitar alguno de estos filtros.",
     "volverInicio": "Volver al inicio"
   }
 }
