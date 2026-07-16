@@ -220,6 +220,22 @@ export type ObservatoryFilters = {
   pujaStatus: "" | "CON_PUJA" | "SIN_PUJA";
   /** When true, restrict to rows that have a real photo. */
   hasImage: boolean;
+  // --- Phase-2 honest property-attribute filters (Forge 2026-07-16) ---
+  /** Floor-level IN-list (exact match on normalized value(s)). Empty = no
+   *  filter. Travels on `?floorLevel=<csv>`; server EXCLUDES NULL-floor rows
+   *  when non-empty (honest — unknown floor ≠ any floor). */
+  floorLevels: string[];
+  /** Catastro-use IN-list (exact match). Empty = no filter. Travels on
+   *  `?catastroUse=<csv>`; server EXCLUDES NULL-use rows when non-empty. */
+  catastroUses: string[];
+  /** When true, restrict to rows with hasGarage = true ("solo con garaje").
+   *  Server ignores any non-"true" value — false is a sparse/unknown signal we
+   *  never filter to. */
+  hasGarage: boolean;
+  /** Inclusive lower bound on catastroYearBuilt. null = no lower bound. */
+  yearBuiltMin: number | null;
+  /** Inclusive upper bound on catastroYearBuilt. null = no upper bound. */
+  yearBuiltMax: number | null;
   /**
    * Curated MAP_CATEGORY_KEY (Wave81 — map-categories rail) or "otros". Empty
    * string = no map-category filter. Travels on `?mapCategory=<key>` and is
@@ -259,6 +275,11 @@ export const DEFAULT_FILTERS: ObservatoryFilters = {
   publishedBefore: null,
   pujaStatus: "",
   hasImage: false,
+  floorLevels: [],
+  catastroUses: [],
+  hasGarage: false,
+  yearBuiltMin: null,
+  yearBuiltMax: null,
   mapCategory: "",
 };
 
@@ -299,6 +320,11 @@ export function filtersFromParams(p: URLSearchParams): ObservatoryFilters {
       return raw === "CON_PUJA" || raw === "SIN_PUJA" ? raw : "";
     })(),
     hasImage: p.get("hasImage") === "true",
+    floorLevels: p.get("floorLevel")?.split(",").filter(Boolean) ?? [],
+    catastroUses: p.get("catastroUse")?.split(",").filter(Boolean) ?? [],
+    hasGarage: p.get("hasGarage") === "true",
+    yearBuiltMin: num(p.get("yearBuiltMin")),
+    yearBuiltMax: num(p.get("yearBuiltMax")),
     mapCategory: p.get("mapCategory") ?? "",
   };
 }
@@ -327,6 +353,11 @@ export function paramsFromFilters(f: ObservatoryFilters): URLSearchParams {
   if (f.publishedBefore) p.set("publishedBefore", f.publishedBefore);
   if (f.pujaStatus) p.set("pujaStatus", f.pujaStatus);
   if (f.hasImage) p.set("hasImage", "true");
+  if (f.floorLevels.length) p.set("floorLevel", f.floorLevels.join(","));
+  if (f.catastroUses.length) p.set("catastroUse", f.catastroUses.join(","));
+  if (f.hasGarage) p.set("hasGarage", "true");
+  if (f.yearBuiltMin != null) p.set("yearBuiltMin", String(f.yearBuiltMin));
+  if (f.yearBuiltMax != null) p.set("yearBuiltMax", String(f.yearBuiltMax));
   if (f.mapCategory) p.set("mapCategory", f.mapCategory);
   return p;
 }
@@ -436,6 +467,16 @@ export function filtersToApiParams(f: ObservatoryFilters): URLSearchParams {
   if (f.pujaStatus) p.set("pujaStatus", f.pujaStatus);
   if (f.hasImage) p.set("hasImage", "true");
 
+  // Phase-2 honest property-attribute filters (Forge 2026-07-16). Same param
+  // names + CSV/bool/int shapes the /api/auctions route parses. Skipping
+  // empty/null/false keeps the URL clean. Server excludes NULL-column rows when
+  // any of these is active (honest-null — unknown ≠ match).
+  if (f.floorLevels.length) p.set("floorLevel", f.floorLevels.join(","));
+  if (f.catastroUses.length) p.set("catastroUse", f.catastroUses.join(","));
+  if (f.hasGarage) p.set("hasGarage", "true");
+  if (f.yearBuiltMin != null) p.set("yearBuiltMin", String(f.yearBuiltMin));
+  if (f.yearBuiltMax != null) p.set("yearBuiltMax", String(f.yearBuiltMax));
+
   // Wave81 — curated map-sidebar key. The API expands this to the underlying
   // DB labels via the single source of truth in `@/lib/map-category` so the
   // pin set, the rail count and the list count reconcile against the same
@@ -479,7 +520,12 @@ export function isDefaultFilters(f: ObservatoryFilters): boolean {
     !f.publishedAfter &&
     !f.publishedBefore &&
     !f.pujaStatus &&
-    !f.hasImage
+    !f.hasImage &&
+    f.floorLevels.length === 0 &&
+    f.catastroUses.length === 0 &&
+    !f.hasGarage &&
+    f.yearBuiltMin == null &&
+    f.yearBuiltMax == null
   );
 }
 
@@ -540,6 +586,11 @@ export function presetFilters(id: PresetId, opts?: { province?: string; now?: Da
     publishedBefore: null,
     pujaStatus: "",
     hasImage: false,
+    floorLevels: [],
+    catastroUses: [],
+    hasGarage: false,
+    yearBuiltMin: null,
+    yearBuiltMax: null,
   };
   switch (id) {
     case "viviendas-activas":
