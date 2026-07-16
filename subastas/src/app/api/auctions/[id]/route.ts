@@ -38,6 +38,13 @@ import { buildSourceLinks } from '@/lib/source-links';
 import { buildFinancials } from '@/lib/financials';
 import { pickTeaserSnippet } from '@/lib/teaser-snippet';
 import { auctionDisplayTitle } from '@/lib/seo/display-title';
+import {
+  buildRegionBenchmarkSignal,
+  benchmarkKey,
+  isBenchmarkCategory,
+  PROVINCE_LEVEL_SENTINEL,
+  type BenchmarkRow,
+} from '@/lib/benchmark';
 import { sanitizeExtractedText } from '@/lib/sanitize-extracted-text';
 import { SNAPSHOT_ID_DOC_SENTINEL } from '@/lib/auction-docs/storage';
 
@@ -276,6 +283,52 @@ export async function GET(
     finalBid: auction.finalBid,
   });
 
+  // Region €/m² benchmark (Phase 3) — the "is this cheap for the area?" signal.
+  // Fetch only the two buckets that can answer THIS auction (municipality-level
+  // + province-level for its province×category), then resolve. Honest-null when
+  // the category isn't property, surface is missing, or no bucket clears the
+  // min-sample floor. See src/lib/benchmark.ts.
+  let regionBenchmark = null;
+  if (auction.province && isBenchmarkCategory(auction.category)) {
+    try {
+      const muni = (auction.municipality ?? '').trim();
+      const benchmarkRows = await prisma.regionBenchmark.findMany({
+        where: {
+          province: auction.province,
+          category: auction.category,
+          municipality: { in: muni ? [PROVINCE_LEVEL_SENTINEL, muni] : [PROVINCE_LEVEL_SENTINEL] },
+        },
+        select: {
+          province: true,
+          category: true,
+          municipality: true,
+          sampleSize: true,
+          medianEurM2: true,
+          p25EurM2: true,
+          p75EurM2: true,
+        },
+      });
+      const lookup = new Map<string, BenchmarkRow>();
+      for (const r of benchmarkRows) {
+        lookup.set(benchmarkKey(r.province, r.category, r.municipality), r);
+      }
+      regionBenchmark = buildRegionBenchmarkSignal(
+        {
+          province: auction.province,
+          category: auction.category,
+          municipality: auction.municipality,
+          valorSubasta: auction.valorSubasta,
+          appraisalValue: auction.appraisalValue,
+          surfaceM2: auction.surfaceM2,
+        },
+        lookup,
+      );
+    } catch {
+      // Benchmark lookup must never break detail load — honest-null on error.
+      regionBenchmark = null;
+    }
+  }
+
   const bidCount = bidHistory.length;
   const bidStatus: string | null = (() => {
     const ps = (auction.pujaStatus ?? '').toUpperCase();
@@ -327,6 +380,11 @@ export async function GET(
     documents,
     sourceLinks,
     financials,
+    // Region €/m² benchmark signal (Phase 3). null = no computable €/m² or no
+    // qualifying benchmark bucket (honest). Fields: eurM2, benchmarkEurM2,
+    // scope ('municipality'|'province'), regionLabel, sampleSize, deltaPct
+    // (negative = cheaper than area), p25EurM2, p75EurM2.
+    regionBenchmark,
     endDate: auction.endsAt ? auction.endsAt.toISOString() : null,
     bidStatus,
     lastUpdated: auction.updatedAt ? auction.updatedAt.toISOString() : null,

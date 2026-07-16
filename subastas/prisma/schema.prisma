@@ -721,3 +721,49 @@ model Article {
   @@index([publishedAt])
   @@index([status, publishedAt(sort: Desc)])
 }
+
+// ---------------------------------------------------------------------------
+// Region €/m² benchmark (Phase 3 — Forge, 2026-07-16)
+//
+// Precomputed value-signal table. One row per published bucket:
+//   (province, category, municipality) — municipality = '' for a
+//   PROVINCE-LEVEL bucket (empty-string sentinel, NOT null, so the unique key
+//   is deterministic and upsert works; SQL NULLs are distinct in a unique
+//   index and would break both).
+//
+// Populated by POST /api/admin/benchmark/recompute (admin/cron), which reads
+// the active+upcoming property pool, derives €/m² per row
+// (valorSubasta||appraisalValue ÷ surfaceM2 — same as the card pill), trims
+// outliers (plausibility band + 1.5×IQR) and stores the MEDIAN per bucket.
+// A bucket is only written when it has >= MIN_SAMPLE comparables after
+// trimming (min-sample honesty). See src/lib/benchmark.ts for the method.
+//
+// Precompute (not on-the-fly) chosen so the list API stays a single indexed
+// batch lookup rather than a grouped percentile aggregation per request.
+// Additive, standalone table — no FK to Auction (buckets outlive individual
+// rows and are keyed by string province/category, matching the raw-SQL list
+// route's own keys). Ken runs the migration + first recompute.
+// ---------------------------------------------------------------------------
+
+model RegionBenchmark {
+  id           String   @id @default(cuid())
+  province     String
+  category     String
+  // '' = province-level bucket; otherwise the municipality name.
+  municipality String   @default("")
+
+  // Comparables behind the median AFTER outlier trimming.
+  sampleSize   Int
+  // MEDIAN €/m² (whole euros) — never a mean (auction data is skew-heavy).
+  medianEurM2  Float
+  // Interquartile band + trimmed range, for "how spread out" context.
+  p25EurM2     Float?
+  p75EurM2     Float?
+  minEurM2     Float?
+  maxEurM2     Float?
+
+  computedAt   DateTime @default(now())
+
+  @@unique([province, category, municipality])
+  @@index([province, category])
+}
