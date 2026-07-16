@@ -22,6 +22,7 @@ import { StatusBadge } from "./StatusBadge";
 import { AuctionTypeBadge } from "./AuctionTypeBadge";
 import { SourceBadge } from "./SourceBadge";
 import { PujaBadge, OccupancyBadge } from "./PujaOccupancyBadges";
+import { PropertyFactsBadges } from "./PropertyFactsBadges";
 import { LiveCountdown } from "./LiveCountdown";
 import { FollowButton } from "@/components/notifications/FollowButton";
 import { formatPrice, capitalize, titleCase, formatDaysLeft, formatDateMed, prettifyAuctionType, formatM2, formatPricePerM2 } from "./format";
@@ -418,6 +419,15 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             {hasOccupancyBadge && occupancyBadge}
           </div>
         )}
+
+        {/* Property facts (Phase 2, 2026-07-16) — idealista-style bien chips
+            (floor · hab. · baño · año · uso · garaje · trastero · terraza ·
+            jardín). Sits directly under the m²/€·m²/occupancy fact strip so
+            the scannable facts read together. Honest-NULL: each chip renders
+            only when its field is present (bed/bath only for >0) and the whole
+            strip collapses at the current low fill rates. BADGE-ONLY — bed/bath
+            are deliberately NOT a primary filter (~6-7% fill). */}
+        <PropertyFactsBadges item={item} />
 
         {/* Bottom meta strip — type chip + countdown. Same row, no extra
             vertical air. */}

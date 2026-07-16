@@ -200,6 +200,27 @@ export interface AuctionItem {
   vehicleMake?: string | null;
   vehicleModel?: string | null;
   vehicleYear?: number | null;
+  // ── Property-portal attributes (Phase 1/2, 2026-07-11 → 07-16) ───────────
+  // Idealista-style property facts parsed by Ghost's property_attribute_parser
+  // + Catastro DNPRC enrichment. ALL honest-NULL: absence of a mention is NULL,
+  // never 0/false ("the listing doesn't say" ≠ "there are zero bedrooms").
+  // Surfaced on cards as BADGE-ONLY chips (never a filter here — see the
+  // /subastas filter doctrine). Booleans persist explicit false only on a
+  // negated mention ("sin garaje"); cards render a chip ONLY on `true`.
+  //
+  // Fill rates (active pool, 2026-07-16): floorLevel 21.8% · catastroUse 21.8%
+  // · catastroYearBuilt 18.6% · hasGarage 12.7% · bedrooms 6.1% · bathrooms
+  // 6.9% · hasStorageRoom 5.2% · hasTerrace 4.3% · hasGarden 2.6%. bed/bath
+  // accuracy VERIFIED after the 2026-07-16 dedupe_prose overcount fix.
+  bedrooms?: number | null;
+  bathrooms?: number | null;
+  hasTerrace?: boolean | null;
+  hasGarden?: boolean | null;
+  hasGarage?: boolean | null;
+  hasStorageRoom?: boolean | null;
+  floorLevel?: string | null;
+  catastroYearBuilt?: number | null;
+  catastroUse?: string | null;
 }
 
 /**

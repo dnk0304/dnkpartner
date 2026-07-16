@@ -248,6 +248,20 @@ interface AuctionFromDB {
   // anyway (NUMERIC would arrive as a string). Honest-NULL when not extracted.
   // Drives the read-time €/m² derive (no stored pricePerM2 column).
   surfaceM2: number | null;
+  // Property-portal attributes (Phase 1/2, 2026-07-11 → 07-16). Arrive via
+  // `SELECT Auction.*`. Honest-NULL passthrough — projected onto the card
+  // payload as BADGE-ONLY facts (no filter param is derived from them here;
+  // filters for floorLevel/hasGarage/catastroUse/catastroYearBuilt are a
+  // separate Forge-backed backend task — see the flag in the Phase-2 brief).
+  bedrooms: number | null;
+  bathrooms: number | null;
+  hasTerrace: boolean | null;
+  hasGarden: boolean | null;
+  hasGarage: boolean | null;
+  hasStorageRoom: boolean | null;
+  floorLevel: string | null;
+  catastroYearBuilt: number | null;
+  catastroUse: string | null;
 }
 
 // Map DB status to frontend status. Delegates to the shared
@@ -457,6 +471,29 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
   // €/m² then falls to valorSubasta or null — honest). NULL ⇒ card omits pill.
   const pricePerM2 = derivePricePerM2(item.valorSubasta, appraisalValue, surfaceM2);
 
+  // Property-portal attributes (Phase 1/2, 2026-07-11 → 07-16) — idealista-style
+  // BADGE-ONLY facts. PUBLIC auction information (same posture as surfaceM2 /
+  // occupancy / vehicle make-model), so projected honestly on BOTH the locked
+  // teaser and full-access payloads. Honest-NULL throughout:
+  //   - strings (floorLevel, catastroUse): empty/whitespace → null (the card
+  //     must never render an empty chip).
+  //   - ints (bedrooms, bathrooms, catastroYearBuilt): finite number or null;
+  //     the card only renders bed/bath chips for values > 0.
+  //   - booleans (hasGarage, hasTerrace, hasGarden, hasStorageRoom): pass true/
+  //     false/null through UNCHANGED — false is a real signal ("sin garaje")
+  //     the card chooses not to badge, but we must not coerce null→false here.
+  const propertyAttrs = {
+    bedrooms: coerceFiniteNumber(item.bedrooms),
+    bathrooms: coerceFiniteNumber(item.bathrooms),
+    hasTerrace: item.hasTerrace ?? null,
+    hasGarden: item.hasGarden ?? null,
+    hasGarage: item.hasGarage ?? null,
+    hasStorageRoom: item.hasStorageRoom ?? null,
+    floorLevel: item.floorLevel && item.floorLevel.trim() ? item.floorLevel.trim() : null,
+    catastroYearBuilt: coerceFiniteNumber(item.catastroYearBuilt),
+    catastroUse: item.catastroUse && item.catastroUse.trim() ? item.catastroUse.trim() : null,
+  };
+
   if (isLocked) {
     // ─────────────────────────────────────────────────────────────────────
     // GUEST / LOCKED TEASER — the anonymous field boundary. Must equal the
@@ -572,6 +609,9 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
       // null ⇒ the card omits the pill.
       surfaceM2,
       pricePerM2,
+      // Property-portal BADGE-ONLY facts (honest-NULL) — public, projected on
+      // the locked teaser too (same posture as surfaceM2 / occupancy above).
+      ...propertyAttrs,
     };
   }
 
@@ -654,6 +694,8 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
     // — read-time derive, never stored. Honest-NULL ⇒ card omits the pill.
     surfaceM2,
     pricePerM2,
+    // Property-portal BADGE-ONLY facts (Phase 1/2) — honest-NULL passthrough.
+    ...propertyAttrs,
   };
 }
 
