@@ -22,7 +22,7 @@ from ..config.provinces import (
 )
 from ..config.categories import get_category_type
 from .vehicle_parser import is_vehicle_category, parse_vehicle_fields
-from .property_attribute_parser import parse_property_attributes
+from .property_attribute_parser import parse_property_attributes, dedupe_prose
 from ..config.municipality_province import (
     municipality_to_province, province_from_text, normalize_municipality,
     canonical_municipality_name,
@@ -2833,8 +2833,12 @@ class BOEScraper(BaseScraper):
             # storage/floor) parsed from the SAME already-fetched prose — no new
             # fetch. Bien block preferred, then cadastral data, then whole body.
             # Honest-NULL: every key is None unless the prose states it.
+            # dedupe_prose drops overlapping fields before parsing: cadastral_data
+            # is extracted FROM bienes, and body_text is the whole page (which
+            # CONTAINS bienes), so a naive concat counted every room mention 2-3×
+            # (4 dormitorios -> stored 8). See dedupe_prose docstring.
             prop_attrs = parse_property_attributes(
-                " ".join(filter(None, [bienes, cadastral_data, body_text]))
+                dedupe_prose(bienes, cadastral_data, body_text)
             )
 
             return {
