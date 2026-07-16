@@ -17,7 +17,6 @@
 
 import * as React from "react";
 import { useTranslations } from "next-intl";
-import { X } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -28,10 +27,13 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
   ALL_CATEGORIES,
   ALL_STATUSES,
   ALL_TYPES,
+  CATASTRO_USE_OPTIONS,
+  FLOOR_LEVEL_OPTIONS,
   ObservatoryFilters,
 } from "./filters";
 import { cn } from "@/lib/utils";
@@ -43,6 +45,12 @@ export type AdvancedFiltersSheetProps = {
   onChange: (next: Partial<ObservatoryFilters>) => void;
   /** Live result count of the current draft filters. */
   resultCount?: number | null;
+  /**
+   * Distinct catastroUse values observed in the loaded result set. Unioned with
+   * the curated CATASTRO_USE_OPTIONS base so real data we didn't anticipate is
+   * still filterable. Optional — falls back to the curated list alone.
+   */
+  useFacets?: string[];
   /** Save callback — typically just `onOpenChange(false)` since changes
    *  are already pushed up incrementally. Provided as a callback so a
    *  future "draft mode" can stage changes and commit on save. */
@@ -56,6 +64,7 @@ export function AdvancedFiltersSheet({
   filters,
   onChange,
   resultCount,
+  useFacets,
   onSave,
   onClear,
 }: AdvancedFiltersSheetProps) {
@@ -77,6 +86,76 @@ export function AdvancedFiltersSheet({
       ? filters.categories.filter((x) => x !== c)
       : [...filters.categories, c];
     onChange({ categories: next });
+  };
+
+  // --- Phase-2 honest property-attribute filters ---
+  const toggleFloor = (v: string) => {
+    const next = filters.floorLevels.includes(v)
+      ? filters.floorLevels.filter((x) => x !== v)
+      : [...filters.floorLevels, v];
+    onChange({ floorLevels: next });
+  };
+  const toggleUse = (v: string) => {
+    const next = filters.catastroUses.includes(v)
+      ? filters.catastroUses.filter((x) => x !== v)
+      : [...filters.catastroUses, v];
+    onChange({ catastroUses: next });
+  };
+
+  // Floor options — closed vocabulary, plus any URL-selected value beyond the
+  // curated range (e.g. "12") appended so it round-trips honestly.
+  const floorOptions = React.useMemo(() => {
+    const opts = FLOOR_LEVEL_OPTIONS.map((o) => ({ ...o }));
+    const known = new Set(opts.map((o) => o.value));
+    for (const v of filters.floorLevels) {
+      if (!known.has(v)) {
+        known.add(v);
+        opts.push({ value: v, label: /^\d+$/.test(v) ? `Planta ${v}` : v });
+      }
+    }
+    return opts;
+  }, [filters.floorLevels]);
+
+  // Catastro-use options — curated base ∪ observed facets ∪ selected values,
+  // deduped, curated order first.
+  const useOptions = React.useMemo(() => {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const v of [...CATASTRO_USE_OPTIONS, ...(useFacets ?? []), ...filters.catastroUses]) {
+      if (v && !seen.has(v)) {
+        seen.add(v);
+        out.push(v);
+      }
+    }
+    return out;
+  }, [useFacets, filters.catastroUses]);
+
+  // Year-built range — local draft committed on blur so typing doesn't refetch
+  // per keystroke. Kept in sync when the incoming filter changes externally.
+  const [yearMinStr, setYearMinStr] = React.useState(
+    filters.yearBuiltMin != null ? String(filters.yearBuiltMin) : "",
+  );
+  const [yearMaxStr, setYearMaxStr] = React.useState(
+    filters.yearBuiltMax != null ? String(filters.yearBuiltMax) : "",
+  );
+  React.useEffect(() => {
+    setYearMinStr(filters.yearBuiltMin != null ? String(filters.yearBuiltMin) : "");
+  }, [filters.yearBuiltMin]);
+  React.useEffect(() => {
+    setYearMaxStr(filters.yearBuiltMax != null ? String(filters.yearBuiltMax) : "");
+  }, [filters.yearBuiltMax]);
+
+  const commitYear = () => {
+    const parse = (s: string): number | null => {
+      const n = parseInt(s, 10);
+      // Server guards 1000–3000 and silently ignores out-of-range; mirror that
+      // so the URL never carries a value the API will drop.
+      return Number.isFinite(n) && n >= 1000 && n <= 3000 ? n : null;
+    };
+    const min = parse(yearMinStr);
+    const max = parse(yearMaxStr);
+    if (min !== filters.yearBuiltMin) onChange({ yearBuiltMin: min });
+    if (max !== filters.yearBuiltMax) onChange({ yearBuiltMax: max });
   };
 
   return (
@@ -132,6 +211,96 @@ export function AdvancedFiltersSheet({
                 />
               ))}
             </CheckGrid>
+          </Section>
+
+          <Section
+            title={t("caracteristicasInmueble")}
+            hint={t("caracteristicasInmuebleHint")}
+          >
+            <div className="space-y-5">
+              {/* Garage — boolean, `true`-only engages (honest: we never filter
+                  to an unknown/false "sin garaje"). */}
+              <label className="flex items-center justify-between gap-3 rounded-md border border-[var(--color-hairline)] px-3 py-2.5 cursor-pointer">
+                <span className="text-sm text-[var(--color-ink-primary)]">
+                  {t("soloConGaraje")}
+                </span>
+                <Switch
+                  checked={filters.hasGarage}
+                  onCheckedChange={(v) => onChange({ hasGarage: v === true })}
+                  aria-label={t("soloConGaraje")}
+                />
+              </label>
+
+              {/* Floor level — closed vocabulary IN-list. */}
+              <div>
+                <h4 className="text-xs font-medium text-[var(--color-ink-secondary)]">
+                  {t("plantaLabel")}
+                </h4>
+                <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                  {floorOptions.map((o) => (
+                    <CheckRow
+                      key={o.value}
+                      label={o.label}
+                      checked={filters.floorLevels.includes(o.value)}
+                      onCheckedChange={() => toggleFloor(o.value)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Catastro use — curated ∪ observed IN-list. */}
+              <div>
+                <h4 className="text-xs font-medium text-[var(--color-ink-secondary)]">
+                  {t("usoCatastralLabel")}
+                </h4>
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                  {useOptions.map((u) => (
+                    <CheckRow
+                      key={u}
+                      label={u}
+                      checked={filters.catastroUses.includes(u)}
+                      onCheckedChange={() => toggleUse(u)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Year built — inclusive range, guarded 1000–3000. */}
+              <div>
+                <h4 className="text-xs font-medium text-[var(--color-ink-secondary)]">
+                  {t("anoConstruccion")}
+                </h4>
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1000}
+                    max={3000}
+                    value={yearMinStr}
+                    onChange={(e) => setYearMinStr(e.target.value)}
+                    onBlur={commitYear}
+                    placeholder={t("anoDesdePlaceholder")}
+                    className="tnum w-full rounded-md border border-[var(--color-hairline)] bg-[var(--color-surface)] px-2.5 py-1.5 text-sm focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15"
+                    aria-label={t("anoConstruccionDesdeAria")}
+                  />
+                  <span aria-hidden="true" className="text-[var(--color-ink-tertiary)]">
+                    –
+                  </span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1000}
+                    max={3000}
+                    value={yearMaxStr}
+                    onChange={(e) => setYearMaxStr(e.target.value)}
+                    onBlur={commitYear}
+                    placeholder={t("anoHastaPlaceholder")}
+                    className="tnum w-full rounded-md border border-[var(--color-hairline)] bg-[var(--color-surface)] px-2.5 py-1.5 text-sm focus:outline-none focus:border-[var(--color-brand)] focus:ring-2 focus:ring-[var(--color-brand)]/15"
+                    aria-label={t("anoConstruccionHastaAria")}
+                  />
+                </div>
+              </div>
+            </div>
           </Section>
 
           <Section title={t("proximamente")} hint={t("proximamenteHint")}>

@@ -55,6 +55,7 @@ import {
   paramsFromFilters,
   filtersToApiParams,
   applyClientFilters,
+  hasActivePropertyFilter,
   SortValue,
 } from "@/components/observatory/filters";
 import { cn } from "@/lib/utils";
@@ -363,6 +364,18 @@ export default function SubastasListClient({
   // priceMin/priceMax, municipality).
   const filtered = React.useMemo(() => applyClientFilters(items, filters), [items, filters]);
 
+  // Distinct catastroUse values observed in the loaded pool — feeds the advanced
+  // sheet so real uses beyond the curated base become filterable (honest: only
+  // values that actually exist in the data are offered).
+  const useFacets = React.useMemo(() => {
+    const s = new Set<string>();
+    for (const it of items) {
+      const u = (it as { catastroUse?: string | null }).catastroUse;
+      if (u && u.trim()) s.add(u.trim());
+    }
+    return Array.from(s).sort();
+  }, [items]);
+
   // H1: SEO title wins; otherwise "N resultados".
   const renderedCount = totalCount != null ? totalCount : filtered.length;
 
@@ -529,7 +542,10 @@ export default function SubastasListClient({
             ) : error ? (
               <ErrorBody />
             ) : filtered.length === 0 ? (
-              <EmptyBody onClear={clearFilters} />
+              <EmptyBody
+                onClear={clearFilters}
+                propertyFilterActive={hasActivePropertyFilter(filters)}
+              />
             ) : viewMode === "cards" ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {filtered.map((it) => (
@@ -672,6 +688,7 @@ export default function SubastasListClient({
         onChange={updateFilters}
         onClear={clearFilters}
         resultCount={totalCount}
+        useFacets={useFacets}
       />
     </div>
   );
@@ -712,7 +729,16 @@ function ErrorBody() {
   );
 }
 
-function EmptyBody({ onClear }: { onClear: () => void }) {
+function EmptyBody({
+  onClear,
+  propertyFilterActive,
+}: {
+  onClear: () => void;
+  /** True when a floor/use/garage/year filter is engaged — those exclude rows
+   *  whose data is unknown, so "0 results" often means the datum is sparse, not
+   *  that nothing matches. We say so plainly rather than showing a bare zero. */
+  propertyFilterActive?: boolean;
+}) {
   const t = useTranslations("subastasList");
   return (
     <div className="rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] p-8 text-center">
@@ -720,7 +746,7 @@ function EmptyBody({ onClear }: { onClear: () => void }) {
         {t("emptyTitle")}
       </p>
       <p className="mt-1 text-sm text-[var(--color-ink-tertiary)]">
-        {t("emptyBody")}
+        {propertyFilterActive ? t("emptyBodyPropertySparse") : t("emptyBody")}
       </p>
       <div className="mt-4 flex items-center justify-center gap-3">
         <button

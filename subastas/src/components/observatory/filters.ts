@@ -169,6 +169,59 @@ export const ALL_CATEGORIES: AuctionCategory[] = [
   "Arte",
 ];
 
+/**
+ * Phase-2 honest property-attribute filter vocabularies.
+ *
+ * floorLevel is a CLOSED vocabulary: every stored value is emitted by the BOE
+ * prose parser `_floor_level` (property_attribute_parser.py) — a mapped ordinal
+ * set ("bajo", "entresuelo", "principal", "atico", "sotano") or a 1-2 digit
+ * numeric string. Catastro enrichment does NOT write floorLevel, so this list
+ * is exhaustive for the common range; rarer numeric storeys (>10) are still
+ * reachable because the sheet unions in any value already selected via the URL
+ * plus any distinct value observed in the loaded result set.
+ *
+ * catastroUse comes from Catastro DNPRC `debi.luso` — the canonical "uso
+ * principal" short-form labels (verified exact: "Residencial"). The curated set
+ * below is the stable base; the sheet unions it with distinct values seen in
+ * the data + any URL-selected value so a legitimate use is never hidden. NOTE:
+ * a data-driven facets endpoint (distinct values + counts over the full active
+ * pool) would let us drop the curated fallback entirely — flagged to Ken/Forge
+ * as the honest follow-up.
+ *
+ * `value` is the EXACT string sent to the API (IN-list match). `label` is the
+ * human display.
+ */
+export const FLOOR_LEVEL_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "sotano", label: "Sótano" },
+  { value: "bajo", label: "Bajo" },
+  { value: "entresuelo", label: "Entresuelo" },
+  { value: "principal", label: "Principal" },
+  { value: "1", label: "Planta 1" },
+  { value: "2", label: "Planta 2" },
+  { value: "3", label: "Planta 3" },
+  { value: "4", label: "Planta 4" },
+  { value: "5", label: "Planta 5" },
+  { value: "6", label: "Planta 6" },
+  { value: "7", label: "Planta 7" },
+  { value: "8", label: "Planta 8" },
+  { value: "atico", label: "Ático" },
+];
+
+/** Canonical Catastro DNPRC `luso` short-form uses (stable curated base). */
+export const CATASTRO_USE_OPTIONS: string[] = [
+  "Residencial",
+  "Comercial",
+  "Industrial",
+  "Oficinas",
+  "Almacén-Estacionamiento",
+  "Ocio y Hostelería",
+  "Sanidad y Beneficencia",
+  "Cultural",
+  "Deportivo",
+  "Suelo sin edificar",
+  "Agrario",
+];
+
 export type ObservatoryFilters = {
   search: string;
   /** Broad simple bucket id. "todo" means no restriction. */
@@ -526,6 +579,22 @@ export function isDefaultFilters(f: ObservatoryFilters): boolean {
     !f.hasGarage &&
     f.yearBuiltMin == null &&
     f.yearBuiltMax == null
+  );
+}
+
+/**
+ * True when any Phase-2 honest property-attribute filter is engaged
+ * (floor / use / garage / year). These filters EXCLUDE rows whose column is
+ * NULL, so an empty result can mean "sparse data" rather than "nothing matches"
+ * — the list uses this to show the honest empty-state note.
+ */
+export function hasActivePropertyFilter(f: ObservatoryFilters): boolean {
+  return (
+    f.floorLevels.length > 0 ||
+    f.catastroUses.length > 0 ||
+    f.hasGarage ||
+    f.yearBuiltMin != null ||
+    f.yearBuiltMax != null
   );
 }
 

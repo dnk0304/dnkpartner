@@ -445,6 +445,16 @@
     "tipoDeSubasta": "Auction type",
     "tipoDeBienPreciso": "Asset type (exact)",
     "tipoDeBienPrecisoHint": "Filter by individual catalogue categories.",
+    "caracteristicasInmueble": "Property characteristics",
+    "caracteristicasInmuebleHint": "Catastro/BOE data, available on only some listings. Filtering hides the ones without the datum.",
+    "soloConGaraje": "Garage only",
+    "plantaLabel": "Floor",
+    "usoCatastralLabel": "Cadastral use",
+    "anoConstruccion": "Year built",
+    "anoDesdePlaceholder": "From",
+    "anoHastaPlaceholder": "To",
+    "anoConstruccionDesdeAria": "Year built from",
+    "anoConstruccionHastaAria": "Year built to",
     "proximamente": "Coming soon",
     "proximamenteHint": "Advanced features will be added as scraper data becomes complete.",
     "comingSoonDates": "Date ranges (ends between, published between)",
@@ -709,6 +719,7 @@
     "errorBody": "Try again in a few seconds.",
     "emptyTitle": "No auctions match your search.",
     "emptyBody": "Try widening the price range or changing the province.",
+    "emptyBodyPropertySparse": "Few listings detail these property characteristics (floor, use, garage or year). Filtering by them hides the ones without that data. Try removing one of these filters.",
     "volverInicio": "Back to home"
   }
 }
