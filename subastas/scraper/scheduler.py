@@ -26,6 +26,7 @@ import sys
 import os
 import time
 import threading
+import json
 import schedule
 import urllib.request
 from datetime import datetime, timedelta
@@ -1220,6 +1221,55 @@ class ScraperScheduler:
         except Exception as e:
             self.log(f"  Alert check failed: {e}")
 
+    def trigger_benchmark_recompute(self):
+        """Trigger /api/admin/benchmark/recompute once daily.
+
+        Rebuilds the RegionBenchmark table (atomic full replace) from the
+        active+upcoming property pool so the region EUR/m2 value-signal stays
+        fresh as ingest changes the pool. Same requireAdminOrCron gate as the
+        alert-check route: it accepts a cron caller only with Authorization:
+        Bearer <CRON_SECRET>, so we attach the secret already present in this
+        container. The endpoint is idempotent and self-healing — a missed day
+        is harmless, so a failure is logged non-fatally. Scheduled just after
+        the daily catastro/refresh surface jobs (05:45) so the benchmark
+        reflects the freshest year/use/surface enrichment.
+        """
+        self.log("Triggering benchmark recompute endpoint...")
+        if not CRON_SECRET:
+            self.log("  Benchmark recompute skipped: CRON_SECRET not set")
+            return
+        try:
+            endpoint = os.getenv(
+                "BENCHMARK_RECOMPUTE_ENDPOINT",
+                "http://dnksubastas-app:3005/api/admin/benchmark/recompute",
+            )
+            request = urllib.request.Request(
+                endpoint,
+                data=b'{}',
+                headers={
+                    'Content-Type': 'application/json',
+                    'Authorization': f'Bearer {CRON_SECRET}',
+                },
+                method='POST',
+            )
+            with urllib.request.urlopen(request, timeout=120) as response:
+                body = response.read().decode('utf-8', errors='replace')
+                stats = ''
+                try:
+                    parsed = json.loads(body)
+                    s = parsed.get('stats') if isinstance(parsed, dict) else None
+                    if isinstance(s, dict):
+                        stats = (f" poolRows={s.get('poolRows')} "
+                                 f"samples={s.get('samples')} "
+                                 f"buckets={s.get('buckets')}")
+                except Exception:
+                    pass
+                self.log(
+                    f"  Benchmark recompute triggered ({response.status}):{stats or ' ' + body[:200]}"
+                )
+        except Exception as e:
+            self.log(f"  Benchmark recompute failed: {e}")
+
     def run_daily_update_and_alerts(self):
         self.run_daily_update_scraper()
         self.trigger_alert_check()
@@ -1377,6 +1427,12 @@ class ScraperScheduler:
         # Staggered clear of the browser jobs above.
         schedule.every().day.at("05:45").do(self.run_catastro_enrichment)
 
+        # Phase 3: region benchmark recompute — once daily at 06:00, right after
+        # the catastro/refresh surface jobs (05:45) so the EUR/m2 value-signal
+        # reflects the freshest year/use/surface enrichment. Idempotent + self-
+        # healing (atomic full replace); a missed day is harmless.
+        schedule.every().day.at("06:00").do(self.trigger_benchmark_recompute)
+
         # Wave 2b: dispatcher drain — every DISPATCH_INTERVAL_MIN minutes
         schedule.every(DISPATCH_INTERVAL_MIN).minutes.do(self.dispatch_outbox)
 
@@ -1404,6 +1460,7 @@ class ScraperScheduler:
         self.log(f"  SegSocial (TGSS):     06:10 daily (source='SEGSOCIAL', weekly-refreshed)")
         self.log(f"  PLABI (MdJ liquid.):  06:20 daily (source='PLABI', off-BOE concursal)")
         self.log(f"  Catastro DNPRC:       05:45 daily (año/uso/surfaceM2 @ 1 req/s, ref-bearing rows)")
+        self.log(f"  Benchmark recompute:  06:00 daily (region EUR/m2 value-signal, atomic full replace)")
         self.log(f"  Pre-auction (PA):     Every 6h (PROXIMA_APERTURA discovery, ORIGEN=J)")
         self.log(f"  Dispatch outbox:      Every {DISPATCH_INTERVAL_MIN} min")
         self.log(f"  Geocode drain (fast): Every {geocode_interval} min (active rows only)")
