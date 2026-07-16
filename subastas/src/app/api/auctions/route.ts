@@ -12,6 +12,14 @@ import { boeLinkFor } from '@/lib/boe-link';
 import { derivePricePerM2, coerceFiniteNumber } from '@/lib/auction-derive';
 import { buildCategoryRankCaseSql } from '@/lib/category-rank';
 import {
+  buildRegionBenchmarkSignal,
+  benchmarkKey,
+  isBenchmarkCategory,
+  type BenchmarkRow,
+  type RegionBenchmarkSignal,
+} from '@/lib/benchmark';
+import { prisma } from '@/lib/prisma';
+import {
   ACTIVE_DB_STATUSES,
   PRE_AUCTION_DB_STATUSES,
   FINISHED_DB_STATUSES,
@@ -609,6 +617,11 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
       // null ⇒ the card omits the pill.
       surfaceM2,
       pricePerM2,
+      // Region €/m² benchmark (Phase 3). Filled post-masking by
+      // enrichWithRegionBenchmark (needs the batched bucket lookup). PUBLIC
+      // aggregate — projected on locked teasers too (same posture as
+      // pricePerM2). Honest-null default.
+      regionBenchmark: null as RegionBenchmarkSignal | null,
       // Property-portal BADGE-ONLY facts (honest-NULL) — public, projected on
       // the locked teaser too (same posture as surfaceM2 / occupancy above).
       ...propertyAttrs,
@@ -694,6 +707,9 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
     // — read-time derive, never stored. Honest-NULL ⇒ card omits the pill.
     surfaceM2,
     pricePerM2,
+    // Region €/m² benchmark (Phase 3) — filled post-masking by
+    // enrichWithRegionBenchmark. Honest-null default.
+    regionBenchmark: null as RegionBenchmarkSignal | null,
     // Property-portal BADGE-ONLY facts (Phase 1/2) — honest-NULL passthrough.
     ...propertyAttrs,
   };
@@ -753,6 +769,69 @@ function applyTierMasking(auctions: AuctionFromDB[], userTier: UserTier | 'GUEST
   }
 
   return maskedList;
+}
+
+/**
+ * Region €/m² benchmark enrichment (Phase 3). Attaches the "vs area average"
+ * signal to each masked card IN PLACE. `masked` is 1:1 index-aligned with
+ * `dbRows` (applyTierMasking pushes one output per input, in order).
+ *
+ * One batched query: fetch every RegionBenchmark bucket for the distinct
+ * (province, category) pairs on the page, index by benchmarkKey, then resolve
+ * each row (municipality bucket preferred, province fallback, honest-null when
+ * no €/m² or no qualifying bucket). Failure is swallowed — the benchmark is a
+ * value-add signal and must never break the list.
+ */
+async function enrichWithRegionBenchmark(
+  dbRows: AuctionFromDB[],
+  masked: Array<{ regionBenchmark: RegionBenchmarkSignal | null }>,
+): Promise<void> {
+  const pairs = new Map<string, { province: string; category: string }>();
+  for (const r of dbRows) {
+    if (r.province && isBenchmarkCategory(r.category)) {
+      pairs.set(`${r.province}${r.category}`, { province: r.province, category: r.category });
+    }
+  }
+  if (pairs.size === 0) return;
+
+  try {
+    const rows = await prisma.regionBenchmark.findMany({
+      where: { OR: [...pairs.values()].map((p) => ({ province: p.province, category: p.category })) },
+      select: {
+        province: true,
+        category: true,
+        municipality: true,
+        sampleSize: true,
+        medianEurM2: true,
+        p25EurM2: true,
+        p75EurM2: true,
+      },
+    });
+    if (rows.length === 0) return;
+
+    const lookup = new Map<string, BenchmarkRow>();
+    for (const r of rows) lookup.set(benchmarkKey(r.province, r.category, r.municipality), r);
+
+    for (let i = 0; i < dbRows.length; i++) {
+      const r = dbRows[i];
+      const target = masked[i];
+      if (!target) continue;
+      const signal = buildRegionBenchmarkSignal(
+        {
+          province: r.province,
+          category: r.category,
+          municipality: r.municipality,
+          valorSubasta: r.valorSubasta,
+          appraisalValue: r.appraisalValue,
+          surfaceM2: r.surfaceM2,
+        },
+        lookup,
+      );
+      if (signal) target.regionBenchmark = signal;
+    }
+  } catch (err) {
+    console.error('[auctions] region-benchmark enrichment failed (non-fatal):', err);
+  }
 }
 
 /**
@@ -1826,6 +1905,9 @@ export async function GET(request: NextRequest) {
     // Apply tier-based masking
     const maskStart = Date.now();
     const maskedAuctions = applyTierMasking(results, tier, hasActiveTrial);
+    // Region €/m² benchmark signal (Phase 3) — attach "vs area average" to each
+    // card in place (1:1 with `results`). Non-fatal on error.
+    await enrichWithRegionBenchmark(results, maskedAuctions);
     const maskTime = Date.now() - maskStart;
     
     // Get teaser counts for guests.
