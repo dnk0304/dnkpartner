@@ -67,13 +67,25 @@ model Auction {
   // Additive, nullable, no backfill in the migration. The composite boeId is
   // self-describing too, but explicit columns keep the backfill + any
   // "other lotes of this auction" query trivial (hence the index).
-  sourceIdSub     String?
+  sourceIdSub String?
   // BigInt: BOE legacy lote identifiers can be 15-digit numbers (e.g.
   // 120240073010647) that overflow PG int4 (max 2.1B). Widened to BIGINT in
   // wave13-hotfix migration 20260602_widen_lote_number_bigint. Existing int
   // values fit in BIGINT — additive, lossless. Adapter writes Python int
   // (psycopg2 handles BIGINT natively).
-  loteNumber      BigInt?
+  loteNumber  BigInt?
+
+  // Sale result capture (#sale-results, migration 20260717). Additive +
+  // honest-NULL: every column stays NULL until a result-check pass determines
+  // the outcome. The scraper's result-check code is column-guarded, so these
+  // names + the SaleResult enum labels are reproduced VERBATIM by the Python
+  // adapter. No backfill in the migration — resultCheckedAt doubles as the
+  // backfill resume cursor.
+  saleResult          SaleResult? // ADJUDICADA | DESIERTA | SIN_RESULTADO; honest-NULL until determined
+  soldPrice           BigInt? // winning bid in CENTS (BigInt); NULL for DESIERTA or amount-hidden
+  soldDate            DateTime? // = endsAt (BOE exposes no true sale timestamp)
+  resultCheckedAt     DateTime? // stamped now() on every result-check pass; also the backfill resume cursor
+  resultCheckAttempts Int         @default(0) // running attempt count; at attempt-cap the pass sets saleResult=SIN_RESULTADO
 
   // Dates and times
   publishedAt DateTime
@@ -130,7 +142,7 @@ model Auction {
   //   CON_PUJA  = the auction (or split-lote) has at least one bid
   //   SIN_PUJA  = the Pujas tab explicitly says "Sin puja" (no bids yet)
   //   null      = couldn't determine (cancelled, umbrella-only, parse miss)
-  pujaStatus String?
+  pujaStatus       String?
   // #16 currentBidAmount: the highest bid in CENTS (int) when BOE shows the
   // figure publicly ("Puja máxima de la subasta 92.234,16 €" -> 9223416).
   // BigInt for safety/consistency with the wave13 loteNumber lesson: a bid in
@@ -144,7 +156,7 @@ model Auction {
   //   NO_OCUPADO = "Sin ocupantes" / "No ocupado" / "Libre"
   //   NO_CONSTA  = "Se desconoce" / "No consta"
   //   null       = the BOE page carries no Situación posesoria field at all
-  occupancy String?
+  occupancy        String?
 
   // Cadastral / registry / contact
   cadastralRef  String?
@@ -186,7 +198,7 @@ model Auction {
   // never fabricated. Float (m² can be 11.76 / 52.50). €/m² is DERIVED at read
   // time (valorSubasta ÷ surfaceM2, else appraisalValue ÷ surfaceM2) — no stored
   // column, so it can never go stale when either input changes.
-  surfaceM2           Float?
+  surfaceM2 Float?
 
   // Vehicle fields (wave E2, 2026-06-07) — make/model/year for VEHICLE-category
   // auctions (Turismos, Motocicletas, Camiones, …). Source: BOE/SEGSOCIAL/PLABI
@@ -202,9 +214,9 @@ model Auction {
   // through to the existing "{Tipo} en {town}" phrasing otherwise.
   // vehicleYear is INTEGER (Int) — a 4-digit year fits trivially in int4;
   // the wave13 BIGINT lesson (loteNumber) does not apply here.
-  vehicleMake         String?
-  vehicleModel        String?
-  vehicleYear         Int?
+  vehicleMake  String?
+  vehicleModel String?
+  vehicleYear  Int?
 
   // Property-portal attributes (Phase 1, 2026-07-11) — idealista-style facts
   // parsed by Ghost's property_attribute_parser from the SAME bien/registry
@@ -214,13 +226,13 @@ model Auction {
   // zero bedrooms"). Booleans persist an explicit false ONLY on a negated
   // mention ("sin garaje"); otherwise NULL. A bare singular room noun counts as
   // 1 only inside a distribución enumeration; unqualified plurals stay NULL.
-  bedrooms            Int?
-  bathrooms           Int?
-  hasTerrace          Boolean?
-  hasGarden           Boolean?
-  hasGarage           Boolean?
-  hasStorageRoom      Boolean?
-  floorLevel          String?
+  bedrooms       Int?
+  bathrooms      Int?
+  hasTerrace     Boolean?
+  hasGarden      Boolean?
+  hasGarage      Boolean?
+  hasStorageRoom Boolean?
+  floorLevel     String?
 
   // Catastro DNPRC enrichment (Phase 1, 2026-07-11) — from the free OVC
   // Consulta_DNPRC web service (DG Catastro, Ley 18/2015) keyed by the 20-char
@@ -229,9 +241,9 @@ model Auction {
   // ONLY where currently NULL (scraped values are never overwritten).
   // catastroCheckedAt timestamps the last DNPRC lookup so dead refs (cod 4/5)
   // are not re-hammered daily (re-checked weekly at most). Honest-NULL.
-  catastroYearBuilt   Int?
-  catastroUse         String?
-  catastroCheckedAt   DateTime?
+  catastroYearBuilt Int?
+  catastroUse       String?
+  catastroCheckedAt DateTime?
 
   // Media
   pdfUrl   String?
@@ -266,14 +278,14 @@ model Auction {
   favoriteCount Int @default(0)
 
   // Relations
-  favorites      Favorite[]
-  notifications  Notification[]
-  statusHistory  AuctionStatusHistory[]
-  bidHistory     AuctionBidHistory[]
-  outboxEvents   EventOutbox[]
+  favorites     Favorite[]
+  notifications Notification[]
+  statusHistory AuctionStatusHistory[]
+  bidHistory    AuctionBidHistory[]
+  outboxEvents  EventOutbox[]
   // Document-archive wave (2026-06-03). One Auction has many AuctionDocument
   // rows (nota simple, edicto, anexo, pliego, plus the single snapshot row).
-  documents      AuctionDocument[]
+  documents     AuctionDocument[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -317,9 +329,9 @@ model Auction {
 // ---------------------------------------------------------------------------
 
 model AuctionDocument {
-  id          String   @id @default(cuid())
-  auctionId   String
-  auction     Auction  @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  id        String  @id @default(cuid())
+  auctionId String
+  auction   Auction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
 
   // BOE "tipo" label normalized by Ghost.
   //   NOTA_SIMPLE | EDICTO | ANEXO | PLIEGO | SNAPSHOT | OTRO
@@ -336,13 +348,13 @@ model AuctionDocument {
   // NULL when we have an officialUrl but haven't (yet) cached the file.
   storedPath  String?
   // "download" (an actual BOE-served PDF) | "snapshot" (our HTML-print-to-PDF).
-  kind        String   @default("download")
+  kind        String  @default("download")
   // Optional metadata; sizeBytes fits in Int (PDFs < 2 GB).
   mimeType    String?
   sizeBytes   Int?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Dedup: one row per (auction, BOE idDoc). Snapshots dedup via the sentinel
   // idDoc="SNAPSHOT" so a re-scrape upserts the same row, overwriting the
@@ -507,15 +519,15 @@ model Favorite {
   auction   Auction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
 
   // Wave 1 follow / notify preferences.
-  notifyOnGoLive      Boolean @default(true)
-  notifyOnBid         Boolean @default(true)
-  notifyOnStatus      Boolean @default(true)
-  notifyOnSuspension  Boolean @default(true)
-  notifyOnResume      Boolean @default(true)
-  notifyOnFinish      Boolean @default(true)
-  channels            String  @default("email,inapp") // CSV: email,push,inapp
-  quietHoursStart     Int?
-  quietHoursEnd       Int?
+  notifyOnGoLive     Boolean @default(true)
+  notifyOnBid        Boolean @default(true)
+  notifyOnStatus     Boolean @default(true)
+  notifyOnSuspension Boolean @default(true)
+  notifyOnResume     Boolean @default(true)
+  notifyOnFinish     Boolean @default(true)
+  channels           String  @default("email,inapp") // CSV: email,push,inapp
+  quietHoursStart    Int?
+  quietHoursEnd      Int?
 
   createdAt DateTime @default(now())
 
@@ -561,23 +573,23 @@ model Notification {
   failureReason    String?
   deliveryAttempts Int                 @default(0)
 
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  alert   Alert?  @relation(fields: [alertId], references: [id], onDelete: Cascade)
-  auction Auction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alert   Alert?   @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  auction Auction  @relation(fields: [auctionId], references: [id], onDelete: Cascade)
   sentAt  DateTime @default(now())
 
-  @@index([userId])
-  @@index([alertId])
-  @@index([auctionId])
-  @@index([read])
-  // Inbox feed: latest unread first by user.
-  @@index([userId, read, sentAt(sort: Desc)])
   // Idempotency key (wave113, 2026-06-21): one row per (alert, auction, channel)
   // so the alert-email route can ON CONFLICT DO NOTHING and never re-email a
   // property it already sent. Migration: 20260621_notification_dedup_unique.
   // NOTE: alertId is nullable; Postgres treats NULLs as distinct in a UNIQUE
   // constraint, but the alert-email writer always supplies a concrete alertId.
   @@unique([alertId, auctionId, channel])
+  @@index([userId])
+  @@index([alertId])
+  @@index([auctionId])
+  @@index([read])
+  // Inbox feed: latest unread first by user.
+  @@index([userId, read, sentAt(sort: Desc)])
 }
 
 model PushSubscription {
@@ -597,16 +609,16 @@ model PushSubscription {
 // ---------------------------------------------------------------------------
 
 model AuctionStatusHistory {
-  id          String        @id @default(cuid())
-  auctionId   String
-  auction     Auction       @relation(fields: [auctionId], references: [id], onDelete: Cascade)
-  fromStatus  AuctionStatus?
-  toStatus    AuctionStatus
-  changedAt   DateTime      @default(now())
-  source      String        @default("scraper") // scraper | manual
-  reason      String?       // suspension reason (text)
-  resumeAt    DateTime?     // reschedule target
-  detectedBy  String?       // task name that detected the change
+  id         String         @id @default(cuid())
+  auctionId  String
+  auction    Auction        @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  fromStatus AuctionStatus?
+  toStatus   AuctionStatus
+  changedAt  DateTime       @default(now())
+  source     String         @default("scraper") // scraper | manual
+  reason     String? // suspension reason (text)
+  resumeAt   DateTime? // reschedule target
+  detectedBy String? // task name that detected the change
 
   @@index([auctionId])
   @@index([changedAt])
@@ -631,7 +643,7 @@ model EventOutbox {
   id          String    @id @default(cuid())
   auctionId   String?
   auction     Auction?  @relation(fields: [auctionId], references: [id], onDelete: SetNull)
-  eventType   String    // e.g. AUCTION_BID_CHANGED, AUCTION_STATUS_CHANGED, AUCTION_SUSPENDED…
+  eventType   String // e.g. AUCTION_BID_CHANGED, AUCTION_STATUS_CHANGED, AUCTION_SUSPENDED…
   payload     Json
   createdAt   DateTime  @default(now())
   processedAt DateTime?
@@ -643,13 +655,20 @@ model EventOutbox {
   @@index([eventType])
   @@index([createdAt])
   @@index([processedAt, createdAt])
-
   @@map("event_outbox")
 }
 
 // ---------------------------------------------------------------------------
 // Enums
 // ---------------------------------------------------------------------------
+
+// Sale outcome of an auction (migration 20260717). Labels are VERBATIM — the
+// Python result-check adapter writes these exact strings.
+enum SaleResult {
+  ADJUDICADA // a winning bid existed (highest bid captured)
+  DESIERTA // explicitly no bids
+  SIN_RESULTADO // undetermined after attempt-cap; stops being retried
+}
 
 enum AuctionStatus {
   // New BOE-accurate statuses
@@ -695,27 +714,27 @@ enum ArticleStatus {
 }
 
 model Article {
-  id                 String        @id @default(cuid())
-  slug               String        @unique
-  title              String
-  seoTitle           String?
-  metaDescription    String?
-  primaryKeyword     String?
-  secondaryKeywords  String[]      @default([])
-  canonicalUrl       String?
-  cluster            String?
-  imageAlt           String?
-  imageUrl           String?
+  id                String   @id @default(cuid())
+  slug              String   @unique
+  title             String
+  seoTitle          String?
+  metaDescription   String?
+  primaryKeyword    String?
+  secondaryKeywords String[] @default([])
+  canonicalUrl      String?
+  cluster           String?
+  imageAlt          String?
+  imageUrl          String?
 
-  bodyMarkdown       String
+  bodyMarkdown String
 
-  status             ArticleStatus @default(DRAFT)
-  publishedAt        DateTime?
+  status      ArticleStatus @default(DRAFT)
+  publishedAt DateTime?
 
-  authorEmail        String?
+  authorEmail String?
 
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([status])
   @@index([publishedAt])
@@ -746,23 +765,23 @@ model Article {
 // ---------------------------------------------------------------------------
 
 model RegionBenchmark {
-  id           String   @id @default(cuid())
+  id           String @id @default(cuid())
   province     String
   category     String
   // '' = province-level bucket; otherwise the municipality name.
-  municipality String   @default("")
+  municipality String @default("")
 
   // Comparables behind the median AFTER outlier trimming.
-  sampleSize   Int
+  sampleSize  Int
   // MEDIAN €/m² (whole euros) — never a mean (auction data is skew-heavy).
-  medianEurM2  Float
+  medianEurM2 Float
   // Interquartile band + trimmed range, for "how spread out" context.
-  p25EurM2     Float?
-  p75EurM2     Float?
-  minEurM2     Float?
-  maxEurM2     Float?
+  p25EurM2    Float?
+  p75EurM2    Float?
+  minEurM2    Float?
+  maxEurM2    Float?
 
-  computedAt   DateTime @default(now())
+  computedAt DateTime @default(now())
 
   @@unique([province, category, municipality])
   @@index([province, category])
