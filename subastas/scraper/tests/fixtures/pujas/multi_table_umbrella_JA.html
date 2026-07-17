@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <title>Portal de Subastas Electr&#xF3;nicas</title>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="format-detection" content="telephone=no">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="Keywords" content="Subastas">
+    <meta name="Description" content="Portal de Subastas de la Agencia Estatal Bolet&#xED;n Oficial del Estado">
+    <!--[if lt IE 10]>
+    <link rel="stylesheet" type="text/css" href="/estilos/subastas_ie9.css" />
+    <![endif]-->
+    <!--[if lt IE 9]>
+    <link rel="stylesheet" type="text/css" href="/estilos/subastas_ie8.css" />
+    <![endif]-->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
+    <link rel="stylesheet" href="/estilos/portalSubastas.css" title="comun" type="text/css"/>
+    <link rel="stylesheet" href="/estilos/form.css" title="comun" type="text/css"/>
+  </head>
+  <body>
+    <!-- Cabecera -->
+    <div id="cabecera">
+      <!-- Accesibilidad -->
+      <ul class="fuera">
+        <li><a accesskey="c" href="#contenido">Ir a contenido</a></li>
+      </ul>
+      <!-- Comienza la franja blanca con logos y enlaces a la derecha -->
+      <div id="logoInicio">
+        <span class="pc tablet" id="logoPresidenciaMovil">
+          <a href="https://www.mpr.gob.es/" title="Ir al Ministerio de la Presidencia">
+            <img src="/imagenes/logoMPRmovil.png" alt="Ministerio de la Presidencia">
+          </a>
+        </span>
+        <span id="logoPresidencia">
+          <a href="https://www.mpr.gob.es/" title="Ir al Ministerio de la Presidencia">
+            <img src="/imagenes/logoMPR.png" srcset="/imagenes/logoMPR.svg" alt="Ministerio de la Presidencia">
+          </a>
+        </span>
+        <span class="movil">
+          <a href="/" title="Ir a la p&#xE1;gina de inicio">
+            <img alt="Portal de Subastas" src="/imagenes/portal_subastas_270.png" srcset="/imagenes/portal_subastas_270.svg" />
+          </a>
+        </span>
+      </div><!-- Fin de logoInicio -->
+      <h1>
+        <a href="/" title="Ir a la p&#xE1;gina de inicio">
+          Portal de Subastas
+        </a>
+      </h1>
+      <p class="fuera">Portal de Subastas de la Agencia Estatal Bolet&#xED;n Oficial del Estado</p>
+      <span id="logoBOE">
+        <a href="https://www.boe.es" title="Ir a la p&#xE1;gina de la Agencia Estatal Bolet&#xED;n Oficial del Estado">
+          <img src="/imagenes/logo_boe.png"  alt="Agencia Estatal Bolet&#xED;n Oficial del Estado">
+        </a>
+      </span>
+    </div> <!-- #cabecera -->
+    <!-- Cuerpo -->
+    <div id="cuerpo">
+      <div id="top" class="banda-menu">
+        <div id="menu_principal" class="menu-wrapper">
+          <ul>
+            <li class="inicio pc tablet">
+              <a href="https://subastas.boe.es/index.php"><span>Inicio</span></a>
+            </li>
+            <li class="buscar">
+              <a href="https://subastas.boe.es/subastas_ava.php">
+                <span class="pc tablet">Buscar</span>
+                <span class="movil"><img alt="Buscar" src="/imagenes/logoBuscar_blanco.png" srcset="/imagenes/logoBuscar_blanco.svg"></span>
+              </a>
+            </li>
+            <li class="ayuda">
+              <a href="https://subastas.boe.es/ayuda.php">
+                <span class="pc tablet">Ayuda</span>
+                <span class="movil"><img alt="Ayuda" src="/imagenes/ayuda.png" srcset="/imagenes/ayuda.svg"></span>
+              </a>
+            </li>
+            <li  class="botonAcceso ico_acceso">
+              <a href="https://subastas.boe.es/acceso.php">
+                <span class="tablet pc">
+                  Iniciar sesi&#xF3;n<span class="luz">Pulse para acceder o registrarse como usuario en el Portal de Subastas</span>
+                </span>
+                <span class="movil"><img alt="Iniciar sesi&#xF3;n" src="/imagenes/logoAcceso.png" srcset="/imagenes/logoAcceso.svg"></span>
+              </a>
+            </li> 
+          </ul>
+        </div><!-- #menu_principal -->
+      </div><!-- .banda-menu -->
+      <p class="disclaimer">
+        <span id="fechaOficial">Viernes, 17 de julio de 2026</span>
+        <span id="horaOficial">12:31:24</span>
+        <span id="usoHorario" title="Hora Central Europea / Central European Time">CET</span>
+      </p>
+      <script>
+         var hoy = new Date(2026,7-1,17,12,31,24); 
+         function reloj(){
+            var hora = hoy.getHours(); 
+            var minutos = hoy.getMinutes(); 
+            var segundos = hoy.getSeconds(); 
+            if (hora<=9) hora = "0" + hora; 
+            if (minutos<=9) minutos = "0" + minutos; 
+            if (segundos<=9) segundos = "0" + segundos; 
+            var horaFinal = hora + ":" + minutos + ":" + segundos; 
+            var dia = new Array('Domingo','Lunes','Martes','Mi&#xe9;rcoles','Jueves','Viernes','S&#xe1;bado'); 
+            var mes = new Array('Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'); 
+            var anio = hoy.getFullYear(); 
+            var fecha = dia[hoy.getDay()] + ', ' + hoy.getDate() + ' de '  + mes[hoy.getMonth()] + ' de ' + anio ; 
+
+            document.getElementById('fechaOficial').innerHTML = fecha;
+            document.getElementById('horaOficial').innerHTML = horaFinal;
+
+            hoy.setSeconds(hoy.getSeconds() +1);
+            setTimeout('reloj()',1000);
+         } 
+         reloj();
+      </script>
+      <div id="contenedor">
+        <div id="contenido">
+          <h2>Subasta SUB-JA-2026-259908</h2>
+
+          <div class="caja gris aviso">
+            <p><strong>ADVERTENCIA:</strong> De acuerdo a lo establecido por la autoridad gestora, <strong>durante el plazo de ejecuci&#xF3;n de esta subasta, </strong><strong><span class="destaca">la puja m&#xE1;s alta realizada ha sido p&#xFA;blica y ha existido posibilidad de pr&#xF3;rroga hasta un m&#xE1;ximo de 24 horas</span></strong>.</p>
+          </div>
+          <div class="caja gris aviso">
+            <p class="destaca">
+              <strong>LA SUBASTA HA CONCLUIDO SU PERIODO DE PUJAS (se encuentra pendiente de finalizaci&#xF3;n y devoluci&#xF3;n de dep&#xF3;sitos con reserva por parte de la Autoridad Gestora).</strong>
+            </p>
+            <p class="puntoPDF">
+              <a href="./verCertificadoCierre.php?idSub=SUB-JA-2026-259908" target="_blank">Certificado de cierre de la subasta en el Portal de Subastas</a>
+            </p>
+          </div>
+          <div id="tabs">
+            <input type="checkbox" class="desplegable" id="dropDownFiltro" value="" name="dropDownFiltro"/>
+            <label class="selected" for="dropDownFiltro" data-toggle="dropdown">Pujas</label>
+            <ul class="navlist">
+              <li>
+                <a href="./detalleSubasta.php?idSub=SUB-JA-2026-259908&amp;ver=1&amp;idBus=&amp;idLote=1&amp;numPagBus=">Informaci&#xF3;n general</a>
+              </li>
+              <li>
+                <a href="./detalleSubasta.php?idSub=SUB-JA-2026-259908&amp;ver=2&amp;idBus=&amp;idLote=1&amp;numPagBus=">Autoridad gestora</a>
+              </li>
+              <li>
+                <a href="./detalleSubasta.php?idSub=SUB-JA-2026-259908&amp;ver=3&amp;idBus=&amp;idLote=1&amp;numPagBus=">Lotes</a>
+              </li>
+              <li>
+                <a href="./detalleSubasta.php?idSub=SUB-JA-2026-259908&amp;ver=5&amp;idBus=&amp;idLote=1&amp;numPagBus=" class="current">Pujas</a>
+              </li>
+            </ul>
+          </div>
+          <h3>Pujas</h3>
+          <div id="idBloqueDatos8">
+            <div class="caja gris info">
+              <p>La subasta contiene varios lotes que se subastan de forma separada.</p>
+              <p class="tablet movil">Selecciona el n&#xFA;mero de lote en las pesta&#xF1;as de la izquierda para visualizar la informaci&#xF3;n.</p>
+            </div>
+            <h4>Pujas m&#xE1;ximas</h4>
+            <table>
+              <thead>
+                <tr>
+                  <th id="lote">Lote</th>
+                  <th id="cantidad">Importe de la puja</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td headers="lote">1</td>
+                  <td headers="cantidad">1.372.637,35 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">2</td>
+                  <td headers="cantidad">257.808,64 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">3</td>
+                  <td headers="cantidad">242.141,88 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">4</td>
+                  <td headers="cantidad">199.433,43 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">5</td>
+                  <td headers="cantidad">199.433,43 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">6</td>
+                  <td headers="cantidad">183.153,15 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">7</td>
+                  <td headers="cantidad">159.433,70 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">8</td>
+                  <td headers="cantidad">164.266,41 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">9</td>
+                  <td headers="cantidad">156.250,60 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">10</td>
+                  <td headers="cantidad">131.927,40 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">11</td>
+                  <td headers="cantidad">143.654,28 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">12</td>
+                  <td headers="cantidad">126.063,96 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">13</td>
+                  <td headers="cantidad">123.132,24 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">14</td>
+                  <td headers="cantidad">126.063,96 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">15</td>
+                  <td headers="cantidad">128.995,68 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">16</td>
+                  <td headers="cantidad">126.063,96 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">17</td>
+                  <td headers="cantidad">131.927,40 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">18</td>
+                  <td headers="cantidad">123.132,24 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">19</td>
+                  <td headers="cantidad">123.132,24 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">20</td>
+                  <td headers="cantidad">223.872,66 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">21</td>
+                  <td headers="cantidad">9.351,25 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">22</td>
+                  <td headers="cantidad">9.493,68 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">23</td>
+                  <td headers="cantidad">10.099,35 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">24</td>
+                  <td headers="cantidad">9.725,30 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">25</td>
+                  <td headers="cantidad">11.595,55 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">26</td>
+                  <td headers="cantidad">11.595,55 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">27</td>
+                  <td headers="cantidad">11.075,96 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">28</td>
+                  <td headers="cantidad">11.697,44 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">29</td>
+                  <td headers="cantidad">9.004,50 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">30</td>
+                  <td headers="cantidad">6.603,30 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">31</td>
+                  <td headers="cantidad">8.404,20 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">32</td>
+                  <td headers="cantidad">7.803,90 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">33</td>
+                  <td headers="cantidad">10.505,25 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">34</td>
+                  <td headers="cantidad">7.203,60 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">35</td>
+                  <td headers="cantidad">7.203,60 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">36</td>
+                  <td headers="cantidad">7.203,60 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">37</td>
+                  <td headers="cantidad">10.205,10 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">38</td>
+                  <td headers="cantidad">8.404,20 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">39</td>
+                  <td headers="cantidad">7.803,90 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">40</td>
+                  <td headers="cantidad">8.104,05 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">41</td>
+                  <td headers="cantidad">7.203,60 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">42</td>
+                  <td headers="cantidad">6.303,15 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">43</td>
+                  <td headers="cantidad">7.203,60 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">44</td>
+                  <td headers="cantidad">7.803,90 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">45</td>
+                  <td headers="cantidad">5.099,10 &#x20AC;</td>
+                </tr>
+                <tr>
+                  <td headers="lote">46</td>
+                  <td headers="cantidad">5.173,00 &#x20AC;</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="bloqueBotones">
+            <a class="boton" href="/index.php">Volver a la p&#xE1;gina de inicio</a>
+          </div>
+        </div> <!-- /contenido -->
+      </div> <!-- /contenedor -->
+    </div> <!-- #cuerpo -->
+    <div id="pie">
+      <div id="menuPie">
+        <div class="franjaMenu">
+          <ul>
+            <li><a href="https://subastas.boe.es/textoPolitica.php" target="_blank" title="Abre nueva ventana">Acerca del Portal</a></li>
+          </ul>
+        </div> <!-- .franjaMenu -->
+      </div> <!-- #menuPie -->
+      <div class="franja-pie">
+        <p>Agencia Estatal Bolet&#xED;n Oficial del Estado</p>
+        <p><abbr title="Avenida">Avda.</abbr> de Manoteras, 54 - 28050 Madrid</p>
+      </div>
+    </div> <!-- #pie -->
+    <script src="/lib/js/desplegable.js"></script>
+  </body>
+</html>
