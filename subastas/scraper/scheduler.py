@@ -270,6 +270,14 @@ class ScraperScheduler:
                     except Exception as e:
                         self.log(f"  Warning: outbox write failed for {boe_id}: {e}")
 
+                # ---- Mechanism 1: FREEZE-AT-CLOSE (wipe-immune) ----
+                # Persist the last live puja máxima captured during CELEBRANDOSE
+                # as the frozen result, in the SAME transaction, BEFORE the
+                # portal can wipe the amount (JC/RC/JV/NE finalization). Only
+                # rows carrying a live puja signal are frozen; the rest stay
+                # saleResult NULL for the daily re-scrape (Mechanism 2).
+                self._freeze_sale_results(cursor, expired_ids, now)
+
                 conn.commit()
                 self.log(f"  Marked {len(expired)} auctions as CONCLUIDA_PORTAL (outbox written)")
 
@@ -894,6 +902,156 @@ class ScraperScheduler:
         )
 
     # -----------------------------------------------------------------------
+    # Mechanism 1 — FREEZE-AT-CLOSE (helper, called by monitor_status_changes)
+    # -----------------------------------------------------------------------
+    _sale_cols_checked = None  # cache: True/False whether sale-result cols exist
+
+    def _freeze_sale_results(self, cursor, expired_ids, now):
+        """Set-based freeze of the last live puja máxima for rows just marked
+        CONCLUIDA_PORTAL, in the caller's transaction. Wipe-immune: reads the
+        currentBidAmount/pujaStatus already captured live during CELEBRANDOSE.
+
+        - CON_PUJA / currentBidAmount>0  -> saleResult=ADJUDICADA, soldPrice=cents
+        - SIN_PUJA                        -> saleResult=DESIERTA
+        - no live puja signal             -> left NULL for the daily re-scrape
+
+        soldDate = endsAt (no true sale date exists on the portal). A freeze is a
+        confirmed capture: resultCheckAttempts=0. Guarded so a pre-migration DB
+        (Forge hasn't landed the columns yet) is a silent no-op. The number is the
+        highest BID ("puja máxima"), never a confirmed legal sale.
+        """
+        if not expired_ids:
+            return
+        if self._sale_cols_checked is None:
+            try:
+                cursor.execute(
+                    """SELECT count(*) FROM information_schema.columns
+                       WHERE table_name='Auction'
+                         AND column_name = ANY(%s)""",
+                    (['saleResult', 'soldPrice', 'soldDate',
+                      'resultCheckedAt', 'resultCheckAttempts'],),
+                )
+                self._sale_cols_checked = (cursor.fetchone()[0] == 5)
+            except Exception:
+                self._sale_cols_checked = False
+        if not self._sale_cols_checked:
+            self.log("  Freeze-at-close skipped (sale-result columns not migrated yet)")
+            return
+        try:
+            cursor.execute(
+                """
+                UPDATE "Auction"
+                SET "saleResult" = CASE
+                        WHEN COALESCE("currentBidAmount",0) > 0
+                             OR "pujaStatus" = 'CON_PUJA' THEN 'ADJUDICADA'
+                        WHEN "pujaStatus" = 'SIN_PUJA'     THEN 'DESIERTA'
+                    END,
+                    "soldPrice" = CASE
+                        WHEN COALESCE("currentBidAmount",0) > 0
+                        THEN "currentBidAmount" END,
+                    "soldDate" = "endsAt",
+                    "resultCheckedAt" = %s,
+                    "resultCheckAttempts" = 0
+                WHERE id = ANY(%s)
+                  AND "saleResult" IS NULL
+                  AND ("pujaStatus" IS NOT NULL
+                       OR COALESCE("currentBidAmount",0) > 0)
+                """,
+                (now, expired_ids),
+            )
+            self.log(f"  Freeze-at-close: {cursor.rowcount} concluded rows frozen (puja máxima)")
+        except Exception as e:
+            self.log(f"  Freeze-at-close failed (non-fatal): {e}")
+
+    # -----------------------------------------------------------------------
+    # Mechanism 2 — DAILY POST-CLOSE RE-SCRAPE (catch freeze misses + history)
+    # -----------------------------------------------------------------------
+    # Selects concluded rows still missing a saleResult and re-fetches ver=5 via
+    # the lightweight requests fetcher (NO Playwright). Attempt-memory drain
+    # (geocode-drain pattern): each undetermined pass bumps resultCheckAttempts +
+    # stamps resultCheckedAt; after N=5 capture-less passes -> saleResult
+    # SIN_RESULTADO, stop retrying. Bounded per run (--limit / RESULT_RESCRAPE_LIMIT)
+    # so it never becomes an unbounded crawl — that is Mechanism 3's job.
+    def recheck_sale_results(self, limit: int = 500, attempt_cap: int = 5):
+        """Daily: re-scrape concluded rows with NULL saleResult; write result or
+        bump the attempt counter. Requests-only, ~1 req/s jitter."""
+        self.log("Rechecking concluded auctions for sale result (puja máxima)...")
+        is_postgres = DATABASE_URL and ('postgresql://' in DATABASE_URL or 'postgres://' in DATABASE_URL)
+        if not is_postgres:
+            self.log("  Sale-result recheck skipped (not Postgres)")
+            return
+        try:
+            sys.path.insert(0, '/')
+            from app.database.adapter import get_database_adapter
+            from app.scrapers.pujas_fetcher import make_session, fetch_pujas_result
+            adapter = get_database_adapter()
+            conn = self._get_pg_conn()
+            cursor = conn.cursor()
+            # Column guard — pre-migration = safe no-op.
+            cursor.execute(
+                """SELECT count(*) FROM information_schema.columns
+                   WHERE table_name='Auction'
+                     AND column_name = ANY(%s)""",
+                (['saleResult', 'resultCheckedAt', 'resultCheckAttempts'],),
+            )
+            if cursor.fetchone()[0] != 3:
+                self.log("  Sale-result recheck skipped (columns not migrated yet)")
+                cursor.close(); conn.close()
+                return
+            cursor.execute(
+                f"""
+                SELECT "boeId", "endsAt"
+                FROM "Auction"
+                WHERE status = 'CONCLUIDA_PORTAL'
+                  AND "endsAt" IS NOT NULL AND "endsAt" < NOW()
+                  AND "saleResult" IS NULL
+                  AND ("resultCheckedAt" IS NULL
+                       OR "resultCheckedAt" < NOW() - INTERVAL '24 hours')
+                  AND {LEGACY_EXCLUSION_SQL}
+                ORDER BY "endsAt" DESC
+                LIMIT %s
+                """,
+                (int(limit),),
+            )
+            rows = cursor.fetchall()
+            cursor.close(); conn.close()
+        except Exception as e:
+            self.log(f"  Sale-result recheck: scope query failed: {e}")
+            return
+
+        if not rows:
+            self.log("  No concluded rows pending a sale-result check")
+            return
+        self.log(f"  Re-scraping {len(rows)} concluded rows for sale result")
+
+        session = make_session()
+        captured = attempt = exhausted = failed = 0
+        for boe_id, ends_at in rows:
+            try:
+                res = fetch_pujas_result(session, boe_id)
+                sale_result = res.sale_result if res else None
+                cents = res.sold_price_cents if res else None
+                status = adapter.update_sale_result(
+                    boe_id, sale_result=sale_result, sold_price_cents=cents,
+                    sold_date=ends_at, mode='rescrape', attempt_cap=attempt_cap,
+                )
+                if status in ('captured', 'freeze'):
+                    captured += 1
+                elif status == 'exhausted':
+                    exhausted += 1
+                elif status == 'attempt':
+                    attempt += 1
+                else:
+                    failed += 1
+            except Exception as e:
+                failed += 1
+                self.log(f"  Sale-result recheck failed for {boe_id}: {e}")
+        self.log(
+            f"  Sale-result recheck complete: captured={captured} "
+            f"attempt={attempt} exhausted={exhausted} failed={failed}"
+        )
+
+    # -----------------------------------------------------------------------
     # run_catastro_enrichment — Catastro DNPRC daily leg (Phase 1 Leg B, Ghost)
     # -----------------------------------------------------------------------
     # Enriches active rows that carry a 20-char cadastralRef with año-
@@ -1420,6 +1578,15 @@ class ScraperScheduler:
         # one staggered daily slot clear of the category browsers above.
         schedule.every().day.at("05:30").do(self.recheck_suspended_auctions)
 
+        # Mechanism 2: daily post-close sale-result re-scrape (catches freeze
+        # misses + drains history not yet backfilled). Bounded per run; the
+        # ~200k history sweep is the one-time backfill_sale_results.py, not this.
+        schedule.every().day.at("05:15").do(
+            lambda: self.recheck_sale_results(
+                limit=int(os.getenv('RESULT_RESCRAPE_LIMIT', '1000'))
+            )
+        )
+
         # Catastro DNPRC enrichment — daily. Fills año-construcción / uso and
         # NULL-only surfaceM2 on ref-bearing active rows from the free OVC web
         # service @ 1 req/s (~473 refs < 10 min). Dead refs (cod 4/5) are
@@ -1511,6 +1678,10 @@ def main():
                         help='Run one Catastro DNPRC enrichment pass and exit')
     parser.add_argument('--catastro-limit', type=int, default=0,
                         help='Cap rows processed by --catastro-once (0 = all due)')
+    parser.add_argument('--recheck-sale-results-once', action='store_true',
+                        help='Run one post-close sale-result re-scrape pass and exit')
+    parser.add_argument('--sale-result-limit', type=int, default=500,
+                        help='Cap rows for --recheck-sale-results-once (default 500)')
 
     args = parser.parse_args()
     scheduler = ScraperScheduler()
@@ -1539,6 +1710,9 @@ def main():
     elif args.catastro_once:
         scheduler.log("Running Catastro DNPRC enrichment once...")
         scheduler.run_catastro_enrichment(limit=args.catastro_limit or None)
+    elif args.recheck_sale_results_once:
+        scheduler.log("Running post-close sale-result re-scrape once...")
+        scheduler.recheck_sale_results(limit=args.sale_result_limit)
     else:
         scheduler.run()
 

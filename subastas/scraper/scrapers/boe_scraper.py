@@ -23,6 +23,9 @@ from ..config.provinces import (
 from ..config.categories import get_category_type
 from .vehicle_parser import is_vehicle_category, parse_vehicle_fields
 from .property_attribute_parser import parse_property_attributes, dedupe_prose
+from .pujas_result_parser import (
+    parse_pujas_html, ADJUDICADA as PUJAS_ADJUDICADA, DESIERTA as PUJAS_DESIERTA,
+)
 from ..config.municipality_province import (
     municipality_to_province, province_from_text, normalize_municipality,
     canonical_municipality_name,
@@ -1902,6 +1905,12 @@ class BOEScraper(BaseScraper):
         pujas = self._fetch_pujas_for_page(page, boe_id, detail_url, id_lote=id_lote)
         info['puja_status'] = pujas.get('puja_status')
         info['current_bid_amount'] = pujas.get('current_bid_amount')
+        # Freeze inputs (Mechanism 1): the retargeted ver=5 result. Carried into
+        # the detail dict so a live close-transition can persist the frozen
+        # highest bid ("puja máxima", NOT a confirmed sale). NULL sale_result
+        # leaves saleResult untouched (attempt handled by the daily/backfill pass).
+        info['sale_result'] = pujas.get('sale_result')
+        info['sold_price_cents'] = pujas.get('sold_price_cents')
 
     def _fetch_pujas_for_page(self, page: Any, boe_id: str, detail_url: str,
                               id_lote: Optional[int] = None) -> Dict[str, Optional[object]]:
@@ -1925,14 +1934,49 @@ class BOEScraper(BaseScraper):
                 puja_url = f"{self.DETAIL_URL}?idSub={idsub}&idLote={id_lote}&ver=5"
             page.goto(puja_url, wait_until='domcontentloaded', timeout=30000)
             random_delay(0.5, 1.2)
+            # RETARGET 2026-07-17: parse the RAW HTML (the "Pujas máximas" table
+            # + single-block markup drifted; inner_text lost the structure and
+            # never captured multi-lote amounts). One shared parser
+            # (pujas_result_parser) now drives live freeze + daily + backfill.
             try:
-                body = page.inner_text('body')
+                html = page.content()
             except Exception:
-                body = ''
-            return self._parse_pujas(body)
+                html = ''
+            res = parse_pujas_html(html, id_lote=id_lote)
+            out = self._pujas_result_to_fields(res)
+            if out['puja_status'] is None and out['current_bid_amount'] is None:
+                # Belt-and-braces: fall back to the legacy text scan (handles any
+                # future markup we haven't fixtured). Never overrides a real hit.
+                try:
+                    body = page.inner_text('body')
+                except Exception:
+                    body = ''
+                legacy = self._parse_pujas(body)
+                if legacy.get('puja_status') is not None:
+                    return legacy
+            return out
         except Exception as e:
             self.log_warning(f"Pujas fetch failed for {boe_id}: {e}")
-            return {'puja_status': None, 'current_bid_amount': None}
+            return {'puja_status': None, 'current_bid_amount': None,
+                    'sale_result': None, 'sold_price_cents': None}
+
+    @staticmethod
+    def _pujas_result_to_fields(res) -> Dict[str, Optional[object]]:
+        """Map a PujasResult onto the scraper's field dict. ADJUDICADA->CON_PUJA,
+        DESIERTA->SIN_PUJA (keeps the existing pujaStatus/currentBidAmount
+        contract) and also surfaces sale_result/sold_price_cents for the freeze
+        mechanism. sold_price_cents is in EUR cents (BigInt in the DB)."""
+        puja_status = None
+        if res.sale_result == PUJAS_ADJUDICADA:
+            puja_status = 'CON_PUJA'
+        elif res.sale_result == PUJAS_DESIERTA:
+            puja_status = 'SIN_PUJA'
+        return {
+            'puja_status': puja_status,
+            'current_bid_amount': res.sold_price_cents,
+            'sale_result': res.sale_result,
+            'sold_price_cents': res.sold_price_cents,
+        }
 
     # -----------------------------------------------------------------------
     # G2/G3 — document enumeration + download + per-auction snapshot PDF.

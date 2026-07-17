@@ -204,6 +204,118 @@ class DatabaseAdapter:
             logger.error(f"Upsert failed for {data.get('boe_id')}: {e}")
             raise
 
+    # Sale-result columns (Forge owns the migration; Ghost only writes them).
+    _SALE_RESULT_COLS = ('saleResult', 'soldPrice', 'soldDate',
+                         'resultCheckedAt', 'resultCheckAttempts')
+    _sale_cols_cache = None  # None=unknown, set()/frozenset once probed
+
+    def _sale_result_cols(self, cursor):
+        """Return the subset of the 5 sale-result columns that actually exist
+        (info_schema-guarded so a pre-migration DB is a safe no-op). Cached."""
+        if self._sale_cols_cache is not None:
+            return self._sale_cols_cache
+        try:
+            cursor.execute(
+                """
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'Auction' AND column_name = ANY(%s)
+                """,
+                (list(self._SALE_RESULT_COLS),),
+            )
+            self._sale_cols_cache = {r[0] for r in cursor.fetchall()}
+        except Exception:
+            self._sale_cols_cache = set()
+        return self._sale_cols_cache
+
+    def update_sale_result(self, boe_id: str, *, sale_result: Optional[str] = None,
+                           sold_price_cents: Optional[int] = None,
+                           sold_date: Any = None, mode: str = 'rescrape',
+                           attempt_cap: int = 5) -> str:
+        """
+        Persist the concluded-auction result (Mechanisms 1/2/3). Writes ONLY the
+        5 additive-nullable sale-result columns, by boeId. PG-only, idempotent,
+        info_schema-guarded (safe before Forge's migration lands: returns
+        'no-cols').
+
+        sale_result: 'ADJUDICADA' | 'DESIERTA' | None (undetermined this pass).
+        mode:
+          'freeze'   — a confirmed live capture at close. Requires sale_result
+                       not None. Sets result+soldPrice+soldDate, resultCheckedAt=
+                       now, resultCheckAttempts=0.
+          'rescrape' — daily/backfill pass. A capture (sale_result in
+                       ADJUDICADA/DESIERTA) writes the result + resets attempts=0.
+                       An undetermined pass (sale_result None) increments
+                       resultCheckAttempts + stamps resultCheckedAt; once the
+                       incremented count reaches `attempt_cap`, saleResult is set
+                       to 'SIN_RESULTADO' so the row stops being retried.
+
+        The stored number is the highest bid ("puja máxima"), NOT a confirmed
+        legal sale. Never emit a "sale price" label from it.
+        Returns a short status: 'captured'|'attempt'|'exhausted'|'freeze'|
+        'noop'|'not-found'|'no-cols'|'skip'.
+        """
+        if self.db_type != 'postgresql':
+            return 'skip'
+        if mode == 'freeze' and sale_result is None:
+            return 'noop'
+        conn = self.connect()
+        try:
+            cursor = conn.cursor()
+            cols = self._sale_result_cols(cursor)
+            if not {'saleResult', 'resultCheckedAt', 'resultCheckAttempts'} <= cols:
+                conn.rollback()
+                return 'no-cols'
+
+            cursor.execute(
+                'SELECT id, "resultCheckAttempts" FROM "Auction" WHERE "boeId" = %s',
+                (boe_id,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                conn.rollback()
+                return 'not-found'
+            cur_attempts = row[1] or 0
+
+            now = datetime.now()
+            sets, params = [], []
+
+            def _set(col, val):
+                sets.append(f'"{col}" = %s')
+                params.append(val)
+
+            captured = sale_result in ('ADJUDICADA', 'DESIERTA')
+            status = 'noop'
+            if captured:
+                _set('saleResult', sale_result)
+                if 'soldPrice' in cols:
+                    _set('soldPrice', sold_price_cents)  # BigInt cents (None for DESIERTA)
+                if 'soldDate' in cols:
+                    _set('soldDate', sold_date)          # = endsAt (no true sale date exists)
+                _set('resultCheckedAt', now)
+                _set('resultCheckAttempts', 0)
+                status = 'freeze' if mode == 'freeze' else 'captured'
+            else:
+                # Undetermined pass (wiped/empty/miss): attempt-memory drain.
+                new_attempts = cur_attempts + 1
+                _set('resultCheckedAt', now)
+                _set('resultCheckAttempts', new_attempts)
+                if new_attempts >= attempt_cap:
+                    _set('saleResult', 'SIN_RESULTADO')
+                    status = 'exhausted'
+                else:
+                    status = 'attempt'
+
+            cursor.execute(
+                f'UPDATE "Auction" SET {", ".join(sets)} WHERE "boeId" = %s',
+                params + [boe_id],
+            )
+            conn.commit()
+            return status
+        except Exception as e:
+            conn.rollback()
+            logger.warning("update_sale_result failed for %s: %s", boe_id, e)
+            return 'error'
+
     def upsert_document(self, auction_boe_id: str, doc: Dict[str, Any]) -> Optional[str]:
         """
         G2/G3 — upsert one AuctionDocument row (the document-archive contract
