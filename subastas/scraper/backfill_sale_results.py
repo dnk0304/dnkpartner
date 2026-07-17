@@ -40,10 +40,30 @@ Attempt-memory: undetermined pass (wiped/empty/network miss) bumps
   resultCheckAttempts + stamps resultCheckedAt; at N=--attempt-cap it sets
   saleResult=SIN_RESULTADO so the row stops being retried.
 
+Parallel period-partitioning: --since/--until slice the scope by endsAt into
+  disjoint half-open [since, until) windows so N workers (any N — the flags are
+  boundary-agnostic) each own a non-overlapping slice and never fetch the same
+  row. Adjacent windows share a boundary date without double-counting it. Give
+  each worker its own --checkpoint. resultCheckedAt stays the durable done-marker,
+  so every worker resumes cleanly and stays idempotent within its window.
+
 Usage:
   DATABASE_URL=postgres://... python -m app.backfill_sale_results \
       --phase A [--limit N] [--batch-size 50] [--attempt-cap 5] \
-      [--recheck-after-hours 24] [--dry-run] [--max-errors 25]
+      [--recheck-after-hours 24] [--dry-run] [--max-errors 25] \
+      [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--checkpoint PATH]
+
+  Example 8-way property split (Ken launches, staggered 2 min apart), each with
+  its own --checkpoint /tmp/bf_w<N>.json — boundaries are illustrative and set at
+  launch to balance row counts:
+      W1 --since 2025-07-01
+      W2 --since 2025-01-01 --until 2025-07-01
+      W3 --since 2024-06-01 --until 2025-01-01
+      W4 --since 2024-01-01 --until 2024-06-01
+      W5 --since 2023-01-01 --until 2024-01-01
+      W6 --since 2022-01-01 --until 2023-01-01
+      W7 --since 2020-01-01 --until 2022-01-01
+      W8                    --until 2020-01-01
 """
 import argparse
 import json
@@ -85,13 +105,22 @@ def _cols_present(cur) -> bool:
     return cur.fetchone()[0] == len(SALE_COLS)
 
 
-def _scope_sql(phase: str, recheck_after_hours: int) -> str:
+def _scope_sql(phase: str, recheck_after_hours: int,
+               since: str = None, until: str = None) -> str:
     if phase == 'A':
         cat_pred = 'category = ANY(%(cats)s)'
     elif phase == 'B':
         cat_pred = '(category IS NULL OR NOT (category = ANY(%(cats)s)))'
     else:  # all
         cat_pred = 'TRUE'
+    # Period partition (half-open [since, until)): lets N workers each own a
+    # disjoint endsAt window so no row is fetched by two workers. Bound via the
+    # existing params dict; only appended when the flag is set.
+    period_pred = ''
+    if since:
+        period_pred += '\n          AND "endsAt" >= %(since)s'
+    if until:
+        period_pred += '\n          AND "endsAt" < %(until)s'
     return f"""
         SELECT "boeId", "endsAt", COALESCE("resultCheckAttempts", 0)
         FROM "Auction"
@@ -100,7 +129,7 @@ def _scope_sql(phase: str, recheck_after_hours: int) -> str:
           AND "saleResult" IS NULL
           AND ("resultCheckedAt" IS NULL
                OR "resultCheckedAt" < NOW() - INTERVAL '{int(recheck_after_hours)} hours')
-          AND {cat_pred}
+          AND {cat_pred}{period_pred}
           AND {LEGACY_EXCLUSION_SQL}
         ORDER BY "endsAt" DESC
         LIMIT %(limit)s
@@ -131,7 +160,14 @@ def main():
     ap.add_argument('--recheck-after-hours', type=int, default=24,
                     help='Re-touch a stamped-but-uncaptured row only after this many hours')
     ap.add_argument('--max-errors', type=int, default=25, help='Consecutive-failure circuit breaker')
-    ap.add_argument('--checkpoint', default='/tmp/backfill_sale_results.checkpoint.json')
+    ap.add_argument('--since', default=None,
+                    help='Only rows with endsAt >= this ISO date (YYYY-MM-DD). Half-open lower bound '
+                         'for period-partitioned parallel workers.')
+    ap.add_argument('--until', default=None,
+                    help='Only rows with endsAt < this ISO date (YYYY-MM-DD). Half-open upper bound; '
+                         'adjacent workers share a boundary date without double-counting any row.')
+    ap.add_argument('--checkpoint', default='/tmp/backfill_sale_results.checkpoint.json',
+                    help='Per-worker checkpoint path — give each parallel worker its own file.')
     ap.add_argument('--dry-run', action='store_true')
     args = ap.parse_args()
 
@@ -147,8 +183,12 @@ def main():
 
     # Effective scope size — pull the batch of due rows.
     fetch_limit = args.limit if args.limit > 0 else 10_000_000
-    cur.execute(_scope_sql(args.phase, args.recheck_after_hours),
-                {'cats': list(PROPERTY_CATEGORIES), 'limit': fetch_limit})
+    window = '[%s, %s)' % (args.since or '-inf', args.until or '+inf')
+    logger.info('Phase %s worker window endsAt in %s | checkpoint=%s | max-errors=%d',
+                args.phase, window, args.checkpoint, args.max_errors)
+    cur.execute(_scope_sql(args.phase, args.recheck_after_hours, args.since, args.until),
+                {'cats': list(PROPERTY_CATEGORIES), 'limit': fetch_limit,
+                 'since': args.since, 'until': args.until})
     rows = cur.fetchall()
     logger.info('Phase %s: %d concluded rows due for sale-result capture (dry_run=%s)',
                 args.phase, len(rows), args.dry_run)
