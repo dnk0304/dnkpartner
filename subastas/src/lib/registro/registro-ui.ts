@@ -354,6 +354,59 @@ export function getResultadosCopy(locale: Locale): ResultadosCopy {
 }
 
 // ---------------------------------------------------------------------------
+// Serializable copy slice for the CLIENT archive island.
+//
+// `RegistryArchiveClient` is the only 'use client' component on /resultados, so
+// nothing with a function value may cross into it (React forbids passing
+// functions to Client Components — it 500s at SSR render, which `tsc`/`next
+// build` do NOT catch). `ResultadosCopy` carries ~10 function-valued members
+// (landingLead, regionH1, outcomeRegionH1, updated, resultsCount, …), so we
+// hand the client ONLY this plain-string subset. Server components
+// (RegistroCharts / StatTiles / RegistryNav / ResultadoRow) keep the full copy.
+// ---------------------------------------------------------------------------
+
+export interface ArchiveCopy {
+  filterOutcome: string;
+  filterCategory: string;
+  filterProvince: string;
+  filterAll: string;
+  filterSort: string;
+  sortRecent: string;
+  sortPriceDesc: string;
+  sortPriceAsc: string;
+  loadMore: string;
+  loading: string;
+  empty: string;
+  errorLoading: string;
+  /** The trailing noun of the "{n} resultados" count line (the number is
+   *  formatted client-side because it changes as filters/pages load). */
+  resultsLabel: string;
+}
+
+/** Plain-string slice of the copy dict for the client archive island — no
+ *  functions, no non-serializable values cross the server→client boundary. */
+export function pickArchiveCopy(copy: ResultadosCopy): ArchiveCopy {
+  return {
+    filterOutcome: copy.filterOutcome,
+    filterCategory: copy.filterCategory,
+    filterProvince: copy.filterProvince,
+    filterAll: copy.filterAll,
+    filterSort: copy.filterSort,
+    sortRecent: copy.sortRecent,
+    sortPriceDesc: copy.sortPriceDesc,
+    sortPriceAsc: copy.sortPriceAsc,
+    loadMore: copy.loadMore,
+    loading: copy.loading,
+    empty: copy.empty,
+    errorLoading: copy.errorLoading,
+    // Derive the count noun from the single source of truth (resultsCount is
+    // `${n} resultados` / `${n} results`, so the empty-arg call yields the
+    // trailing word). Keeps ES/EN parity with zero duplication.
+    resultsLabel: copy.resultsCount('').trim(),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Filter option builders (shared by the landing + region archives).
 // ---------------------------------------------------------------------------
 
