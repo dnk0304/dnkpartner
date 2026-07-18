@@ -23,6 +23,7 @@ import { capitalizeLocation } from '@/lib/utils';
 import { readSummary, readList } from '@/lib/registro/registro-read';
 import {
   getResultadosCopy,
+  pickArchiveCopy,
   buildOutcomeOptions,
   buildCategoryOptions,
   type Locale,
@@ -128,7 +129,7 @@ export default async function ResultadosPage() {
         <RegistryArchiveClient
           initial={{ items: list.items, total: list.total, page: list.page, totalPages: list.totalPages }}
           locale={locale}
-          copy={copy}
+          copy={pickArchiveCopy(copy)}
           outcomeOptions={buildOutcomeOptions(locale)}
           categoryOptions={buildCategoryOptions()}
           provinceOptions={provinceOptions}

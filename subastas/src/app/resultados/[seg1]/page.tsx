@@ -18,6 +18,7 @@ import { readSummary, readList, concludedMunicipioRegions, concludedProvinceRegi
 import { resolveResultadosSeg } from '@/lib/registro/resultados-routing';
 import {
   getResultadosCopy,
+  pickArchiveCopy,
   buildOutcomeOptions,
   buildCategoryOptions,
   OUTCOME_META,
@@ -119,7 +120,7 @@ export default async function ResultadosSegPage({ params }: PageProps) {
           <RegistryArchiveClient
             initial={{ items: list.items, total: list.total, page: list.page, totalPages: list.totalPages }}
             locale={locale}
-            copy={copy}
+            copy={pickArchiveCopy(copy)}
             outcomeOptions={buildOutcomeOptions(locale)}
             categoryOptions={buildCategoryOptions()}
             provinceOptions={summary.regions
@@ -217,7 +218,7 @@ export default async function ResultadosSegPage({ params }: PageProps) {
         <RegistryArchiveClient
           initial={{ items: list.items, total: list.total, page: list.page, totalPages: list.totalPages }}
           locale={locale}
-          copy={copy}
+          copy={pickArchiveCopy(copy)}
           outcomeOptions={buildOutcomeOptions(locale)}
           categoryOptions={buildCategoryOptions()}
           provinceOptions={[]}

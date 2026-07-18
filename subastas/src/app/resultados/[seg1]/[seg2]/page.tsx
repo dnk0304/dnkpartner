@@ -32,6 +32,7 @@ import {
 import { resolveResultadosSeg } from '@/lib/registro/resultados-routing';
 import {
   getResultadosCopy,
+  pickArchiveCopy,
   buildOutcomeOptions,
   buildCategoryOptions,
   OUTCOME_META,
@@ -198,7 +199,7 @@ export default async function ResultadosChildPage({ params }: PageProps) {
           <RegistryArchiveClient
             initial={{ items: list.items, total: list.total, page: list.page, totalPages: list.totalPages }}
             locale={locale}
-            copy={copy}
+            copy={pickArchiveCopy(copy)}
             outcomeOptions={buildOutcomeOptions(locale)}
             categoryOptions={buildCategoryOptions()}
             provinceOptions={[]}
@@ -292,7 +293,7 @@ export default async function ResultadosChildPage({ params }: PageProps) {
         <RegistryArchiveClient
           initial={{ items: list.items, total: list.total, page: list.page, totalPages: list.totalPages }}
           locale={locale}
-          copy={copy}
+          copy={pickArchiveCopy(copy)}
           outcomeOptions={buildOutcomeOptions(locale)}
           categoryOptions={buildCategoryOptions()}
           provinceOptions={[]}

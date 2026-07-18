@@ -15,7 +15,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ResultadoRow } from './ResultadoRow';
-import type { Locale, RegistroListItem, ResultadosCopy, RegistryOutcome } from '@/lib/registro/registro-ui';
+import type { Locale, RegistroListItem, ArchiveCopy, RegistryOutcome } from '@/lib/registro/registro-ui';
 
 export interface ArchiveOption {
   value: string;
@@ -49,7 +49,7 @@ export function RegistryArchiveClient({
 }: {
   initial: ArchiveInitial;
   locale: Locale;
-  copy: ResultadosCopy;
+  copy: ArchiveCopy;
   outcomeOptions: ArchiveOption[];
   categoryOptions: ArchiveOption[];
   provinceOptions: ArchiveOption[];
@@ -204,7 +204,7 @@ export function RegistryArchiveClient({
       </div>
 
       <p className="tnum mb-3 text-xs text-[var(--color-ink-quiet)]" aria-live="polite">
-        {copy.resultsCount(nf(total))}
+        {nf(total)} {copy.resultsLabel}
       </p>
 
       {error ? (
