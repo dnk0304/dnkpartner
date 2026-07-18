@@ -37,6 +37,7 @@ import { SourceBadge } from '@/components/observatory/SourceBadge';
 import { effectiveStatus } from '@/components/observatory/status';
 import { pickTeaserSnippet } from '@/lib/teaser-snippet';
 import { resolveCardImage } from '@/lib/resolve-card-image';
+import { isConcludedIndexable } from '@/lib/seo/concluded-indexable';
 
 export interface AuctionTeaserData {
   id: string;
@@ -74,6 +75,21 @@ export interface AuctionTeaserData {
   /** Geocoded coordinates — used by the rung-2 map fallback. Public. */
   latitude?: number | null;
   longitude?: number | null;
+  /**
+   * Concluded sale-outcome fields (wave142). Drive the public "Resultado de
+   * la subasta" block, rendered on EXACTLY the rows isConcludedIndexable marks
+   * indexable (concluded + property/vehicle + resultCheckedAt set + saleResult
+   * ∈ ADJUDICADA/DESIERTA). Aggregate financial fact only — NO PII (no bidder
+   * identity). LABEL RULE (locked): the figure is the "puja máxima" / highest
+   * recorded bid, NEVER "precio de venta confirmado" — BOE never publishes a
+   * legal adjudication, we only know the highest bid.
+   */
+  saleResult?: string | null;
+  resultCheckedAt?: Date | string | null;
+  /** Highest recorded bid, already coerced cents→EUROS by the caller. */
+  soldPrice?: number | null;
+  /** Date the outcome was recorded (= endsAt; BOE exposes no true timestamp). */
+  soldDate?: Date | string | null;
 }
 
 const DB_TO_FRONTEND_STATUS: Record<string, string> = {
@@ -156,6 +172,19 @@ export async function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
   const valuation = formatEuro(data.appraisalValue);
 
   const snippet = teaserSnippet(data, status);
+
+  // Concluded-outcome block. Render on EXACTLY the rows the shared predicate
+  // marks indexable (same gate as robots meta + sitemap membership) so an
+  // indexed concluded page carries real content and never looks thin. For
+  // everything else the block is omitted. Aggregate financial fact only.
+  const showResult = isConcludedIndexable({
+    status: data.status,
+    category: data.category,
+    saleResult: data.saleResult ?? null,
+    resultCheckedAt: data.resultCheckedAt ? new Date(data.resultCheckedAt) : null,
+  });
+  const isAdjudicada = data.saleResult === 'ADJUDICADA';
+  const soldPriceFmt = formatEuro(data.soldPrice);
 
   // Imagery — same 3-rung ladder as the cards (photo → map → neutral
   // placeholder). resolveCardImage takes only the public fields we already
@@ -247,6 +276,83 @@ export async function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
               {data.source && <SourceBadge source={data.source} size="sm" />}
             </div>
           </header>
+
+          {/* Resultado de la subasta — the concluded page's reason to exist.
+              SSR + public (NOT behind the wall) so Google crawls it; renders
+              only on isConcludedIndexable rows. A green top-rule + dot marks
+              it as the outcome, distinct from the neutral summary card below.
+              HONEST LABEL: the figure is the highest recorded bid ("puja
+              máxima"), never a confirmed sale price. */}
+          {showResult && (
+            <section
+              aria-labelledby="auction-result-heading"
+              className="summary-card p-5 space-y-3 border-t-2 border-t-[var(--color-action)]"
+            >
+              <div className="flex items-center gap-2">
+                <span
+                  className="inline-flex h-2 w-2 rounded-full bg-[var(--color-action)]"
+                  aria-hidden="true"
+                />
+                <h2
+                  id="auction-result-heading"
+                  className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-ink-tertiary)]"
+                >
+                  {t('resultHeading')}
+                </h2>
+              </div>
+
+              {isAdjudicada ? (
+                soldPriceFmt ? (
+                  <div>
+                    <div className="text-[11px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
+                      {t('resultPujaMaxima')}
+                    </div>
+                    <div className="mt-1 font-serif text-3xl md:text-[2.25rem] font-semibold leading-none tracking-tight text-[var(--color-brand)] tnum">
+                      {soldPriceFmt}
+                    </div>
+                    <p className="mt-2 text-xs leading-relaxed text-[var(--color-ink-tertiary)]">
+                      {t('resultPujaMaximaNote')}
+                    </p>
+                  </div>
+                ) : (
+                  // ADJUDICADA but the winning bid wasn't published — state the
+                  // outcome honestly, no invented figure.
+                  <div>
+                    <div className="font-serif text-xl font-semibold text-[var(--color-ink-primary)]">
+                      {t('resultAdjudicada')}
+                    </div>
+                    <p className="mt-1 text-xs leading-relaxed text-[var(--color-ink-tertiary)]">
+                      {t('resultAdjudicadaNoPrice')}
+                    </p>
+                  </div>
+                )
+              ) : (
+                // DESIERTA — explicitly no bids. No price.
+                <div>
+                  <div className="font-serif text-xl font-semibold text-[var(--color-ink-primary)]">
+                    {t('resultDesiertaTitle')}
+                  </div>
+                  <p className="mt-1 text-sm text-[var(--color-ink-secondary)]">
+                    {t('resultDesiertaSub')}
+                  </p>
+                </div>
+              )}
+
+              {data.soldDate && (
+                <dl className="hairline-t pt-3 text-xs tnum">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <dt className="text-[var(--color-ink-tertiary)]">
+                      <Calendar className="inline h-3 w-3 mr-1 align-[-0.05em]" aria-hidden="true" />
+                      {t('resultDateLabel')}
+                    </dt>
+                    <dd className="text-[var(--color-ink-primary)]">
+                      {formatDateLong(data.soldDate, locale)}
+                    </dd>
+                  </div>
+                </dl>
+              )}
+            </section>
+          )}
 
           {/* Summary panel (subastasia move 1, teaser version) — single
               rounded soft-shadowed card holding the consolidated public
