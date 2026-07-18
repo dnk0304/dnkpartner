@@ -82,7 +82,15 @@ DESIERTA = "DESIERTA"       # explicitly no bids ("no ha recibido pujas"/"Sin pu
 # None sale_result => undetermined this pass (wiped/empty/parse miss) -> NULL + attempt++.
 
 _PUJAS_BLOCK_ID = "idBloqueDatos8"
-_AMOUNT_RE = re.compile(r"([0-9][0-9.\s]*,[0-9]{2})")
+# Amount capture: Spanish money, dot thousands + comma-2-decimals. NO `\s` in the
+# class — a whitespace-joined run of two amounts must NOT be captured as one token
+# (that is what silently produced billion-euro concatenations). eur_to_cents then
+# revalidates the grouping, so a malformed capture becomes an honest None, never a
+# giant int.
+_AMOUNT_RE = re.compile(r"([0-9][0-9.]*,[0-9]{2})")
+# Strict Spanish grouping: 1-3 leading digits, then zero-or-more .DDD groups, then
+# ,DD. Rejects concatenated/garbled captures instead of stripping dots blindly.
+_SPANISH_MONEY_RE = re.compile(r"^\d{1,3}(?:\.\d{3})*,\d{2}$")
 _NO_BID_RE = re.compile(r"no\s+ha\s+recibido\s+pujas", re.IGNORECASE)
 _SIN_PUJA_RE = re.compile(r"\bsin\s+puja\b", re.IGNORECASE)
 
@@ -108,12 +116,22 @@ class PujasResult:
 
 
 def eur_to_cents(eur_str: str) -> Optional[int]:
-    """Spanish-formatted EUR ("92.234,16" / "1.358.200,00") -> int cents. None on junk."""
+    """Spanish-formatted EUR ("92.234,16" / "1.358.200,00") -> int cents.
+
+    Grouping-VALIDATED: the string must be well-formed Spanish money (strict
+    1-3 / .DDD groups / ,DD). A malformed or concatenated capture (e.g. two
+    amounts run together, which breaks 3-digit grouping or carries two commas)
+    returns None — an honest miss — instead of silently stripping every dot and
+    yielding an absurd giant int. This is the source-level guard against the
+    thousands-separator / concatenation misparse class.
+    """
     if not eur_str:
         return None
-    s = eur_str.strip().replace(" ", "").replace(".", "").replace(",", ".")
+    s = eur_str.strip().replace(" ", "")
+    if not _SPANISH_MONEY_RE.match(s):
+        return None
     try:
-        return int(round(float(s) * 100))
+        return int(round(float(s.replace(".", "").replace(",", ".")) * 100))
     except (ValueError, TypeError):
         return None
 

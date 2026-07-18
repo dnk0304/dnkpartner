@@ -1846,26 +1846,21 @@ class BOEScraper(BaseScraper):
         if 'ha sido cancelada' in lowered or 'subasta cancelada' in lowered:
             return result
 
-        # 1) Public highest-bid amount: "Puja máxima de la subasta 92.234,16 €"
-        #    (also "Puja máxima ... NN,NN €"). Capture and convert to cents.
-        amt = re.search(
-            r"Puja\s+m[aá]xima(?:\s+de\s+la\s+subasta)?\s*[:\t\n]?\s*([0-9][0-9.\s]*,[0-9]{2})\s*€",
-            text, re.IGNORECASE,
-        )
-        if amt:
-            cents = self._eur_to_cents(amt.group(1))
-            if cents is not None:
-                result['puja_status'] = 'CON_PUJA'
-                result['current_bid_amount'] = cents
-                return result
+        # NOTE (2026-07-18, Ghost): this legacy scanner runs on the WHOLE page
+        # inner_text (unscoped) as a belt-and-braces fallback. It must NEVER emit
+        # an AMOUNT — a greedy full-body amount capture is the concatenation vector
+        # that can join a "Puja máxima" heading with unrelated page digit-runs into
+        # a giant int. The retargeted, block-scoped pujas_result_parser is the SOLE
+        # source of truth for amounts. Here we return ONLY the CON_PUJA/SIN_PUJA
+        # status signal; current_bid_amount stays None on this path by design.
 
-        # 2) Any "Con puja" marker (incl. the logged-out "inicie sesión" rows of
+        # 1) Any "Con puja" marker (incl. the logged-out "inicie sesión" rows of
         #    the per-lote table) -> has bids, amount hidden.
         if re.search(r"\bcon\s+puja\b", lowered):
             result['puja_status'] = 'CON_PUJA'
             return result
 
-        # 3) Explicit "Sin puja" with no Con-puja marker -> no bids.
+        # 2) Explicit "Sin puja" with no Con-puja marker -> no bids.
         if re.search(r"\bsin\s+puja\b", lowered):
             result['puja_status'] = 'SIN_PUJA'
             return result
@@ -1877,12 +1872,18 @@ class BOEScraper(BaseScraper):
     def _eur_to_cents(eur_str: str) -> Optional[int]:
         """Convert a Spanish-formatted EUR amount ("92.234,16" / "1.358.200,00")
         to an integer number of cents (9223416 / 135820000). Returns None on
-        anything unparseable. Thousands sep '.', decimal sep ','."""
+        anything unparseable. Thousands sep '.', decimal sep ','.
+
+        Grouping-VALIDATED (2026-07-18): a malformed/concatenated capture (broken
+        3-digit grouping, or two amounts run together) returns None instead of
+        blindly stripping dots into a giant int. Mirrors pujas_result_parser."""
         if not eur_str:
             return None
-        s = eur_str.strip().replace(' ', '').replace('.', '').replace(',', '.')
+        s = eur_str.strip().replace(' ', '')
+        if not re.match(r"^\d{1,3}(?:\.\d{3})*,\d{2}$", s):
+            return None
         try:
-            return int(round(float(s) * 100))
+            return int(round(float(s.replace('.', '').replace(',', '.')) * 100))
         except (ValueError, TypeError):
             return None
 

@@ -4,6 +4,7 @@ Unified adapter supporting both SQLite and PostgreSQL
 """
 
 import sqlite3
+import os
 from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 from pathlib import Path
@@ -21,6 +22,36 @@ from .models import AuctionModel, AuctionStatus
 from .legacy_rows import is_legacy_row
 
 logger = logging.getLogger(__name__)
+
+# --- Bid/price write-boundary sanity guard (Ghost, 2026-07-18) --------------
+# Path-independent backstop: no absurd cents value is EVER written to soldPrice
+# or currentBidAmount, whatever any parser upstream does. This is defence in
+# depth behind the grouping-validated eur_to_cents — it catches a numeric
+# ceiling breach that grouping validation alone would not (a well-formed but
+# implausibly large figure).
+#
+# CEILING calibration (verified against live prod 2026-07-18): the genuine max
+# soldPrice in the priced set is 6,011,194,900 cents = €60,111,949.00 (a real
+# BOE "Puja máxima" — SUB-JV-2017-70412, faithfully parsed). Real large-property
+# auctions legitimately reach tens of millions of euros, so the ceiling is set
+# well ABOVE that (default €500M) to NEVER null a real value, while still
+# catching the billion-euro concatenation class. Env-overridable.
+_SOLDPRICE_MAX_CENTS = int(os.environ.get("SOLDPRICE_MAX_CENTS", "50000000000"))  # €500,000,000
+
+
+def _bid_within_cap(cents: Optional[int], *, boe_id: str = "", field: str = "soldPrice") -> bool:
+    """True if `cents` is safe to persist. None is always allowed (honest-NULL).
+    A value over the ceiling is REJECTED (returns False) and logged LOUD so the
+    row is left NULL rather than storing an absurd figure."""
+    if cents is None:
+        return True
+    if cents > _SOLDPRICE_MAX_CENTS:
+        logger.warning(
+            "SANITY-CAP: rejected %s=%s cents (> ceiling %s) for %s — leaving NULL",
+            field, cents, _SOLDPRICE_MAX_CENTS, boe_id or "?",
+        )
+        return False
+    return True
 
 # G1 — discrete "Datos del bien subastado" columns (Forge migration
 # 20260603_add_auction_documents). (scraper data_key, DB column). Written via
@@ -288,7 +319,12 @@ class DatabaseAdapter:
             if captured:
                 _set('saleResult', sale_result)
                 if 'soldPrice' in cols:
-                    _set('soldPrice', sold_price_cents)  # BigInt cents (None for DESIERTA)
+                    # Write-boundary sanity guard: an absurd/over-ceiling amount is
+                    # dropped to NULL (saleResult still recorded — "had a bid,
+                    # amount rejected"), never persisted as a giant int.
+                    safe_price = sold_price_cents if _bid_within_cap(
+                        sold_price_cents, boe_id=boe_id, field='soldPrice') else None
+                    _set('soldPrice', safe_price)  # BigInt cents (None for DESIERTA)
                 if 'soldDate' in cols:
                     _set('soldDate', sold_date)          # = endsAt (no true sale date exists)
                 _set('resultCheckedAt', now)
@@ -679,7 +715,9 @@ class DatabaseAdapter:
             if 'pujaStatus' in forge_cols and data.get('puja_status') is not None:
                 update_fields.append('"pujaStatus" = %s')
                 params.append(data['puja_status'])
-            if 'currentBidAmount' in forge_cols and data.get('current_bid_amount') is not None:
+            if ('currentBidAmount' in forge_cols and data.get('current_bid_amount') is not None
+                    and _bid_within_cap(data['current_bid_amount'],
+                                        boe_id=data.get('boe_id', ''), field='currentBidAmount')):
                 update_fields.append('"currentBidAmount" = %s')
                 params.append(data['current_bid_amount'])
             if 'occupancy' in forge_cols and data.get('occupancy') is not None:
@@ -830,7 +868,9 @@ class DatabaseAdapter:
                 col_names.append('"pujaStatus"')
                 placeholders.append('%s')
                 vals.append(data['puja_status'])
-            if 'currentBidAmount' in forge_cols and data.get('current_bid_amount') is not None:
+            if ('currentBidAmount' in forge_cols and data.get('current_bid_amount') is not None
+                    and _bid_within_cap(data['current_bid_amount'],
+                                        boe_id=data.get('boe_id', ''), field='currentBidAmount')):
                 col_names.append('"currentBidAmount"')
                 placeholders.append('%s')
                 vals.append(data['current_bid_amount'])

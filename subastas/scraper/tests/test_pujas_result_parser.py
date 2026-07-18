@@ -27,7 +27,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scrapers"))
 
 from pujas_result_parser import (  # noqa: E402
-    parse_pujas_html, ADJUDICADA, DESIERTA,
+    parse_pujas_html, eur_to_cents, ADJUDICADA, DESIERTA,
 )
 
 FIX = os.path.join(os.path.dirname(__file__), "fixtures", "pujas")
@@ -111,6 +111,49 @@ def test_synthetic_wiped_block_is_undetermined():
 def test_missing_block_is_undetermined():
     r = parse_pujas_html("<html><body>no pujas block here</body></html>")
     assert r.sale_result is None
+
+
+# --- soldPrice parse-fix hardening (Ghost, 2026-07-18) ---------------------
+# Investigation verdict: the reported "€6.01B" tail was a UNIT MISREAD (BigInt
+# cents read as euros; true max €60.1M). Every real outlier page is a FAITHFUL
+# read. These cases pin that large legitimate amounts still parse EXACTLY (no
+# regression from grouping validation) and that malformed/concatenated captures
+# are honest-None instead of silent giant ints.
+
+def test_real_60M_outlier_parses_faithfully():
+    # SUB-JV-2017-70412 — live page prints "Puja máxima de la subasta
+    # 60.111.949,00 €". This is a REAL value, not a parse error; it must survive.
+    r = parse_pujas_html(_load("single_sold_60M_JV.html"))
+    assert r.sale_result == ADJUDICADA
+    assert r.sold_price_cents == 6011194900  # €60,111,949.00
+
+
+def test_real_sentinel_outlier_parses_faithfully():
+    # SUB-JC-2021-177256 — page prints "8.888.888,88 €" (a portal sentinel that
+    # 83 auctions literally display). Well-formed grouping => parsed as-is; it is
+    # NOT our parse bug and must not be nulled by the hardening.
+    r = parse_pujas_html(_load("single_sold_sentinel_JC.html"))
+    assert r.sale_result == ADJUDICADA
+    assert r.sold_price_cents == 888888888  # €8,888,888.88
+
+
+def test_eur_to_cents_accepts_well_formed_spanish_money():
+    assert eur_to_cents("60.111.949,00") == 6011194900
+    assert eur_to_cents("8.888.888,88") == 888888888
+    assert eur_to_cents("1.205,05") == 120505
+    assert eur_to_cents("625,19") == 62519
+    assert eur_to_cents("1.372.637,35") == 137263735
+
+
+def test_eur_to_cents_rejects_concatenated_or_malformed():
+    # Two amounts run together (broken 3-digit grouping / two commas) -> None,
+    # never a giant int. This is the concatenation class the fix guards against.
+    assert eur_to_cents("1.234.5678.901,23") is None   # 4-digit group
+    assert eur_to_cents("111.111,11222.222,22") is None  # two decimals
+    assert eur_to_cents("60.111.949,00 39.513.274,92") is None  # whitespace-joined
+    assert eur_to_cents("1234,56") is None              # ungrouped thousands
+    assert eur_to_cents("") is None
+    assert eur_to_cents("abc") is None
 
 
 if __name__ == "__main__":

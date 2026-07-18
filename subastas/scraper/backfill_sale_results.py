@@ -89,6 +89,11 @@ logger = logging.getLogger("backfill_sale_results")
 PROPERTY_CATEGORIES = tuple(CATEGORIES['real_estate']['subcategories'])
 SALE_COLS = ('saleResult', 'soldPrice', 'soldDate', 'resultCheckedAt', 'resultCheckAttempts')
 
+# Write-boundary sanity ceiling — this backfill writes soldPrice DIRECTLY (it
+# does not go through database.adapter), so it enforces the same cap the adapter
+# does. Default €500M; env-overridable (keep in sync with adapter._SOLDPRICE_MAX_CENTS).
+SOLDPRICE_MAX_CENTS = int(os.environ.get("SOLDPRICE_MAX_CENTS", "50000000000"))  # €500,000,000
+
 
 def _connect():
     import psycopg2
@@ -141,7 +146,12 @@ def _plan_write(boe_id, ends_at, cur_attempts, res, attempt_cap, now):
     sale_result = res.sale_result if res else None
     cents = res.sold_price_cents if res else None
     if sale_result in ('ADJUDICADA', 'DESIERTA'):
-        # a capture
+        # a capture — write-boundary sanity guard: an over-ceiling amount is
+        # dropped to NULL (saleResult still recorded), never persisted absurd.
+        if cents is not None and cents > SOLDPRICE_MAX_CENTS:
+            logger.warning('SANITY-CAP: %s soldPrice=%s cents over ceiling %s — writing NULL',
+                           boe_id, cents, SOLDPRICE_MAX_CENTS)
+            cents = None
         return (sale_result, cents, ends_at, now, 0, boe_id), (
             'adjudicada' if sale_result == 'ADJUDICADA' else 'desierta')
     # undetermined pass: attempt-memory drain
