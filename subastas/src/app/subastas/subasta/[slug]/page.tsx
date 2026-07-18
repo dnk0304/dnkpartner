@@ -39,6 +39,7 @@ import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { buildAuctionSlug, resolveAuctionIdFromSlug } from '@/lib/seo/auction-slug';
 import { isLegacyRow } from '@/lib/seo/legacy-rows';
+import { isConcludedIndexable } from '@/lib/seo/concluded-indexable';
 import AuctionDetailClient from '@/app/auction/[id]/AuctionDetailClient';
 import { AuctionTeaser } from '@/components/auction/AuctionTeaser';
 import { FullInfoWall } from '@/components/access/FullInfoWall';
@@ -77,6 +78,11 @@ async function loadAuctionMeta(slug: string) {
       appraisalValue: true,
       valorSubasta: true,
       boeId: true,
+      // Sale-outcome fields (wave142) — drive the concluded-page index gate.
+      // A concluded property/vehicle with a resolved outcome becomes indexable
+      // (see isConcludedIndexable) so its sold-price comp can rank.
+      saleResult: true,
+      resultCheckedAt: true,
     },
   });
   return auction;
@@ -130,11 +136,17 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     ? t('metaDescriptionWithPrice', { category: a.category, where, price: priceForDescription })
     : t('metaDescription', { category: a.category, where })
   ).slice(0, 158);
-  // Only index ACTIVE / PRE-AUCTION states (07 §1.7 — CONCLUIDA stays noindex).
-  // The gate reversal does NOT change this — the detail page was already
-  // 200+indexable for active states; now it's just richer content.
+  // Indexability gate. Two ways in:
+  //   1. ACTIVE / PRE-AUCTION states (unchanged — always were indexable).
+  //   2. CONCLUDED property/vehicle WITH a resolved sale outcome (wave142) —
+  //      via isConcludedIndexable, the SAME predicate the sitemap membership
+  //      query uses (concludedIndexableWhere). Keeping them identical (shared
+  //      module) means a sitemap URL is never noindex. Everything else
+  //      (SIN_RESULTADO, excluded categories, un-checked, cancelled, legacy)
+  //      stays noindex,follow.
   const activeStates = ['ACTIVE', 'CELEBRANDOSE', 'PRE_AUCTION', 'PROXIMA_APERTURA', 'SUSPENDIDA', 'SUSPENDED'];
-  const indexable = activeStates.includes(a.status as string);
+  const indexable =
+    activeStates.includes(a.status as string) || isConcludedIndexable(a);
 
   // Wave-B (2026-06-07): Open Graph + Twitter card. Auto-generated from the
   // same address+tipo+price+where strings the description uses. Neither

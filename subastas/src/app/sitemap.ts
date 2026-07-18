@@ -1,28 +1,29 @@
 /**
- * sitemap — chunked via `generateSitemaps()` (07 §4).
+ * sitemap — a true sitemap INDEX (/sitemap.xml, produced by Next from
+ * generateSitemaps()) over typed children (/sitemap/{id}.xml). Chunk layout,
+ * the 20k/file cap, and the phased concluded ramp all live in
+ * `src/lib/seo/sitemap-config.ts` (shared with robots.ts so they can't drift).
  *
- * Doctrine (08 §4.3 — town tightening): the sitemap ships only URLs that are
- * indexable RIGHT NOW. For towns that means ≥1 auction in the SEO
- * ACTIVE_STATUSES set (active + upcoming/PROXIMA) — the SAME predicate the
- * town page's index gate uses (countActiveAuctions > 0), so the sitemap town
- * set == the indexable town set by construction. A 0-active town drops out of
- * the sitemap but its page stays 200 + noindex,follow + reachable; it re-enters
- * automatically when inventory returns (live request-time recompute, 300s
- * unstable_cache TTL — no nightly job). Everything else (categories below
- * threshold, finished auction details) stays excluded.
+ * Children:
+ *   - id 0            — aggregation (home, /subastas, 52 provinces, active
+ *                       towns, tipos, dense categories, guides, noticias).
+ *   - id 1..ACTIVE    — ACTIVE auction details, 20k/file (orderBy id asc).
+ *   - id ACTIVE+1..   — SCOPED CONCLUDED details (property+vehicle with a real
+ *                       sale outcome), 20k/file, orderBy soldDate DESC. The
+ *                       membership predicate is `concludedIndexableWhere()` —
+ *                       the SAME predicate the detail-page robots gate uses, so
+ *                       a sitemap URL is never noindex (see concluded-indexable.ts).
  *
- * Chunk layout (fixed IDs so NO DB query is needed to enumerate chunks —
- * keeps the route fully request-time, never build-time):
- *   - /sitemap/0.xml — core (home, /subastas) + 52 provinces + ALL clean
- *     town pages + 5 tipos + DENSE categories + published /guia/ articles.
- *     (~5k towns + static set today — far under the 50k cap.)
- *   - /sitemap/1.xml … /sitemap/3.xml — ACTIVE auction-detail pages, 45k per
- *     chunk (skip/take ordered by id asc for stable pagination). Today only
- *     chunk 1 is non-empty (~5k details); 2–3 are empty headroom up to 135k
- *     actives. Bump DETAIL_CHUNKS (and robots.ts) if inventory ever nears it.
+ * Town-page doctrine (08 §4.3) unchanged: aggregation ships only towns with ≥1
+ * ACTIVE auction — same predicate as the town page's own index gate.
  *
- * lastmod = real data freshness where available (07 §4 — fake daily lastmod
- * gets ignored or penalised).
+ * lastmod = real data freshness (07 §4 — fake daily lastmod gets ignored /
+ * penalised). Active: updatedAt. Concluded: soldDate ?? updatedAt.
+ *
+ * Request-time only (`dynamic='force-dynamic'`, `revalidate=0`) — never a
+ * build-time DB dependency. Chunk enumeration is a fixed id set (no DB call);
+ * each child paginates with a stable orderBy + skip/take so a given URL stays
+ * in the same child between requests.
  */
 
 import type { MetadataRoute } from 'next';
@@ -30,7 +31,7 @@ import { AuctionStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
 // Generated at request time — never at build (sitemap depends on live counts +
-// active-auction set). Avoids prerender-time DATABASE_URL requirement.
+// active/concluded sets). Avoids prerender-time DATABASE_URL requirement.
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import {
@@ -44,6 +45,12 @@ import {
 import { categoryActiveCounts, activeMunicipalityPairs } from '@/lib/seo/page-data';
 import { buildAuctionSlug } from '@/lib/seo/auction-slug';
 import { listNoticias } from '@/lib/noticias';
+import {
+  CHILD_SITEMAP_SIZE,
+  classifyChunk,
+  sitemapChildIds,
+} from '@/lib/seo/sitemap-config';
+import { concludedIndexableWhere } from '@/lib/seo/concluded-indexable';
 
 const SITE = 'https://subastasactivas.com';
 const ACTIVE_STATUSES: AuctionStatus[] = [
@@ -53,41 +60,36 @@ const ACTIVE_STATUSES: AuctionStatus[] = [
   AuctionStatus.PROXIMA_APERTURA,
 ];
 
-/** Auction-detail chunks (ids 1..DETAIL_CHUNKS), 45k URLs each. */
-const DETAIL_CHUNKS = 3;
-const DETAIL_CHUNK_SIZE = 45_000; // safety cap below the 50k sitemap limit
-
 export async function generateSitemaps(): Promise<Array<{ id: number }>> {
-  // Fixed ID set — intentionally no DB call here (chunk enumeration must not
-  // create a build-time or robots.ts-visible dependency on live counts).
-  return Array.from({ length: 1 + DETAIL_CHUNKS }, (_, i) => ({ id: i }));
+  // Fixed ID set from the shared layout — intentionally no DB call here (chunk
+  // enumeration must not create a build-time or robots.ts-visible dependency on
+  // live counts). robots.ts advertises the identical set via sitemapChildUrls().
+  return sitemapChildIds().map((id) => ({ id }));
 }
 
 export default async function sitemap({ id }: { id: number }): Promise<MetadataRoute.Sitemap> {
   // Runtime root cause (Next 15 async-params, proven in the live wave102
   // bundle): the generated route wrapper passes `id` as an UN-AWAITED
-  // Promise<string> (already `.xml`-stripped — the suffix theory from
-  // corrective #1 is disproven; the wrapper strips it before calling us).
-  // `String(Promise)` → "[object Promise]" → parseInt → NaN → every chunk
-  // fell back to chunk 0. Await/unwrap first; handles promise AND plain
-  // string/number so this stays correct if Next reverts to sync params.
+  // Promise<string> (already `.xml`-stripped). `String(Promise)` →
+  // "[object Promise]" → parseInt → NaN → every chunk fell back to chunk 0.
+  // Await/unwrap first; handles promise AND plain string/number.
   const raw = await Promise.resolve(id as unknown as string | number | Promise<string | number>);
   const parsed = Number.parseInt(String(raw), 10);
   const chunkId = Number.isNaN(parsed) ? 0 : parsed;
+  const chunk = classifyChunk(chunkId);
 
   const now = new Date();
 
-  // --- Chunks 1..N: ACTIVE auction-detail pages ---
-  // CONCLUIDA / FINALIZADA stay noindex per 07 §1.7, so excluded from sitemap.
-  if (chunkId >= 1) {
+  // --- ACTIVE auction-detail children ---
+  if (chunk.kind === 'active') {
     const entries: MetadataRoute.Sitemap = [];
     try {
       const activeAuctions = await prisma.auction.findMany({
         where: { status: { in: ACTIVE_STATUSES } },
         select: { id: true, auctionType: true, province: true, municipality: true, updatedAt: true },
         orderBy: { id: 'asc' }, // stable order so skip/take chunks don't overlap
-        skip: (chunkId - 1) * DETAIL_CHUNK_SIZE,
-        take: DETAIL_CHUNK_SIZE,
+        skip: chunk.skip,
+        take: CHILD_SITEMAP_SIZE,
       });
       for (const a of activeAuctions) {
         entries.push({
@@ -99,6 +101,44 @@ export default async function sitemap({ id }: { id: number }): Promise<MetadataR
       }
     } catch {
       // Non-fatal — an empty detail chunk is still a valid sitemap.
+    }
+    return entries;
+  }
+
+  // --- SCOPED CONCLUDED auction-detail children ---
+  // Membership == the detail-page index gate (shared concludedIndexableWhere).
+  // orderBy soldDate DESC (freshest sold pages first) + id asc tiebreak so a
+  // URL keeps its position across requests. soldDate is historical (= endsAt of
+  // past auctions), so ordering is effectively stable; new daily concludes
+  // insert at the front (child #1) and only nudge boundaries — no de-index (we
+  // never remove children, only add).
+  if (chunk.kind === 'concluded') {
+    const entries: MetadataRoute.Sitemap = [];
+    try {
+      const rows = await prisma.auction.findMany({
+        where: concludedIndexableWhere(),
+        select: {
+          id: true,
+          auctionType: true,
+          province: true,
+          municipality: true,
+          soldDate: true,
+          updatedAt: true,
+        },
+        orderBy: [{ soldDate: 'desc' }, { id: 'asc' }],
+        skip: chunk.skip,
+        take: CHILD_SITEMAP_SIZE,
+      });
+      for (const a of rows) {
+        entries.push({
+          url: `${SITE}/subastas/subasta/${buildAuctionSlug(a)}`,
+          lastModified: a.soldDate ?? a.updatedAt ?? now,
+          changeFrequency: 'monthly', // concluded outcomes don't change
+          priority: 0.5,
+        });
+      }
+    } catch {
+      // Non-fatal — an empty concluded chunk is still a valid sitemap.
     }
     return entries;
   }
