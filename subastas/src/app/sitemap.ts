@@ -51,6 +51,9 @@ import {
   sitemapChildIds,
 } from '@/lib/seo/sitemap-config';
 import { concludedIndexableWhere } from '@/lib/seo/concluded-indexable';
+import { readSummary, concludedMunicipioPairsAll } from '@/lib/registro/registro-read';
+import { PROVINCE_DB_KEY_TO_SLUG } from '@/lib/seo/slugs';
+import { OUTCOME_TO_SLUG } from '@/lib/registro/registro-ui';
 
 const SITE = 'https://subastasactivas.com';
 const ACTIVE_STATUSES: AuctionStatus[] = [
@@ -206,6 +209,59 @@ export default async function sitemap({ id }: { id: number }): Promise<MetadataR
         priority: 0.7,
       });
     }
+  }
+
+  // --- /resultados registry (concluded auction-outcomes archive) ---
+  // Landing + count-gated region pages. Every URL here is index,follow by the
+  // SAME count-gate the pages use (region present in the rollup with total>0),
+  // so a sitemap URL is never noindex. These interlink the concluded detail
+  // pages (the orphan fix), which live in the concluded detail children above.
+  try {
+    entries.push({ url: `${SITE}/resultados`, lastModified: now, changeFrequency: 'daily', priority: 0.8 });
+
+    const summary = await readSummary({});
+    for (const region of summary.regions) {
+      const provinceSlug = PROVINCE_DB_KEY_TO_SLUG[region.province];
+      if (!provinceSlug || region.total <= 0) continue;
+      // /resultados/{provincia}
+      entries.push({
+        url: `${SITE}/resultados/${provinceSlug}`,
+        lastModified: now,
+        changeFrequency: 'weekly',
+        priority: 0.6,
+      });
+      // /resultados/{outcome}/{provincia} — only the SEO-indexable outcomes
+      // (adjudicadas / desiertas) where the province actually has that outcome.
+      if (region.counts.VENDIDA > 0) {
+        entries.push({
+          url: `${SITE}/resultados/${OUTCOME_TO_SLUG.VENDIDA}/${provinceSlug}`,
+          lastModified: now,
+          changeFrequency: 'weekly',
+          priority: 0.5,
+        });
+      }
+      if (region.counts.DESIERTA > 0) {
+        entries.push({
+          url: `${SITE}/resultados/${OUTCOME_TO_SLUG.DESIERTA}/${provinceSlug}`,
+          lastModified: now,
+          changeFrequency: 'weekly',
+          priority: 0.5,
+        });
+      }
+    }
+
+    // /resultados/{provincia}/{municipio} — deepest crawl nodes (town archives).
+    const muniPairs = await concludedMunicipioPairsAll();
+    for (const p of muniPairs) {
+      entries.push({
+        url: `${SITE}/resultados/${p.provinceSlug}/${p.municipioSlug}`,
+        lastModified: now,
+        changeFrequency: 'weekly',
+        priority: 0.5,
+      });
+    }
+  } catch {
+    // Non-fatal — the rest of the sitemap is still valid if the rollup read trips.
   }
 
   // --- Published /guia/ articles (link from #9 blog) ---

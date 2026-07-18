@@ -191,8 +191,20 @@ async function renderProvincePage(slugUrl: string, r: {
 
   const footerSlot = (
     <>
+      {/* Registry cross-link — routes crawlers + users to the concluded-auction
+          outcomes archive for this province (de-orphans the concluded detail
+          pages; interlinks the two surfaces). */}
+      <section className="mt-2">
+        <Link
+          href={`/resultados/${slugUrl}`}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--color-border)] text-sm font-medium hover:bg-[var(--color-surface-muted)]"
+        >
+          {t('viewConcludedResults', { province: label })}
+        </Link>
+      </section>
+
       {municipalities.length > 0 && (
-        <section className="mt-2">
+        <section className="mt-10">
           <h2 className="text-lg font-semibold mb-3">{t('byMunicipality', { province: label })}</h2>
           <ul className="flex flex-wrap gap-2">
             {municipalities.map((m) => (
