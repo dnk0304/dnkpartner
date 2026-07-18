@@ -33,6 +33,11 @@
  */
 
 import { AuctionStatus, SaleResult, Prisma } from '@prisma/client';
+import {
+  auctionOutcome,
+  isSeoIndexableOutcome,
+  SALE_RESULTS_FOR_INDEXABLE_OUTCOME,
+} from '@/lib/seo/auction-outcome';
 
 /**
  * The 12 property + vehicle DB `Auction.category` labels that become indexable
@@ -69,15 +74,16 @@ export const SEO_CONCLUDED_STATUSES: readonly AuctionStatus[] = [
   AuctionStatus.FINISHED,
 ] as const;
 
-/** Resolved sale outcomes that mean "this page has real content". */
-export const SEO_INDEXABLE_SALE_RESULTS: readonly SaleResult[] = [
-  SaleResult.ADJUDICADA,
-  SaleResult.DESIERTA,
-] as const;
+/**
+ * Resolved sale outcomes that mean "this page has real content". DERIVED from
+ * the canonical taxonomy (auction-outcome.ts) — VENDIDA ⟸ ADJUDICADA,
+ * DESIERTA ⟸ DESIERTA — so the SEO index set can never fork from the outcome
+ * definition. Re-exported (not re-typed) for callers that reference it.
+ */
+export const SEO_INDEXABLE_SALE_RESULTS = SALE_RESULTS_FOR_INDEXABLE_OUTCOME;
 
 const CATEGORY_SET = new Set<string>(SEO_CONCLUDED_INDEXABLE_CATEGORIES);
 const STATUS_SET = new Set<string>(SEO_CONCLUDED_STATUSES);
-const RESULT_SET = new Set<string>(SEO_INDEXABLE_SALE_RESULTS);
 
 /** Minimal row shape the in-memory predicate needs (detail-page gate). */
 export interface ConcludedIndexableRow {
@@ -88,8 +94,14 @@ export interface ConcludedIndexableRow {
 }
 
 /**
- * In-memory predicate — used by the detail-page robots gate. Compares against
- * string Sets so it accepts either the raw enum value or its string form.
+ * In-memory predicate — used by the detail-page robots gate. A concluded row is
+ * indexable iff it is in a concluded terminal status, in the SEO category set,
+ * has actually been result-checked, AND its canonical OUTCOME is SEO-indexable
+ * (VENDIDA or DESIERTA — see auction-outcome.ts). The outcome membership is the
+ * single source of truth for "sold or deserted"; the status/category/checked
+ * gates are the orthogonal "is it a concluded page we index" scope. Compares
+ * against string Sets so it accepts either the raw enum value or its string
+ * form.
  */
 export function isConcludedIndexable(row: ConcludedIndexableRow): boolean {
   return (
@@ -98,8 +110,7 @@ export function isConcludedIndexable(row: ConcludedIndexableRow): boolean {
     row.category != null &&
     CATEGORY_SET.has(row.category) &&
     row.resultCheckedAt != null &&
-    row.saleResult != null &&
-    RESULT_SET.has(row.saleResult as string)
+    isSeoIndexableOutcome(auctionOutcome({ status: row.status, saleResult: row.saleResult }))
   );
 }
 

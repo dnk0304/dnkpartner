@@ -1428,6 +1428,54 @@ class ScraperScheduler:
         except Exception as e:
             self.log(f"  Benchmark recompute failed: {e}")
 
+    def trigger_registro_recompute(self):
+        """Trigger /api/admin/registro/recompute once daily.
+
+        Rebuilds the AuctionOutcomeStats rollup (atomic full replace) that feeds
+        the public /resultados registry: counts + median sold price + discount
+        by period x basis x geo x category x outcome, over ALL categories. The
+        outcome bucket is the canonical auctionOutcome() taxonomy. Same
+        requireAdminOrCron gate + CRON_SECRET Bearer as the benchmark recompute.
+        Scheduled at 06:15 — AFTER the 06:00 benchmark recompute and the earlier
+        sale-result recheck (so the freshest saleResult/soldPrice are rolled up).
+        Idempotent + self-healing; a missed day is harmless, failure is non-fatal.
+        """
+        self.log("Triggering registro (outcome-stats) recompute endpoint...")
+        if not CRON_SECRET:
+            self.log("  Registro recompute skipped: CRON_SECRET not set")
+            return
+        try:
+            endpoint = os.getenv(
+                "REGISTRO_RECOMPUTE_ENDPOINT",
+                "http://dnksubastas-app:3005/api/admin/registro/recompute",
+            )
+            request = urllib.request.Request(
+                endpoint,
+                data=b'{}',
+                headers={
+                    'Content-Type': 'application/json',
+                    'Authorization': f'Bearer {CRON_SECRET}',
+                },
+                method='POST',
+            )
+            with urllib.request.urlopen(request, timeout=300) as response:
+                body = response.read().decode('utf-8', errors='replace')
+                stats = ''
+                try:
+                    parsed = json.loads(body)
+                    s = parsed.get('stats') if isinstance(parsed, dict) else None
+                    if isinstance(s, dict):
+                        stats = (f" sourceRows={s.get('sourceRows')} "
+                                 f"buckets={s.get('buckets')} "
+                                 f"byOutcome={s.get('byOutcome')}")
+                except Exception:
+                    pass
+                self.log(
+                    f"  Registro recompute triggered ({response.status}):{stats or ' ' + body[:200]}"
+                )
+        except Exception as e:
+            self.log(f"  Registro recompute failed: {e}")
+
     def run_daily_update_and_alerts(self):
         self.run_daily_update_scraper()
         self.trigger_alert_check()
@@ -1599,6 +1647,13 @@ class ScraperScheduler:
         # reflects the freshest year/use/surface enrichment. Idempotent + self-
         # healing (atomic full replace); a missed day is harmless.
         schedule.every().day.at("06:00").do(self.trigger_benchmark_recompute)
+
+        # Auction-outcome registry rollup (Forge 2026-07-18) — once daily at
+        # 06:15, AFTER the benchmark recompute (06:00) and the sale-result
+        # recheck (earlier) so the freshest outcomes are rolled up. Rebuilds
+        # AuctionOutcomeStats (counts + medians + discount by
+        # period x basis x geo x category x outcome). Idempotent full replace.
+        schedule.every().day.at("06:15").do(self.trigger_registro_recompute)
 
         # Wave 2b: dispatcher drain — every DISPATCH_INTERVAL_MIN minutes
         schedule.every(DISPATCH_INTERVAL_MIN).minutes.do(self.dispatch_outbox)
