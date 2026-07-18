@@ -224,6 +224,16 @@ export default async function SubastaDetailPage({ params }: PageProps) {
       endsAt: true,
       opensAt: true,
       publishedAt: true,
+      // Sale-outcome fields (wave142) — feed the concluded-page "Resultado
+      // de la subasta" result block in the SSR teaser (Pixel 2026-07-18).
+      // saleResult + resultCheckedAt drive the same isConcludedIndexable gate
+      // the robots meta + sitemap use, so the block renders on EXACTLY the
+      // rows we index. soldPrice is BigInt CENTS (÷100 → €); soldDate = the
+      // recorded conclusion date. Aggregate financial fact only, NOT PII.
+      saleResult: true,
+      soldPrice: true,
+      soldDate: true,
+      resultCheckedAt: true,
       propertyDescription: true,
       lotDescription: true,
       source: true,
@@ -278,6 +288,15 @@ export default async function SubastaDetailPage({ params }: PageProps) {
     const v = seo?.valorSubasta;
     if (v == null) return null;
     const n = typeof v === 'bigint' ? Number(v) : Number(v);
+    return Number.isFinite(n) ? n : null;
+  })();
+  // soldPrice is stored in CENTS (BigInt) → coerce to a euros number for the
+  // teaser's existing € formatter. Honest-NULL when absent (DESIERTA rows, or
+  // ADJUDICADA rows where the winning bid wasn't published).
+  const teaserSoldPrice = (() => {
+    const v = seo?.soldPrice;
+    if (v == null) return null;
+    const n = (typeof v === 'bigint' ? Number(v) : Number(v)) / 100;
     return Number.isFinite(n) ? n : null;
   })();
 
@@ -337,6 +356,13 @@ export default async function SubastaDetailPage({ params }: PageProps) {
                 imageUrl: seo?.imageUrl ?? null,
                 latitude: typeof seo?.latitude === 'number' ? seo.latitude : null,
                 longitude: typeof seo?.longitude === 'number' ? seo.longitude : null,
+                // Concluded-outcome fields — the teaser renders the public
+                // "Resultado de la subasta" block on indexable concluded rows
+                // (isConcludedIndexable). soldPrice already coerced cents→€.
+                saleResult: a.saleResult ?? null,
+                resultCheckedAt: a.resultCheckedAt ?? null,
+                soldPrice: teaserSoldPrice,
+                soldDate: seo?.soldDate ?? null,
               }}
             />
             <FullInfoWall />
