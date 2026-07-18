@@ -126,14 +126,35 @@ export async function POST(req: NextRequest) {
     // Atomic full replace — old buckets gone, new buckets in, in one tx so a
     // concurrent read never sees an empty table. createMany chunked to stay
     // well under PG parameter limits.
+    //
+    // The heavy work (fetch + classify + rollup) is already done ABOVE, outside
+    // the tx — this block is a compute-then-swap: only the bounded delete+insert
+    // runs transactionally, keeping the tx short. It still blew Prisma's DEFAULT
+    // 5000 ms interactive-transaction budget over the real archive (238k source
+    // rows → thousands of buckets; measured 5148 ms), so we use the INTERACTIVE
+    // form with an explicit budget. NOTE: the array/batch form
+    // `$transaction([...], opts)` only accepts `isolationLevel` — it ignores
+    // `timeout`/`maxWait`, so it CANNOT be given a larger budget; the interactive
+    // callback form is the only way to raise it. 120 s is ~24x the observed cost
+    // and leaves ample headroom as the archive grows.
     const CHUNK = 5_000;
     const chunks: Prisma.AuctionOutcomeStatsCreateManyInput[][] = [];
     for (let i = 0; i < data.length; i += CHUNK) chunks.push(data.slice(i, i + CHUNK));
 
-    await prisma.$transaction([
-      prisma.auctionOutcomeStats.deleteMany({}),
-      ...chunks.map((c) => prisma.auctionOutcomeStats.createMany({ data: c })),
-    ]);
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.auctionOutcomeStats.deleteMany({});
+        for (const c of chunks) {
+          await tx.auctionOutcomeStats.createMany({ data: c });
+        }
+      },
+      {
+        // maxWait: time allowed to acquire a pool connection before the tx opens.
+        // timeout: total budget for the delete+insert once inside the tx.
+        maxWait: 20_000,
+        timeout: 120_000,
+      },
+    );
 
     return NextResponse.json({
       success: true,
