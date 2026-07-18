@@ -304,6 +304,11 @@ model Auction {
   @@index([municipality, status])
   // #14 split provenance: "all lotes of BOE auction X" + backfill lookups.
   @@index([sourceIdSub])
+  // Registry /resultados browse (2026-07-18): filter concluded rows by
+  // province + category + terminal status, ordered by sale date. province
+  // leads (most selective for the region-scoped browse UI); saleResult /
+  // soldPrice are residual-filtered on the already-narrowed set.
+  @@index([province, category, status, soldDate])
 }
 
 // ---------------------------------------------------------------------------
@@ -785,4 +790,59 @@ model RegionBenchmark {
 
   @@unique([province, category, municipality])
   @@index([province, category])
+}
+
+// ---------------------------------------------------------------------------
+// AuctionOutcomeStats — precomputed rollup for the /resultados registry
+// (Forge, 2026-07-18). "Analyze everything": counts + money medians + discount
+// by period × basis × geo × category × outcome, over ALL categories. NIGHTLY
+// recompute on the scheduler (POST /api/admin/registro/recompute) — NEVER live
+// (237k rows; the app had a pg-connection-exhaustion incident). The outcome
+// bucket is the canonical auctionOutcome() taxonomy (src/lib/seo/auction-outcome.ts).
+//
+// Additive, standalone table — no FK to Auction (buckets are keyed by string
+// dimensions and outlive individual rows). Empty-string sentinels ('') mark
+// rollup levels (national geo / all-municipalities / all-categories) so the
+// UNIQUE key is deterministic — the RegionBenchmark lesson (SQL NULLs distinct).
+// Ken runs the migration + first recompute.
+// ---------------------------------------------------------------------------
+
+model AuctionOutcomeStats {
+  id String @id @default(cuid())
+
+  // Month bucket "YYYY-MM".
+  period String
+  // 'PUBLISHED' (on publishedAt) | 'CONCLUDED' (on endsAt). Both computed —
+  // Dennis decision D3 (which the UI leads with) pending, so store both.
+  periodBasis String
+  // '' = national rollup; otherwise the province.
+  province String @default("")
+  // '' = province-level (or national) rollup; otherwise the municipality.
+  municipality String @default("")
+  // '' = all-categories rollup; otherwise the DB category label.
+  category String @default("")
+  // Canonical outcome bucket: VENDIDA | DESIERTA | CANCELADA |
+  // FINALIZADA_SIN_RESULTADO | INDETERMINADO.
+  outcome String
+
+  // Always-emitted count of auctions in this bucket.
+  count Int
+
+  // Money medians — VENDIDA only, in CENTS. NULL when < MIN_MEDIAN_SAMPLE sales
+  // (honest-NULL: a median of two sales is noise).
+  soldPriceMedianCents BigInt?
+  soldPriceP25Cents    BigInt?
+  soldPriceP75Cents    BigInt?
+
+  // Median discount (whole percent; positive = sold BELOW the reference),
+  // VENDIDA only, honest-NULL below the sample floor.
+  discountToAppraisalMedian    Float?
+  discountToValorSubastaMedian Float?
+
+  computedAt DateTime @default(now())
+
+  @@unique([period, periodBasis, province, municipality, category, outcome])
+  @@index([periodBasis, province, category, outcome])
+  @@index([province, municipality])
+  @@index([outcome])
 }
