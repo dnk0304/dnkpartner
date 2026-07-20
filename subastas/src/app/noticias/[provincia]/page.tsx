@@ -183,6 +183,17 @@ export default async function NoticiaProvinciaPage(
             <p className="mt-3 text-base leading-relaxed text-[var(--color-ink-secondary)]">
               {intro}
             </p>
+            <p className="mt-3 text-sm">
+              <Link
+                href={`${prefix}/subastas/${provincia}`}
+                className="text-[var(--color-action)] hover:underline"
+              >
+                {locale === "en"
+                  ? `See all active auctions in ${label}`
+                  : `Ver todas las subastas activas en ${label}`}{" "}
+                →
+              </Link>
+            </p>
           </header>
 
           {editions.length === 0 ? (

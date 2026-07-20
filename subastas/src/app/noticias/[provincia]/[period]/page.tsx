@@ -121,6 +121,7 @@ export default async function MonthlyArticlePage(
           prevMonth: "Previous month",
           nextMonth: "Next month",
           seeResults: `See all auction results in ${label}`,
+          seeActive: `See all active auctions in ${label}`,
           moreNav: "Keep reading",
         }
       : {
@@ -133,6 +134,7 @@ export default async function MonthlyArticlePage(
           prevMonth: "Mes anterior",
           nextMonth: "Mes siguiente",
           seeResults: `Ver todos los resultados de subastas en ${label}`,
+          seeActive: `Ver todas las subastas activas en ${label}`,
           moreNav: "Seguir leyendo",
         };
 
@@ -292,6 +294,12 @@ export default async function MonthlyArticlePage(
               className="text-[var(--color-action)] hover:underline"
             >
               {t.seeResults} →
+            </Link>
+            <Link
+              href={`${prefix}/subastas/${provincia}`}
+              className="text-[var(--color-action)] hover:underline"
+            >
+              {t.seeActive} →
             </Link>
           </div>
         </nav>
