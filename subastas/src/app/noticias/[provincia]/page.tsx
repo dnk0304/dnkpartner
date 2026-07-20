@@ -27,6 +27,7 @@ import {
   provinceLabelForSlug,
   listProvinceEditions,
   periodLabel,
+  formatEur,
 } from "@/lib/noticias-monthly";
 import { PROVINCE_SLUGS } from "@/lib/seo/slugs";
 
@@ -190,21 +191,53 @@ export default async function NoticiaProvinciaPage(
             </div>
           ) : (
             <ul className="flex flex-col gap-3">
-              {editions.map((e) => (
-                <li key={e.period}>
-                  <Link
-                    href={`${prefix}/noticias/${provincia}/${e.period}`}
-                    className="block rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] p-4 transition-colors hover:border-[var(--color-action)]"
-                  >
-                    <span className="block text-xs uppercase tracking-wide text-[var(--color-ink-quiet)]">
-                      {periodLabel(e.period, shortLoc)}
-                    </span>
-                    <span className="mt-1 block text-base font-medium text-[var(--color-ink-primary)]">
-                      {e.title}
-                    </span>
-                  </Link>
-                </li>
-              ))}
+              {editions.map((e, i) => {
+                const median = formatEur(e.soldMedianCents, shortLoc);
+                return (
+                  <li key={e.period}>
+                    <Link
+                      href={`${prefix}/noticias/${provincia}/${e.period}`}
+                      className="block rounded-[var(--radius-xl)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-4 transition-colors hover:border-[var(--color-action)] sm:p-5"
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className="text-xs font-medium uppercase tracking-wide text-[var(--color-ink-quiet)]">
+                          {periodLabel(e.period, shortLoc)}
+                        </span>
+                        {i === 0 ? (
+                          <span className="rounded-full bg-[var(--color-action-soft)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-action-hover)]">
+                            {locale === "en" ? "Latest" : "Último"}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="mt-1.5 block text-base font-medium text-[var(--color-ink-primary)]">
+                        {e.title}
+                      </span>
+                      <span className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-[var(--color-ink-secondary)]">
+                        <span className="tnum">
+                          <strong className="font-semibold text-[var(--color-ink-primary)]">
+                            {e.intake.toLocaleString(locale === "en" ? "en-US" : "es-ES")}
+                          </strong>{" "}
+                          {locale === "en" ? "new auctions" : "nuevas subastas"}
+                        </span>
+                        <span className="tnum">
+                          <strong className="font-semibold text-[var(--color-ink-primary)]">
+                            {e.sold.toLocaleString(locale === "en" ? "en-US" : "es-ES")}
+                          </strong>{" "}
+                          {locale === "en" ? "awarded" : "adjudicadas"}
+                        </span>
+                        {median ? (
+                          <span className="tnum">
+                            <strong className="font-semibold text-[var(--color-ink-primary)]">
+                              {median}
+                            </strong>{" "}
+                            {locale === "en" ? "median bid" : "puja mediana"}
+                          </span>
+                        ) : null}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </main>

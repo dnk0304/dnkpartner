@@ -19,7 +19,11 @@ import { buildAlternates, ogLocale } from "@/lib/seo/alternates";
 import { listNoticias, formatNoticiaDate } from "@/lib/noticias";
 import { resolveArticleCoverImage } from "@/lib/article-cover";
 import { ArticleCard } from "@/components/blog/ArticleCard";
-import { listLatestEditions, periodLabel } from "@/lib/noticias-monthly";
+import {
+  listLatestEditions,
+  periodLabel,
+  provinceLabelForSlug,
+} from "@/lib/noticias-monthly";
 
 const SITE = "https://subastasactivas.com";
 
@@ -83,11 +87,18 @@ export default async function NoticiasIndexPage() {
       ? {
           heading: "Monthly reports",
           intro: "Auction figures by province, refreshed every month.",
+          newAuctions: "new auctions",
+          awarded: "awarded",
+          browse: "All reports",
         }
       : {
           heading: "Informes mensuales",
           intro: "Las cifras de subastas por provincia, actualizadas cada mes.",
+          newAuctions: "nuevas subastas",
+          awarded: "adjudicadas",
+          browse: "Todos los informes",
         };
+  const nfHub = (n: number) => n.toLocaleString(locale === "en" ? "en-US" : "es-ES");
 
   const [featured, ...rest] = noticias;
 
@@ -167,21 +178,47 @@ export default async function NoticiasIndexPage() {
               </p>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {monthlyEditions.map((e) => (
-                <Link
-                  key={`${e.province}-${e.period}`}
-                  href={`${prefix}/noticias/${e.province}/${e.period}`}
-                  className="block rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] p-4 transition-colors hover:border-[var(--color-action)]"
-                >
-                  <span className="block text-sm font-medium text-[var(--color-ink-primary)]">
-                    {e.title}
-                  </span>
-                  <span className="mt-1 block text-xs text-[var(--color-ink-quiet)]">
-                    {e.intake}{" "}
-                    {locale === "en" ? "new auctions" : "nuevas subastas"}
-                  </span>
-                </Link>
-              ))}
+              {monthlyEditions.map((e) => {
+                const provLabel = provinceLabelForSlug(e.province) ?? e.province;
+                return (
+                  <div
+                    key={`${e.province}-${e.period}`}
+                    className="flex flex-col rounded-[var(--radius-xl)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-4 transition-colors hover:border-[var(--color-action)]"
+                  >
+                    <Link
+                      href={`${prefix}/noticias/${e.province}/${e.period}`}
+                      className="group"
+                    >
+                      <span className="block text-xs font-medium uppercase tracking-wide text-[var(--color-ink-quiet)]">
+                        {provLabel} · {periodLabel(e.period, shortLoc)}
+                      </span>
+                      <span className="mt-1.5 block text-sm font-medium text-[var(--color-ink-primary)] group-hover:text-[var(--color-action-hover)]">
+                        {e.title}
+                      </span>
+                    </Link>
+                    <span className="tnum mt-2 flex flex-wrap gap-x-3 text-xs text-[var(--color-ink-secondary)]">
+                      <span>
+                        <strong className="font-semibold text-[var(--color-ink-primary)]">
+                          {nfHub(e.intake)}
+                        </strong>{" "}
+                        {monthlyCopy.newAuctions}
+                      </span>
+                      <span>
+                        <strong className="font-semibold text-[var(--color-ink-primary)]">
+                          {nfHub(e.sold)}
+                        </strong>{" "}
+                        {monthlyCopy.awarded}
+                      </span>
+                    </span>
+                    <Link
+                      href={`${prefix}/noticias/${e.province}`}
+                      className="mt-3 text-xs text-[var(--color-action)] hover:underline"
+                    >
+                      {monthlyCopy.browse} · {provLabel} →
+                    </Link>
+                  </div>
+                );
+              })}
             </div>
           </section>
         ) : null}

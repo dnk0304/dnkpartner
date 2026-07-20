@@ -3,9 +3,20 @@
  * (Forge 2026-07-20). Reads ONE NoticiaMonthly row (single-row indexed lookup)
  * and renders proseEs/En + charts from the immutable statsJson snapshot.
  *
- * ISR: revalidate = 86400 so a newly-generated month surfaces with no redeploy.
- * generateStaticParams prebuilds the LATEST month's provinces; older months are
- * rendered on-demand and then cached.
+ * Rendering: DYNAMIC (ƒ), like every other content route in this app
+ * (/guia, /blog, the /noticias hub, the province index). The locale arrives via
+ * the middleware-injected `x-locale` header read by getLocale(), so the render
+ * is request-dynamic and CANNOT be statically generated — an `export const
+ * revalidate` here opts the page into ISR static generation, which forbids
+ * headers() and 500s at request time with DYNAMIC_SERVER_USAGE (Pixel
+ * 2026-07-20: removed Forge's revalidate=86400 for this reason). The read is a
+ * single indexed NoticiaMonthly lookup, so per-request rendering is cheap and a
+ * newly-generated month surfaces immediately (better than a 24h ISR window).
+ *
+ * No generateStaticParams: a single URL serves BOTH locales depending on the
+ * x-locale header, so it cannot be prerendered per-locale — and its presence
+ * opts the route into on-demand SSG, which re-triggers the headers() 500. The
+ * route is therefore purely dynamic, identical to the /noticias hub.
  *
  * Validation: province ∈ 52 slugs AND period ^\d{4}-\d{2}$ AND a PUBLISHED row
  * exists — else notFound(). Charts are pure SSR (no client component) so there
@@ -22,34 +33,15 @@ import {
   isProvinceSlug,
   isValidPeriod,
   provinceLabelForSlug,
-  listProvincesWithEditions,
-  latestPeriod,
+  listProvinceEditions,
   periodLabel,
   periodEndISO,
-  formatEur,
   proseParagraphs,
   type NoticiaStats,
 } from "@/lib/noticias-monthly";
-
-export const revalidate = 86400; // ISR — new months surface without a redeploy
+import { NoticiaCharts } from "@/components/noticias/NoticiaCharts";
 
 const SITE = "https://subastasactivas.com";
-
-export async function generateStaticParams(): Promise<
-  Array<{ provincia: string; period: string }>
-> {
-  // Prebuild only the LATEST month's provinces; older months render on-demand
-  // (ISR). Build-SAFE: the build must not require a live DB (mirrors /guia) — a
-  // DB-less build returns [] and every page renders on demand + is then cached.
-  try {
-    const period = await latestPeriod();
-    if (!period) return [];
-    const provinces = await listProvincesWithEditions();
-    return provinces.map((provincia) => ({ provincia, period }));
-  } catch {
-    return [];
-  }
-}
 
 function urlFor(provincia: string, period: string, locale: Locale): string {
   return locale === "en"
@@ -90,55 +82,6 @@ export async function generateMetadata(
   };
 }
 
-// --- tiny SSR chart primitives (no client JS) ----------------------------
-
-function StatTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] p-4">
-      <div className="text-2xl font-semibold tabular-nums text-[var(--color-ink-primary)]">
-        {value}
-      </div>
-      <div className="mt-1 text-xs text-[var(--color-ink-quiet)]">{label}</div>
-    </div>
-  );
-}
-
-/** Sold vs unsold split as a labelled horizontal bar (pure CSS width). */
-function OutcomeBar({
-  sold,
-  desierta,
-  soldLabel,
-  desiertaLabel,
-}: {
-  sold: number;
-  desierta: number;
-  soldLabel: string;
-  desiertaLabel: string;
-}) {
-  const total = sold + desierta;
-  if (total === 0) return null;
-  const soldPct = Math.round((sold / total) * 100);
-  return (
-    <div>
-      <div className="flex h-4 w-full overflow-hidden rounded-full bg-[var(--color-hairline)]">
-        <div
-          className="h-full bg-[var(--color-action)]"
-          style={{ width: `${soldPct}%` }}
-          aria-hidden
-        />
-      </div>
-      <div className="mt-2 flex justify-between text-xs text-[var(--color-ink-secondary)]">
-        <span>
-          {soldLabel}: <strong className="tabular-nums">{sold}</strong> ({soldPct}%)
-        </span>
-        <span>
-          {desiertaLabel}: <strong className="tabular-nums">{desierta}</strong>
-        </span>
-      </div>
-    </div>
-  );
-}
-
 export default async function MonthlyArticlePage(
   { params }: { params: Promise<{ provincia: string; period: string }> },
 ) {
@@ -150,6 +93,13 @@ export default async function MonthlyArticlePage(
   if (!isProvinceSlug(provincia) || !isValidPeriod(period)) notFound();
   const article = await getMonthlyArticle(provincia, period);
   if (!article) notFound();
+
+  // Adjacent editions for prev/next month navigation (editions are newest-first;
+  // "prev" = the older month, "next" = the newer month — reading order for news).
+  const editions = await listProvinceEditions(provincia, shortLoc);
+  const idx = editions.findIndex((e) => e.period === period);
+  const newer = idx > 0 ? editions[idx - 1] : null; // newer month sits earlier
+  const older = idx >= 0 && idx < editions.length - 1 ? editions[idx + 1] : null;
 
   const stats: NoticiaStats = article.stats;
   const label = provinceLabelForSlug(provincia) ?? stats.provinceName ?? provincia;
@@ -164,28 +114,26 @@ export default async function MonthlyArticlePage(
       ? {
           home: "Home",
           news: "News",
-          intake: "New auctions",
-          concluded: "Concluded",
           sold: "Awarded",
           desierta: "Unsold",
-          median: "Median price",
-          outcome: "Outcome",
-          noMedian: "n/a",
-          back: "← All reports for",
+          back: "All reports for",
           published: "Report for",
+          prevMonth: "Previous month",
+          nextMonth: "Next month",
+          seeResults: `See all auction results in ${label}`,
+          moreNav: "Keep reading",
         }
       : {
           home: "Inicio",
           news: "Noticias",
-          intake: "Nuevas subastas",
-          concluded: "Concluidas",
           sold: "Adjudicadas",
           desierta: "Desiertas",
-          median: "Precio mediano",
-          outcome: "Resultado",
-          noMedian: "s/d",
-          back: "← Todos los informes de",
+          back: "Todos los informes de",
           published: "Informe de",
+          prevMonth: "Mes anterior",
+          nextMonth: "Mes siguiente",
+          seeResults: `Ver todos los resultados de subastas en ${label}`,
+          moreNav: "Seguir leyendo",
         };
 
   const jsonLd = {
@@ -203,14 +151,16 @@ export default async function MonthlyArticlePage(
       "@type": "Dataset",
       name: `${label} ${periodLabel(period, shortLoc)}`,
       variableMeasured: [
-        { "@type": "PropertyValue", name: t.intake, value: stats.intake },
+        {
+          "@type": "PropertyValue",
+          name: locale === "en" ? "New auctions" : "Nuevas subastas",
+          value: stats.intake,
+        },
         { "@type": "PropertyValue", name: t.sold, value: stats.sold },
         { "@type": "PropertyValue", name: t.desierta, value: stats.desierta },
       ],
     },
   };
-
-  const medianStr = formatEur(stats.soldMedianCents, shortLoc) ?? t.noMedian;
 
   return (
     <div className="min-h-screen bg-[var(--color-page)]">
@@ -264,50 +214,87 @@ export default async function MonthlyArticlePage(
             </p>
           </header>
 
-          {/* Stat tiles from the immutable snapshot */}
-          <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatTile label={t.intake} value={String(stats.intake)} />
-            <StatTile label={t.concluded} value={String(stats.totalConcluded)} />
-            <StatTile label={t.sold} value={String(stats.sold)} />
-            <StatTile label={t.median} value={medianStr} />
-          </div>
-
-          {/* Outcome split chart */}
-          {stats.totalConcluded > 0 ? (
-            <div className="mb-8 rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] p-4">
-              <div className="mb-3 text-xs font-medium uppercase tracking-wide text-[var(--color-ink-quiet)]">
-                {t.outcome}
-              </div>
-              <OutcomeBar
-                sold={stats.sold}
-                desierta={stats.desierta}
-                soldLabel={t.sold}
-                desiertaLabel={t.desierta}
-              />
-            </div>
-          ) : null}
-
-          {/* Prose */}
+          {/* Written recap lede — the editorial prose that makes it read as news. */}
           <div className="flex flex-col gap-4">
             {paragraphs.map((p, i) => (
               <p
                 key={i}
-                className="text-base leading-relaxed text-[var(--color-ink-secondary)]"
+                className={
+                  i === 0
+                    ? "text-lg leading-relaxed text-[var(--color-ink-primary)]"
+                    : "text-base leading-relaxed text-[var(--color-ink-secondary)]"
+                }
               >
                 {p}
               </p>
             ))}
           </div>
+
+          {/* Dataviz block — tiles, outcome breakdown, MoM, price range, notable
+              facts. Built from the immutable statsJson snapshot; shares the
+              /resultados validated palette so both surfaces read as one system. */}
+          <div className="mt-10">
+            <NoticiaCharts stats={stats} locale={shortLoc} />
+          </div>
         </article>
 
-        <div className="mt-12 border-t border-[var(--color-hairline-soft)] pt-6">
-          <Link
-            href={`${prefix}/noticias/${provincia}`}
-            className="text-sm text-[var(--color-action)] hover:underline"
-          >
-            {t.back} {label}
-          </Link>
-        </div>
+        {/* Cross-links: prev/next month + this province's live results archive. */}
+        <nav
+          aria-label={t.moreNav}
+          className="mt-12 border-t border-[var(--color-hairline-soft)] pt-6"
+        >
+          {newer || older ? (
+            <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {older ? (
+                <Link
+                  href={`${prefix}/noticias/${provincia}/${older.period}`}
+                  className="group rounded-[var(--radius-lg)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-4 transition-colors hover:border-[var(--color-action)]"
+                  rel="prev"
+                >
+                  <span className="block text-xs text-[var(--color-ink-quiet)]">
+                    ← {t.prevMonth}
+                  </span>
+                  <span className="mt-1 block text-sm font-medium text-[var(--color-ink-primary)]">
+                    {periodLabel(older.period, shortLoc)}
+                  </span>
+                </Link>
+              ) : (
+                <span aria-hidden />
+              )}
+              {newer ? (
+                <Link
+                  href={`${prefix}/noticias/${provincia}/${newer.period}`}
+                  className="group rounded-[var(--radius-lg)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-4 text-right transition-colors hover:border-[var(--color-action)]"
+                  rel="next"
+                >
+                  <span className="block text-xs text-[var(--color-ink-quiet)]">
+                    {t.nextMonth} →
+                  </span>
+                  <span className="mt-1 block text-sm font-medium text-[var(--color-ink-primary)]">
+                    {periodLabel(newer.period, shortLoc)}
+                  </span>
+                </Link>
+              ) : (
+                <span aria-hidden />
+              )}
+            </div>
+          ) : null}
+
+          <div className="flex flex-col gap-2 text-sm">
+            <Link
+              href={`${prefix}/noticias/${provincia}`}
+              className="text-[var(--color-action)] hover:underline"
+            >
+              ← {t.back} {label}
+            </Link>
+            <Link
+              href={`${prefix}/resultados/${provincia}`}
+              className="text-[var(--color-action)] hover:underline"
+            >
+              {t.seeResults} →
+            </Link>
+          </div>
+        </nav>
       </main>
     </div>
   );
