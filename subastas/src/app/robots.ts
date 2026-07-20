@@ -5,13 +5,14 @@
  * on infinite facet combinations (sort, page, multi-select, price slider).
  * All indexable state is in the path; nothing indexable needs a query param.
  *
- * Sitemap lines are generated from the SHARED layout (sitemap-config.ts) via
- * sitemapChildUrls(), so robots.txt always references EXACTLY the children that
- * generateSitemaps() produces — no hardcoded /sitemap/0..3.xml drift (07 §4).
+ * The Sitemap line points at the single sitemap INDEX (sitemap-config.ts →
+ * sitemapIndexUrl), the same URL submitted to GSC; Google follows it to the
+ * children generateSitemaps() produces. Single-sourced so nothing can drift
+ * from the actual child routes (07 §4).
  */
 
 import type { MetadataRoute } from 'next';
-import { sitemapChildUrls } from '@/lib/seo/sitemap-config';
+import { sitemapIndexUrl } from '@/lib/seo/sitemap-config';
 
 const SITE = 'https://subastasactivas.com';
 
@@ -32,9 +33,10 @@ export default function robots(): MetadataRoute.Robots {
         ],
       },
     ],
-    // Every published child sitemap (aggregation + active + phased concluded).
-    // Matches generateSitemaps() by construction — both call the same layout.
-    sitemap: sitemapChildUrls(SITE),
+    // Advertise the single sitemap INDEX (served by src/app/sitemap.xml/route.ts).
+    // Google follows it to every child — same URL Dennis submits to GSC. Kept in
+    // sitemap-config.ts so robots ⇔ index ⇔ children can't drift.
+    sitemap: sitemapIndexUrl(SITE),
     host: SITE,
   };
 }
