@@ -86,6 +86,21 @@ function townHref(province: string, municipality: string): string {
 }
 
 /**
+ * Fold a province name to a case/accent-insensitive key. Used to JOIN the live
+ * counts API's province label against the registry rollup's `region.label`
+ * (they derive from the same `Auction.province` column but we fold both sides
+ * so a case/accent difference can never break the merge). Mirrors exactly the
+ * fold `ProvinceGrid` uses for its own counts lookup.
+ */
+function normalizeProvince(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+/**
  * Stable URLSearchParams instance passed to the landing map's category rail
  * (C4a #7). The rail counts API is keyed on `apiSearchParams.toString()` so we
  * lift this to module scope to avoid a new `URLSearchParams` allocation per
@@ -230,15 +245,33 @@ export default function HomeObservatory() {
     };
   }, []);
 
-  // Province counts.
+  // Province counts. TWO sources, joined by normalized province name:
+  //   - GET /api/auctions/counts?groupBy=province  (LIVE SQL over Auction) →
+  //     the `active` (Activas) + `preAuction` (Próximas) buckets.
+  //   - GET /api/registro/regions  (precomputed AuctionOutcomeStats rollup,
+  //     s-maxage=3600 — NOT a live 238k scan) → the `finished` (Finalizadas)
+  //     bucket. Each `region.total` = Σ REGISTRY_OUTCOMES
+  //     (VENDIDA+DESIERTA+CANCELADA+FINALIZADA_SIN_RESULTADO, INDETERMINADO
+  //     EXCLUDED) — the SAME number `/resultados/{provincia}` shows as its
+  //     headline (`readSummary().headline.registryTotal`, identical rows), so
+  //     the grey "Finalizadas" badge EQUALS the destination page by
+  //     construction and the two can never drift (single source of truth).
+  // Registry is authoritative for `finished`; if `/api/registro/regions` is
+  // unavailable we keep the counts-API `finished` bucket so the grid never
+  // blanks. Both fetches run in parallel.
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await apiFetch("/api/auctions/counts?groupBy=province");
-        if (!res.ok || cancelled) return;
-        const body = await res.json();
+        const [countsRes, regionsRes] = await Promise.all([
+          apiFetch("/api/auctions/counts?groupBy=province"),
+          apiFetch("/api/registro/regions").catch(() => null),
+        ]);
+        if (cancelled || !countsRes.ok) return;
+        const body = await countsRes.json();
         if (cancelled || !body?.success) return;
+
+        // Base buckets from the live counts API.
         const out: Record<string, { active: number; preAuction: number; finished: number; total: number }> = {};
         for (const key of Object.keys(body.counts?.total || {})) {
           out[key] = {
@@ -248,6 +281,54 @@ export default function HomeObservatory() {
             total: body.counts.total?.[key] || 0,
           };
         }
+
+        // Parse the registry rollup (resilient: any failure leaves the
+        // counts-API `finished` untouched — never blank the grid).
+        let regions: Array<{ label: string; total: number }> | null = null;
+        if (regionsRes && regionsRes.ok) {
+          try {
+            const rb = await regionsRes.json();
+            if (Array.isArray(rb?.regions)) {
+              regions = rb.regions.filter(
+                (r: unknown): r is { label: string; total: number } =>
+                  !!r &&
+                  typeof (r as { label?: unknown }).label === "string" &&
+                  typeof (r as { total?: unknown }).total === "number",
+              );
+            }
+          } catch {
+            /* keep counts-API finished */
+          }
+        }
+        if (cancelled) return;
+
+        if (regions) {
+          const registryByProvince: Record<string, number> = {};
+          for (const r of regions) registryByProvince[normalizeProvince(r.label)] = r.total;
+
+          // Override `finished` with the registry total for every province the
+          // counts API already returned, and recompute `total`.
+          for (const key of Object.keys(out)) {
+            const rt = registryByProvince[normalizeProvince(key)];
+            if (rt != null) {
+              out[key].finished = rt;
+              out[key].total = out[key].active + out[key].preAuction + rt;
+            }
+          }
+
+          // Registry-only provinces (concluded rows but no live counts key):
+          // add them so their Finalizadas still show. Keyed by the registry
+          // label so ProvinceGrid's normalized lookup resolves them.
+          const present = new Set(Object.keys(out).map(normalizeProvince));
+          for (const r of regions) {
+            const norm = normalizeProvince(r.label);
+            if (!present.has(norm)) {
+              out[r.label] = { active: 0, preAuction: 0, finished: r.total, total: r.total };
+              present.add(norm);
+            }
+          }
+        }
+
         setProvinceCounts(out);
       } catch {
         /* silent */
