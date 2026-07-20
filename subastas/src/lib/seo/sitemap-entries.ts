@@ -1,12 +1,24 @@
 /**
- * sitemap — a true sitemap INDEX (/sitemap.xml, produced by Next from
- * generateSitemaps()) over typed children (/sitemap/{id}.xml). Chunk layout,
- * the 20k/file cap, and the phased concluded ramp all live in
- * `src/lib/seo/sitemap-config.ts` (shared with robots.ts so they can't drift).
+ * src/lib/seo/sitemap-entries.ts — the per-child sitemap BODY builder.
+ *
+ * WHY THIS EXISTS (wave150): Next App Router reserves the `sitemap` metadata
+ * file convention. Having BOTH `app/sitemap.ts` (generateSitemaps → the
+ * `/sitemap/[__metadata_id__]` dynamic page) AND a manual `app/sitemap.xml/route.ts`
+ * collides — Next can no longer resolve the metadata page during page-data
+ * collection and the production build fails with PageNotFoundError. So we dropped
+ * the metadata convention entirely and serve every sitemap as a plain Route
+ * Handler:
+ *   - /sitemap.xml          → app/sitemap.xml/route.ts  (the <sitemapindex>)
+ *   - /sitemap/{id}.xml      → app/sitemap/[...seg]/route.ts  (each <urlset>)
+ *
+ * This module holds the child-body logic that USED to live in
+ * `app/sitemap.ts`'s default export. It returns typed entries; the route handler
+ * renders them to <urlset> XML. Chunk layout, the 20k/file cap, and the concluded
+ * ramp still live in `sitemap-config.ts` (shared with robots.ts so they can't drift).
  *
  * Children:
  *   - id 0            — aggregation (home, /subastas, 52 provinces, active
- *                       towns, tipos, dense categories, guides, noticias).
+ *                       towns, tipos, dense categories, /resultados, guides, noticias).
  *   - id 1..ACTIVE    — ACTIVE auction details, 20k/file (orderBy id asc).
  *   - id ACTIVE+1..   — SCOPED CONCLUDED details (property+vehicle with a real
  *                       sale outcome), 20k/file, orderBy soldDate DESC. The
@@ -19,43 +31,29 @@
  *
  * lastmod = real data freshness (07 §4 — fake daily lastmod gets ignored /
  * penalised). Active: updatedAt. Concluded: soldDate ?? updatedAt.
- *
- * Request-time only (`dynamic='force-dynamic'`, `revalidate=0`) — never a
- * build-time DB dependency. Chunk enumeration is a fixed id set (no DB call);
- * each child paginates with a stable orderBy + skip/take so a given URL stays
- * in the same child between requests.
  */
 
-import type { MetadataRoute } from 'next';
 import { AuctionStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-
-// Generated at request time — never at build (sitemap depends on live counts +
-// active/concluded sets). Avoids prerender-time DATABASE_URL requirement.
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 import {
   PROVINCE_SLUGS,
   TIPO_SLUGS,
   CATEGORY_SLUG_TO_DB_LABEL,
   CATEGORY_INDEX_THRESHOLD,
   isOfficialCategory,
+  PROVINCE_DB_KEY_TO_SLUG,
   type CategorySlug,
 } from '@/lib/seo/slugs';
 import { categoryActiveCounts, activeMunicipalityPairs } from '@/lib/seo/page-data';
 import { buildAuctionSlug } from '@/lib/seo/auction-slug';
 import { listNoticias } from '@/lib/noticias';
-import {
-  CHILD_SITEMAP_SIZE,
-  classifyChunk,
-  sitemapChildIds,
-} from '@/lib/seo/sitemap-config';
+import { CHILD_SITEMAP_SIZE, classifyChunk } from '@/lib/seo/sitemap-config';
 import { concludedIndexableWhere } from '@/lib/seo/concluded-indexable';
 import { readSummary, concludedMunicipioPairsAll } from '@/lib/registro/registro-read';
-import { PROVINCE_DB_KEY_TO_SLUG } from '@/lib/seo/slugs';
 import { OUTCOME_TO_SLUG } from '@/lib/registro/registro-ui';
 
 const SITE = 'https://subastasactivas.com';
+
 const ACTIVE_STATUSES: AuctionStatus[] = [
   AuctionStatus.ACTIVE,
   AuctionStatus.CELEBRANDOSE,
@@ -63,29 +61,36 @@ const ACTIVE_STATUSES: AuctionStatus[] = [
   AuctionStatus.PROXIMA_APERTURA,
 ];
 
-export async function generateSitemaps(): Promise<Array<{ id: number }>> {
-  // Fixed ID set from the shared layout — intentionally no DB call here (chunk
-  // enumeration must not create a build-time or robots.ts-visible dependency on
-  // live counts). robots.ts advertises the identical set via sitemapChildUrls().
-  return sitemapChildIds().map((id) => ({ id }));
+export type ChangeFrequency =
+  | 'always'
+  | 'hourly'
+  | 'daily'
+  | 'weekly'
+  | 'monthly'
+  | 'yearly'
+  | 'never';
+
+export interface SitemapUrlEntry {
+  url: string;
+  lastModified: Date;
+  changeFrequency?: ChangeFrequency;
+  priority?: number;
 }
 
-export default async function sitemap({ id }: { id: number }): Promise<MetadataRoute.Sitemap> {
-  // Runtime root cause (Next 15 async-params, proven in the live wave102
-  // bundle): the generated route wrapper passes `id` as an UN-AWAITED
-  // Promise<string> (already `.xml`-stripped). `String(Promise)` →
-  // "[object Promise]" → parseInt → NaN → every chunk fell back to chunk 0.
-  // Await/unwrap first; handles promise AND plain string/number.
-  const raw = await Promise.resolve(id as unknown as string | number | Promise<string | number>);
-  const parsed = Number.parseInt(String(raw), 10);
-  const chunkId = Number.isNaN(parsed) ? 0 : parsed;
+/**
+ * Build the <urlset> entries for one child sitemap id. Pure per-request read (no
+ * build-time DB): chunk enumeration is a fixed id set; each child paginates with
+ * a stable orderBy + skip/take so a given URL stays in the same child between
+ * requests. Callers render the returned entries to XML.
+ */
+export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]> {
+  const chunkId = Number.isFinite(id) ? id : 0;
   const chunk = classifyChunk(chunkId);
-
   const now = new Date();
 
   // --- ACTIVE auction-detail children ---
   if (chunk.kind === 'active') {
-    const entries: MetadataRoute.Sitemap = [];
+    const entries: SitemapUrlEntry[] = [];
     try {
       const activeAuctions = await prisma.auction.findMany({
         where: { status: { in: ACTIVE_STATUSES } },
@@ -116,7 +121,7 @@ export default async function sitemap({ id }: { id: number }): Promise<MetadataR
   // insert at the front (child #1) and only nudge boundaries — no de-index (we
   // never remove children, only add).
   if (chunk.kind === 'concluded') {
-    const entries: MetadataRoute.Sitemap = [];
+    const entries: SitemapUrlEntry[] = [];
     try {
       const rows = await prisma.auction.findMany({
         where: concludedIndexableWhere(),
@@ -147,7 +152,7 @@ export default async function sitemap({ id }: { id: number }): Promise<MetadataR
   }
 
   // --- Chunk 0: core + provinces + towns + tipos + categories + guides ---
-  const entries: MetadataRoute.Sitemap = [];
+  const entries: SitemapUrlEntry[] = [];
 
   // --- Core ---
   entries.push(
@@ -198,17 +203,24 @@ export default async function sitemap({ id }: { id: number }): Promise<MetadataR
   }
 
   // --- 9 DENSE categories: only those in OFFICIAL_CATEGORIES with count ≥ threshold ---
-  const counts = await categoryActiveCounts();
-  for (const [slug, dbLabel] of Object.entries(CATEGORY_SLUG_TO_DB_LABEL) as Array<[CategorySlug, string]>) {
-    const c = counts.get(dbLabel) ?? 0;
-    if (isOfficialCategory(dbLabel) && c >= CATEGORY_INDEX_THRESHOLD) {
-      entries.push({
-        url: `${SITE}/subastas/${slug}`,
-        lastModified: now,
-        changeFrequency: 'daily',
-        priority: 0.7,
-      });
+  // Guarded (like every other DB call in this builder): a DB hiccup drops the
+  // category URLs but must not 500 the whole aggregation sitemap — the index at
+  // /sitemap.xml stays authoritative and the rest of chunk 0 is still valid.
+  try {
+    const counts = await categoryActiveCounts();
+    for (const [slug, dbLabel] of Object.entries(CATEGORY_SLUG_TO_DB_LABEL) as Array<[CategorySlug, string]>) {
+      const c = counts.get(dbLabel) ?? 0;
+      if (isOfficialCategory(dbLabel) && c >= CATEGORY_INDEX_THRESHOLD) {
+        entries.push({
+          url: `${SITE}/subastas/${slug}`,
+          lastModified: now,
+          changeFrequency: 'daily',
+          priority: 0.7,
+        });
+      }
     }
+  } catch {
+    // Non-fatal — the rest of the sitemap is still useful.
   }
 
   // --- /resultados registry (concluded auction-outcomes archive) ---

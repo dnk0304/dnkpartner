@@ -7,8 +7,8 @@
  *
  * The Sitemap line points at the single sitemap INDEX (sitemap-config.ts →
  * sitemapIndexUrl), the same URL submitted to GSC; Google follows it to the
- * children generateSitemaps() produces. Single-sourced so nothing can drift
- * from the actual child routes (07 §4).
+ * children served by app/sitemap/[...seg]/route.ts. Single-sourced so nothing
+ * can drift from the actual child routes (07 §4).
  */
 
 import type { MetadataRoute } from 'next';
