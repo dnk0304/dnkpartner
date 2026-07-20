@@ -22,14 +22,13 @@
  *                                       orderBy soldDate DESC (freshest 20k in
  *                                       child #1), where N = PUBLISHED_CONCLUDED_CHILDREN.
  *
- * ── PHASED ramp (Ken/Dennis decision) ─────────────────────────────────────
- * We publish only the top `PUBLISHED_CONCLUDED_CHILDREN` concluded children —
- * the freshest / most valuable sold pages first — and RAMP it up as GSC shows
- * the earlier batch getting indexed. This is a growing cap, NOT a rotating
- * window: children are only ADDED, never removed, so an already-indexed page
- * never churns out of the sitemap (no de-index risk). Bump this one constant
- * over weeks. `soldDate DESC` ordering means child #1 is always the freshest
- * 20k, so a low cap still exposes the highest-intent pages.
+ * ── Concluded exposure (FULL — phased ramp overridden 2026-07-20) ──────────
+ * Dennis took manual GSC control and overrode the phased ramp: expose the ENTIRE
+ * scoped-concluded set now (sold-price teaser is live, so the pages carry real
+ * content). This is still a growing cap, NOT a rotating window: children are only
+ * ADDED, never removed, so an already-indexed page never churns out of the
+ * sitemap (no de-index risk). `soldDate DESC` ordering means child #1 is always
+ * the freshest 20k. Sizing rationale for the current value lives on the constant.
  */
 
 /** URLs per child sitemap file. FIRM (Dennis). Under the 50k spec cap. */
@@ -42,13 +41,19 @@ export const CHILD_SITEMAP_SIZE = 20_000;
 export const ACTIVE_CHUNKS = 2;
 
 /**
- * PHASED ramp dial — how many concluded children (freshest-first) are published
- * to the index right now. Start conservative to protect the young domain's
- * crawl budget; Ken/Dennis bump as GSC indexes the earlier batch. Growing cap
- * only — never rotates. Full scoped concluded set is ~9 children (~178k), so
- * this can climb toward ~9 once the domain has proven it can absorb the batch.
+ * Concluded children published to the index (freshest-first). FULL EXPOSURE —
+ * the phased ramp was overridden by Dennis on 2026-07-20 (manual GSC control).
+ *
+ * Sizing (measured live 2026-07-20 from the public /resultados registry):
+ * adjudicadas 87,290 + desiertas 84,843 = 172,133 outcome-qualifying rows. This
+ * is an UPPER BOUND on concludedIndexableWhere() — that predicate further filters
+ * to the 12 property+vehicle categories + resultCheckedAt NOT NULL, so the true
+ * count is ≤ 172,133. ceil(172,133 / 20,000) = 9 children covers the full set with
+ * zero URLs dropped; the last child(ren) may be short/empty if the category filter
+ * trims below a 20k boundary (an empty child is still a valid 200 <urlset>).
+ * Growing cap only — bump if the concluded set ever exceeds 180k rows.
  */
-export const PUBLISHED_CONCLUDED_CHILDREN = 2;
+export const PUBLISHED_CONCLUDED_CHILDREN = 9;
 
 /** Total published children = aggregation + active + published concluded. */
 export const TOTAL_CHILDREN = 1 + ACTIVE_CHUNKS + PUBLISHED_CONCLUDED_CHILDREN;
@@ -58,9 +63,24 @@ export function sitemapChildIds(): number[] {
   return Array.from({ length: TOTAL_CHILDREN }, (_, i) => i);
 }
 
-/** Absolute child sitemap URLs for robots.txt. */
+/** Absolute child sitemap URLs for robots.txt / the sitemap index. */
 export function sitemapChildUrls(site: string): string[] {
   return sitemapChildIds().map((id) => `${site}/sitemap/${id}.xml`);
+}
+
+/**
+ * Canonical sitemap-INDEX path. This is the single URL Dennis submits to GSC;
+ * Google follows it to every child. Served by `src/app/sitemap.xml/route.ts`
+ * as a <sitemapindex> (Next's generateSitemaps() emits the children at
+ * /sitemap/{id}.xml but does NOT emit a top-level index — that gap is the
+ * route handler's whole reason to exist). Single-sourced here so robots.ts and
+ * the route can't drift.
+ */
+export const SITEMAP_INDEX_PATH = '/sitemap.xml';
+
+/** Absolute canonical sitemap-index URL (what robots.txt advertises). */
+export function sitemapIndexUrl(site: string): string {
+  return `${site}${SITEMAP_INDEX_PATH}`;
 }
 
 export type ChunkKind =
