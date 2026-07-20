@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { ChevronRight, ChevronDown, MapPin } from 'lucide-react';
 import { capitalizeLocation } from '@/lib/utils';
+import { PROVINCE_DB_KEY_TO_SLUG } from '@/lib/seo/slugs';
 
 interface ProvinceGridProps {
   provinceCounts: Record<string, {
@@ -252,6 +253,11 @@ export function ProvinceGrid({ provinceCounts, onProvinceClick, onMunicipalityCl
             const totalActive = counts?.active || 0;
             const totalPreAuction = counts?.preAuction || 0;
             const totalFinished = counts?.finished || 0;
+            // Slug for the registry results archive (/resultados/{slug}).
+            // Every grid key maps 1:1 to a canonical slug, but guard against a
+            // missing entry so we never emit /resultados/undefined.
+            const provinceSlug = PROVINCE_DB_KEY_TO_SLUG[province.key];
+            const finishedIsLink = totalFinished > 0 && Boolean(provinceSlug);
             const isExpanded = expandedProvince === province.key;
             const isLoading = loadingMunicipalities === province.key;
             const municipalities = municipalityData[province.key] || [];
@@ -275,15 +281,17 @@ export function ProvinceGrid({ provinceCounts, onProvinceClick, onMunicipalityCl
                     )}
                   </button>
                   
-                  {/* Province name and click to select */}
+                  {/* Province name and click to select. Note: the Finalizadas
+                      badge is a SIBLING <a>, not nested here — an anchor cannot
+                      live inside this <button> (invalid interactive nesting). */}
                   <button
                     onClick={() => onProvinceClick(province.key)}
-                    className="flex-1 flex items-center justify-between text-left group"
+                    className="flex-1 flex items-center justify-between text-left group min-w-0"
                   >
-                    <span className="text-sm font-medium text-blue-600 hover:underline">
+                    <span className="text-sm font-medium text-blue-600 hover:underline truncate pr-2">
                       {province.label}
                     </span>
-                    
+
                     {/* Count badges - Split Active/Pre-Auction */}
                     <div className="flex items-center gap-2">
                       <span
@@ -302,16 +310,33 @@ export function ProvinceGrid({ provinceCounts, onProvinceClick, onMunicipalityCl
                       >
                         {totalPreAuction}
                       </span>
-                      <span
-                        className={`text-xs font-medium px-1.5 py-0.5 rounded border border-gray-200 bg-gray-50 ${
-                          totalFinished === 0 ? 'opacity-50' : 'text-gray-600'
-                        }`}
-                        title="Finalizadas"
-                      >
-                        {totalFinished}
-                      </span>
                     </div>
                   </button>
+
+                  {/* Finalizadas → crawlable link into the /resultados archive.
+                      Real <a href> (SSR-rendered, keyboard-focusable, open-in-
+                      new-tab) so it works as a discovery doorway for the crawl.
+                      Falls back to plain text at 0 (nothing to see) or if a slug
+                      is somehow missing (never emit /resultados/undefined). */}
+                  {finishedIsLink ? (
+                    <a
+                      href={`/resultados/${provinceSlug}`}
+                      title="Finalizadas"
+                      aria-label={`Ver ${totalFinished} subastas finalizadas en ${province.label}`}
+                      className="ml-2 text-xs font-medium px-1.5 py-0.5 rounded border border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-800 hover:underline cursor-pointer transition-colors"
+                    >
+                      {totalFinished}
+                    </a>
+                  ) : (
+                    <span
+                      className={`ml-2 text-xs font-medium px-1.5 py-0.5 rounded border border-gray-200 bg-gray-50 ${
+                        totalFinished === 0 ? 'opacity-50' : 'text-gray-600'
+                      }`}
+                      title="Finalizadas"
+                    >
+                      {totalFinished}
+                    </span>
+                  )}
                 </div>
                 
                 {/* Municipalities dropdown */}
