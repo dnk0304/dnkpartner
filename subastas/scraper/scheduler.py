@@ -1476,6 +1476,273 @@ class ScraperScheduler:
         except Exception as e:
             self.log(f"  Registro recompute failed: {e}")
 
+    # -----------------------------------------------------------------------
+    # generate_monthly_noticias — monthly per-province recap ARTICLE generator
+    # (Forge 2026-07-20). The hands-off "publish = row exists" job.
+    # -----------------------------------------------------------------------
+    # Runs DAILY but ACTS only when a completed month has no NoticiaMonthly rows
+    # yet: on/after the 1st it detects the most-recent FULLY-COMPLETE month (on
+    # 2026-07-xx that is 2026-06) and, if unwritten, generates all 52 province
+    # articles. Idempotent (UPSERT on [period, province]) so re-runs are safe;
+    # generate-once in normal operation (the gate skips an already-written month
+    # — immutable news snapshot). No external calls, no LLM: deterministic
+    # templated prose (noticias_templater) over SAGA's pack. One province's
+    # failure never aborts the batch.
+    #
+    # DATA:
+    #   * intake  = COUNT(*) of ALL auctions by publishedAt month × province
+    #               (the NEW "new to market" metric — computed here directly).
+    #   * outcome = read from AuctionOutcomeStats (CONCLUDED basis, national/
+    #               all-category rollup per province) — never recomputed here.
+    # Placed at 06:35, AFTER the 06:15 registro recompute so the outcome stats
+    # for the month are fresh (single-threaded scheduler guarantees ordering).
+    # -----------------------------------------------------------------------
+    @staticmethod
+    def _month_bounds(year, month):
+        """Return (start, next_start) naive-UTC datetimes for a YYYY-MM month."""
+        start = datetime(year, month, 1)
+        if month == 12:
+            nxt = datetime(year + 1, 1, 1)
+        else:
+            nxt = datetime(year, month + 1, 1)
+        return start, nxt
+
+    @staticmethod
+    def _prev_period(period):
+        """'YYYY-MM' -> previous month 'YYYY-MM'."""
+        y, m = int(period[:4]), int(period[5:7])
+        if m == 1:
+            return f"{y - 1:04d}-12"
+        return f"{y:04d}-{m - 1:02d}"
+
+    @staticmethod
+    def _last_complete_period(now=None):
+        """The most-recent FULLY-COMPLETE month as 'YYYY-MM' (current month - 1)."""
+        now = now or datetime.utcnow()
+        y, m = now.year, now.month
+        if m == 1:
+            return f"{y - 1:04d}-12"
+        return f"{y:04d}-{m - 1:02d}"
+
+    def generate_monthly_noticias(self, period=None, force=False):
+        """Generate/UPSERT the per-province monthly recap articles for `period`
+        (default: the most-recent complete month). Gated + idempotent."""
+        self.log("Generating monthly per-province noticias...")
+
+        is_postgres = DATABASE_URL and ('postgresql://' in DATABASE_URL or 'postgres://' in DATABASE_URL)
+        if not is_postgres:
+            self.log("  Noticias generation skipped (not Postgres — no DATABASE_URL)")
+            return
+
+        target = period or self._last_complete_period()
+        prev = self._prev_period(target)
+        self.log(f"  Target month: {target} (prev {prev}), force={force}")
+
+        # Load the templater + pack + province map (siblings of this file).
+        try:
+            sys.path.insert(0, str(SCRIPT_DIR))
+            import noticias_templater as tpl
+            from noticias_provinces import PROVINCE_KEY_TO_SLUG_LABEL, PROVINCE_KEYS
+            pack = tpl.load_pack()
+        except Exception as e:
+            self.log(f"  Noticias generation ABORTED — cannot load templater/pack: {e}")
+            import traceback
+            self.log(traceback.format_exc())
+            return
+
+        try:
+            import uuid
+            conn = self._get_pg_conn()
+            cursor = conn.cursor()
+
+            # Column/table guard — pre-migration = safe no-op.
+            cursor.execute(
+                "SELECT to_regclass('public.\"NoticiaMonthly\"')"
+            )
+            if cursor.fetchone()[0] is None:
+                self.log("  Noticias generation skipped (NoticiaMonthly table not "
+                         "migrated yet — apply 20260720_add_noticia_monthly first)")
+                cursor.close(); conn.close()
+                return
+
+            # GATE: generate-once. Skip a month that already has rows (immutable
+            # news snapshot) unless force. Manual --noticias-force overrides.
+            if not force:
+                cursor.execute(
+                    'SELECT COUNT(*) FROM "NoticiaMonthly" WHERE period = %s', (target,))
+                existing = cursor.fetchone()[0]
+                if existing > 0:
+                    self.log(f"  Skip: {target} already has {existing} noticias rows "
+                             f"(generate-once gate; use force to regenerate)")
+                    cursor.close(); conn.close()
+                    return
+
+            # --- Intake (new-to-market) counts: this month + previous month ---
+            y, m = int(target[:4]), int(target[5:7])
+            start, nxt = self._month_bounds(y, m)
+            py, pm = int(prev[:4]), int(prev[5:7])
+            pstart, pnxt = self._month_bounds(py, pm)
+
+            cursor.execute(
+                'SELECT province, COUNT(*) FROM "Auction" '
+                'WHERE "publishedAt" >= %s AND "publishedAt" < %s GROUP BY province',
+                (start, nxt))
+            intake_map = {r[0]: int(r[1]) for r in cursor.fetchall()}
+
+            cursor.execute(
+                'SELECT province, COUNT(*) FROM "Auction" '
+                'WHERE "publishedAt" >= %s AND "publishedAt" < %s GROUP BY province',
+                (pstart, pnxt))
+            prev_intake_map = {r[0]: int(r[1]) for r in cursor.fetchall()}
+
+            # National rank by intake — canonical provinces with intake > 0,
+            # highest first (ties broken by key for determinism).
+            ranked = sorted(
+                [(k, intake_map.get(k, 0)) for k in PROVINCE_KEYS if intake_map.get(k, 0) > 0],
+                key=lambda kv: (-kv[1], kv[0]))
+            rank_map = {k: i + 1 for i, (k, _) in enumerate(ranked)}
+
+            # --- Outcome stats from AuctionOutcomeStats (CONCLUDED, per-province
+            #     national/all-category rollup) ---
+            cursor.execute(
+                'SELECT province, outcome, count, "soldPriceMedianCents", '
+                '"soldPriceP25Cents", "soldPriceP75Cents", "discountToAppraisalMedian" '
+                'FROM "AuctionOutcomeStats" '
+                "WHERE period = %s AND \"periodBasis\" = 'CONCLUDED' "
+                "AND municipality = '' AND category = '' AND province <> ''",
+                (target,))
+            outcome_map = {}
+            for prov, outcome, cnt, med, p25, p75, disc in cursor.fetchall():
+                outcome_map.setdefault(prov, {})[outcome] = {
+                    "count": int(cnt or 0),
+                    "med": int(med) if med is not None else None,
+                    "p25": int(p25) if p25 is not None else None,
+                    "p75": int(p75) if p75 is not None else None,
+                    "disc": float(disc) if disc is not None else None,
+                }
+
+            generated = skipped_zero = errors = 0
+            now = datetime.utcnow()
+
+            for key in PROVINCE_KEYS:
+                try:
+                    slug, label = PROVINCE_KEY_TO_SLUG_LABEL[key]
+                    intake = intake_map.get(key, 0)
+                    prev_intake = prev_intake_map.get(key, 0)
+                    om = outcome_map.get(key, {})
+                    sold = om.get("VENDIDA", {}).get("count", 0)
+                    desierta = om.get("DESIERTA", {}).get("count", 0)
+                    cancelada = om.get("CANCELADA", {}).get("count", 0)
+                    finalizada = om.get("FINALIZADA_SIN_RESULTADO", {}).get("count", 0)
+                    vend = om.get("VENDIDA", {})
+                    # totalConcluded = the two buckets the copy actually names
+                    # (vendidas + desiertas) so the prose arithmetic stays honest
+                    # ("de las N concluidas, V adjudicadas y D desiertas"). CANCELADA
+                    # + FINALIZADA_SIN_RESULTADO are excluded from copy (SAGA) but
+                    # kept in statsJson for charts.
+                    total_concluded = sold + desierta
+
+                    # MoM intake delta — None when no comparable prior (first month
+                    # or prev == 0), which the templater renders as the no_prior copy.
+                    mom = None
+                    if prev_intake > 0:
+                        mom = (intake - prev_intake) / prev_intake * 100.0
+
+                    # Thin-content guard: a dead province-month (zero intake AND
+                    # zero concluded activity of ANY kind) is unpublished so Google
+                    # is never fed an empty page.
+                    published = not (intake == 0 and (sold + desierta + cancelada + finalizada) == 0)
+
+                    stats = {
+                        "period": target,
+                        "provinceSlug": slug,
+                        "provinceName": label,
+                        "intake": intake,
+                        "prevIntake": prev_intake,
+                        "sold": sold,
+                        "desierta": desierta,
+                        "cancelada": cancelada,
+                        "finalizadaSinResultado": finalizada,
+                        "totalConcluded": total_concluded,
+                        "soldMedianCents": vend.get("med"),
+                        "p25Cents": vend.get("p25"),
+                        "p75Cents": vend.get("p75"),
+                        "discountAppraisalMedian": vend.get("disc"),
+                        "momIntakeDeltaPct": mom,
+                        "rankByIntake": rank_map.get(key),
+                    }
+
+                    art = tpl.render_article(pack, stats)
+                    pct = int(round(sold / total_concluded * 100)) if total_concluded > 0 else None
+
+                    stats_json = {
+                        "intake": intake,
+                        "prevIntake": prev_intake,
+                        "sold": sold,
+                        "desierta": desierta,
+                        "cancelada": cancelada,
+                        "finalizadaSinResultado": finalizada,
+                        "totalConcluded": total_concluded,
+                        "pctVendidas": pct,
+                        "soldMedianCents": vend.get("med"),
+                        "p25Cents": vend.get("p25"),
+                        "p75Cents": vend.get("p75"),
+                        "discountAppraisalMedian": vend.get("disc"),
+                        "momIntakeDeltaPct": (round(mom, 1) if mom is not None else None),
+                        "rankByIntake": rank_map.get(key),
+                        "provinceName": label,
+                        "metaEs": tpl.render_meta_description(pack, stats, "es"),
+                        "metaEn": tpl.render_meta_description(pack, stats, "en"),
+                    }
+
+                    cursor.execute(
+                        """
+                        INSERT INTO "NoticiaMonthly"
+                          (id, period, province, "titleEs", "titleEn",
+                           "proseEs", "proseEn", "statsJson", published, "generatedAt")
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+                        ON CONFLICT (period, province) DO UPDATE SET
+                          "titleEs" = EXCLUDED."titleEs",
+                          "titleEn" = EXCLUDED."titleEn",
+                          "proseEs" = EXCLUDED."proseEs",
+                          "proseEn" = EXCLUDED."proseEn",
+                          "statsJson" = EXCLUDED."statsJson",
+                          published = EXCLUDED.published,
+                          "generatedAt" = EXCLUDED."generatedAt"
+                        """,
+                        (
+                            "nm_" + uuid.uuid4().hex, target, slug,
+                            art["titleEs"], art["titleEn"],
+                            art["proseEs"], art["proseEn"],
+                            json.dumps(stats_json, ensure_ascii=False),
+                            published, now,
+                        ),
+                    )
+                    # Commit per-province so one province's failure + rollback
+                    # discards ONLY its own statement, never the rows already
+                    # written this run (all UPSERTs share one transaction).
+                    conn.commit()
+                    generated += 1
+                    if not published:
+                        skipped_zero += 1
+                except Exception as e:
+                    errors += 1
+                    self.log(f"  Noticias error for province '{key}': {e}")
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+
+            cursor.close(); conn.close()
+            self.log(
+                f"  Noticias generation complete for {target}: "
+                f"generated={generated} unpublished_thin={skipped_zero} errors={errors}"
+            )
+        except Exception as e:
+            self.log(f"  Error in generate_monthly_noticias: {e}")
+            import traceback
+            self.log(traceback.format_exc())
+
     def run_daily_update_and_alerts(self):
         self.run_daily_update_scraper()
         self.trigger_alert_check()
@@ -1655,6 +1922,14 @@ class ScraperScheduler:
         # period x basis x geo x category x outcome). Idempotent full replace.
         schedule.every().day.at("06:15").do(self.trigger_registro_recompute)
 
+        # Monthly per-province noticias (Forge 2026-07-20) — daily at 06:35,
+        # AFTER the 06:15 registro recompute so the month's AuctionOutcomeStats
+        # are fresh (single-threaded scheduler => strict ordering). Self-gated:
+        # it only writes when the most-recent COMPLETE month has no rows yet, so
+        # in normal operation it fires ~once/month (on the 1st) and is a cheap
+        # no-op every other day. Idempotent UPSERT; deterministic; no LLM.
+        schedule.every().day.at("06:35").do(self.generate_monthly_noticias)
+
         # Wave 2b: dispatcher drain — every DISPATCH_INTERVAL_MIN minutes
         schedule.every(DISPATCH_INTERVAL_MIN).minutes.do(self.dispatch_outbox)
 
@@ -1737,6 +2012,12 @@ def main():
                         help='Run one post-close sale-result re-scrape pass and exit')
     parser.add_argument('--sale-result-limit', type=int, default=500,
                         help='Cap rows for --recheck-sale-results-once (default 500)')
+    parser.add_argument('--noticias-once', action='store_true',
+                        help='Generate the monthly per-province noticias once and exit')
+    parser.add_argument('--noticias-period', type=str, default='',
+                        help="Target month 'YYYY-MM' for --noticias-once (default: last complete month)")
+    parser.add_argument('--noticias-force', action='store_true',
+                        help='Regenerate even if the target month already has rows (UPSERT correction)')
 
     args = parser.parse_args()
     scheduler = ScraperScheduler()
@@ -1768,6 +2049,10 @@ def main():
     elif args.recheck_sale_results_once:
         scheduler.log("Running post-close sale-result re-scrape once...")
         scheduler.recheck_sale_results(limit=args.sale_result_limit)
+    elif args.noticias_once:
+        scheduler.log("Generating monthly per-province noticias once...")
+        scheduler.generate_monthly_noticias(
+            period=(args.noticias_period or None), force=args.noticias_force)
     else:
         scheduler.run()
 

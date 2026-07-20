@@ -1,0 +1,326 @@
+{
+  "_pack": "dnksubastas Noticias — monthly per-province recap prose template pack",
+  "_version": "1.0.0",
+  "_author": "SAGA (Dennis's voice)",
+  "_date": "2026-07-20",
+  "_consumed_by": "scheduler.py -> generate_monthly_noticias() -> phrase-variety templater",
+
+  "_how_to_use": [
+    "One article = TITLE + META + [opening] + [outcome] + [price] + [rank] + [closing]. Insert [low_activity] instead of outcome+price+rank when the low_activity gate fires.",
+    "Each slot is a dict of CONDITION -> list of interchangeable variants. Evaluate the condition, then pick a variant from that list deterministically.",
+    "Deterministic pick: idx = seeded_hash(province_slug + period + slot_name) % len(variants). Use a DIFFERENT slot_name per slot so the same province doesn't land on the same array index in every slot (which would read patterned).",
+    "Variants are written to compose in ANY combination and read natural regardless of order-neighbours. No variant assumes what the previous sentence said.",
+    "es and en arrays are index-parallel in COUNT only, NOT in meaning — pick each language independently by its own seed; do not force the same index across languages."
+  ],
+
+  "_placeholders": {
+    "_note": "Python fills these PRE-FORMATTED strings/numbers. Keys map to statsJson + derived values.",
+    "{provincia}": "provinceName (e.g. 'Valencia')",
+    "{mes}": "monthName localized ('junio' / 'June')",
+    "{año}": "year (2026)",
+    "{mes_anterior}": "previous month name localized ('mayo' / 'May') — only used in opening.up/down/flat",
+    "{nuevas}": "intake (int). PLURALIZATION: when intake==1 Python must swap the noun to singular ('nueva subasta'/'new auction'). Templates below assume plural; see _pluralization.",
+    "{concluidas}": "totalConcluded (int)",
+    "{vendidas}": "sold (int)",
+    "{desiertas}": "desierta (int)",
+    "{pct_vendidas}": "round(sold/totalConcluded*100) — Python computes; omit slot if totalConcluded==0",
+    "{precio_mediano}": "format_eur(soldMedianCents) -> '12.500 €' (es) / '€12,500' (en). Honest label = median HAMMER/adjudication price over sold lots.",
+    "{p25}": "format_eur(p25Cents)",
+    "{p75}": "format_eur(p75Cents)",
+    "{descuento}": "abs(discountAppraisalMedian) as integer percent (e.g. 34) — framed 'por debajo de la tasación'",
+    "{mom_pct}": "abs(round(momIntakeDeltaPct)) integer percent — only in opening.up/down",
+    "{rank}": "rankByIntake (int, national rank by intake, 1 = most active)"
+  },
+
+  "_pluralization": {
+    "es": {"1": {"nuevas": "nueva subasta", "vendidas": "adjudicada", "desiertas": "desierta", "concluidas": "subasta concluida"}},
+    "en": {"1": {"nuevas": "new auction", "vendidas": "sold", "desiertas": "declared void", "concluidas": "auction concluded"}},
+    "_rule": "When a count == 1, prefer variants that read fine in singular, or let Python substitute the singular noun. Most variants below phrase the noun once, right after its number, to make substitution trivial."
+  },
+
+  "_conditions": {
+    "opening": "no_prior (momIntakeDeltaPct is null) | up (momIntakeDeltaPct >= +5) | down (<= -5) | flat (between -5 and +5)",
+    "outcome": "zero_concluded (totalConcluded==0 -> DON'T use this slot, low_activity covers it) | all_sold (desierta==0 and sold>0) | all_desierta (sold==0 and desierta>0) | normal (both >0)",
+    "price": "normal (sold >= 5 and soldMedianCents not null) | suppressed (sold < 5 or soldMedianCents null)",
+    "rank": "top3 (rankByIntake <= 3) | top10 (4..10) | neutral (> 10)",
+    "low_activity": "USE INSTEAD of outcome+price+rank when intake < 3 AND totalConcluded < 3. (Ceuta/Melilla and dead months land here.)"
+  },
+
+  "es": {
+    "title": [
+      "Subastas en {provincia}: balance de {mes} de {año}",
+      "{provincia}: las subastas judiciales de {mes} de {año}",
+      "Subastas judiciales en {provincia} — {mes} de {año}",
+      "El mes de las subastas en {provincia}: {mes} de {año}",
+      "{provincia} en {mes} de {año}: nuevas subastas y adjudicaciones",
+      "Informe de subastas de {provincia} — {mes} de {año}",
+      "Cómo fue {mes} para las subastas en {provincia}",
+      "Subastas en {provincia}, {mes} {año}: los números del mes"
+    ],
+
+    "meta_description": [
+      "{nuevas} nuevas subastas y {vendidas} adjudicaciones en {provincia} durante {mes} de {año}. Precio mediano, descuento sobre tasación y comparativa con el mes anterior.",
+      "Resumen de las subastas judiciales de {provincia} en {mes} de {año}: cuántas entraron, cuántas se adjudicaron y a qué precios.",
+      "El balance de subastas en {provincia} en {mes} de {año}, con cifras de entrada, adjudicaciones y descuento medio sobre la tasación.",
+      "{provincia}, {mes} de {año}: {nuevas} subastas nuevas, {vendidas} adjudicadas y el precio mediano del mes. Datos, no titulares.",
+      "Todas las cifras de las subastas de {provincia} en {mes} de {año}: entrada, resultado y precios, mes a mes.",
+      "Qué pasó con las subastas judiciales en {provincia} en {mes} de {año}. Números claros, sin adornos."
+    ],
+
+    "opening": {
+      "no_prior": [
+        "En {mes} de {año}, {provincia} sumó {nuevas} nuevas subastas a los juzgados de la provincia. Vamos a ver cómo se saldó el mes.",
+        "Arrancamos el registro de {provincia} con {mes} de {año}: {nuevas} subastas entraron nuevas este mes. Estas son las cifras.",
+        "{provincia} registró {nuevas} nuevas subastas en {mes} de {año}. Sin mes anterior con el que comparar todavía, así que empezamos por el dato en bruto.",
+        "Durante {mes} de {año} llegaron {nuevas} nuevas subastas a la provincia de {provincia}. Te contamos cómo terminó el mes.",
+        "En {mes} de {año}, la provincia de {provincia} incorporó {nuevas} subastas nuevas. Aquí tienes el resumen del mes."
+      ],
+      "up": [
+        "En {mes} de {año}, {provincia} registró {nuevas} nuevas subastas, un {mom_pct}% más que en {mes_anterior}. El mes vino con más movimiento.",
+        "{provincia} subió el ritmo en {mes} de {año}: {nuevas} subastas nuevas, un {mom_pct}% por encima de {mes_anterior}.",
+        "Durante {mes} de {año} entraron {nuevas} nuevas subastas en {provincia}, {mom_pct}% más que el mes anterior. Se nota el repunte.",
+        "El mes de {mes} de {año} trajo más faena a {provincia}: {nuevas} nuevas subastas, un {mom_pct}% más que en {mes_anterior}.",
+        "En {provincia}, {mes} de {año} cerró con {nuevas} nuevas subastas, un {mom_pct}% arriba respecto a {mes_anterior}.",
+        "{nuevas} nuevas subastas entraron en {provincia} en {mes} de {año}: un {mom_pct}% más que en {mes_anterior}, así que el mes vino cargado."
+      ],
+      "down": [
+        "En {mes} de {año}, {provincia} sumó {nuevas} nuevas subastas, un {mom_pct}% menos que en {mes_anterior}. Un mes algo más tranquilo.",
+        "{provincia} bajó el ritmo en {mes} de {año}: {nuevas} subastas nuevas, un {mom_pct}% por debajo de {mes_anterior}.",
+        "Durante {mes} de {año} llegaron {nuevas} nuevas subastas a {provincia}, {mom_pct}% menos que el mes anterior.",
+        "En {provincia}, {mes} de {año} entró más flojo: {nuevas} nuevas subastas, un {mom_pct}% menos que en {mes_anterior}.",
+        "El mes de {mes} de {año} fue más calmado en {provincia}, con {nuevas} nuevas subastas, un {mom_pct}% por debajo de {mes_anterior}.",
+        "{nuevas} nuevas subastas en {provincia} durante {mes} de {año}, un {mom_pct}% menos que en {mes_anterior}."
+      ],
+      "flat": [
+        "En {mes} de {año}, {provincia} registró {nuevas} nuevas subastas, prácticamente lo mismo que en {mes_anterior}. Un mes estable.",
+        "{provincia} se mantuvo estable en {mes} de {año}: {nuevas} subastas nuevas, en línea con {mes_anterior}.",
+        "Durante {mes} de {año} entraron {nuevas} nuevas subastas en {provincia}, una cifra muy parecida a la de {mes_anterior}.",
+        "El ritmo de {provincia} apenas se movió en {mes} de {año}: {nuevas} nuevas subastas, casi lo mismo que el mes anterior.",
+        "En {provincia}, {mes} de {año} cerró con {nuevas} nuevas subastas, sin apenas cambios frente a {mes_anterior}."
+      ]
+    },
+
+    "outcome": {
+      "normal": [
+        "De las {concluidas} subastas que se resolvieron en el mes, {vendidas} acabaron adjudicadas y {desiertas} quedaron desiertas ({pct_vendidas}% de adjudicación).",
+        "El mes cerró {concluidas} subastas: {vendidas} con adjudicación y {desiertas} desiertas, es decir, un {pct_vendidas}% se resolvió con comprador.",
+        "Se resolvieron {concluidas} subastas en total. {vendidas} encontraron adjudicatario y {desiertas} se declararon desiertas, un {pct_vendidas}% de adjudicaciones.",
+        "De {concluidas} subastas concluidas, {vendidas} se adjudicaron y {desiertas} quedaron sin postor. Eso deja la tasa de adjudicación en el {pct_vendidas}%.",
+        "En cuanto a resultados, de {concluidas} subastas resueltas {vendidas} salieron adjudicadas ({pct_vendidas}%) y {desiertas} se quedaron desiertas.",
+        "El balance del mes: {concluidas} subastas concluidas, {vendidas} adjudicadas y {desiertas} desiertas ({pct_vendidas}% de adjudicación)."
+      ],
+      "all_sold": [
+        "De las {concluidas} subastas que se resolvieron, todas encontraron adjudicatario: ninguna quedó desierta este mes.",
+        "Mes redondo en el resultado: las {concluidas} subastas concluidas se adjudicaron todas, sin ninguna desierta.",
+        "Las {concluidas} subastas resueltas en el mes acabaron adjudicadas al completo, un 100% de adjudicación.",
+        "Ninguna subasta quedó desierta en el mes: las {concluidas} que se resolvieron encontraron comprador.",
+        "De {concluidas} subastas concluidas, {vendidas} se adjudicaron y ninguna quedó desierta."
+      ],
+      "all_desierta": [
+        "De las {concluidas} subastas que se resolvieron, ninguna encontró adjudicatario: todas quedaron desiertas este mes.",
+        "Mes flojo en el resultado: las {concluidas} subastas concluidas quedaron desiertas, sin adjudicaciones.",
+        "Las {concluidas} subastas resueltas en el mes acabaron desiertas, sin ningún postor.",
+        "Ninguna de las {concluidas} subastas concluidas encontró comprador: el mes se saldó con todo desierto.",
+        "De {concluidas} subastas concluidas, {desiertas} quedaron desiertas y ninguna llegó a adjudicarse."
+      ]
+    },
+
+    "price": {
+      "normal": [
+        "El precio mediano de adjudicación se situó en {precio_mediano}, un {descuento}% por debajo de la tasación.",
+        "Las adjudicaciones dejaron un precio mediano de {precio_mediano}, es decir, un {descuento}% por debajo del valor de tasación.",
+        "En precios, la mediana de las adjudicaciones fue de {precio_mediano} ({descuento}% por debajo de la tasación).",
+        "El importe mediano al que se adjudicaron los lotes fue de {precio_mediano}, con un descuento del {descuento}% sobre la tasación.",
+        "La mitad de las adjudicaciones se cerró por encima de {precio_mediano} y la otra mitad por debajo, un {descuento}% por debajo de la tasación de partida.",
+        "Precio mediano de adjudicación: {precio_mediano}, un {descuento}% por debajo de la tasación. El grueso de los lotes se movió entre {p25} y {p75}."
+      ],
+      "suppressed": [
+        "Con tan pocas adjudicaciones en el mes, no publicamos un precio mediano para {provincia}: la muestra es demasiado pequeña para ser representativa.",
+        "El número de adjudicaciones fue muy bajo, así que preferimos no dar un precio mediano que despiste más que informe.",
+        "No hay adjudicaciones suficientes este mes para calcular un precio mediano fiable en {provincia}.",
+        "La muestra de adjudicaciones es demasiado corta como para publicar un precio mediano representativo del mes.",
+        "Con esta cifra de adjudicaciones, cualquier precio mediano sería poco fiable, así que este mes lo dejamos fuera."
+      ]
+    },
+
+    "rank": {
+      "top3": [
+        "Con estas cifras, {provincia} fue una de las tres provincias más activas del país en entrada de subastas durante el mes.",
+        "Ese volumen coloca a {provincia} entre las tres provincias con más subastas nuevas de toda España en {mes}.",
+        "{provincia} se situó en el número {rank} del país por subastas nuevas, uno de los mercados más activos del mes.",
+        "En el ranking nacional, {provincia} fue la número {rank} por entrada de subastas: de las más movidas del mes."
+      ],
+      "top10": [
+        "Ese volumen sitúa a {provincia} entre las diez provincias con más subastas nuevas del país en {mes}.",
+        "{provincia} se coló en el número {rank} del ranking nacional por entrada de subastas este mes.",
+        "En el conjunto de España, {provincia} ocupó el puesto {rank} por subastas nuevas, en la parte alta de la tabla.",
+        "Con esta entrada, {provincia} fue la número {rank} del país en subastas nuevas durante el mes."
+      ],
+      "neutral": [
+        "",
+        "En el conjunto nacional, {provincia} se movió en cifras acordes a su tamaño este mes.",
+        "Nada fuera de lo esperado para una provincia como {provincia} en volumen de subastas.",
+        "El volumen del mes encaja con lo habitual en {provincia}."
+      ]
+    },
+
+    "low_activity": [
+      "{mes} de {año} fue un mes de actividad reducida en {provincia}: apenas {nuevas} nuevas subastas y muy pocos lotes resueltos, así que hay poco que destacar en cifras.",
+      "Mes tranquilo en {provincia}. Con {nuevas} nuevas subastas y un puñado de lotes concluidos, {mes} de {año} deja poco margen para sacar conclusiones.",
+      "En {provincia}, {mes} de {año} pasó casi sin movimiento: {nuevas} nuevas subastas y una actividad demasiado baja para hablar de tendencias.",
+      "Poca cosa en {provincia} durante {mes} de {año}: {nuevas} nuevas subastas y apenas resoluciones. Un mes para archivar sin grandes titulares.",
+      "{provincia} tuvo un {mes} de {año} de baja actividad, con {nuevas} nuevas subastas. Con estos números, cualquier media o porcentaje diría poco.",
+      "Mes flojo en {provincia}. {mes} de {año} sumó {nuevas} nuevas subastas y muy pocos lotes resueltos; volvemos el mes que viene con más datos."
+    ],
+
+    "closing": [
+      "Puedes consultar todas las subastas de {provincia} y filtrar por tipo de bien, precio o municipio en el buscador.",
+      "Si quieres ver las subastas activas de {provincia} ahora mismo, están todas en el buscador, actualizadas cada día.",
+      "Revisa una a una las subastas de {provincia} y sus resultados en las fichas de cada lote.",
+      "Todos estos datos salen del registro de subastas de {provincia}, que actualizamos a diario. Échale un vistazo cuando quieras.",
+      "¿Buscas algo concreto en {provincia}? Filtra por municipio, tipo de bien o rango de precio y ve directo al grano.",
+      "Volvemos el mes que viene con el balance de {provincia}. Mientras tanto, las subastas activas están en el buscador.",
+      "Puedes seguir mes a mes cómo evoluciona el mercado de subastas de {provincia} en esta misma sección.",
+      "Consulta el detalle de cada subasta de {provincia} y compara precios y tasaciones directamente en las fichas."
+    ]
+  },
+
+  "en": {
+    "title": [
+      "Auctions in {provincia}: {mes} {año} in review",
+      "{provincia}: the judicial auctions of {mes} {año}",
+      "Judicial auctions in {provincia} — {mes} {año}",
+      "{provincia} in {mes} {año}: new auctions and awards",
+      "{provincia} auction report — {mes} {año}",
+      "How {mes} went for auctions in {provincia}",
+      "Auctions in {provincia}, {mes} {año}: the month by the numbers",
+      "The {mes} {año} auction round in {provincia}"
+    ],
+
+    "meta_description": [
+      "{nuevas} new auctions and {vendidas} awards in {provincia} during {mes} {año}. Median price, discount to appraisal and how it compares with last month.",
+      "A round-up of the judicial auctions in {provincia} for {mes} {año}: how many came in, how many were awarded and at what prices.",
+      "The {provincia} auction balance for {mes} {año}, with intake, awards and the average discount to appraisal.",
+      "{provincia}, {mes} {año}: {nuevas} new auctions, {vendidas} awarded and the month's median price. Data, not headlines.",
+      "Every figure from {provincia}'s auctions in {mes} {año}: intake, outcome and prices, month by month.",
+      "What happened with judicial auctions in {provincia} in {mes} {año}. Clear numbers, no spin."
+    ],
+
+    "opening": {
+      "no_prior": [
+        "In {mes} {año}, {provincia} added {nuevas} new auctions to the province's courts. Let's see how the month played out.",
+        "We kick off the {provincia} record with {mes} {año}: {nuevas} new auctions came in this month. Here are the numbers.",
+        "{provincia} logged {nuevas} new auctions in {mes} {año}. There's no prior month to compare against yet, so we start with the raw figure.",
+        "During {mes} {año}, {nuevas} new auctions arrived in {provincia}. Here's how the month closed.",
+        "In {mes} {año}, the province of {provincia} took in {nuevas} new auctions. Here's the monthly round-up."
+      ],
+      "up": [
+        "In {mes} {año}, {provincia} logged {nuevas} new auctions, {mom_pct}% more than in {mes_anterior}. A busier month all round.",
+        "{provincia} picked up the pace in {mes} {año}: {nuevas} new auctions, {mom_pct}% above {mes_anterior}.",
+        "During {mes} {año}, {nuevas} new auctions came into {provincia}, {mom_pct}% more than the month before. The uptick shows.",
+        "{mes} {año} brought more work to {provincia}: {nuevas} new auctions, {mom_pct}% up on {mes_anterior}.",
+        "In {provincia}, {mes} {año} closed with {nuevas} new auctions, {mom_pct}% above {mes_anterior}.",
+        "{nuevas} new auctions came into {provincia} in {mes} {año}: {mom_pct}% more than in {mes_anterior}, so it was a full month."
+      ],
+      "down": [
+        "In {mes} {año}, {provincia} added {nuevas} new auctions, {mom_pct}% fewer than in {mes_anterior}. A quieter month.",
+        "{provincia} eased off in {mes} {año}: {nuevas} new auctions, {mom_pct}% below {mes_anterior}.",
+        "During {mes} {año}, {nuevas} new auctions arrived in {provincia}, {mom_pct}% fewer than the month before.",
+        "In {provincia}, {mes} {año} came in lighter: {nuevas} new auctions, {mom_pct}% down on {mes_anterior}.",
+        "{mes} {año} was calmer in {provincia}, with {nuevas} new auctions, {mom_pct}% below {mes_anterior}.",
+        "{nuevas} new auctions in {provincia} during {mes} {año}, {mom_pct}% fewer than in {mes_anterior}."
+      ],
+      "flat": [
+        "In {mes} {año}, {provincia} logged {nuevas} new auctions, much the same as in {mes_anterior}. A steady month.",
+        "{provincia} held steady in {mes} {año}: {nuevas} new auctions, in line with {mes_anterior}.",
+        "During {mes} {año}, {nuevas} new auctions came into {provincia}, a figure very close to {mes_anterior}.",
+        "The pace in {provincia} barely moved in {mes} {año}: {nuevas} new auctions, almost the same as the month before.",
+        "In {provincia}, {mes} {año} closed with {nuevas} new auctions, little changed from {mes_anterior}."
+      ]
+    },
+
+    "outcome": {
+      "normal": [
+        "Of the {concluidas} auctions concluded during the month, {vendidas} were awarded and {desiertas} went unsold ({pct_vendidas}% award rate).",
+        "The month closed {concluidas} auctions: {vendidas} awarded and {desiertas} unsold, meaning {pct_vendidas}% found a buyer.",
+        "{concluidas} auctions were concluded in total. {vendidas} found a buyer and {desiertas} were declared void, a {pct_vendidas}% award rate.",
+        "Of {concluidas} concluded auctions, {vendidas} were awarded and {desiertas} drew no bidder. That puts the award rate at {pct_vendidas}%.",
+        "On outcomes, of {concluidas} auctions resolved {vendidas} were awarded ({pct_vendidas}%) and {desiertas} went unsold.",
+        "The month's tally: {concluidas} auctions concluded, {vendidas} awarded and {desiertas} unsold ({pct_vendidas}% award rate)."
+      ],
+      "all_sold": [
+        "Of the {concluidas} auctions concluded, every one found a buyer: none went unsold this month.",
+        "A clean month on outcomes: all {concluidas} concluded auctions were awarded, none void.",
+        "The {concluidas} auctions resolved this month were awarded in full, a 100% award rate.",
+        "No auction went unsold this month: all {concluidas} that concluded found a buyer.",
+        "Of {concluidas} concluded auctions, {vendidas} were awarded and none went unsold."
+      ],
+      "all_desierta": [
+        "Of the {concluidas} auctions concluded, none found a buyer: all went unsold this month.",
+        "A weak month on outcomes: the {concluidas} concluded auctions all went unsold, with no awards.",
+        "The {concluidas} auctions resolved this month all went void, with no bidders.",
+        "None of the {concluidas} concluded auctions found a buyer: the month closed entirely unsold.",
+        "Of {concluidas} concluded auctions, {desiertas} went unsold and none were awarded."
+      ]
+    },
+
+    "price": {
+      "normal": [
+        "The median award price came in at {precio_mediano}, {descuento}% below appraisal.",
+        "Awards left a median price of {precio_mediano}, that is, {descuento}% below the appraised value.",
+        "On prices, the median award was {precio_mediano} ({descuento}% below appraisal).",
+        "The median amount lots were awarded for was {precio_mediano}, a {descuento}% discount to appraisal.",
+        "Half of the awards closed above {precio_mediano} and half below, {descuento}% under the starting appraisal.",
+        "Median award price: {precio_mediano}, {descuento}% below appraisal. Most lots landed between {p25} and {p75}."
+      ],
+      "suppressed": [
+        "With so few awards this month, we're not publishing a median price for {provincia}: the sample is too small to be representative.",
+        "The number of awards was very low, so we'd rather not give a median price that misleads more than it informs.",
+        "There aren't enough awards this month to compute a reliable median price for {provincia}.",
+        "The award sample is too thin to publish a median price that fairly represents the month.",
+        "At this number of awards, any median price would be unreliable, so we're leaving it out this month."
+      ]
+    },
+
+    "rank": {
+      "top3": [
+        "On these figures, {provincia} was one of the three most active provinces in the country for auction intake this month.",
+        "That volume puts {provincia} among the top three provinces in Spain for new auctions in {mes}.",
+        "{provincia} ranked number {rank} nationally for new auctions, one of the busiest markets of the month.",
+        "In the national ranking, {provincia} came in at number {rank} for auction intake: among the busiest of the month."
+      ],
+      "top10": [
+        "That volume puts {provincia} among the ten provinces with the most new auctions in the country in {mes}.",
+        "{provincia} landed at number {rank} in the national ranking for auction intake this month.",
+        "Across Spain, {provincia} sat at number {rank} for new auctions, up in the top end of the table.",
+        "On this intake, {provincia} was number {rank} in the country for new auctions during the month."
+      ],
+      "neutral": [
+        "",
+        "Nationally, {provincia} moved in figures in keeping with its size this month.",
+        "Nothing out of the ordinary for a province like {provincia} in auction volume.",
+        "The month's volume is about what you'd expect for {provincia}."
+      ]
+    },
+
+    "low_activity": [
+      "{mes} {año} was a quiet month in {provincia}: just {nuevas} new auctions and very few lots resolved, so there's little to flag in the numbers.",
+      "A slow month in {provincia}. With {nuevas} new auctions and a handful of lots concluded, {mes} {año} leaves little room for conclusions.",
+      "In {provincia}, {mes} {año} passed with barely any movement: {nuevas} new auctions and activity too low to talk about trends.",
+      "Not much to report in {provincia} during {mes} {año}: {nuevas} new auctions and few resolutions. One to file away without headlines.",
+      "{provincia} had a low-activity {mes} {año}, with {nuevas} new auctions. At these numbers, any average or percentage would say little.",
+      "A thin month in {provincia}. {mes} {año} logged {nuevas} new auctions and very few resolved lots; we'll be back next month with more data."
+    ],
+
+    "closing": [
+      "You can browse every auction in {provincia} and filter by asset type, price or municipality in the search.",
+      "Want to see the live auctions in {provincia} right now? They're all in the search, updated daily.",
+      "Go through {provincia}'s auctions one by one, with their outcomes, on each lot's page.",
+      "All of this comes from the {provincia} auction record, which we update daily. Take a look whenever you like.",
+      "Looking for something specific in {provincia}? Filter by municipality, asset type or price range and get straight to it.",
+      "We'll be back next month with the {provincia} round-up. In the meantime, the live auctions are in the search.",
+      "You can follow how the {provincia} auction market moves month by month right here in this section.",
+      "Check the detail of each {provincia} auction and compare prices against appraisals directly on the lot pages."
+    ]
+  }
+}

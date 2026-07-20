@@ -12,12 +12,14 @@
  * missing en = 404 + omit — no thin duplicates).
  */
 import type { Metadata } from "next";
+import Link from "next/link";
 import { getLocale } from "next-intl/server";
 import type { Locale } from "@/i18n/routing";
 import { buildAlternates, ogLocale } from "@/lib/seo/alternates";
 import { listNoticias, formatNoticiaDate } from "@/lib/noticias";
 import { resolveArticleCoverImage } from "@/lib/article-cover";
 import { ArticleCard } from "@/components/blog/ArticleCard";
+import { listLatestEditions, periodLabel } from "@/lib/noticias-monthly";
 
 const SITE = "https://subastasactivas.com";
 
@@ -68,9 +70,24 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function NoticiasIndexPage() {
   const locale = (await getLocale()) as Locale;
+  const shortLoc: "es" | "en" = locale === "en" ? "en" : "es";
   const c = COPY[locale];
   const noticias = listNoticias(locale);
   const prefix = locale === "en" ? "/en" : "";
+
+  // DB-backed monthly per-province editions (latest month). Empty until the
+  // first generation runs — the section is omitted when there are none.
+  const monthlyEditions = await listLatestEditions(shortLoc, 60);
+  const monthlyCopy =
+    locale === "en"
+      ? {
+          heading: "Monthly reports",
+          intro: "Auction figures by province, refreshed every month.",
+        }
+      : {
+          heading: "Informes mensuales",
+          intro: "Las cifras de subastas por provincia, actualizadas cada mes.",
+        };
 
   const [featured, ...rest] = noticias;
 
@@ -137,6 +154,37 @@ export default async function NoticiasIndexPage() {
             ) : null}
           </div>
         )}
+
+        {/* Informes mensuales — DB-backed monthly per-province editions. */}
+        {monthlyEditions.length > 0 ? (
+          <section className="mt-14 border-t border-[var(--color-hairline-soft)] pt-10">
+            <div className="mb-6 max-w-2xl">
+              <h2 className="font-display text-2xl font-semibold tracking-tight text-[var(--color-ink-primary)]">
+                {monthlyCopy.heading}
+              </h2>
+              <p className="mt-2 text-sm text-[var(--color-ink-secondary)]">
+                {monthlyCopy.intro} · {periodLabel(monthlyEditions[0].period, shortLoc)}
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {monthlyEditions.map((e) => (
+                <Link
+                  key={`${e.province}-${e.period}`}
+                  href={`${prefix}/noticias/${e.province}/${e.period}`}
+                  className="block rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] p-4 transition-colors hover:border-[var(--color-action)]"
+                >
+                  <span className="block text-sm font-medium text-[var(--color-ink-primary)]">
+                    {e.title}
+                  </span>
+                  <span className="mt-1 block text-xs text-[var(--color-ink-quiet)]">
+                    {e.intake}{" "}
+                    {locale === "en" ? "new auctions" : "nuevas subastas"}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
       </main>
     </div>
   );
