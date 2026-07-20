@@ -52,6 +52,8 @@ export interface NoticiaEditionRef {
   province: string;
   title: string; // locale-resolved
   intake: number;
+  sold: number;
+  soldMedianCents: number | null;
   published: boolean;
 }
 
@@ -116,13 +118,18 @@ export async function listProvinceEditions(
     orderBy: { period: 'desc' },
     select: { period: true, province: true, titleEs: true, titleEn: true, statsJson: true },
   });
-  return rows.map((r) => ({
-    period: r.period,
-    province: r.province,
-    title: locale === 'en' ? r.titleEn : r.titleEs,
-    intake: (r.statsJson as unknown as NoticiaStats)?.intake ?? 0,
-    published: true,
-  }));
+  return rows.map((r) => {
+    const s = r.statsJson as unknown as NoticiaStats;
+    return {
+      period: r.period,
+      province: r.province,
+      title: locale === 'en' ? r.titleEn : r.titleEs,
+      intake: s?.intake ?? 0,
+      sold: s?.sold ?? 0,
+      soldMedianCents: s?.soldMedianCents ?? null,
+      published: true,
+    };
+  });
 }
 
 /** The latest edition per province (newest month overall), for the hub. */
@@ -145,13 +152,18 @@ export async function listLatestEditions(
     select: { period: true, province: true, titleEs: true, titleEn: true, statsJson: true },
   });
   return rows
-    .map((r) => ({
-      period: r.period,
-      province: r.province,
-      title: locale === 'en' ? r.titleEn : r.titleEs,
-      intake: (r.statsJson as unknown as NoticiaStats)?.intake ?? 0,
-      published: true,
-    }))
+    .map((r) => {
+      const s = r.statsJson as unknown as NoticiaStats;
+      return {
+        period: r.period,
+        province: r.province,
+        title: locale === 'en' ? r.titleEn : r.titleEs,
+        intake: s?.intake ?? 0,
+        sold: s?.sold ?? 0,
+        soldMedianCents: s?.soldMedianCents ?? null,
+        published: true,
+      };
+    })
     .sort((a, b) => b.intake - a.intake);
 }
 
