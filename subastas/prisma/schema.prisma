@@ -846,3 +846,49 @@ model AuctionOutcomeStats {
   @@index([province, municipality])
   @@index([outcome])
 }
+
+// ---------------------------------------------------------------------------
+// NoticiaMonthly — auto-generated monthly per-province recap ARTICLE (Forge,
+// 2026-07-20). One row per province × month; the Python scheduler job
+// generate_monthly_noticias() UPSERTs it on the [period, province] key after
+// the nightly AuctionOutcomeStats recompute. "Publish" = the row exists —
+// Next renders it dynamically (ISR), so a new month surfaces with NO redeploy.
+//
+// News semantics: statsJson is an IMMUTABLE SNAPSHOT of the numbers at
+// generation time — a June article never changes if the registry is re-scraped
+// later. The scheduled gate only writes months that have NO rows yet, so normal
+// operation is generate-once; the UPSERT exists for safe re-runs / manual
+// --noticias-once corrections. Bilingual in one row (es + en) to halve row
+// count and keep the pair atomic (~52 rows/month, growing).
+//
+// Additive, standalone table, no FK (mirrors AuctionOutcomeStats). Ken runs the
+// migration (with the wave127 idle-in-transaction pre-check).
+// ---------------------------------------------------------------------------
+model NoticiaMonthly {
+  id       String @id @default(cuid())
+  period   String // "YYYY-MM" — the reported (closed) month
+  province String // canonical province slug — matches src/lib/seo/slugs.ts PROVINCE_SLUGS
+
+  // Bilingual copy in one row (es primary + en). Rendered verbatim.
+  titleEs String
+  titleEn String
+  proseEs String @db.Text
+  proseEn String @db.Text
+
+  // Immutable snapshot of the numbers the copy + charts were built from. UI
+  // renders charts from this single-row read — no cross-table join at request
+  // time (the request-path-reads-only-indexed rule). Shape is defined by the
+  // Python job + mirrored in src/lib/noticias-monthly.ts (NoticiaStats).
+  statsJson Json
+
+  // Thin-content guard: false when intake == 0 AND every concluded bucket == 0
+  // (a dead province-month) so Google is never fed an empty page. The route
+  // 404s / noindexes unpublished rows. Most province-months are true.
+  published   Boolean  @default(true)
+  generatedAt DateTime @default(now())
+
+  @@unique([period, province])
+  @@index([province, period])
+  @@index([period])
+  @@index([published, period])
+}

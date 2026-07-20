@@ -322,5 +322,36 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
     }
   }
 
+  // --- DB-backed monthly per-province recap articles (NoticiaMonthly) ---
+  // Province-index (one per province with editions) + each PUBLISHED month, both
+  // locales. Single-sourced through the same aggregation child; grows ~52/month
+  // but stays well under CHILD_SITEMAP_SIZE. Non-fatal if the table isn't
+  // migrated yet (mirrors the guides block above).
+  try {
+    const monthly = await prisma.noticiaMonthly.findMany({
+      where: { published: true },
+      select: { province: true, period: true, generatedAt: true },
+      orderBy: [{ province: 'asc' }, { period: 'desc' }],
+    });
+    const seenProvince = new Set<string>();
+    for (const r of monthly) {
+      // Province index (emit once per province, on its newest edition).
+      if (!seenProvince.has(r.province)) {
+        seenProvince.add(r.province);
+        entries.push(
+          { url: `${SITE}/noticias/${r.province}`, lastModified: r.generatedAt ?? now, changeFrequency: 'monthly', priority: 0.5 },
+          { url: `${SITE}/en/noticias/${r.province}`, lastModified: r.generatedAt ?? now, changeFrequency: 'monthly', priority: 0.4 },
+        );
+      }
+      // The monthly article (es + en).
+      entries.push(
+        { url: `${SITE}/noticias/${r.province}/${r.period}`, lastModified: r.generatedAt ?? now, changeFrequency: 'monthly', priority: 0.5 },
+        { url: `${SITE}/en/noticias/${r.province}/${r.period}`, lastModified: r.generatedAt ?? now, changeFrequency: 'monthly', priority: 0.4 },
+      );
+    }
+  } catch {
+    // NoticiaMonthly may not be migrated yet on some envs — non-fatal.
+  }
+
   return entries;
 }
