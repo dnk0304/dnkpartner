@@ -553,6 +553,13 @@ export interface AuctionAlertEmailProps {
     /** Coords for the rung-2 Google Static Maps fallback. */
     latitude?: number | null;
     longitude?: number | null;
+    /**
+     * One-click "Seguir esta subasta" (follow) URL — a signed, expiring
+     * /api/follow/confirm link minted per (recipient, auction) by the caller
+     * (see /api/alerts/check). OPTIONAL: the button renders only when present,
+     * so callers that don't mint a token (e.g. /api/alerts/test) stay safe.
+     */
+    followUrl?: string | null;
   }>;
   manageUrl: string;
 }
@@ -886,6 +893,15 @@ export function createAuctionAlertEmail({ alertName, auctions, manageUrl }: Auct
         ? `<a href="${escapeHtml(mapsUrl)}" style="color:#2563eb;text-decoration:none;font-size:13px;font-weight:600;margin-left:16px;">&#128205; Ver en Google Maps</a>`
         : '';
 
+      // One-click follow button (2026-07-25). Filled blue CTA, own line for a
+      // mobile-friendly tap target. Rendered ONLY when the caller supplied a
+      // signed followUrl — absent for /api/alerts/test and any other caller.
+      const followBtnHtml = auction.followUrl
+        ? `<div style="margin-top:12px;">
+             <a href="${escapeHtml(auction.followUrl)}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;">&#128276; Seguir esta subasta</a>
+           </div>`
+        : '';
+
       // STACKED card (Dennis override, 2026-06-14): full-width image section on
       // top, full-width text section beneath — wider text column, shorter cards.
       // Table-based, inline styles, email-client-safe (Gmail/Outlook).
@@ -906,6 +922,7 @@ export function createAuctionAlertEmail({ alertName, auctions, manageUrl }: Auct
               <div style="margin-top:12px;">
                 <a href="${escapeHtml(auction.url)}" style="color:#2563eb;text-decoration:none;font-size:13px;font-weight:600;">Ver subasta &rarr;</a>${mapsHtml}
               </div>
+              ${followBtnHtml}
             </td>
           </tr>
         </table>
@@ -930,6 +947,8 @@ export function createAuctionAlertEmail({ alertName, auctions, manageUrl }: Auct
       const dateLine = resolveAuctionDateLine(auction);
       if (dateLine) lines.push(`  ${dateLine.label}: ${dateLine.dateStr}`);
       lines.push(`  ${auction.url}`);
+      // One-click follow link — honest-NULL (omitted when no token minted).
+      if (auction.followUrl) lines.push(`  Seguir esta subasta: ${auction.followUrl}`);
       // FREE Google Maps link — honest-NULL (line omitted when no location).
       const mapsUrl = googleMapsSearchUrl(auction);
       if (mapsUrl) lines.push(`  Google Maps: ${mapsUrl}`);

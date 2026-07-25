@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { query, execute } from '@/lib/db';
 import { Resend } from 'resend';
 import { createAuctionAlertEmail } from '@/lib/email-templates';
+import { mintFollowToken } from '@/lib/follow-token';
 import { requireAdminOrCron } from '@/lib/auth-helpers';
 import { ALERTABLE_DB_STATUSES_SQL, LIVE_NOW_DB_STATUSES_SQL } from '@/lib/auction-status';
 import { resolveFreeAndPersist, type ResolverRow } from '@/lib/auction-images/resolver';
@@ -341,6 +342,17 @@ async function sendNotifications(matchesByAlert: Record<string, { alert: any; au
   const from = process.env.RESEND_FROM_EMAIL || 'SubastasActivas <alertas@subastasactivas.com>';
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_URL || 'http://localhost:3005';
 
+  // One-click "Seguir esta subasta" (2026-07-25): mint a signed, expiring HMAC
+  // token per (recipient, auction) and hand the email template a self-contained
+  // /api/follow/confirm link. The recipient is ALWAYS a registered user
+  // (Alert.userId → User, exposed here as alert.uId). Returns undefined when no
+  // signing secret is configured → the template simply omits the button.
+  const buildFollowUrl = (userId: string | null | undefined, auctionId: string): string | undefined => {
+    if (!userId) return undefined;
+    const token = mintFollowToken(userId, auctionId);
+    return token ? `${appUrl}/api/follow/confirm?token=${encodeURIComponent(token)}` : undefined;
+  };
+
   // Bug 1 (2026-06-09): resolve the best FREE image for every matched auction
   // BEFORE building the email payloads. The raw DB `imageUrl` is often null
   // (the resolver runs out-of-band), so the email previously fell straight to
@@ -406,6 +418,7 @@ async function sendNotifications(matchesByAlert: Record<string, { alert: any; au
         imageUrl: auction.imageUrl,
         latitude: auction.latitude,
         longitude: auction.longitude,
+        followUrl: buildFollowUrl(alert.uId, auction.id),
       }));
 
       const { subject, html, text } = createAuctionAlertEmail({
@@ -452,6 +465,7 @@ async function sendNotifications(matchesByAlert: Record<string, { alert: any; au
           imageUrl: auction.imageUrl,
           latitude: auction.latitude,
           longitude: auction.longitude,
+          followUrl: buildFollowUrl(alert.uId, auction.id),
         }];
 
         const { subject, html, text } = createAuctionAlertEmail({

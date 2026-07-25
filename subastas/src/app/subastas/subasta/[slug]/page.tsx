@@ -41,12 +41,18 @@ import { buildAuctionSlug, resolveAuctionIdFromSlug } from '@/lib/seo/auction-sl
 import { isLegacyRow } from '@/lib/seo/legacy-rows';
 import { isConcludedIndexable } from '@/lib/seo/concluded-indexable';
 import AuctionDetailClient from '@/app/auction/[id]/AuctionDetailClient';
+import { FollowConfirmBanner } from '@/components/auction/FollowConfirmBanner';
 import { AuctionTeaser } from '@/components/auction/AuctionTeaser';
 import { FullInfoWall } from '@/components/access/FullInfoWall';
 import { auctionMetaTitle, auctionDisplayTitle } from '@/lib/seo/display-title';
 import { buildAuctionJsonLd } from '@/lib/seo/json-ld';
 
-type PageProps = { params: Promise<{ slug: string }> };
+type PageProps = {
+  params: Promise<{ slug: string }>;
+  // `?follow=` flag set by the one-click follow confirm endpoint (optional;
+  // only present when the user arrived from an email "Seguir esta subasta" link).
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+};
 
 /**
  * Lighter loader for metadata only — slug → id → 5 fields used in metadata.
@@ -184,8 +190,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-export default async function SubastaDetailPage({ params }: PageProps) {
+export default async function SubastaDetailPage({ params, searchParams }: PageProps) {
   const { slug } = await params;
+  const sp = searchParams ? await searchParams : undefined;
+  const followFlag = typeof sp?.follow === 'string' ? sp.follow : undefined;
   const a = await loadAuctionMeta(slug);
   if (!a) notFound();
   // Legacy junk row → retire (Ken brief 2026-06-02). Middleware already
@@ -311,6 +319,7 @@ export default async function SubastaDetailPage({ params }: PageProps) {
         />
       )}
       <main className="mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8">
+        {followFlag && <FollowConfirmBanner flag={followFlag} auctionId={a.id} />}
         {isLoggedIn ? (
           // REGISTER+ → full detail client (fetches the full payload).
           <AuctionDetailClient id={a.id} />
