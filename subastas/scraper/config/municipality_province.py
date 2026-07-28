@@ -1365,6 +1365,82 @@ def court_province_hint(court_name: Optional[str]):
     return None
 
 
+# ===========================================================================
+# DETERMINISTIC COURT-TOWN -> PROVINCE (2026-07-28, structured-signal pass)
+# ---------------------------------------------------------------------------
+# Ken's read-only source breakdown of the 10,421 province-less inScope rows:
+# 99.9% BOE judicial; `courtName` present on 8,651; 7,450 carry a clean
+# "JUZGADO … - <TOWN>" suffix; only 320 DISTINCT court-towns cover all 7,450.
+#
+# A Spanish Juzgado de Primera Instancia has territorial jurisdiction over a
+# partido judicial within ONE province, and the properties it auctions sit in
+# that province. So the COURT-TOWN -> PROVINCE map is a SAFE, bounded (320-row,
+# human-reviewable) lookup — fill at PROVINCE LEVEL only. This is jurisdictional
+# mapping, NOT the fuzzy free-text address parsing that was withheld: we never
+# derive the property's municipality from the court town.
+#
+# AEAT / tax-agency "courts" (~1,194) carry no juzgado town suffix -> NULL.
+# An ambiguous court-town (name in >1 province) or one that doesn't map to a
+# real province -> NULL + flagged for review. NEVER guess.
+# ===========================================================================
+
+# The BOE court-name -> town suffix separator ("JUZGADO … - TORREVIEJA").
+_COURT_SUFFIX_RE = re.compile(r'\s[-–—]\s')
+# Trailing parenthetical / roman-ordinal noise sometimes glued to the town.
+_COURT_TOWN_TRIM_RE = re.compile(r'\s*\((?:[^)]*)\)\s*$')
+
+
+def court_town_from_name(court_name: Optional[str]):
+    """Extract the town from a "JUZGADO … - <TOWN>" courtName suffix, or None.
+
+    Returns the RAW town string (last dash-delimited segment). AEAT / tax bodies
+    and any courtName without a " - <TOWN>" suffix return None (-> NULL fill).
+    """
+    if not court_name:
+        return None
+    s = str(court_name).strip()
+    if not s:
+        return None
+    # AEAT / administrative tax bodies are not partido-judicial courts.
+    low = s.lower()
+    if 'agencia' in low and 'tributaria' in low:
+        return None
+    parts = _COURT_SUFFIX_RE.split(s)
+    if len(parts) < 2:
+        return None
+    town = _COURT_TOWN_TRIM_RE.sub('', parts[-1]).strip()
+    # A juzgado town suffix is a place name, not a number/section fragment.
+    if not town or town.isdigit() or len(town) < 3:
+        return None
+    return town
+
+
+def court_province_from_name(court_name: Optional[str]):
+    """Deterministically resolve a courtName to a PROVINCE via its town suffix.
+
+    Returns (province, town, flag):
+      flag 'ok'          -> province is a valid single province (fillable)
+      flag 'no-town'     -> no juzgado town suffix (AEAT / administrative) -> NULL
+      flag 'ambiguous'   -> town exists in >1 province -> NULL (flagged for review)
+      flag 'unmappable'  -> town not found in the gazetteer -> NULL (flagged)
+    """
+    town = court_town_from_name(court_name)
+    if not town:
+        return None, None, 'no-town'
+    # A partido-judicial head resolved through the guarded gazetteer (co-official
+    # + ambiguity aware): a single-province town -> its province.
+    p = municipality_to_province(town)
+    if p:
+        return p, town, 'ok'
+    # The suffix may itself be a bare province name ("… - BARCELONA").
+    pv = _canon_prov(town)
+    if pv:
+        return pv, town, 'ok'
+    if normalize_municipality(town) in _AMBIGUOUS_CANDIDATES:
+        return None, town, 'ambiguous'
+    return None, town, 'unmappable'
+
+
 def _ambiguous_candidates(address: Optional[str], municipality: Optional[str]):
     """
     When neither the address nor the municipality field resolved confidently,
