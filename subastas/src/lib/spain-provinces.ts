@@ -6,10 +6,17 @@
  *    via early scraper passes (real provinces only — never numbers).
  *  - present a stable, ordered set to the front-end province dropdown.
  *
- * `label` is what the UI renders. `key` is what we expect to find in
- * Auction.province (some Basque/Galician provinces appear under their
- * native spelling in the database, hence the divergence for Gipuzkoa /
- * Bizkaia). Match is case + accent-insensitive (see `isCanonicalProvince`).
+ * `label` is what the UI renders — the SPANISH (Castilian) exonym on this
+ * ES site (Dennis 2026-07-28). `key` is what we expect to find in
+ * Auction.province — the native/DB spelling, which for several provinces is
+ * the Catalan/Basque/Galician endonym (Girona, Lleida, Ourense, Gipuzkoa,
+ * Bizkaia, Illes Balears, A Coruña). Hence the label↔key divergence
+ * (e.g. label "Vizcaya" / key "Bizkaia", label "Gerona" / key "Girona").
+ * Matching is case + accent-insensitive over BOTH label and key spellings
+ * (see `ALIAS_TO_CANONICAL` / `isCanonicalProvince`), so changing a display
+ * label never breaks matching as long as the key is left untouched. Canonical
+ * URL slugs are derived from the KEY (see src/lib/seo/slugs.ts), NOT the
+ * label — pinned there so a Spanish label can't move a URL.
  *
  * Source of truth: mirrors `PROVINCES` in src/components/dashboard/ProvinceGrid.tsx.
  * If you change one, change the other.
@@ -18,7 +25,7 @@
 export type CanonicalProvince = { label: string; key: string };
 
 export const SPAIN_PROVINCES: ReadonlyArray<CanonicalProvince> = [
-  { label: 'A Coruña', key: 'A Coruña' },
+  { label: 'La Coruña', key: 'A Coruña' },
   { label: 'Álava', key: 'Álava' },
   { label: 'Albacete', key: 'Albacete' },
   { label: 'Alicante', key: 'Alicante' },
@@ -36,23 +43,23 @@ export const SPAIN_PROVINCES: ReadonlyArray<CanonicalProvince> = [
   { label: 'Ciudad Real', key: 'Ciudad Real' },
   { label: 'Córdoba', key: 'Córdoba' },
   { label: 'Cuenca', key: 'Cuenca' },
-  { label: 'Girona', key: 'Girona' },
+  { label: 'Gerona', key: 'Girona' },
   { label: 'Granada', key: 'Granada' },
   { label: 'Guadalajara', key: 'Guadalajara' },
   { label: 'Guipúzcoa', key: 'Gipuzkoa' },
   { label: 'Huelva', key: 'Huelva' },
   { label: 'Huesca', key: 'Huesca' },
-  { label: 'Illes Balears', key: 'Illes Balears' },
+  { label: 'Islas Baleares', key: 'Illes Balears' },
   { label: 'Jaén', key: 'Jaén' },
   { label: 'León', key: 'León' },
-  { label: 'Lleida', key: 'Lleida' },
+  { label: 'Lérida', key: 'Lleida' },
   { label: 'Lugo', key: 'Lugo' },
   { label: 'Madrid', key: 'Madrid' },
   { label: 'Málaga', key: 'Málaga' },
   { label: 'Melilla', key: 'Melilla' },
   { label: 'Murcia', key: 'Murcia' },
   { label: 'Navarra', key: 'Navarra' },
-  { label: 'Ourense', key: 'Ourense' },
+  { label: 'Orense', key: 'Ourense' },
   { label: 'Palencia', key: 'Palencia' },
   { label: 'Las Palmas', key: 'Las Palmas' },
   { label: 'Pontevedra', key: 'Pontevedra' },
