@@ -5,6 +5,7 @@ import {
   LIVE_NOW_DB_STATUSES,
   PRE_AUCTION_DB_STATUSES,
   ACTIVE_CLOCK_GUARD_SQL,
+  IN_SCOPE_GUARD_SQL,
 } from '@/lib/auction-status';
 
 interface AuctionStatsRow {
@@ -92,7 +93,13 @@ const VEHICLE_CATEGORIES = [
 // /api/auctions/counts/route.ts (lines 71-73) and the list route. Kept inline
 // here on purpose — until auction-status.ts exports a PROVINCE_VALID_SQL const,
 // this is the canonical text every active-counting surface uses verbatim.
-const PROVINCE_VALID_SQL = `province IS NOT NULL
+// wave155: fold the scope soft-hide gate into the shared province-valid
+// predicate so EVERY province-valid stats query (totalAuctions, active splits,
+// preAuction, new-this-month/30d) reconciles with the now-scoped catalog in one
+// place. `totalTrackedAll` (the raw "ever tracked" grand total) deliberately
+// does NOT use this const, so it stays ungated (honest all-rows number).
+const PROVINCE_VALID_SQL = `${IN_SCOPE_GUARD_SQL}
+  AND province IS NOT NULL
   AND LOWER(province) NOT IN ('unknown', 'desconocida', 'mapa de la zona', 'mapa del municipio', 'null', 'undefined')
   AND LENGTH(TRIM(province)) > 1`;
 

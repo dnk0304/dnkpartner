@@ -140,9 +140,85 @@ def get_category_type(title: str, description: str = '') -> str:
         return 'Participaciones sociales'
     elif any(kw in text for kw in ['usufructo', 'servidumbre']):
         return 'Derechos reales'
-    
-    # Default fallback
-    return 'Otros inmuebles'
+
+    # Default fallback (wave155, 2026-07-28): explicit UNCLASSIFIED sentinel.
+    # PREVIOUSLY this returned 'Otros inmuebles', which made the real-estate
+    # catch-all a dumping ground for anything unmatched — polluting a genuine
+    # property bucket with non-property junk AND making genuinely-unknown rows
+    # indistinguishable from real "other real estate". Returning the sentinel
+    # keeps unknowns separable so the scope gate can soft-hide them.
+    return UNCLASSIFIED_CATEGORY
+
+
+# ── Scope buckets (wave155, 2026-07-28) ──────────────────────────────────────
+# Sentinel returned by get_category_type() when nothing matched. Kept distinct
+# from 'Otros inmuebles' (a REAL property subcategory) so the scope gate can
+# tell "genuinely unknown" from "other real estate".
+UNCLASSIFIED_CATEGORY = 'UNCLASSIFIED'
+
+# Scope = ONLY property/land + vehicles (Dennis rule). Everything else is
+# soft-hidden from the catalog. Each subcategory maps to one bucket:
+#   'property' | 'vehicle'  → KEEP (in scope, subject to the data-quality gate)
+#   'movable'  | 'rights'   → EXCLUDE (clean junk — no legit property lands here)
+#   'unclassified'          → EXCLUDE (unknown; separable from real property)
+#
+# NOTE on 'Otros inmuebles': it maps to 'property' (KEEP) — diagnosis showed
+# ~30,150 of its ~30,735 rows are REAL property (avg €250k–1.25M). The small
+# junk sliver inside it (e.g. the €55 PLABI "ACTIVO FRISU" empty shell) is
+# dropped by the DATA-QUALITY gate in scope.py, NOT by category.
+CATEGORY_SCOPE_BUCKET = {
+    # PROPERTY / LAND — keep
+    'Viviendas': 'property',
+    'Garajes': 'property',
+    'Locales': 'property',
+    'Terrenos': 'property',
+    'Fincas rústicas': 'property',
+    'Otros inmuebles': 'property',
+    'Naves industriales': 'property',
+    'Oficinas': 'property',
+    'Trasteros': 'property',
+    # VEHICLES — keep
+    'Turismos': 'vehicle',
+    'Motocicletas': 'vehicle',
+    'Camiones': 'vehicle',
+    'Barcos': 'vehicle',
+    'Aeronaves': 'vehicle',
+    'Otros vehículos': 'vehicle',
+    # Real vehicle label variant seen in the DB (app-side SEO list uses it).
+    'Vehículos Industriales': 'vehicle',
+    # MOVABLE GOODS — exclude
+    'Joyas': 'movable',
+    'Maquinaria': 'movable',
+    'Mobiliario': 'movable',
+    'Otros bienes muebles': 'movable',
+    'Arte y antigüedades': 'movable',
+    'Arte': 'movable',
+    'Electrónica': 'movable',
+    # RIGHTS — exclude
+    'Derechos de crédito': 'rights',
+    'Derechos reales': 'rights',
+    'Participaciones sociales': 'rights',
+    'Otros derechos': 'rights',
+}
+
+# Buckets that are IN SCOPE by category (still subject to the data-quality gate).
+IN_SCOPE_BUCKETS = frozenset({'property', 'vehicle'})
+
+
+def get_scope_bucket(category) -> str:
+    """Map a DB category label to its scope bucket.
+
+    Returns one of: 'property' | 'vehicle' | 'movable' | 'rights' |
+    'unclassified'. Unknown / None / the UNCLASSIFIED sentinel → 'unclassified'.
+    """
+    if not category or category == UNCLASSIFIED_CATEGORY:
+        return 'unclassified'
+    return CATEGORY_SCOPE_BUCKET.get(category, 'unclassified')
+
+
+def is_in_scope_category(category) -> bool:
+    """True iff the category is a property/land or vehicle bucket (KEEP)."""
+    return get_scope_bucket(category) in IN_SCOPE_BUCKETS
 
 
 def get_main_category(subcategory: str) -> str:

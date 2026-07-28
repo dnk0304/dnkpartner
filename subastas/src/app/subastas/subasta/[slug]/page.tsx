@@ -70,6 +70,9 @@ async function loadAuctionMeta(slug: string) {
       municipality: true,
       status: true,
       auctionType: true,
+      // Scope soft-hide gate (wave155) — out-of-scope / empty-shell rows are
+      // notFound()'d (never rendered, never indexed).
+      inScope: true,
       // Surfaced for the title-from-address helper (wave-A, 2026-06-07).
       // The page is now fully public so the address can lead the <title>.
       address: true,
@@ -100,10 +103,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const t = await getTranslations('auctionDetail');
   const a = await loadAuctionMeta(slug);
   if (!a) return { title: t('metaNotFound'), robots: 'noindex' };
-  // Legacy "junk auction" row → middleware normally serves 410 for the cuid
-  // shape; this catches the residual boeId-0x edge case (UUID id but legacy
-  // boeId). noindex metadata + the page itself returns notFound() (404).
-  // See: src/lib/seo/legacy-rows.ts
+  // Out-of-scope / empty-shell row (wave155) → hidden from the catalog; the
+  // page notFound()s below. noindex so a crawler that remembers the URL drops it.
+  if (!a.inScope) return { title: t('metaNotFound'), robots: 'noindex,follow' };
+  // Retire predicate (CORRECTED wave155): dead `0x` boeId AND terminal status.
+  // The edge middleware 410 was removed; this page is now the single place the
+  // retire decision is made (it has the row's boeId + status). Suspended /
+  // live / real-SUB rows are NOT retired. noindex metadata + notFound() (404)
+  // in the body de-index the genuine dead-link junk. See legacy-rows.ts.
   if (isLegacyRow(a)) return { title: t('metaRetired'), robots: 'noindex,follow' };
   const canonicalSlug = buildAuctionSlug(a);
   // Title-from-address (wave-A, 2026-06-07): the <title> now leads with the
@@ -196,9 +203,12 @@ export default async function SubastaDetailPage({ params, searchParams }: PagePr
   const followFlag = typeof sp?.follow === 'string' ? sp.follow : undefined;
   const a = await loadAuctionMeta(slug);
   if (!a) notFound();
-  // Legacy junk row → retire (Ken brief 2026-06-02). Middleware already
-  // 410s the cuid-id case before we get here; this handles the residual
-  // boeId-0x edge case where the id is a UUID. notFound() = 404.
+  // Out-of-scope / empty-shell row (wave155) → not part of the catalog. 404.
+  if (!a.inScope) notFound();
+  // Retire predicate (CORRECTED wave155): dead `0x` boeId AND terminal status
+  // only. Suspended / live / upcoming / real-SUB rows render normally. The old
+  // edge cuid-shape 410 (which killed 1,176 legit rows) is gone; this is the
+  // single retire gate now. notFound() = 404 (de-indexes the genuine junk).
   if (isLegacyRow(a)) notFound();
   // If the slug arrived non-canonical (e.g. somebody linked a derived form),
   // 301 to the canonical composition. This is the dedup belt-and-braces.

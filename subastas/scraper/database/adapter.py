@@ -20,6 +20,7 @@ except ImportError:
 from ..config.settings import DATABASE_URL, DATABASE_TYPE, PROJECT_ROOT
 from .models import AuctionModel, AuctionStatus
 from .legacy_rows import is_legacy_row
+from ..config.scope import decide_scope
 
 logger = logging.getLogger(__name__)
 
@@ -595,7 +596,8 @@ class DatabaseAdapter:
                                       'viviendaHabitual', 'surfaceM2',
                                       'bedrooms', 'bathrooms', 'hasTerrace', 'hasGarden',
                                       'hasGarage', 'hasStorageRoom', 'floorLevel',
-                                      'catastroYearBuilt', 'catastroUse', 'catastroCheckedAt')
+                                      'catastroYearBuilt', 'catastroUse', 'catastroCheckedAt',
+                                      'inScope', 'scopeReason')
             """)
             forge_cols = {r[0] for r in cursor.fetchall()}
         except Exception:
@@ -902,6 +904,37 @@ class DatabaseAdapter:
                     col_names.append(f'"{_col}"')
                     placeholders.append('%s')
                     vals.append(data[_data_key])
+
+            # Scope soft-hide gate (wave155, guarded). Enforce ingestion scope
+            # at THE choke-point for ALL sources: only property/land + vehicle
+            # rows that carry REAL data are shown; movable/rights/unclassified
+            # and empty-shell rows are inserted with inScope=false + a reason so
+            # they never surface in the catalog (reversible — never dropped).
+            # Dennis (2026-07-28): we should never SHOW an auction we have no
+            # real info about. A dead source link ALONE is NOT a reason to hide
+            # (decide_scope never inspects link liveness). Kept a soft-hide
+            # (not a hard INSERT skip) so the row stays inspectable/reversible
+            # and any by-boeId enrichment (documents, results) still resolves.
+            if 'inScope' in forge_cols:
+                in_scope, scope_reason = decide_scope(
+                    category=data.get('category'),
+                    appraisal_value=data.get('appraisal_value'),
+                    address=data.get('address'),
+                    lot_description=data.get('lot_description'),
+                    property_description=data.get('property_description'),
+                )
+                col_names.append('"inScope"')
+                placeholders.append('%s')
+                vals.append(in_scope)
+                if 'scopeReason' in forge_cols:
+                    col_names.append('"scopeReason"')
+                    placeholders.append('%s')
+                    vals.append(scope_reason)
+                if not in_scope:
+                    logger.info(
+                        f"Scope gate — {data['boe_id']} hidden "
+                        f"(reason={scope_reason}, category={data.get('category')!r})"
+                    )
 
             sql = f'INSERT INTO "Auction" ({", ".join(col_names)}) VALUES ({", ".join(placeholders)})'
             cursor.execute(sql, tuple(vals))

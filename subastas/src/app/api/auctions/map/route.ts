@@ -6,6 +6,7 @@ import {
   FINISHED_DB_STATUSES,
   MAP_DEFAULT_DB_STATUSES,
   ACTIVE_CLOCK_GUARD_SQL,
+  IN_SCOPE_GUARD_SQL,
   DB_TO_FRONTEND_STATUS,
 } from '@/lib/auction-status';
 import {
@@ -157,6 +158,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Map markers require real coordinates.
+    conditions.push(IN_SCOPE_GUARD_SQL);
     conditions.push('latitude IS NOT NULL');
     conditions.push('longitude IS NOT NULL');
     conditions.push('province IS NOT NULL');
