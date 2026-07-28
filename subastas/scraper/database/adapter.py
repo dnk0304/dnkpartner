@@ -21,7 +21,7 @@ from ..config.settings import DATABASE_URL, DATABASE_TYPE, PROJECT_ROOT
 from .models import AuctionModel, AuctionStatus
 from .legacy_rows import is_legacy_row
 from ..config.scope import decide_scope
-from ..config.municipality_province import resolve_province_less
+from ..config.municipality_province import resolve_province_less, court_province_from_name
 
 # Province values the catalog treats as "no province" (mirror of the app's
 # isValidProvince inverse). A new row landing with one of these gets a last-resort
@@ -262,6 +262,14 @@ class DatabaseAdapter:
             # way we leave the province as-is (never a wrong override).
             if derived:
                 data['province'] = derived
+            elif data.get('court_name'):
+                # STRUCTURED FALLBACK (2026-07-28): a Juzgado's partido judicial
+                # sits in ONE province. Deterministically fill PROVINCE-LEVEL from
+                # the "JUZGADO … - <TOWN>" suffix. AEAT / ambiguous / unmappable
+                # court-town -> None -> province left as-is (never a guess).
+                court_prov, _town, _flag = court_province_from_name(data.get('court_name'))
+                if court_prov:
+                    data['province'] = court_prov
 
         conn = self.connect()
         
