@@ -913,3 +913,135 @@ def municipality_province_consistent(municipality: Optional[str],
     if mapped is None:
         return None
     return normalize_municipality(mapped) == normalize_municipality(province)
+
+
+# ===========================================================================
+# PROVINCE RESOLUTION FROM address / municipality (2026-07-28)
+# ---------------------------------------------------------------------------
+# Ken's prod dry-run showed the province-less rows have EMPTY bienProvincia /
+# postalCode / bienLocalidad but a POPULATED `address` (93%) and sometimes
+# `municipality`. So the recoverable signal lives in the FREE-FORM address
+# string and the town column, not the structured bien* fields.
+#
+# These two helpers are the SINGLE source of the address/municipality-based
+# derivation — used by BOTH the backfill (backfill_province_less.py) AND the
+# ingestion path (boe_scraper) so a new row and a backfilled row resolve
+# identically. They live in THIS light module (no scraper/browser imports) so
+# the backfill + unit tests import them without pulling the heavy scraper stack.
+#
+# HARD RULE: NEVER guess. A province is returned only when it is proven by
+#   (a) a postal-code prefix, (b) an explicit province name, or (c) a town in
+# the INE town->province map. No confident signal -> (None, None) = UNKNOWABLE.
+# ===========================================================================
+
+# Import the province-code + canonical-name helpers across the known layouts.
+try:  # cwd = subastas/scraper/
+    from config.provinces import canonical_province as _canon_prov, province_by_code_strict as _prov_by_code
+except ImportError:
+    try:  # cwd = subastas/  (repo + pytest: `scraper` package)
+        from scraper.config.provinces import canonical_province as _canon_prov, province_by_code_strict as _prov_by_code
+    except ImportError:  # /app container
+        from app.config.provinces import canonical_province as _canon_prov, province_by_code_strict as _prov_by_code
+
+# 5-digit Spanish postal code — first 2 digits = INE province code.
+_POSTAL5_RE = re.compile(r'\b(\d{2})\d{3}\b')
+# A leading house number / postal digits to strip off an address token.
+_LEADING_NUM_RE = re.compile(r'^\s*\d[\d\s\-\.º/]*')
+
+
+def derive_province_from_address(address: Optional[str]):
+    """
+    Parse a Spanish province from a free-form address string.
+
+    Strategy (all conservative — never guesses):
+      1. A 5-digit postal code ANYWHERE -> INE province code (most reliable).
+      2. Tokenize on commas / parentheses and scan RIGHT-TO-LEFT (the town and
+         province almost always TRAIL the street in a Spanish address, e.g.
+         "avinguda de alicante, 20, Torrevieja" or "..., Torrevieja (Alicante)").
+         For each trailing token, after stripping a leading house number:
+            a. an explicit province name       -> canonical_province
+            b. a town in the INE town map       -> municipality_to_province
+         The right-to-left order makes the trailing town/province win over a
+         street that merely CONTAINS a province word ("calle Sevilla, Madrid"
+         resolves to Madrid, not Sevilla).
+
+    Returns (province_name, method) where method is one of
+    'address-postal' | 'address-province' | 'address-town', or (None, None) when
+    nothing authoritative is found.
+    """
+    if not address:
+        return None, None
+    raw = str(address).strip()
+    if not raw:
+        return None, None
+
+    # 1. postal code anywhere in the string.
+    m = _POSTAL5_RE.search(raw)
+    if m:
+        p = _prov_by_code(m.group(1))
+        if p:
+            return p, 'address-postal'
+
+    # 2. trailing-token scan (right to left).
+    parts = [t.strip() for t in re.split(r'[,()]', raw) if t and t.strip()]
+    for tok in reversed(parts):
+        clean = _LEADING_NUM_RE.sub('', tok).strip()
+        if len(clean) < 3:
+            continue
+        pv = _canon_prov(clean)
+        if pv:
+            return pv, 'address-province'
+        mp = municipality_to_province(clean)
+        if mp:
+            return mp, 'address-town'
+    return None, None
+
+
+def resolve_province_less(address: Optional[str] = None,
+                          municipality: Optional[str] = None,
+                          bien_provincia: Optional[str] = None,
+                          postal_code: Optional[str] = None,
+                          bien_localidad: Optional[str] = None,
+                          court_province: Optional[str] = None):
+    """
+    Best-effort REAL province for a row whose `province` column is empty/junk.
+
+    Source order (Ken 2026-07-28 — address/municipality are the populated fields
+    on the province-less rows; the bien* fields are kept as later fallbacks):
+        address -> municipality -> bienProvincia -> postalCode -> bienLocalidad
+
+    Returns (province, source) or (None, None) = UNKNOWABLE (leave untouched).
+    `court_province` is accepted for signature symmetry but is NEVER used to
+    fill (a junk/court province is exactly what we are replacing — never guess).
+    """
+    # 1. address (primary — populated on ~93% of province-less rows).
+    p, method = derive_province_from_address(address)
+    if p:
+        return p, method
+
+    # 2. municipality column (secondary).
+    if municipality:
+        mp = municipality_to_province(municipality)
+        if mp and _canon_prov(mp):
+            return mp, 'municipality'
+
+    # 3. bienProvincia (rarely present on these rows, but authoritative if so).
+    pv = _canon_prov(bien_provincia)
+    if pv:
+        return pv, 'bienProvincia'
+
+    # 4. postalCode column prefix.
+    if postal_code:
+        mm = re.match(r'^\s*(\d{2})\d{3}\s*$', str(postal_code))
+        if mm:
+            pc = _prov_by_code(mm.group(1))
+            if pc:
+                return pc, 'postalCode'
+
+    # 5. bienLocalidad town map.
+    if bien_localidad:
+        bl = municipality_to_province(normalize_municipality(bien_localidad))
+        if bl:
+            return bl, 'bienLocalidad'
+
+    return None, None

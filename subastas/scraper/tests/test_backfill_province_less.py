@@ -1,83 +1,120 @@
 """
-Unit tests for the province-less backfill derivation logic.
+Unit tests for the province-less backfill + ingestion derivation logic.
 
 Run with (from subastas/):
     python -m pytest scraper/tests/test_backfill_province_less.py -q
 
-Covers the FILLABLE vs UNKNOWABLE decision the backfill makes for a province-less
-row — the guarantee that it fills ONLY when an authoritative signal (bienProvincia
-/ postalCode / bienLocalidad) resolves to a REAL Spanish province, and NEVER
-guesses otherwise.
+Covers the shared resolve_province_less() decision (used by BOTH the backfill and
+the ingestion guard): fill ONLY when address / municipality / bien* resolve to a
+REAL Spanish province, and NEVER guess otherwise. Ken's prod dry-run proved the
+recoverable signal lives in `address` (93% populated) and `municipality`, not the
+bien*/postal columns, so the address parser is the primary path under test.
 """
 
-from scraper.backfill_province_less import classify_province_less, JUNK_PROVINCE_SQL
+from scraper.backfill_province_less import classify_province_less, JUNK_PROVINCE_SQL, SOURCE_KEYS
+from scraper.config.municipality_province import derive_province_from_address, resolve_province_less
 
 
-# ── FILLABLE: an authoritative signal resolves to a real province ────────────
+# ── address -> province extraction (the primary path) ────────────────────────
 
-def test_fillable_via_bien_provincia():
-    prov, src = classify_province_less("Barcelona", None, None, "Unknown")
-    assert src == "bienProvincia"
-    assert prov == "Barcelona"
-
-
-def test_fillable_via_bien_provincia_accent_case_folded():
-    # canonical_province folds accents/case -> the exact provinces.py spelling.
-    prov, src = classify_province_less("álava", None, None, "")
-    assert src == "bienProvincia"
-    assert prov == "Álava"
+def test_address_trailing_town():
+    # Coordinator's exact example — trailing town wins over the street.
+    assert derive_province_from_address("avinguda de alicante, 20, Torrevieja") == ("Alicante", "address-town")
 
 
-def test_fillable_via_postal_code_prefix():
-    # 28xxx = Madrid (INE province code 28), even with no bienProvincia.
-    prov, src = classify_province_less(None, "28013", None, "")
-    assert src == "postalCode"
+def test_address_postal_code_anywhere():
+    assert derive_province_from_address("Calle Sevilla 3, 28013 Madrid") == ("Madrid", "address-postal")
+
+
+def test_address_explicit_province_name():
+    assert derive_province_from_address("Av. de Andalucía, Sevilla") == ("Sevilla", "address-province")
+
+
+def test_address_province_in_parentheses():
+    assert derive_province_from_address("C/ Mayor 5, Torrevieja (Alicante)") == ("Alicante", "address-province")
+
+
+def test_address_ambiguous_street_name_does_not_win():
+    # "Sevilla" is a STREET here; the trailing town "Madrid" must win (right-to-
+    # left scan) — the derivation must not be fooled by a province word in a street.
+    prov, _ = derive_province_from_address("Calle Sevilla 3, Madrid")
     assert prov == "Madrid"
 
 
-def test_fillable_via_bien_localidad_town_map():
-    prov, src = classify_province_less(None, None, "Madrid", "Unknown")
-    assert src == "bienLocalidad"
-    assert prov == "Madrid"
+# ── island provinces (Las Palmas / Santa Cruz de Tenerife) ───────────────────
+
+def test_island_las_palmas_by_town():
+    prov, _ = derive_province_from_address("35100 Maspalomas, Las Palmas de Gran Canaria")
+    assert prov == "Las Palmas"
 
 
-def test_priority_bien_provincia_beats_postal():
-    # Most-reliable signal wins when several are present.
-    prov, src = classify_province_less("Sevilla", "28013", "Madrid", "Unknown")
-    assert src == "bienProvincia"
-    assert prov == "Sevilla"
+def test_island_tenerife_by_postal():
+    prov, _ = derive_province_from_address("Calle del Sol, 38400 Puerto de la Cruz")
+    assert prov == "Santa Cruz de Tenerife"
 
 
-# ── UNKNOWABLE: nothing authoritative -> never guess, leave untouched ─────────
-
-def test_unknowable_when_all_signals_absent():
-    assert classify_province_less(None, None, None, "Unknown") == (None, None)
-
-
-def test_unknowable_when_signals_are_junk():
-    # A junk bienProvincia, an out-of-range postal, and an unmapped town all fail
-    # to resolve to a real province -> unknowable, never fabricated.
-    assert classify_province_less("NotAProvince", "99999", "ZZZNOWHERE", "") == (None, None)
+def test_multiword_province_a_coruna():
+    prov, _ = derive_province_from_address("Rúa do Vilar, Santiago de Compostela, A Coruña")
+    assert prov == "A Coruña"
 
 
-def test_unknowable_ignores_empty_string_signals():
-    assert classify_province_less("", "", "", "") == (None, None)
+# ── UNKNOWABLE — never guess ─────────────────────────────────────────────────
+
+def test_address_unresolvable_is_unknowable():
+    assert derive_province_from_address("Calle Falsa 123") == (None, None)
 
 
-def test_never_returns_court_province_even_if_present():
-    # A real-looking court province must NOT be used to fill (court-fallback is
-    # explicitly excluded — the backfill fills only from PROPERTY signals).
-    prov, src = classify_province_less(None, None, None, "Madrid")
-    assert (prov, src) == (None, None)
+def test_empty_address_is_unknowable():
+    assert derive_province_from_address("") == (None, None)
+    assert derive_province_from_address(None) == (None, None)
 
 
-# ── The junk-province predicate matches the app's isValidProvince inverse ─────
+# ── resolve_province_less source priority (address -> municipality -> bien*) ──
+
+def test_resolve_prefers_address_over_municipality():
+    prov, src = resolve_province_less(address="C/ X, 41013 Sevilla", municipality="Madrid")
+    assert (prov, src) == ("Sevilla", "address-postal")
+
+
+def test_resolve_falls_back_to_municipality():
+    prov, src = resolve_province_less(address="Calle Falsa 1", municipality="Avilés")
+    assert (prov, src) == ("Asturias", "municipality")
+
+
+def test_resolve_falls_back_to_bien_provincia():
+    prov, src = resolve_province_less(address=None, municipality=None, bien_provincia="Barcelona")
+    assert (prov, src) == ("Barcelona", "bienProvincia")
+
+
+def test_resolve_all_absent_is_unknowable():
+    assert resolve_province_less() == (None, None)
+
+
+def test_court_province_is_never_used_to_fill():
+    # A real-looking court province must NOT fill — it's the junk we're replacing.
+    assert resolve_province_less(address=None, court_province="Madrid") == (None, None)
+
+
+# ── classify_province_less wraps resolve_province_less ────────────────────────
+
+def test_classify_matches_resolve():
+    assert classify_province_less(address="avinguda de alicante, 20, Torrevieja") == ("Alicante", "address-town")
+
+
+def test_source_keys_cover_all_reported_sources():
+    assert set(SOURCE_KEYS) == {
+        "address-postal", "address-province", "address-town",
+        "municipality", "bienProvincia", "postalCode", "bienLocalidad",
+    }
+
+
+# ── junk-province predicate ──────────────────────────────────────────────────
 
 def test_junk_predicate_targets_inscope_and_covers_sentinels():
     sql = JUNK_PROVINCE_SQL.lower()
-    assert '"inscope" = true' in sql            # only in-scope rows
-    assert "province is null" in sql            # empty
-    assert "length(trim(province)) <= 1" in sql  # 1-char / whitespace
+    assert '"inscope" = true' in sql
+    assert "province is null" in sql
+    assert "length(trim(province)) <= 1" in sql
     for sentinel in ["unknown", "desconocida", "mapa de la zona",
                      "mapa del municipio", "null", "undefined"]:
         assert sentinel in sql, sentinel
