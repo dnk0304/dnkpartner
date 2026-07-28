@@ -688,6 +688,18 @@
   .sa-rail { scroll-behavior: auto; }
 }
 
+/* Radix Dialog (notifications history modal + others) uses tailwindcss-animate
+ * enter/exit keyframes that the class-scoped reduced-motion rules above don't
+ * reach. Neutralise them here so `prefers-reduced-motion: reduce` is honoured
+ * for the overlay fade and the content zoom/fade. */
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="dialog-overlay"],
+  [data-slot="dialog-content"] {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
 /* Print: drop background fills */
 @media print {
   body { background: white; }

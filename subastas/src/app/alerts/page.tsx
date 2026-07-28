@@ -9,33 +9,45 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { 
-  Bell, 
-  Mail, 
-  MessageSquare, 
-  Plus, 
-  Trash2, 
+import {
+  Bell,
+  Mail,
+  MessageSquare,
+  Plus,
+  Trash2,
   Edit,
   Check,
   AlertCircle,
   TrendingUp,
   MapPin,
-  Euro
+  Euro,
+  Building2,
+  Home,
+  Gavel,
+  Tag,
+  Repeat,
+  ChevronRight
 } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { apiFetch } from "@/lib/api-path";
+import {
+  NotificationHistoryModal,
+  type NotificationHistoryItem,
+} from '@/components/alerts/NotificationHistoryModal';
 
 interface Alert {
   id: string;
   name: string;
-  province?: string;
-  municipality?: string;
-  category?: string;
-  source?: string;  // Origen: BOE Judiciales, Agencia Tributaria, etc.
-  propertyType?: string;  // Tipo de bien
-  minPrice?: number;
-  maxPrice?: number;
+  province?: string | null;
+  municipality?: string | null;
+  category?: string | null;
+  source?: string | null;  // Origen: BOE Judiciales, Agencia Tributaria, etc.
+  propertyType?: string | null;  // Tipo de bien
+  auctionType?: string | null;  // Tipo de subasta
+  keywords?: string | null;  // CSV
+  minPrice?: number | null;
+  maxPrice?: number | null;
   emailEnabled: boolean;
   smsEnabled: boolean;
   notificationType: 'individual' | 'grouped';
@@ -104,12 +116,48 @@ const PROPERTY_TYPES = [
 
 const CATEGORIES = PROPERTY_TYPES;  // For compatibility
 
+/**
+ * One configured-criterion pill for an alert card. Renders a muted label + the
+ * value the user set, so each alert reads as a legible "watch spec". Callers
+ * only mount it when the value is set (honest-null: no empty rows).
+ */
+function CriterionPill({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <Badge variant="outline" className="gap-1.5 py-1 font-normal">
+      <span className="text-gray-400" aria-hidden="true">{icon}</span>
+      <span className="text-gray-500">{label}:</span>
+      <span className="font-medium text-gray-800">{value}</span>
+    </Badge>
+  );
+}
+
 export default function AlertsPage() {
   const t = useTranslations('alertsPage');
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Sent-notifications history (drives the real "Notificaciones Enviadas" stat
+  // + the history modal). Fetched once on mount; "load more" appends a page.
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [notifItems, setNotifItems] = useState<NotificationHistoryItem[]>([]);
+  const [count7d, setCount7d] = useState<number | null>(null);
+  const [countTotal, setCountTotal] = useState<number | null>(null);
+  const [notifHasMore, setNotifHasMore] = useState(false);
+  const [notifLoading, setNotifLoading] = useState(true);
+  const [notifLoadingMore, setNotifLoadingMore] = useState(false);
+  const [notifError, setNotifError] = useState(false);
+
+  const NOTIF_PAGE_SIZE = 20;
 
   // Form state
   const [formData, setFormData] = useState({
@@ -128,7 +176,45 @@ export default function AlertsPage() {
 
   useEffect(() => {
     fetchAlerts();
+    loadNotifications(0, false);
   }, []);
+
+  /**
+   * Load a page of sent-notifications. offset 0 (append=false) refreshes the
+   * counts + first page; subsequent calls append via `?offset` using
+   * `pagination.hasMore`. Counts feed the stat card even if the modal is never
+   * opened, so the "Notificaciones Enviadas" number is always real.
+   */
+  const loadNotifications = async (offset: number, append: boolean) => {
+    try {
+      if (append) {
+        setNotifLoadingMore(true);
+      } else {
+        setNotifLoading(true);
+      }
+      setNotifError(false);
+
+      const response = await apiFetch(
+        `/api/user/notifications?limit=${NOTIF_PAGE_SIZE}&offset=${offset}`,
+      );
+      if (!response.ok) {
+        throw new Error('Failed to fetch notifications');
+      }
+      const data = await response.json();
+      const history: NotificationHistoryItem[] = data.history || [];
+
+      setCount7d(typeof data.count7d === 'number' ? data.count7d : 0);
+      setCountTotal(typeof data.countTotal === 'number' ? data.countTotal : 0);
+      setNotifHasMore(Boolean(data.pagination?.hasMore));
+      setNotifItems((prev) => (append ? [...prev, ...history] : history));
+    } catch (err) {
+      console.error('Error fetching notifications:', err);
+      setNotifError(true);
+    } finally {
+      setNotifLoading(false);
+      setNotifLoadingMore(false);
+    }
+  };
 
   const fetchAlerts = async () => {
     try {
@@ -138,9 +224,10 @@ export default function AlertsPage() {
         throw new Error('Failed to fetch alerts');
       }
       const data = await response.json();
-      const alertsData = (data.alerts || data.data || []).map((alert: any) => ({
-        ...alert,
-        createdAt: alert.createdAt ? new Date(alert.createdAt) : new Date(),
+      const rawAlerts: Array<Record<string, unknown>> = data.alerts || data.data || [];
+      const alertsData: Alert[] = rawAlerts.map((alert) => ({
+        ...(alert as unknown as Alert),
+        createdAt: alert.createdAt ? new Date(alert.createdAt as string) : new Date(),
       }));
       setAlerts(alertsData);
     } catch (err) {
@@ -262,17 +349,39 @@ export default function AlertsPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-gray-600">
-                {t('statNotificationsSent')}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-green-600">24</div>
-              <p className="text-xs text-gray-500 mt-1">{t('statLast7Days')}</p>
-            </CardContent>
-          </Card>
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            aria-haspopup="dialog"
+            aria-label={t('historyStatAria')}
+            className="text-left rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+          >
+            <Card className="h-full transition-shadow hover:shadow-md motion-reduce:transition-none">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center justify-between text-sm font-medium text-gray-600">
+                  {t('statNotificationsSent')}
+                  <ChevronRight className="h-4 w-4 text-gray-400" aria-hidden="true" />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-green-600">
+                  {count7d === null ? (
+                    notifError ? '—' : (
+                      <span
+                        className="inline-block h-8 w-10 animate-pulse rounded bg-green-100 align-middle motion-reduce:animate-none"
+                        aria-hidden="true"
+                      />
+                    )
+                  ) : (
+                    count7d
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {t('statLast7Days')} · <span className="text-blue-600">{t('statViewHistory')}</span>
+                </p>
+              </CardContent>
+            </Card>
+          </button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -510,11 +619,33 @@ export default function AlertsPage() {
                 </CardContent>
               </Card>
             ) : (
-              alerts.map((alert) => (
-                <Card key={alert.id} className="hover:shadow-md transition-shadow">
+              alerts.map((alert) => {
+                const hasPrice = alert.minPrice != null || alert.maxPrice != null;
+                const priceText = hasPrice
+                  ? `${alert.minPrice != null ? `${alert.minPrice.toLocaleString('es-ES')} €` : t('priceNoMin')} – ${alert.maxPrice != null ? `${alert.maxPrice.toLocaleString('es-ES')} €` : t('priceNoMax')}`
+                  : null;
+                const keywords = (alert.keywords || '')
+                  .split(',')
+                  .map((k) => k.trim())
+                  .filter(Boolean);
+                const hasCriteria =
+                  alert.source ||
+                  alert.propertyType ||
+                  alert.province ||
+                  alert.municipality ||
+                  alert.category ||
+                  alert.auctionType ||
+                  hasPrice ||
+                  keywords.length > 0;
+                const notifLabel =
+                  alert.notificationType === 'individual'
+                    ? t('notifIndividualShort')
+                    : t('notifGroupedShort');
+                return (
+                <Card key={alert.id} className="hover:shadow-md transition-shadow motion-reduce:transition-none">
                   <CardContent className="pt-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 mb-3">
                           <h3 className="font-semibold text-lg">{alert.name}</h3>
                           {alert.matchCount && alert.matchCount > 0 && (
@@ -524,38 +655,61 @@ export default function AlertsPage() {
                           )}
                         </div>
 
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          {alert.province && (
-                            <Badge variant="outline">
-                              <MapPin className="w-3 h-3 mr-1" />
-                              {alert.province}
-                            </Badge>
-                          )}
-                          {alert.category && (
-                            <Badge variant="outline">
-                              {alert.category}
-                            </Badge>
-                          )}
-                          {(alert.minPrice || alert.maxPrice) && (
-                            <Badge variant="outline">
-                              <Euro className="w-3 h-3 mr-1" />
-                              {alert.minPrice ? `${alert.minPrice.toLocaleString()}` : '0'}
-                              {' - '}
-                              {alert.maxPrice ? `${alert.maxPrice.toLocaleString()}` : '∞'}
-                            </Badge>
-                          )}
-                        </div>
+                        {hasCriteria ? (
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            {alert.source && (
+                              <CriterionPill icon={<Building2 className="w-3.5 h-3.5" />} label={t('criteriaSource')} value={alert.source} />
+                            )}
+                            {alert.propertyType && (
+                              <CriterionPill icon={<Home className="w-3.5 h-3.5" />} label={t('criteriaPropertyType')} value={alert.propertyType} />
+                            )}
+                            {alert.province && (
+                              <CriterionPill icon={<MapPin className="w-3.5 h-3.5" />} label={t('criteriaProvince')} value={alert.province} />
+                            )}
+                            {alert.municipality && (
+                              <CriterionPill icon={<MapPin className="w-3.5 h-3.5" />} label={t('criteriaMunicipality')} value={alert.municipality} />
+                            )}
+                            {alert.category && (
+                              <CriterionPill icon={<Tag className="w-3.5 h-3.5" />} label={t('criteriaCategory')} value={alert.category} />
+                            )}
+                            {alert.auctionType && (
+                              <CriterionPill icon={<Gavel className="w-3.5 h-3.5" />} label={t('criteriaAuctionType')} value={alert.auctionType} />
+                            )}
+                            {priceText && (
+                              <CriterionPill icon={<Euro className="w-3.5 h-3.5" />} label={t('criteriaPrice')} value={priceText} />
+                            )}
+                            {keywords.length > 0 && (
+                              <CriterionPill
+                                icon={<Tag className="w-3.5 h-3.5" />}
+                                label={t('criteriaKeywords')}
+                                value={
+                                  <span className="flex flex-wrap gap-1">
+                                    {keywords.map((k) => (
+                                      <span key={k} className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700">{k}</span>
+                                    ))}
+                                  </span>
+                                }
+                              />
+                            )}
+                          </div>
+                        ) : (
+                          <p className="mb-3 text-sm text-gray-500">{t('criteriaAny')}</p>
+                        )}
 
-                        <div className="flex items-center gap-4 text-sm text-gray-500">
-                          <div className="flex items-center gap-1">
-                            <Mail className={`w-4 h-4 ${alert.emailEnabled ? 'text-green-600' : 'text-gray-300'}`} />
-                            <span>Email</span>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
+                          <div className="flex items-center gap-1.5">
+                            <Repeat className="w-3.5 h-3.5 text-gray-400" aria-hidden="true" />
+                            <span>{t('criteriaNotificationType')}: <span className="text-gray-700">{notifLabel}</span></span>
                           </div>
                           <div className="flex items-center gap-1">
-                            <MessageSquare className={`w-4 h-4 ${alert.smsEnabled ? 'text-green-600' : 'text-gray-300'}`} />
-                            <span>SMS</span>
+                            <Mail className={`w-4 h-4 ${alert.emailEnabled ? 'text-green-600' : 'text-gray-300'}`} aria-hidden="true" />
+                            <span className={alert.emailEnabled ? 'text-gray-700' : 'text-gray-400'}>Email</span>
                           </div>
-                          <span>•</span>
+                          <div className="flex items-center gap-1">
+                            <MessageSquare className={`w-4 h-4 ${alert.smsEnabled ? 'text-green-600' : 'text-gray-300'}`} aria-hidden="true" />
+                            <span className={alert.smsEnabled ? 'text-gray-700' : 'text-gray-400'}>SMS</span>
+                          </div>
+                          <span aria-hidden="true">•</span>
                           <span>{t('createdOn', { date: alert.createdAt.toLocaleDateString('es-ES') })}</span>
                         </div>
                       </div>
@@ -595,7 +749,8 @@ export default function AlertsPage() {
                     </div>
                   </CardContent>
                 </Card>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -652,6 +807,20 @@ export default function AlertsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <NotificationHistoryModal
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        items={notifItems}
+        count7d={count7d}
+        countTotal={countTotal}
+        hasMore={notifHasMore}
+        loading={notifLoading}
+        loadingMore={notifLoadingMore}
+        error={notifError}
+        onLoadMore={() => loadNotifications(notifItems.length, true)}
+        onRetry={() => loadNotifications(0, false)}
+      />
     </div>
   );
 }
