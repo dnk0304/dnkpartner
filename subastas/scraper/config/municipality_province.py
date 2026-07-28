@@ -701,21 +701,95 @@ _RAW: dict[str, str] = {
 }
 
 
+# ===========================================================================
+# FULL INE MUNICIPALITY REGISTER (2026-07-28)
+# ---------------------------------------------------------------------------
+# Dennis approved loading the COMPLETE official Spanish municipality list so the
+# ~23.5k remaining province-less rows become fillable. Sourced from Wikidata
+# (P772 = INE municipality code, es labels) — 8,229 municipalities across all 52
+# provinces (incl. Ceuta / Melilla). Committed as `ine_municipalities.csv`
+# alongside this module (no network at runtime). The province of each town is the
+# INE code prefix (first 2 digits), resolved via provinces.py.
+#
+# CRITICAL — DUPLICATE NAMES: some town names exist in >1 province (e.g.
+# Arroyomolinos = Madrid AND Cáceres). A bare name is AMBIGUOUS for those, so
+# `_AMBIGUOUS_TOWNS` holds every normalized name appearing in >1 province and
+# municipality_to_province() REFUSES to resolve them from the name alone — the
+# address must carry a disambiguator (postal-code prefix or an explicit province
+# name, both higher-priority signals in derive_province_from_address). Only
+# UNAMBIGUOUS names (single province) resolve directly. Correctness > coverage.
+# ===========================================================================
+
+import csv as _csv
+import os as _os
+from collections import defaultdict as _defaultdict
+
+_INE_UNAMBIGUOUS: dict[str, str] = {}
+_AMBIGUOUS_TOWNS: set[str] = set()
+
+
+def _load_ine_register() -> None:
+    """Build the unambiguous name->province map + the ambiguous-name set from the
+    committed INE CSV. Failure is non-fatal — the curated `_RAW` map still works
+    (the full register just makes fewer rows fillable)."""
+    path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                         "ine_municipalities.csv")
+    try:
+        name_to_provs: dict[str, set] = _defaultdict(set)
+        with open(path, encoding="utf-8") as fh:
+            for row in _csv.DictReader(fh):
+                nom = (row.get("municipio") or "").strip()
+                prov = (row.get("provincia") or "").strip()
+                if not nom or not prov:
+                    continue
+                name_to_provs[normalize_municipality(nom)].add(prov)
+        for name, provs in name_to_provs.items():
+            if len(provs) == 1:
+                _INE_UNAMBIGUOUS[name] = next(iter(provs))
+            else:
+                _AMBIGUOUS_TOWNS.add(name)
+    except OSError:
+        pass
+
+
+_load_ine_register()
+
+
 def municipality_to_province(municipality: str) -> Optional[str]:
     """
     Look up province from municipality name.
     Returns province name (matching provinces.py keys) or None if not found.
     Performs accent-insensitive, case-insensitive matching.
+
+    Resolution order (correctness first — NEVER guesses an ambiguous name):
+      1. AMBIGUITY GUARD — a name in >1 province (INE) resolves to None here;
+         the address parser must disambiguate via postal/explicit-province.
+      2. curated `_RAW` (capitals + BOE text variants, single-province).
+      3. full INE register (unambiguous names only).
+      4. partial-match fallback against `_RAW` (parenthetical suffixes), skipping
+         any ambiguous key.
     """
     if not municipality:
         return None
     key = normalize_municipality(municipality)
+    if not key:
+        return None
+    # 1. Ambiguous name -> refuse (needs a disambiguator). Overrides even a
+    #    curated `_RAW` guess (e.g. arroyomolinos / cieza) so no fill is wrong.
+    if key in _AMBIGUOUS_TOWNS:
+        return None
+    # 2. Curated map (major cities + BOE spellings).
     result = _RAW.get(key)
     if result:
         return result
-    # Partial match: check if key starts with any known municipality
-    # (handles " (Juzgado X)", parenthetical suffixes, etc.)
+    # 3. Full INE register (single-province names).
+    ine = _INE_UNAMBIGUOUS.get(key)
+    if ine:
+        return ine
+    # 4. Partial match against curated keys (handles " (Juzgado X)" etc.).
     for known_key, province in _RAW.items():
+        if known_key in _AMBIGUOUS_TOWNS:
+            continue
         if key.startswith(known_key) or known_key.startswith(key):
             if abs(len(key) - len(known_key)) <= 5:
                 return province
