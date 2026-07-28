@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { query, execute } from '@/lib/db';
 import { randomUUID } from 'crypto';
+import { buildAlertInsert } from '@/lib/alerts/alert-insert';
 
 export async function GET(_request: NextRequest) {
   try {
@@ -50,33 +51,12 @@ export async function PUT(request: NextRequest) {
     if (alerts && Array.isArray(alerts) && alerts.length > 0) {
       const now = new Date().toISOString();
       for (const alert of alerts) {
-        const id = randomUUID();
-        await execute(`
-          INSERT INTO Alert (
-            id, userId, name, province, municipality, category, source, auctionType, statuses,
-            minPrice, maxPrice, keywords, emailEnabled, smsEnabled, notificationType,
-            createdAt, updatedAt
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [
-          id,
-          session.user.id,
-          alert.name || null,
-          alert.province || null,
-          alert.municipality || null,
-          alert.category || null,
-          alert.source || null,
-          alert.auctionType || null,
-          alert.statuses || null,
-          alert.minPrice ? parseFloat(alert.minPrice) : null,
-          alert.maxPrice ? parseFloat(alert.maxPrice) : null,
-          alert.keywords || null,
-          alert.emailEnabled ? true : false,
-          alert.smsEnabled ? true : false,
-          alert.notificationType || 'grouped',
+        const { sql, params } = buildAlertInsert(alert, {
+          id: randomUUID(),
+          userId: session.user.id,
           now,
-          now,
-        ]);
+        });
+        await execute(sql, params);
       }
     }
 
@@ -105,40 +85,17 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { province, municipality, category, source, auctionType, statuses, minPrice, maxPrice, keywords, emailEnabled, smsEnabled, notificationType } = body;
     const id = randomUUID();
     const now = new Date().toISOString();
 
-    await execute(`
-      INSERT INTO Alert (
-        id, userId, name, province, municipality, category, source, auctionType, statuses,
-        minPrice, maxPrice, keywords, emailEnabled, smsEnabled, notificationType,
-        createdAt, updatedAt
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [
-      id,
-      session.user.id,
-      body.name || null,
-      province || null,
-      municipality || null,
-      category || null,
-      source || null,
-      auctionType || null,
-      statuses || null,
-      minPrice ? parseFloat(minPrice) : null,
-      maxPrice ? parseFloat(maxPrice) : null,
-      keywords || null,
-      emailEnabled ? true : false,
-      smsEnabled ? true : false,
-      notificationType || 'grouped',
-      now,
-      now,
-    ]);
+    const { sql, params } = buildAlertInsert(body, { id, userId: session.user.id, now });
+    await execute(sql, params);
+
+    const { province, municipality, category, source, propertyType, auctionType, statuses, minPrice, maxPrice, keywords, emailEnabled, smsEnabled, notificationType } = body;
 
     return NextResponse.json({
       success: true,
-      alert: { id, userId: session.user.id, province, municipality, category, source, auctionType, statuses, minPrice, maxPrice, keywords, emailEnabled, smsEnabled, notificationType },
+      alert: { id, userId: session.user.id, name: body.name ?? null, province, municipality, category, source, propertyType, auctionType, statuses, minPrice, maxPrice, keywords, emailEnabled, smsEnabled, notificationType },
     });
   } catch (error) {
     console.error('Error creating alert:', error);
