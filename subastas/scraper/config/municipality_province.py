@@ -726,12 +726,17 @@ from collections import defaultdict as _defaultdict
 
 _INE_UNAMBIGUOUS: dict[str, str] = {}
 _AMBIGUOUS_TOWNS: set[str] = set()
+# normalized ambiguous town name -> the frozenset of provinces it exists in.
+# Used by the court/source tiebreaker to check whether a second signal points at
+# exactly ONE of a town's candidate provinces (2026-07-28, deep pass).
+_AMBIGUOUS_CANDIDATES: dict[str, frozenset] = {}
 
 
 def _load_ine_register() -> None:
-    """Build the unambiguous name->province map + the ambiguous-name set from the
-    committed INE CSV. Failure is non-fatal — the curated `_RAW` map still works
-    (the full register just makes fewer rows fillable)."""
+    """Build the unambiguous name->province map, the ambiguous-name set, AND the
+    ambiguous name->candidate-provinces map from the committed INE CSV. Failure is
+    non-fatal — the curated `_RAW` map still works (the full register just makes
+    fewer rows fillable)."""
     path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
                          "ine_municipalities.csv")
     try:
@@ -748,6 +753,7 @@ def _load_ine_register() -> None:
                 _INE_UNAMBIGUOUS[name] = next(iter(provs))
             else:
                 _AMBIGUOUS_TOWNS.add(name)
+                _AMBIGUOUS_CANDIDATES[name] = frozenset(provs)
     except OSError:
         pass
 
@@ -1010,12 +1016,21 @@ def municipality_province_consistent(municipality: Optional[str],
 
 # Import the province-code + canonical-name helpers across the known layouts.
 try:  # cwd = subastas/scraper/
-    from config.provinces import canonical_province as _canon_prov, province_by_code_strict as _prov_by_code
+    from config import provinces as _prov_mod
 except ImportError:
     try:  # cwd = subastas/  (repo + pytest: `scraper` package)
-        from scraper.config.provinces import canonical_province as _canon_prov, province_by_code_strict as _prov_by_code
+        from scraper.config import provinces as _prov_mod
     except ImportError:  # /app container
-        from app.config.provinces import canonical_province as _canon_prov, province_by_code_strict as _prov_by_code
+        from app.config import provinces as _prov_mod
+_canon_prov = _prov_mod.canonical_province
+_prov_by_code = _prov_mod.province_by_code_strict
+
+# All normalized province NAMES + co-official aliases -> canonical province, for
+# scanning a court/juzgado string for an explicit province mention (the
+# tiebreaker). Built from provinces.py's own lookup tables so it never drifts.
+_PROVINCE_NAME_TO_CANON: dict[str, str] = {}
+_PROVINCE_NAME_TO_CANON.update(getattr(_prov_mod, "_NORM_TO_CANONICAL", {}))
+_PROVINCE_NAME_TO_CANON.update(getattr(_prov_mod, "_PROVINCE_ALIASES", {}))
 
 # 5-digit Spanish postal code — first 2 digits = INE province code.
 _POSTAL5_RE = re.compile(r'\b(\d{2})\d{3}\b')
@@ -1071,40 +1086,136 @@ def derive_province_from_address(address: Optional[str]):
     return None, None
 
 
+def court_province_hint(court_name: Optional[str]):
+    """
+    Best-effort province from a court / juzgado string, or None. PRECISION over
+    recall — only used to disambiguate an ambiguous town, and only accepted when
+    it matches ONE of that town's candidate provinces.
+
+    BOE court text looks like "Juzgado de Primera Instancia N.º 3 de Nules" or
+    "Juzgado de lo Mercantil N.º 1 de Alicante". Resolution:
+      1. An explicit PROVINCE NAME anywhere in the text (word-boundary match;
+         distinctive, e.g. "de Cáceres", and capitals like "de Madrid" whose city
+         name IS the province).
+         -> If exactly ONE distinct province name appears, return it; if several
+            conflicting ones appear, return None (don't guess).
+      2. Otherwise the court CITY (trailing tokens after the boilerplate),
+         resolved through the guarded town map (an ambiguous court city -> None,
+         so we never emit a wrong province).
+    Returns a canonical province name or None.
+    """
+    if not court_name:
+        return None
+    norm = normalize_municipality(court_name)
+    if not norm:
+        return None
+
+    # 1. explicit province name(s) in the text.
+    hits = set()
+    for pv_norm, canon in _PROVINCE_NAME_TO_CANON.items():
+        if len(pv_norm) < 4:
+            continue  # avoid tiny tokens producing spurious word hits
+        if re.search(r'(?<![0-9a-z])' + re.escape(pv_norm) + r'(?![0-9a-z])', norm):
+            hits.add(canon)
+    if len(hits) == 1:
+        return next(iter(hits))
+    if len(hits) > 1:
+        return None  # conflicting province mentions -> unsafe
+
+    # 2. court city = trailing tokens (city may itself contain " de ", e.g.
+    #    "Jerez de la Frontera"), resolved via the GUARDED town map.
+    words = norm.split()
+    for k in (4, 3, 2, 1):
+        if len(words) >= k:
+            cand = ' '.join(words[-k:])
+            p = municipality_to_province(cand)  # ambiguous city -> None (safe)
+            if p:
+                return p
+    return None
+
+
+def _ambiguous_candidates(address: Optional[str], municipality: Optional[str]):
+    """
+    When neither the address nor the municipality field resolved confidently,
+    find an AMBIGUOUS town among them and return its candidate provinces
+    (frozenset), or None if there is no ambiguous town to disambiguate.
+
+    Only reached after derive_province_from_address()/municipality_to_province()
+    both returned nothing, so any ambiguous town present IS the blocking signal.
+    """
+    # municipality field first (a single clean token).
+    if municipality:
+        c = _AMBIGUOUS_CANDIDATES.get(normalize_municipality(municipality))
+        if c:
+            return c
+    # then the address tokens, right-to-left (trailing town).
+    if address:
+        parts = [t.strip() for t in re.split(r'[,()]', str(address)) if t and t.strip()]
+        for tok in reversed(parts):
+            clean = _LEADING_NUM_RE.sub('', tok).strip()
+            if len(clean) < 3:
+                continue
+            c = _AMBIGUOUS_CANDIDATES.get(normalize_municipality(clean))
+            if c:
+                return c
+    return None
+
+
 def resolve_province_less(address: Optional[str] = None,
                           municipality: Optional[str] = None,
                           bien_provincia: Optional[str] = None,
                           postal_code: Optional[str] = None,
                           bien_localidad: Optional[str] = None,
-                          court_province: Optional[str] = None):
+                          court_province: Optional[str] = None,
+                          court_name: Optional[str] = None):
     """
     Best-effort REAL province for a row whose `province` column is empty/junk.
 
-    Source order (Ken 2026-07-28 — address/municipality are the populated fields
-    on the province-less rows; the bien* fields are kept as later fallbacks):
-        address -> municipality -> bienProvincia -> postalCode -> bienLocalidad
+    Source order (address/municipality are the populated fields on the
+    province-less rows; the bien* fields are later fallbacks):
+        address -> municipality -> COURT tiebreaker (ambiguous town) ->
+        bienProvincia -> postalCode -> bienLocalidad
 
     Returns (province, source) or (None, None) = UNKNOWABLE (leave untouched).
-    `court_province` is accepted for signature symmetry but is NEVER used to
-    fill (a junk/court province is exactly what we are replacing — never guess).
+    Sources include 'court-disambig' when an ambiguous town was resolved by the
+    court signal. `court_province` is accepted for back-compat but NEVER used to
+    fill; `court_name` (the juzgado text) IS the second signal.
+
+    A special return `(None, 'court-conflict')` flags the rare case where the
+    court points to a province that is NOT among the ambiguous town's candidates
+    — the caller logs it and leaves the row UNKNOWABLE (never a wrong override).
     """
     # 1. address (primary — populated on ~93% of province-less rows).
     p, method = derive_province_from_address(address)
     if p:
         return p, method
 
-    # 2. municipality column (secondary).
+    # 2. municipality column (secondary; ambiguous -> None here).
     if municipality:
         mp = municipality_to_province(municipality)
         if mp and _canon_prov(mp):
             return mp, 'municipality'
 
-    # 3. bienProvincia (rarely present on these rows, but authoritative if so).
+    # 3. COURT/SOURCE TIEBREAKER for an ambiguous town (deep pass, 2026-07-28).
+    #    Only fires when an ambiguous town blocked 1 & 2. Resolve ONLY when the
+    #    court signal unambiguously matches ONE candidate province; if it points
+    #    outside the candidates, flag a conflict (never override); no signal ->
+    #    unknowable.
+    candidates = _ambiguous_candidates(address, municipality)
+    if candidates:
+        hint = court_province_hint(court_name)
+        if hint is not None:
+            if hint in candidates:
+                return hint, 'court-disambig'
+            return None, 'court-conflict'  # court disagrees with all candidates
+        return None, None  # no usable court signal -> unknowable
+
+    # 4. bienProvincia (rarely present on these rows, but authoritative if so).
     pv = _canon_prov(bien_provincia)
     if pv:
         return pv, 'bienProvincia'
 
-    # 4. postalCode column prefix.
+    # 5. postalCode column prefix.
     if postal_code:
         mm = re.match(r'^\s*(\d{2})\d{3}\s*$', str(postal_code))
         if mm:
@@ -1112,7 +1223,7 @@ def resolve_province_less(address: Optional[str] = None,
             if pc:
                 return pc, 'postalCode'
 
-    # 5. bienLocalidad town map.
+    # 6. bienLocalidad town map.
     if bien_localidad:
         bl = municipality_to_province(normalize_municipality(bien_localidad))
         if bl:

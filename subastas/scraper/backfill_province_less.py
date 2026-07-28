@@ -79,15 +79,18 @@ except ImportError:
 #   2. cwd = subastas/scraper/  -> `config.*`    (legacy operational-script cwd)
 #   3. /app container           -> `app.*`
 resolve_province_less = None
+_ambiguous_candidates = None
 for _mp_mod in ("scraper.config.municipality_province",
                 "config.municipality_province",
                 "app.config.municipality_province"):
     try:
-        resolve_province_less = __import__(_mp_mod, fromlist=["resolve_province_less"]).resolve_province_less
+        _m = __import__(_mp_mod, fromlist=["resolve_province_less", "_ambiguous_candidates"])
+        resolve_province_less = _m.resolve_province_less
+        _ambiguous_candidates = _m._ambiguous_candidates
         break
     except ImportError:
         continue
-if resolve_province_less is None:
+if resolve_province_less is None or _ambiguous_candidates is None:
     logger.error(
         "Could not import resolve_province_less. Run from subastas/ (as `scraper` "
         "package), subastas/scraper/, or the /app container."
@@ -134,23 +137,26 @@ def _now_iso():
 SOURCE_KEYS = (
     "address-postal", "address-province", "address-town",  # from `address`
     "municipality",                                        # from `municipality`
+    "court-disambig",                                      # ambiguous town + court
     "bienProvincia", "postalCode", "bienLocalidad",        # structured fallbacks
 )
 
 
 def classify_province_less(address=None, municipality=None, bien_provincia=None,
-                           postal_code=None, bien_localidad=None, court_province=None):
+                           postal_code=None, bien_localidad=None, court_province=None,
+                           court_name=None):
     """
     Decide whether a province-less row is FILLABLE and, if so, with which real
     province and from which source. Thin wrapper over the shared
     resolve_province_less (the SAME logic ingestion uses) — exposed for unit
-    testing. Returns (province, source) or (None, None) = UNKNOWABLE, leave the
-    row untouched. NEVER guesses (no confident signal -> unknowable).
+    testing. Returns (province, source) or (None, None) = UNKNOWABLE, or
+    (None, 'court-conflict') when the court signal disagreed with every candidate
+    province of an ambiguous town (logged, never overridden). NEVER guesses.
     """
     return resolve_province_less(
         address=address, municipality=municipality, bien_provincia=bien_provincia,
         postal_code=postal_code, bien_localidad=bien_localidad,
-        court_province=court_province,
+        court_province=court_province, court_name=court_name,
     )
 
 
@@ -173,6 +179,12 @@ def run_apply(dry_run=True, limit=None, audit_path=DEFAULT_AUDIT):
     fillable = 0
     unknowable = 0
     by_source = {k: 0 for k in SOURCE_KEYS}
+    # Ambiguous-town / court-tiebreaker ceiling metrics (deep pass, 2026-07-28).
+    ambig_total = 0        # rows blocked by an ambiguous town (no addr/muni resolve)
+    ambig_with_court = 0   # of those, how many even HAVE a courtName populated
+    court_resolved = 0     # resolved via the court tiebreaker (== by_source court-disambig)
+    court_conflict = 0     # court pointed OUTSIDE the town's candidates -> left as-is
+    court_unresolved = 0   # ambiguous but no usable court signal
     audit_fh = None
     if not dry_run:
         os.makedirs(os.path.dirname(audit_path), exist_ok=True) if os.path.dirname(audit_path) else None
@@ -183,7 +195,7 @@ def run_apply(dry_run=True, limit=None, audit_path=DEFAULT_AUDIT):
         cur.execute(
             f'''
             SELECT id, "boeId", province, address, municipality,
-                   "bienProvincia", "bienLocalidad", "postalCode"
+                   "bienProvincia", "bienLocalidad", "postalCode", "courtName"
             FROM "Auction"
             WHERE {JUNK_PROVINCE_SQL} AND id > %s
             ORDER BY id
@@ -198,18 +210,38 @@ def run_apply(dry_run=True, limit=None, audit_path=DEFAULT_AUDIT):
         updates = []  # (new_province, id)
         audit_lines = []
 
-        for rid, boe_id, cur_prov, address, municipality, bien_prov, bien_loc, postal in rows:
+        for rid, boe_id, cur_prov, address, municipality, bien_prov, bien_loc, postal, court in rows:
             scanned += 1
             new_prov, src = classify_province_less(
                 address=address, municipality=municipality,
                 bien_provincia=bien_prov, postal_code=postal,
-                bien_localidad=bien_loc, court_province=cur_prov,
+                bien_localidad=bien_loc, court_province=cur_prov, court_name=court,
             )
 
-            # Fillable ONLY when a confident signal (address / municipality /
-            # bien*) resolved to a REAL canonical province. No signal -> genuinely
-            # unknowable, leave it untouched (never guess).
-            if src is not None:
+            # Ceiling accounting: an ambiguous town blocked the address/muni paths.
+            # Recomputed via the shared helper so the metric can never drift.
+            candidates = _ambiguous_candidates(address, municipality)
+            if candidates is not None:
+                ambig_total += 1
+                if court and str(court).strip():
+                    ambig_with_court += 1
+                if src == 'court-disambig':
+                    court_resolved += 1
+                elif src == 'court-conflict':
+                    court_conflict += 1
+                else:
+                    court_unresolved += 1
+
+            if src == 'court-conflict':
+                # Court disagreed with every candidate -> DATA-QUALITY flag, never
+                # override. Leave the row UNKNOWABLE and log for review.
+                unknowable += 1
+                logger.warning(
+                    f"court-conflict boeId={boe_id} candidates={sorted(candidates) if candidates else None} "
+                    f"court={court!r} addr={address!r}"
+                )
+            elif src is not None:
+                # Fillable — a confident signal resolved to a REAL province.
                 fillable += 1
                 by_source[src] = by_source.get(src, 0) + 1
                 updates.append((new_prov, rid))
@@ -251,16 +283,29 @@ def run_apply(dry_run=True, limit=None, audit_path=DEFAULT_AUDIT):
     logger.info(f"      - address province name:    {by_source['address-province']:,}")
     logger.info(f"      - address town->province:   {by_source['address-town']:,}")
     logger.info(f"    via municipality:             {by_source['municipality']:,}")
+    logger.info(f"    via court tiebreaker:         {by_source['court-disambig']:,}")
     logger.info(f"    via bienProvincia:            {by_source['bienProvincia']:,}")
     logger.info(f"    via postalCode:               {by_source['postalCode']:,}")
     logger.info(f"    via bienLocalidad:            {by_source['bienLocalidad']:,}")
     logger.info(f"  UNKNOWABLE (no signal, left):   {unknowable:,}")
+    logger.info("  -- ambiguous-town / court ceiling --")
+    logger.info(f"    ambiguous-town rows:          {ambig_total:,}")
+    logger.info(f"      of those, have a courtName:  {ambig_with_court:,}  (the realistic ceiling)")
+    logger.info(f"      resolved by court:           {court_resolved:,}")
+    logger.info(f"      court conflict (left):       {court_conflict:,}")
+    logger.info(f"      no usable court signal:      {court_unresolved:,}")
     if dry_run:
         logger.info("  (DRY RUN — nothing written. Re-run with --apply to write.)")
 
     cur.close()
     conn.close()
-    return {"scanned": scanned, "fillable": fillable, "unknowable": unknowable, "by_source": by_source}
+    return {
+        "scanned": scanned, "fillable": fillable, "unknowable": unknowable,
+        "by_source": by_source,
+        "ambig_total": ambig_total, "ambig_with_court": ambig_with_court,
+        "court_resolved": court_resolved, "court_conflict": court_conflict,
+        "court_unresolved": court_unresolved,
+    }
 
 
 def run_revert(audit_path=DEFAULT_AUDIT, limit=None):
