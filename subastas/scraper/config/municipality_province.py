@@ -1037,26 +1037,152 @@ _POSTAL5_RE = re.compile(r'\b(\d{2})\d{3}\b')
 # A leading house number / postal digits to strip off an address token.
 _LEADING_NUM_RE = re.compile(r'^\s*\d[\d\s\-\.º/]*')
 
+# ---------------------------------------------------------------------------
+# WHOLE-STRING address town matcher (2026-07-28, parse-recovery pass)
+# ---------------------------------------------------------------------------
+# The old parser only matched a whole comma-segment, so a town embedded in the
+# string ("Calle Mayor 5 Torrevieja", "Partida Els Frares - Ondara") or written
+# with punctuation/hyphens ("Vélez-Málaga") was missed. This matcher tokenizes
+# the ENTIRE address (accent/case/punctuation-insensitive) and scans every
+# n-gram (up to 6 words, to cover "San Lorenzo de El Escorial") against the
+# 8,229-town gazetteer + province names, longest-match-wins, rightmost as the
+# tiebreak. Correctness is preserved by strong FALSE-POSITIVE GUARDS:
+#   - a single-word match must be >=4 chars and not a street-type word;
+#   - a match used as a STREET NAME ("Avenida de Alicante", "Calle Sevilla") is
+#     rejected via the street-context guard;
+#   - an AMBIGUOUS town never fills from the name alone (postal / explicit
+#     province / court tiebreaker still required).
+
+# Purely non-alphanumeric run -> a token separator (accents already folded).
+_NONWORD_RE = re.compile(r'[^a-z0-9]+')
+
+# Street-type lead words (Spanish + co-official). A town appearing right after
+# one of these (optionally through a connector) is a STREET NAME, not the town.
+_STREET_WORDS = frozenset({
+    'calle', 'c', 'cl', 'avenida', 'avda', 'avd', 'av', 'avinguda', 'plaza',
+    'pza', 'plza', 'pl', 'placa', 'placeta', 'plazuela', 'camino', 'cami',
+    'carretera', 'ctra', 'cr', 'paseo', 'pso', 'passeig', 'poligono', 'pol',
+    'pg', 'urbanizacion', 'urb', 'partida', 'ronda', 'rda', 'travesia', 'trav',
+    'tr', 'callejon', 'glorieta', 'via', 'rua', 'carrer', 'barrio', 'bda',
+    'barriada', 'bloque', 'portal', 'escalera', 'esc', 'piso', 'puerta',
+    'parcela', 'finca', 'sector', 'fase', 'edificio', 'edif', 'residencial',
+    'grupo', 'conjunto', 'lugar', 'paraje', 'diseminado', 'pasaje', 'senda',
+    'vereda', 'canada', 'muelle', 'cuesta', 'bajada', 'subida', 'rambla',
+    'senda', 'camino', 'apartamento', 'apto', 'chalet', 'nave', 'local',
+})
+# Small connector words skipped when looking back for a street lead.
+_CONNECTORS = frozenset({'de', 'del', 'la', 'las', 'el', 'los', 'l', 'd',
+                         'y', 'e', 'i', 'o', 'u', 'dels', 'els'})
+
+
+def _address_words(text):
+    """Fold to lowercase/accent-stripped tokens (punctuation -> separator)."""
+    if not text:
+        return []
+    norm = normalize_municipality(text)  # lowercase, accents removed, ws collapsed
+    return [w for w in _NONWORD_RE.sub(' ', norm).split() if w]
+
+
+def _wordkey(name):
+    """Gazetteer key in the SAME token form the address scan produces, so
+    "Vélez-Málaga" (key "velez malaga") matches address n-gram "velez malaga"."""
+    return ' '.join(_address_words(name))
+
+
+# Word-form indexes for the scan (built once, from the already-loaded maps).
+_TOWN_WORD_UNAMBIG: dict[str, str] = {}
+_TOWN_WORD_AMBIG: dict[str, frozenset] = {}
+_PROV_WORD: dict[str, str] = {}
+for _n, _c in _AMBIGUOUS_CANDIDATES.items():
+    _TOWN_WORD_AMBIG.setdefault(_wordkey(_n), _c)
+for _n, _p in _INE_UNAMBIGUOUS.items():
+    _k = _wordkey(_n)
+    if _k and _k not in _TOWN_WORD_AMBIG:
+        _TOWN_WORD_UNAMBIG.setdefault(_k, _p)
+for _n, _p in _RAW.items():  # curated capitals + BOE variants (single-province)
+    _k = _wordkey(_n)
+    if _k and _k not in _TOWN_WORD_AMBIG:
+        _TOWN_WORD_UNAMBIG.setdefault(_k, _p)
+for _n, _p in _PROVINCE_NAME_TO_CANON.items():
+    _k = _wordkey(_n)
+    if _k:
+        _PROV_WORD.setdefault(_k, _p)
+
+_MAX_NGRAM = 6  # longest Spanish town names ("San Lorenzo de El Escorial")
+
+
+def _street_context(words, i):
+    """True when words[i] is the object of a street phrase (e.g. 'avenida de X',
+    'calle X') — i.e. a place name used as a STREET name, not the town."""
+    j = i - 1
+    steps = 0
+    while j >= 0 and words[j] in _CONNECTORS and steps < 3:
+        j -= 1
+        steps += 1
+    return j >= 0 and words[j] in _STREET_WORDS
+
+
+def _scan_address(address):
+    """
+    Whole-string town/province scan with false-positive guards. Returns
+    (province, method, candidates):
+      - (province, 'address-province'|'address-town', None) for a confident
+        UNAMBIGUOUS match;
+      - (None, None, frozenset) when the best match is an AMBIGUOUS town (its
+        candidate provinces are returned for the postal/explicit/court tiebreaker);
+      - (None, None, None) when nothing matches.
+    Longest n-gram wins; ties broken by the RIGHTMOST position (trailing town
+    beats a street-name town earlier in the string).
+    """
+    words = _address_words(address)
+    n = len(words)
+    best = None  # (L, i, method_or_None, province_or_None, candidates_or_None)
+    for i in range(n):
+        if words[i].isdigit():
+            continue
+        if _street_context(words, i):
+            continue
+        maxL = min(_MAX_NGRAM, n - i)
+        for L in range(maxL, 0, -1):
+            seg = words[i:i + L]
+            if any(w.isdigit() for w in seg):
+                continue
+            if L == 1:
+                w = seg[0]
+                if len(w) < 4 or w in _STREET_WORDS:
+                    continue
+            key = ' '.join(seg)
+            if key in _PROV_WORD:
+                hit = (L, i, 'address-province', _PROV_WORD[key], None)
+            elif key in _TOWN_WORD_UNAMBIG:
+                hit = (L, i, 'address-town', _TOWN_WORD_UNAMBIG[key], None)
+            elif key in _TOWN_WORD_AMBIG:
+                hit = (L, i, None, None, _TOWN_WORD_AMBIG[key])
+            else:
+                continue
+            # Longest match at this start; prefer longer, then rightmost.
+            if best is None or hit[0] > best[0] or (hit[0] == best[0] and hit[1] > best[1]):
+                best = hit
+            break  # took the longest n-gram at this start
+    if best is None:
+        return None, None, None
+    return best[3], best[2], best[4]
+
 
 def derive_province_from_address(address: Optional[str]):
     """
-    Parse a Spanish province from a free-form address string.
+    Parse a Spanish province from a free-form address string. Conservative —
+    NEVER guesses.
 
-    Strategy (all conservative — never guesses):
+    Strategy:
       1. A 5-digit postal code ANYWHERE -> INE province code (most reliable).
-      2. Tokenize on commas / parentheses and scan RIGHT-TO-LEFT (the town and
-         province almost always TRAIL the street in a Spanish address, e.g.
-         "avinguda de alicante, 20, Torrevieja" or "..., Torrevieja (Alicante)").
-         For each trailing token, after stripping a leading house number:
-            a. an explicit province name       -> canonical_province
-            b. a town in the INE town map       -> municipality_to_province
-         The right-to-left order makes the trailing town/province win over a
-         street that merely CONTAINS a province word ("calle Sevilla, Madrid"
-         resolves to Madrid, not Sevilla).
+      2. Whole-string town/province scan (see _scan_address): every n-gram is
+         matched against the full gazetteer + province names, longest-wins /
+         rightmost, with street-context + single-word guards. An unambiguous
+         match fills; an ambiguous match is left for the tiebreaker.
 
-    Returns (province_name, method) where method is one of
-    'address-postal' | 'address-province' | 'address-town', or (None, None) when
-    nothing authoritative is found.
+    Returns (province_name, method) where method is
+    'address-postal' | 'address-province' | 'address-town', or (None, None).
     """
     if not address:
         return None, None
@@ -1064,25 +1190,17 @@ def derive_province_from_address(address: Optional[str]):
     if not raw:
         return None, None
 
-    # 1. postal code anywhere in the string.
+    # 1. postal code anywhere in the string (strongest signal).
     m = _POSTAL5_RE.search(raw)
     if m:
         p = _prov_by_code(m.group(1))
         if p:
             return p, 'address-postal'
 
-    # 2. trailing-token scan (right to left).
-    parts = [t.strip() for t in re.split(r'[,()]', raw) if t and t.strip()]
-    for tok in reversed(parts):
-        clean = _LEADING_NUM_RE.sub('', tok).strip()
-        if len(clean) < 3:
-            continue
-        pv = _canon_prov(clean)
-        if pv:
-            return pv, 'address-province'
-        mp = municipality_to_province(clean)
-        if mp:
-            return mp, 'address-town'
+    # 2. whole-string town/province scan.
+    province, method, _cands = _scan_address(raw)
+    if province:
+        return province, method
     return None, None
 
 
@@ -1148,16 +1266,14 @@ def _ambiguous_candidates(address: Optional[str], municipality: Optional[str]):
         c = _AMBIGUOUS_CANDIDATES.get(normalize_municipality(municipality))
         if c:
             return c
-    # then the address tokens, right-to-left (trailing town).
+    # then the whole-string address scan — returns the ambiguous town's
+    # candidates when the best (longest/rightmost, guard-passing) match is an
+    # ambiguous name. Same scan derive_province_from_address uses, so the token
+    # the tiebreaker disambiguates is exactly the one that blocked the fill.
     if address:
-        parts = [t.strip() for t in re.split(r'[,()]', str(address)) if t and t.strip()]
-        for tok in reversed(parts):
-            clean = _LEADING_NUM_RE.sub('', tok).strip()
-            if len(clean) < 3:
-                continue
-            c = _AMBIGUOUS_CANDIDATES.get(normalize_municipality(clean))
-            if c:
-                return c
+        _p, _m, cands = _scan_address(str(address))
+        if cands:
+            return cands
     return None
 
 

@@ -18,6 +18,68 @@ from scraper.config.municipality_province import (
 )
 
 
+# ── whole-string parse recovery (2026-07-28): accents / case / punctuation /
+#    embedded-town / multi-word — the misses v2..v4 left behind ──────────────
+
+def test_accented_hyphenated_town_now_matches():
+    # "Vélez-Málaga" — accent + hyphen; must match the gazetteer key.
+    assert derive_province_from_address("Calle Mayor 3, Vélez-Málaga") == ("Málaga", "address-town")
+
+
+def test_lowercase_accented_town_matches():
+    assert derive_province_from_address("carrer sant joan, alcúdia") == ("Illes Balears", "address-town")
+
+
+def test_town_embedded_without_comma_delimiter():
+    # No comma separating street from town — old parser missed this entirely.
+    assert derive_province_from_address("Calle Mayor 5 Torrevieja") == ("Alicante", "address-town")
+
+
+def test_multiword_town_matches():
+    assert derive_province_from_address("Urb Los Pinos, San Lorenzo de El Escorial") == ("Madrid", "address-town")
+
+
+def test_newly_recovered_small_town_midstring():
+    assert derive_province_from_address("Plaza España s/n Nules") == ("Castellón", "address-town")
+
+
+# ── FALSE-POSITIVE GUARDS — a street named after a place must NOT misfill ─────
+
+def test_street_named_after_province_does_not_misfill():
+    # "Avenida de Alicante 20" is a STREET named after Alicante, with NO real
+    # town in the string -> must stay UNKNOWABLE, never wrongly filled Alicante.
+    assert derive_province_from_address("Avenida de Alicante 20") == (None, None)
+
+
+def test_street_town_ignored_when_real_town_trails():
+    # "Calle Sevilla" is a street; the real town Madrid trails and must win.
+    prov, _ = derive_province_from_address("Calle Sevilla 3, Madrid")
+    assert prov == "Madrid"
+    # symmetric: street "Madrid", real town "Sevilla".
+    prov2, _ = derive_province_from_address("Calle Madrid 2, Sevilla")
+    assert prov2 == "Sevilla"
+
+
+def test_longest_match_beats_street_province_word():
+    # A multi-word trailing town beats a single province word used in a street.
+    assert derive_province_from_address("Avenida de Barcelona, Torrejón de Ardoz") == ("Madrid", "address-town")
+
+
+def test_rural_no_town_stays_unknowable():
+    assert derive_province_from_address("Finca El Prado, Paraje Los Llanos") == (None, None)
+    assert derive_province_from_address("Polígono 3, Parcela 45") == (None, None)
+
+
+def test_ambiguous_town_midstring_still_needs_tiebreaker():
+    # Ambiguous town embedded in the string: bare -> unknowable; with a matching
+    # court -> resolves (the whole-string scan feeds the tiebreaker the candidates).
+    assert derive_province_from_address("Calle Real 1 Arroyomolinos") == (None, None)
+    assert resolve_province_less(
+        address="Calle Real 1 Arroyomolinos",
+        court_name="Juzgado N.º 2 de Cáceres",
+    ) == ("Cáceres", "court-disambig")
+
+
 # ── COURT / SOURCE tiebreaker for ambiguous towns (deep pass) ─────────────────
 
 def test_court_hint_parses_province_from_juzgado():
