@@ -93,7 +93,8 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
     const entries: SitemapUrlEntry[] = [];
     try {
       const activeAuctions = await prisma.auction.findMany({
-        where: { status: { in: ACTIVE_STATUSES } },
+        // wave155: scope soft-hide gate — never list a hidden row in the sitemap.
+        where: { status: { in: ACTIVE_STATUSES }, inScope: true },
         select: { id: true, auctionType: true, province: true, municipality: true, updatedAt: true },
         orderBy: { id: 'asc' }, // stable order so skip/take chunks don't overlap
         skip: chunk.skip,
@@ -124,7 +125,8 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
     const entries: SitemapUrlEntry[] = [];
     try {
       const rows = await prisma.auction.findMany({
-        where: concludedIndexableWhere(),
+        // wave155: scope soft-hide gate ANDed onto the concluded-indexable set.
+        where: { ...concludedIndexableWhere(), inScope: true },
         select: {
           id: true,
           auctionType: true,

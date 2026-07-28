@@ -34,6 +34,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { IN_SCOPE_GUARD_SQL } from '@/lib/auction-status';
 import {
   SPAIN_PROVINCES,
   isCanonicalProvince,
@@ -70,6 +71,7 @@ export async function GET(req: NextRequest) {
       SELECT province, COUNT(*)::bigint AS count
       FROM "Auction"
       WHERE province IS NOT NULL
+        AND ${IN_SCOPE_GUARD_SQL}
         AND LENGTH(TRIM(province)) > 1
         AND status IN (${placeholders})
       GROUP BY province

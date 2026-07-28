@@ -354,6 +354,28 @@ export function statusDateLabel(
   }
 }
 
+// ─── Scope soft-hide guard (wave155, 2026-07-28) ──────────────────────────
+
+/**
+ * Catalog scope gate. Only in-scope auctions (property/land + vehicles that
+ * carry REAL data) are shown; out-of-scope (movable / rights) and empty-shell
+ * rows are soft-hidden via `Auction.inScope = false` (reversible, see the
+ * schema + scripts/backfill_scope_flag.py). EVERY catalog surface — list,
+ * counts, map, stats, province/town directory, detail page, sitemap — ANDs
+ * this predicate so a hidden row appears nowhere.
+ *
+ * Raw-SQL form. `inScope` is `NOT NULL DEFAULT true` (migration
+ * 20260728_add_auction_scope_flag), so a plain `= true` is exact and consumes
+ * no `?` placeholder. Ken applies the migration BEFORE the app image flips
+ * (established deploy order), so the column always exists when this runs.
+ */
+export const IN_SCOPE_GUARD_SQL = '("inScope" = true)';
+
+/** Prisma equivalent — spread into any `where` that lists catalog rows. */
+export function inScopeWherePrisma(): { inScope: true } {
+  return { inScope: true };
+}
+
 // ─── Backward-compatible re-exports ───────────────────────────────────────
 
 /**

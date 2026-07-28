@@ -6,6 +6,7 @@ import {
   PRE_AUCTION_DB_STATUSES,
   FINISHED_DB_STATUSES,
   ACTIVE_CLOCK_GUARD_SQL,
+  IN_SCOPE_GUARD_SQL,
   isActiveStatus,
   isPreAuctionStatus,
   isFinishedStatus,
@@ -45,7 +46,7 @@ let _muniGlobalCache: { byFolded: Map<string, string[]>; expiresAt: number } | n
 async function getCountsMuniGlobalCache(): Promise<Map<string, string[]>> {
   if (_muniGlobalCache && _muniGlobalCache.expiresAt > Date.now()) return _muniGlobalCache.byFolded;
   const rows = await query<{ municipality: string }>(
-    'SELECT DISTINCT municipality FROM Auction WHERE municipality IS NOT NULL',
+    `SELECT DISTINCT municipality FROM Auction WHERE municipality IS NOT NULL AND ${IN_SCOPE_GUARD_SQL}`,
     [],
   );
   const byFolded = new Map<string, string[]>();
@@ -171,6 +172,7 @@ export async function GET(request: NextRequest) {
         COUNT(*) as count
       FROM Auction
       WHERE 1=1
+        AND ${IN_SCOPE_GUARD_SQL}
         AND province IS NOT NULL
         AND LOWER(province) NOT IN ('unknown', 'desconocida', 'mapa de la zona', 'mapa del municipio', 'null', 'undefined')
         AND LENGTH(TRIM(province)) > 1
@@ -187,7 +189,7 @@ export async function GET(request: NextRequest) {
     if (province) {
       const normalizedProvince = normalizeText(province);
       const dbProvinces = await query<{ province: string }>(
-        'SELECT DISTINCT province FROM Auction WHERE province IS NOT NULL',
+        `SELECT DISTINCT province FROM Auction WHERE province IS NOT NULL AND ${IN_SCOPE_GUARD_SQL}`,
         []
       );
       const provinceMatches = dbProvinces
@@ -238,7 +240,7 @@ export async function GET(request: NextRequest) {
         // OR clauses so a non-slug spelling on the wire (e.g. raw "Madrid")
         // still resolves.
         const dbProvinceRows = await query<{ province: string }>(
-          'SELECT DISTINCT province FROM Auction WHERE province IS NOT NULL',
+          `SELECT DISTINCT province FROM Auction WHERE province IS NOT NULL AND ${IN_SCOPE_GUARD_SQL}`,
           [],
         );
         const dbProvinces = dbProvinceRows.map((r) => r.province);

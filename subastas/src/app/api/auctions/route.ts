@@ -24,6 +24,7 @@ import {
   PRE_AUCTION_DB_STATUSES,
   FINISHED_DB_STATUSES,
   ACTIVE_CLOCK_GUARD_SQL,
+  IN_SCOPE_GUARD_SQL,
   DB_TO_FRONTEND_STATUS,
   isActiveStatus as sharedIsActiveStatus,
   isPreAuctionStatus as sharedIsPreAuctionStatus,
@@ -50,7 +51,7 @@ async function getCachedDistinctProvinces(): Promise<string[]> {
     return provinceCache.values;
   }
   const rows = await query<{ province: string }>(
-    'SELECT DISTINCT province FROM Auction WHERE province IS NOT NULL',
+    `SELECT DISTINCT province FROM Auction WHERE province IS NOT NULL AND ${IN_SCOPE_GUARD_SQL}`,
     []
   );
   provinceCache = {
@@ -75,7 +76,7 @@ async function getCachedDistinctMunicipalitiesInProvince(province: string): Prom
   const cached = municipalityCacheByProvince.get(province);
   if (cached && cached.expiresAt > Date.now()) return cached.values;
   const rows = await query<{ municipality: string }>(
-    'SELECT DISTINCT municipality FROM Auction WHERE municipality IS NOT NULL AND province = ?',
+    `SELECT DISTINCT municipality FROM Auction WHERE municipality IS NOT NULL AND province = ? AND ${IN_SCOPE_GUARD_SQL}`,
     [province],
   );
   const values = rows.map((r) => r.municipality).filter((v): v is string => Boolean(v));
@@ -104,7 +105,7 @@ async function getCachedDistinctMunicipalitiesGlobal(): Promise<Map<string, stri
     return municipalityGlobalCache.byFolded;
   }
   const rows = await query<{ municipality: string }>(
-    'SELECT DISTINCT municipality FROM Auction WHERE municipality IS NOT NULL',
+    `SELECT DISTINCT municipality FROM Auction WHERE municipality IS NOT NULL AND ${IN_SCOPE_GUARD_SQL}`,
     [],
   );
   const byFolded = new Map<string, string[]>();
@@ -1288,6 +1289,7 @@ export async function GET(request: NextRequest) {
          WHERE ad.auctionId = Auction.id
        ) AS hasDocuments
       FROM Auction WHERE 1=1
+      AND ${IN_SCOPE_GUARD_SQL}
       AND province IS NOT NULL
       AND LOWER(province) NOT IN ('unknown', 'desconocida', 'mapa de la zona', 'mapa del municipio', 'null', 'undefined')
       AND LENGTH(TRIM(province)) > 1`;

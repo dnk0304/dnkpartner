@@ -34,6 +34,21 @@ model Auction {
   status       AuctionStatus @default(CELEBRANDOSE)
   auctionType  String?       @default("JUDICIAL")
 
+  // Scope enforcement (wave155, 2026-07-28). Reversible soft-hide: only
+  // property/land + vehicle auctions that carry REAL information are shown.
+  // Out-of-scope (movable goods, rights) and empty-shell rows (no real data —
+  // just a price/placeholder title, e.g. the €55 PLABI "ACTIVO FRISU") are
+  // flagged inScope=false and dropped from every catalog surface (list, detail,
+  // search, sitemap, index) — NOT deleted, so a wrong call is a one-row UPDATE
+  // to reverse. `scopeReason` records WHY it was hidden:
+  //   'movable' | 'rights' | 'unclassified' | 'empty-shell'.
+  // Governing principle (Dennis 2026-07-28): DATA QUALITY, not just category —
+  // a dead source link ALONE never hides a row (real-data-but-dead-link rows,
+  // e.g. the suspended Las Palmas auction, stay KEPT + frozen); only a row that
+  // never captured real information is an empty shell.
+  inScope      Boolean       @default(true)
+  scopeReason  String?
+
   // Core auction values
   // Nullable: the real Tasación comes from the BOE detail page; when genuinely
   // absent the value is NULL (honest). NEVER coerce a missing value to 0.
@@ -296,6 +311,8 @@ model Auction {
   @@index([source])
   @@index([propertyType])
   @@index([municipality])
+  // Scope soft-hide gate (wave155): every catalog surface ANDs `inScope = true`.
+  @@index([inScope])
   // Wave 1 composite/partial indexes for the live-state queries.
   @@index([status, endsAt])
   @@index([endsAt])

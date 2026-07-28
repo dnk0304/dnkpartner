@@ -38,19 +38,7 @@ import {
   TIPO_SLUG_TO_DB_KEYS,
 } from '@/lib/seo/slugs';
 import { resolveProvinceSlugToCanonicalSlug } from '@/lib/province-slug';
-import { isLegacyCuid } from '@/lib/seo/legacy-rows';
 import { defaultLocale, LOCALE_COOKIE, LOCALE_HEADER, type Locale } from '@/i18n/routing';
-
-/** HTML body returned with the 410 Gone response on legacy auction URLs. */
-const GONE_HTML = `<!doctype html>
-<html lang="es"><head>
-<meta charset="utf-8">
-<meta name="robots" content="noindex,follow">
-<title>410 Gone — Subasta retirada</title>
-</head><body>
-<h1>410 Gone</h1>
-<p>Esta subasta forma parte del archivo retirado y ya no está disponible.</p>
-</body></html>`;
 
 function normaliseSlugToken(s: string): string {
   return s
@@ -148,31 +136,15 @@ export function middleware(request: NextRequest) {
   const { locale, pathname, urlHadLocale } = detectLocale(request);
   const { search, searchParams } = request.nextUrl;
 
-  // ---- Rule 1b: legacy "junk auction" rows → 410 Gone --------------------
-  // The January first-gen import produced ~13.5k rows whose stored BOE link
-  // is dead (built from an internal 0x-hex code, not a real SUB- id). All are
-  // in finished states, excluded from sitemap, already noindex on the detail
-  // page. To make Google fully drop them we serve 410 Gone here.
-  // Detection: the trailing token of the slug is the auction id. cuid shape
-  // (`c` + 24 alnum) → legacy. Fast, edge-only, no DB hit.
-  // See: src/lib/seo/legacy-rows.ts (single source of truth, mirrors
-  // scraper/database/legacy_rows.py).
-  const subastaMatch = pathname.match(/^\/subastas\/subasta\/([^/?#]+)\/?$/);
-  if (subastaMatch) {
-    const slug = subastaMatch[1];
-    const lastDash = slug.lastIndexOf('-');
-    const tail = lastDash >= 0 ? slug.substring(lastDash + 1) : slug;
-    if (isLegacyCuid(tail)) {
-      return new NextResponse(GONE_HTML, {
-        status: 410,
-        headers: {
-          'Content-Type': 'text/html; charset=utf-8',
-          'X-Robots-Tag': 'noindex,follow',
-          'Cache-Control': 'public, max-age=86400, s-maxage=86400',
-        },
-      });
-    }
-  }
+  // ---- Rule 1b REMOVED (wave155, 2026-07-28) -----------------------------
+  // The former edge 410 keyed on cuid ID SHAPE (`^c[a-z0-9]{24}$`) of the slug
+  // tail — but cuid is the `@default(cuid())` id of EVERY newer scraped row, so
+  // it was 410'ing 1,176 legitimate auctions before any status/link check. The
+  // CORRECTED retire predicate (dead `0x` boeId AND terminal status) needs the
+  // DB row, which the edge runtime cannot read. The retire decision therefore
+  // moved into the [slug] page + generateMetadata (they already load the row).
+  // See src/lib/seo/legacy-rows.ts::shouldRetireAuction and
+  // src/app/subastas/subasta/[slug]/page.tsx.
 
   // ---- Rule 2: legacy auction detail → /subastas/subasta/{id} ------------
   const legacyAuction = pathname.match(/^\/(?:subastas\/)?auction\/([^/?#]+)\/?$/);
