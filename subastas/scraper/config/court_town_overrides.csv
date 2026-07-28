@@ -1,0 +1,20 @@
+court_town,province
+# Curated partido-judicial court-town -> province overrides (2026-07-28).
+# For court-town suffixes ("JUZGADO … - <TOWN>") whose short / regional / co-official
+# spelling the gazetteer does not resolve cleanly, OR where an altLabel truncation
+# would resolve to the WRONG province. Each row is HUMAN-VERIFIED against the real
+# partido judicial. Checked FIRST in court_province_from_name (highest priority).
+# Province must be a canonical provinces.py name. Ken extends this from the full
+# court_map_wave165.csv unmappable list (134 distinct court-towns). NEVER guess:
+# only add a row when the partido -> province is certain.
+ELX,Alicante
+VILAFRANCA PENEDES,Barcelona
+BISBAL,Girona
+VIELHA,Lleida
+LOS CRISTIANOS,Santa Cruz de Tenerife
+PLAYA LOS CRISTIANOS,Santa Cruz de Tenerife
+EJIDO,Almería
+JEREZ FRONTERA,Cádiz
+ARENYS MAR,Barcelona
+SANLUCAR BARRAMEDA,Cádiz
+ALCALA HENARES,Madrid

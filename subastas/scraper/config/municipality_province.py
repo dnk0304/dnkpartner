@@ -1389,6 +1389,34 @@ _COURT_SUFFIX_RE = re.compile(r'\s[-–—]\s')
 # Trailing parenthetical / roman-ordinal noise sometimes glued to the town.
 _COURT_TOWN_TRIM_RE = re.compile(r'\s*\((?:[^)]*)\)\s*$')
 
+# Curated, HUMAN-VERIFIED partido-judicial court-town -> province overrides for
+# short/regional court spellings the gazetteer doesn't resolve cleanly (or where
+# an altLabel truncation would resolve WRONG). Checked FIRST. Loaded from the
+# committed court_town_overrides.csv; a row with an invalid province is dropped
+# (fail-closed). Keyed by normalize_municipality of the court-town.
+_COURT_TOWN_OVERRIDES: dict[str, str] = {}
+
+
+def _load_court_town_overrides() -> None:
+    path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                         "court_town_overrides.csv")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for row in _csv.DictReader(fh):
+                town = (row.get("court_town") or "").strip()
+                prov = (row.get("province") or "").strip()
+                if not town or town.startswith("#") or not prov:
+                    continue
+                # Fail-closed: only accept a canonical province (never a typo).
+                canon = _canon_prov(prov) or (prov if prov in _INE_UNAMBIGUOUS.values() else None)
+                if canon:
+                    _COURT_TOWN_OVERRIDES[normalize_municipality(town)] = canon
+    except OSError:
+        pass
+
+
+_load_court_town_overrides()
+
 
 def court_town_from_name(court_name: Optional[str]):
     """Extract the town from a "JUZGADO … - <TOWN>" courtName suffix, or None.
@@ -1415,6 +1443,49 @@ def court_town_from_name(court_name: Optional[str]):
     return town
 
 
+def _resolve_court_town(town):
+    """Resolve a CLEAN single court-town name to a province via the FULL
+    co-official INE index (word-form + article-inversion variants, and the
+    connector-stripped "content" form), returning (province, flag).
+
+    This is SAFE here — unlike a free-text address — because the court suffix is
+    ONE clean town token after "JUZGADO … -"; there is no street/lindero/surname
+    to hijack, so the co-official normalisation + connector-stripping only ever
+    resolve the intended town. A name in >1 province -> ('ambiguous'); a name in
+    exactly one -> ('ok'); nothing -> ('unmappable'). NEVER guesses.
+    """
+    # 0. HUMAN-VERIFIED override (partido abbreviations / co-official spellings the
+    #    gazetteer can't resolve, or would resolve WRONG via an altLabel truncation).
+    ov = _COURT_TOWN_OVERRIDES.get(normalize_municipality(town))
+    if ov:
+        return ov, 'ok'
+    key = _wordkey(town)                    # normalised, punctuation-folded
+    # 1. bare province name in the suffix ("… - BARCELONA" / "… - GIRONA").
+    if key in _PROV_WORD:
+        return _PROV_WORD[key], 'ok'
+    # 2. word-form (incl. article-inversion variants: "el ejido" ⇄ "ejido").
+    if key in _TOWN_WORD_UNAMBIG:
+        return _TOWN_WORD_UNAMBIG[key], 'ok'
+    if key in _TOWN_WORD_AMBIG:
+        return None, 'ambiguous'
+    # 3. connector-stripped content form ("jerez frontera" -> "jerez de la
+    #    frontera", "vilafranca penedes" -> "vilafranca del penedès").
+    content = [w for w in key.split() if w not in _CONNECTORS]
+    if content:
+        ck = ' '.join(content)
+        if ck in _TOWN_CONTENT_UNAMBIG:
+            return _TOWN_CONTENT_UNAMBIG[ck], 'ok'
+        if ck in _TOWN_CONTENT_AMBIG:
+            return None, 'ambiguous'
+    # 4. legacy guarded map (curated + partial) as a final resolver.
+    p = municipality_to_province(town)
+    if p:
+        return p, 'ok'
+    if normalize_municipality(town) in _AMBIGUOUS_CANDIDATES:
+        return None, 'ambiguous'
+    return None, 'unmappable'
+
+
 def court_province_from_name(court_name: Optional[str]):
     """Deterministically resolve a courtName to a PROVINCE via its town suffix.
 
@@ -1423,22 +1494,18 @@ def court_province_from_name(court_name: Optional[str]):
       flag 'no-town'     -> no juzgado town suffix (AEAT / administrative) -> NULL
       flag 'ambiguous'   -> town exists in >1 province -> NULL (flagged for review)
       flag 'unmappable'  -> town not found in the gazetteer -> NULL (flagged)
+
+    The town->province lookup routes through the FULL co-official INE index
+    (17,578 rows: altLabels/native names + article-inversion + connector-stripped
+    keys) so short/regional court-town spellings ("ELX", "JEREZ FRONTERA",
+    "EJIDO", "VILAFRANCA PENEDES", "VIELHA") resolve — safe because the suffix is
+    a single clean town token, not a free-text address.
     """
     town = court_town_from_name(court_name)
     if not town:
         return None, None, 'no-town'
-    # A partido-judicial head resolved through the guarded gazetteer (co-official
-    # + ambiguity aware): a single-province town -> its province.
-    p = municipality_to_province(town)
-    if p:
-        return p, town, 'ok'
-    # The suffix may itself be a bare province name ("… - BARCELONA").
-    pv = _canon_prov(town)
-    if pv:
-        return pv, town, 'ok'
-    if normalize_municipality(town) in _AMBIGUOUS_CANDIDATES:
-        return None, town, 'ambiguous'
-    return None, town, 'unmappable'
+    province, flag = _resolve_court_town(town)
+    return province, town, flag
 
 
 def _ambiguous_candidates(address: Optional[str], municipality: Optional[str]):
