@@ -52,11 +52,9 @@ import { Search } from "lucide-react";
 import { HomeCarouselSection } from "@/components/observatory/HomeCarouselSection";
 import { MapCategorySidebar } from "@/components/observatory/MapCategorySidebar";
 import { PopularRegionChips } from "@/components/observatory/PopularRegionChips";
-import { NearMeStrip, type NearMeSource } from "@/components/observatory/NearMeStrip";
 import { apiFetch } from "@/lib/api-path";
 import { AuctionItem } from "@/types";
 import { PROVINCE_DB_KEY_TO_SLUG, slugify } from "@/lib/seo/slugs";
-import { toCanonicalProvince, type CanonicalProvince } from "@/lib/spain-provinces";
 
 /**
  * Build the canonical clean SEO URL for a province click. Wave 56 (Option A):
@@ -123,12 +121,16 @@ const ProvinceGrid = dynamic(
 const FULL_MAP_HREF = "/subastas?view=map";
 
 /**
- * sessionStorage flag set when the user dismisses the near-you pin ("Ver
- * toda España" / "Quitar"). While present, the IP auto-pin never re-fires
- * this session; the explicit GPS chip still works. Session-scoped on
- * purpose — a fresh visit tomorrow gets the nearby default again.
+ * Geolocation REMOVED (Dennis 2026-07-28). The home page previously
+ * auto-detected the visitor's province from their connection (IP → Cloudflare
+ * edge headers via GET /api/geo/nearest-province), pinned the carousel to that
+ * province, and rendered a "Mostrando subastas cerca de ti (según tu
+ * conexión)" banner (<NearMeStrip>). All of that is gone: the page now loads
+ * NATIONAL data by default (toda España). Manual filtering stays — the quick
+ * search box and the province chips/grid still let users narrow by province.
+ * The unused /api/geo/nearest-province route is left in place (dead, uncalled)
+ * for Forge to remove server-side if desired.
  */
-const NEAR_DISMISSED_KEY = "sa:nearby-dismissed";
 
 export default function HomeObservatory() {
   const router = useRouter();
@@ -157,68 +159,6 @@ export default function HomeObservatory() {
     },
     [router, searchTerm],
   );
-
-  // Near-you pin (phase 2, 2026-07-10). One state object so the province and
-  // its provenance can never drift apart:
-  //   - source "ip"  → auto-pinned on load from GET /api/geo/nearest-province
-  //     (Cloudflare edge headers, server-side — no permission prompt).
-  //   - source "gps" → the user clicked the "Cerca de ti" chip (explicit,
-  //     browser geolocation) — always wins over the IP pin.
-  // Clearing the pin records a dismissal in sessionStorage so navigation
-  // within the session never re-pins behind the user's back.
-  const [near, setNear] = React.useState<{
-    province: CanonicalProvince;
-    source: NearMeSource;
-  } | null>(null);
-  const nearProvince = near?.province ?? null;
-
-  // Clear from the strip: unpin AND remember the choice for this session.
-  const clearNear = React.useCallback(() => {
-    setNear(null);
-    try {
-      window.sessionStorage.setItem(NEAR_DISMISSED_KEY, "1");
-    } catch {
-      /* storage blocked — clearing still works for this page view */
-    }
-  }, []);
-
-  // Auto-detect on load (phase 2). Locked contract:
-  //   GET /api/geo/nearest-province → 200 { province: {key,label,slug} | null, source: "ip" }
-  // Degrade to full-Spain silently on 404 / error / null / off-taxonomy —
-  // zero UI noise, and first paint is NEVER blocked on this fetch (the
-  // carousel renders full-Spain immediately and re-pins when this lands).
-  React.useEffect(() => {
-    let cancelled = false;
-    try {
-      if (window.sessionStorage.getItem(NEAR_DISMISSED_KEY) === "1") return;
-    } catch {
-      /* storage blocked — proceed; worst case the strip reappears */
-    }
-    (async () => {
-      try {
-        const res = await apiFetch("/api/geo/nearest-province");
-        if (!res.ok || cancelled) return;
-        const body = await res.json();
-        if (cancelled) return;
-        const p = body?.province;
-        if (!p || typeof p.key !== "string" || typeof p.label !== "string") return;
-        // Taxonomy guard: resolve through the canonical table so an
-        // unexpected spelling from the geo endpoint can't feed the carousel
-        // a filter value that matches nothing.
-        const row =
-          toCanonicalProvince(p.key) ?? toCanonicalProvince(p.label);
-        if (!row) return;
-        // Never overwrite an existing pin (e.g. the user beat us to the GPS
-        // chip) — functional update keeps this race-free.
-        setNear((prev) => prev ?? { province: row, source: "ip" });
-      } catch {
-        /* endpoint absent (Forge ships in parallel) or network — silent */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Map auctions — ACTIVAS only (C4a #7, 2026-06-07). Dennis: the landing
   // map defaults to Activas, not "active + upcoming". We hit the canonical
@@ -473,9 +413,10 @@ export default function HomeObservatory() {
                 sources text block that used to sit here. The sources copy
                 was NOT deleted: a condensed version renders below the fold
                 (above "Cómo funciona") so the keyword text stays in the DOM.
-                Chips navigate to the clean province pages. Nearby detection is
-                now fully automatic (IP → NearMeStrip); the manual GPS chip was
-                removed 2026-07-12. */}
+                Chips navigate to the clean province pages. These are the only
+                province entry points on the hero now — automatic geolocation
+                (IP auto-pin + "cerca de ti" banner) was removed 2026-07-28
+                (Dennis); the page defaults to national data. */}
             <PopularRegionChips
               className="mt-6 max-w-2xl"
               counts={provinceCounts}
@@ -501,30 +442,18 @@ export default function HomeObservatory() {
 
           {/* Endless marquee — ONE row with the Inmuebles / Vehículos toggle
               (funnel redesign #1). Modal popup is OFF (cards link to detail
-              page). When the IP pin resolved a province, a small note explains
-              the pinned feed and offers the province page + clear.
+              page). Always NATIONAL (province=null) — the geolocation
+              auto-pin + "cerca de ti" banner were removed 2026-07-28 (Dennis).
               Grid: full-width row 2 on lg+; on mobile it flows BETWEEN the
               headline and the map (source order = mobile order). */}
           <section
             aria-label={t("carouselSectionAria")}
             className="space-y-3 lg:col-span-2 lg:col-start-1 lg:row-start-2"
           >
-            {near && (
-              <NearMeStrip
-                province={near.province}
-                source={near.source}
-                provinceHref={provinceHref(near.province.key)}
-                onClear={clearNear}
-              />
-            )}
-            {/* `label` (not `key`) — Auction.province stores the label
-                spelling in production (verified 2026-07-10: "Vizcaya",
-                "Guipúzcoa"); carousel-mix's province filter is exact-equals
-                (case-insensitive), so the label is the value that matches. */}
             <HomeCarouselSection
               limit={30}
               seeAllHref="/subastas?when=activas"
-              province={nearProvince?.label ?? null}
+              province={null}
             />
           </section>
 

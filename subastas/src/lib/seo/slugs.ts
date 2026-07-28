@@ -68,13 +68,28 @@ export const RESERVED_SEGMENTS: ReadonlySet<string> = new Set([
 // special-case slugs (07 §2.4) honoured explicitly.
 // ---------------------------------------------------------------------------
 
-/** Special canonical slug overrides — by DB key. */
+/**
+ * Special canonical slug overrides — by DB key.
+ *
+ * NOTE (2026-07-28): the canonical province SLUG is decoupled from the display
+ * LABEL. Several provinces render a Spanish exonym for display (e.g. key
+ * `Bizkaia` → label `Vizcaya`, key `Girona` → label `Gerona`) while their
+ * canonical URL slug stays the native/most-searched form. Any province whose
+ * Spanish label would slugify to something OTHER than its canonical slug MUST
+ * be pinned here, otherwise `buildProvinceSlug` (which falls back to
+ * `slugify(label)`) would silently move the URL. Girona/Lleida/Ourense are
+ * pinned to their native slugs for exactly this reason (labels are
+ * Gerona/Lérida/Orense; the Spanish spellings remain 301 aliases below).
+ */
 const PROVINCE_SLUG_OVERRIDES: Record<string, string> = {
   'A Coruña': 'a-coruna',
   'Álava': 'araba-alava',          // canonical = araba-alava per spec
   'Illes Balears': 'baleares',     // most-searched form
   'Gipuzkoa': 'gipuzkoa',
   'Bizkaia': 'bizkaia',
+  'Girona': 'girona',              // label = Gerona; slug stays native
+  'Lleida': 'lleida',              // label = Lérida; slug stays native
+  'Ourense': 'ourense',            // label = Orense; slug stays native
   'Las Palmas': 'las-palmas',
   'Santa Cruz de Tenerife': 'santa-cruz-de-tenerife',
 };
