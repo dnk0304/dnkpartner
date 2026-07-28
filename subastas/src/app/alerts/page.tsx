@@ -366,7 +366,7 @@ export default function AlertsPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-green-600">
-                  {count7d === null ? (
+                  {countTotal === null ? (
                     notifError ? '—' : (
                       <span
                         className="inline-block h-8 w-10 animate-pulse rounded bg-green-100 align-middle motion-reduce:animate-none"
@@ -374,12 +374,17 @@ export default function AlertsPage() {
                       />
                     )
                   ) : (
-                    count7d
+                    countTotal
                   )}
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  {t('statLast7Days')} · <span className="text-blue-600">{t('statViewHistory')}</span>
+                  {t('statInTotal')} · <span className="text-blue-600">{t('statViewHistory')}</span>
                 </p>
+                {count7d !== null && count7d > 0 && (
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {t('statLast7DaysCount', { count: count7d })}
+                  </p>
+                )}
               </CardContent>
             </Card>
           </button>
@@ -621,23 +626,34 @@ export default function AlertsPage() {
               </Card>
             ) : (
               alerts.map((alert) => {
-                const hasPrice = alert.minPrice != null || alert.maxPrice != null;
-                const priceText = hasPrice
-                  ? `${alert.minPrice != null ? `${alert.minPrice.toLocaleString('es-ES')} €` : t('priceNoMin')} – ${alert.maxPrice != null ? `${alert.maxPrice.toLocaleString('es-ES')} €` : t('priceNoMax')}`
-                  : null;
+                // Price always shown as a full range so the card fully
+                // describes the alert — "sin mínimo" / "sin límite" stand in
+                // for the open ends rather than hiding the row.
+                const minLabel =
+                  alert.minPrice != null
+                    ? `${alert.minPrice.toLocaleString('es-ES')} €`
+                    : t('priceNoMin');
+                const maxLabel =
+                  alert.maxPrice != null
+                    ? `${alert.maxPrice.toLocaleString('es-ES')} €`
+                    : t('priceNoMax');
+                const priceText = `${minLabel} – ${maxLabel}`;
                 const keywords = (alert.keywords || '')
                   .split(',')
                   .map((k) => k.trim())
                   .filter(Boolean);
-                const hasCriteria =
-                  alert.source ||
-                  alert.propertyType ||
-                  alert.province ||
-                  alert.municipality ||
-                  alert.category ||
-                  alert.auctionType ||
-                  hasPrice ||
-                  keywords.length > 0;
+                // Human-readable lead line, e.g. "Todos los inmuebles en Las
+                // Palmas". Defaults ("Todos los inmuebles" / "toda España")
+                // stand in when the field is unset so the summary always reads
+                // as a full sentence.
+                const propertyTypeLabel =
+                  alert.propertyType || t('criteriaAllPropertyTypes');
+                const provinceLeadLabel =
+                  alert.province || t('criteriaAllProvinces');
+                const leadText = t('criteriaLead', {
+                  type: propertyTypeLabel,
+                  location: provinceLeadLabel,
+                });
                 const notifLabel =
                   alert.notificationType === 'individual'
                     ? t('notifIndividualShort')
@@ -656,46 +672,43 @@ export default function AlertsPage() {
                           )}
                         </div>
 
-                        {hasCriteria ? (
-                          <div className="flex flex-wrap gap-2 mb-3">
-                            {alert.source && (
-                              <CriterionPill icon={<Building2 className="w-3.5 h-3.5" />} label={t('criteriaSource')} value={alert.source} />
-                            )}
-                            {alert.propertyType && (
-                              <CriterionPill icon={<Home className="w-3.5 h-3.5" />} label={t('criteriaPropertyType')} value={alert.propertyType} />
-                            )}
-                            {alert.province && (
-                              <CriterionPill icon={<MapPin className="w-3.5 h-3.5" />} label={t('criteriaProvince')} value={alert.province} />
-                            )}
-                            {alert.municipality && (
-                              <CriterionPill icon={<MapPin className="w-3.5 h-3.5" />} label={t('criteriaMunicipality')} value={alert.municipality} />
-                            )}
-                            {alert.category && (
-                              <CriterionPill icon={<Tag className="w-3.5 h-3.5" />} label={t('criteriaCategory')} value={alert.category} />
-                            )}
-                            {alert.auctionType && (
-                              <CriterionPill icon={<Gavel className="w-3.5 h-3.5" />} label={t('criteriaAuctionType')} value={alert.auctionType} />
-                            )}
-                            {priceText && (
-                              <CriterionPill icon={<Euro className="w-3.5 h-3.5" />} label={t('criteriaPrice')} value={priceText} />
-                            )}
-                            {keywords.length > 0 && (
-                              <CriterionPill
-                                icon={<Tag className="w-3.5 h-3.5" />}
-                                label={t('criteriaKeywords')}
-                                value={
-                                  <span className="flex flex-wrap gap-1">
-                                    {keywords.map((k) => (
-                                      <span key={k} className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700">{k}</span>
-                                    ))}
-                                  </span>
-                                }
-                              />
-                            )}
-                          </div>
-                        ) : (
-                          <p className="mb-3 text-sm text-gray-500">{t('criteriaAny')}</p>
-                        )}
+                        {/* Human lead line summarising the whole watch spec. */}
+                        <p className="mb-2 text-sm text-gray-600">{leadText}</p>
+
+                        {/* Full criteria breakdown. Origen, Tipo de bien,
+                            Provincia y Precio se muestran SIEMPRE (con su valor
+                            "Todos" / "Todas" / "sin límite" cuando no hay filtro)
+                            para que la tarjeta describa exactamente qué recibe el
+                            usuario. Municipio, Categoría, Tipo de subasta y
+                            Palabras clave sólo aparecen si están configurados. */}
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          <CriterionPill icon={<Building2 className="w-3.5 h-3.5" />} label={t('criteriaSource')} value={alert.source || t('allMasculine')} />
+                          <CriterionPill icon={<Home className="w-3.5 h-3.5" />} label={t('criteriaPropertyType')} value={propertyTypeLabel} />
+                          <CriterionPill icon={<MapPin className="w-3.5 h-3.5" />} label={t('criteriaProvince')} value={alert.province || t('allFeminine')} />
+                          {alert.municipality && (
+                            <CriterionPill icon={<MapPin className="w-3.5 h-3.5" />} label={t('criteriaMunicipality')} value={alert.municipality} />
+                          )}
+                          {alert.category && (
+                            <CriterionPill icon={<Tag className="w-3.5 h-3.5" />} label={t('criteriaCategory')} value={alert.category} />
+                          )}
+                          {alert.auctionType && (
+                            <CriterionPill icon={<Gavel className="w-3.5 h-3.5" />} label={t('criteriaAuctionType')} value={alert.auctionType} />
+                          )}
+                          <CriterionPill icon={<Euro className="w-3.5 h-3.5" />} label={t('criteriaPrice')} value={priceText} />
+                          {keywords.length > 0 && (
+                            <CriterionPill
+                              icon={<Tag className="w-3.5 h-3.5" />}
+                              label={t('criteriaKeywords')}
+                              value={
+                                <span className="flex flex-wrap gap-1">
+                                  {keywords.map((k) => (
+                                    <span key={k} className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700">{k}</span>
+                                  ))}
+                                </span>
+                              }
+                            />
+                          )}
+                        </div>
 
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
                           <div className="flex items-center gap-1.5">
