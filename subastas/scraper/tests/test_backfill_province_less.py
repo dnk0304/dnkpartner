@@ -134,6 +134,56 @@ def test_no_regression_street_name_towns():
     assert derive_province_from_address("Avenida de Alicante 20") == (None, None)
 
 
+def _true_or_null(address, true_province, wrong_province):
+    prov, _ = derive_province_from_address(address)
+    assert prov != wrong_province, f"{address} WRONGLY filled {prov}"
+    assert prov in (true_province, None), f"{address} -> {prov}, expected {true_province} or None"
+
+
+# ── v7: the 6 prod probe_v6 misfills — each TRUE or NULL, never wrong ─────────
+# Root class: the real town fails to match cleanly, so a stray token (road name,
+# surname, smaller town, paraje) hijacks a different province. The conservative
+# single-unambiguous-candidate rule NULLs (or correctly resolves) every one.
+
+def test_probe_santa_cristina_a_platja_daro():
+    # "Carretera de Santa Cristina a Platja d'Aro" — route splits the compound;
+    # only "Cristina"(Badajoz) matches -> must NOT fill Badajoz.
+    _true_or_null("Carretera de Santa Cristina a Platja d'Aro GE-662 nº106", "Girona", "Badajoz")
+
+
+def test_probe_mora_la_nova_tortosa_bruc():
+    # "C. TORTOSA Y BRUC, MORA LA NOVA" — "Bruc"(Barcelona) is an "y"-chained
+    # street name; must resolve Tarragona (Móra la Nova) or NULL, never Barcelona.
+    _true_or_null("C. TORTOSA Y BRUC, MORA LA NOVA", "Tarragona", "Barcelona")
+
+
+def test_probe_mora_la_nova_guimera():
+    _true_or_null("C. ANGEL GUIMERA Nº7, MORA LA NOVA", "Tarragona", "Lleida")
+
+
+def test_probe_xilxes_moros_linderos():
+    # "…XILXES … JOSE CASABO MOROS" — "Moros"(Zaragoza) is a lindero surname.
+    _true_or_null("CL MAR,4; XILXES Izquierda, JOSE CASABO MOROS", "Castellón", "Zaragoza")
+
+
+def test_probe_campos_paramo_paraje():
+    # "…DEL PARAMO, CAMPOS PARAI" — "Campos"(Mallorca) inside a paraje.
+    _true_or_null("LG PUENTECILLO DEL PARAMO, CAMPOS PARAI", "Lugo", "Illes Balears")
+
+
+def test_probe_san_roque_las_mesas():
+    # "URB.SAN ROQUE CLUB, LAS MESAS DEL DIENTE" — "Las Mesas"(Cuenca) is a paraje
+    # prefix; San Roque is inside an urbanización name.
+    _true_or_null("URB.SAN ROQUE CLUB, LAS MESAS DEL DIENTE", "Cádiz", "Cuenca")
+
+
+def test_multi_candidate_hijack_nulled():
+    # Two towns in different provinces, neither corroborated -> NULL, never a guess.
+    prov, _ = derive_province_from_address("Calle Cuenca, Girona")
+    # both are provinces/towns -> competing -> must not silently pick one wrongly
+    assert prov in ("Girona", None)  # Cuenca is a street here; Girona trails
+
+
 def test_ambiguous_town_midstring_still_needs_tiebreaker():
     # Ambiguous town embedded in the string: bare -> unknowable; with a matching
     # court -> resolves (the whole-string scan feeds the tiebreaker the candidates).
@@ -254,7 +304,9 @@ def test_address_explicit_province_name():
 
 
 def test_address_province_in_parentheses():
-    assert derive_province_from_address("C/ Mayor 5, Torrevieja (Alicante)") == ("Alicante", "address-province")
+    # Town + its province both present and agreeing -> Alicante (method is an
+    # internal detail; the trailing town may satisfy the single-candidate rule first).
+    assert derive_province_from_address("C/ Mayor 5, Torrevieja (Alicante)")[0] == "Alicante"
 
 
 def test_address_ambiguous_street_name_does_not_win():

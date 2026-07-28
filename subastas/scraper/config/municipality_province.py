@@ -1183,10 +1183,29 @@ for _n, _p in _PROVINCE_NAME_TO_CANON.items():
 
 _MAX_NGRAM = 6  # longest Spanish town names ("San Lorenzo de El Escorial")
 
+# Direction / linderos / building noise — words that appear AROUND the real town
+# but are not place names. Ignored when deciding whether a town match "dominates"
+# its address segment (a real town is the last significant place-word; a bare
+# street name or a lindero surname leaves other place-words after it).
+_DIRECTION_NOISE = frozenset({
+    'izquierda', 'derecha', 'izq', 'dcha', 'izqda', 'frente', 'fondo', 'linderos',
+    'lindero', 'linda', 'lindante', 'norte', 'sur', 'este', 'oeste', 'arriba',
+    'abajo', 'centro', 'sn', 'bis', 'dupl', 'duplicado', 'letra', 'planta',
+    'bajo', 'entresuelo', 'atico', 'sotano', 'ppal', 'principal', 'esc', 'pta',
+    'puerta', 'num', 'numero', 'no', 'km', 'apto', 's',
+})
+# "and" connectors that chain names in a street or a list ("Tortosa y Bruc") —
+# a candidate right after one of these is part of a chain, not a standalone town.
+_AND_WORDS = frozenset({'y', 'e'})
+# Name particles that precede the second half of a compound town ("Santa Cristina",
+# "San Roque") — a bare component right after one is a compound fragment.
+_NAME_PARTICLES = frozenset({'san', 'santa', 'sant', 'santo', 'santas', 'santos',
+                             'sta', 'sto', 'ntra', 'nuestra', 'els', 'les'})
+
 
 def _street_context(words, i):
     """True when words[i] is the object of a street phrase (e.g. 'avenida de X',
-    'calle X') — i.e. a place name used as a STREET name, not the town."""
+    'calle X') — a place name used as a STREET name, not the town."""
     j = i - 1
     steps = 0
     while j >= 0 and words[j] in _CONNECTORS and steps < 3:
@@ -1196,90 +1215,133 @@ def _street_context(words, i):
 
 
 def _connector_neighbor(words, i):
-    """True when words[i] is linked by a connector (de/del/d'/la…) to another
-    content word on either side — i.e. it is part of a longer "A de B" place
-    expression (a compound town), not a standalone town."""
+    """True when words[i] is linked by a connector/name-particle to another
+    content word on either side — part of a longer "A de B" / "Santa B" compound
+    town, not a standalone town."""
     n = len(words)
-    left = (i - 1 >= 0 and words[i - 1] in _CONNECTORS
+    parts = _CONNECTORS | _NAME_PARTICLES
+    left = (i - 1 >= 0 and words[i - 1] in parts
             and i - 2 >= 0 and not words[i - 2].isdigit())
-    right = (i + 1 < n and words[i + 1] in _CONNECTORS
+    right = (i + 1 < n and words[i + 1] in parts
              and i + 2 < n and not words[i + 2].isdigit())
     return left or right
 
 
+def _seg_is_noise(w):
+    return (w.isdigit() or len(w) < 3 or w in _STREET_WORDS
+            or w in _DIRECTION_NOISE or w in _CONNECTORS)
+
+
+def _segments(address):
+    """Split the (normalised) address into comma/semicolon/paren/slash segments,
+    each a token list. Segment boundaries are preserved so a town in a later
+    segment isn't judged against a street/route in an earlier one."""
+    norm = normalize_municipality(address)  # lowercase, accents stripped, ws collapsed
+    out = []
+    for s in re.split(r'[,;()/]+', norm):
+        toks = [w for w in _NONWORD_RE.sub(' ', s).split() if w]
+        if toks:
+            out.append(toks)
+    return out
+
+
+def _lookup(span):
+    """(province, candidates, method) for a token span, or (None, None, None).
+    Tries word-form (+ article variants), then connector-stripped content form."""
+    key = ' '.join(span)
+    if key in _PROV_WORD:
+        return _PROV_WORD[key], None, 'address-province'
+    if key in _TOWN_WORD_UNAMBIG:
+        return _TOWN_WORD_UNAMBIG[key], None, 'address-town'
+    if key in _TOWN_WORD_AMBIG:
+        return None, _TOWN_WORD_AMBIG[key], 'address-town'
+    content = [w for w in span if w not in _CONNECTORS]
+    if len(content) >= 2:
+        ck = ' '.join(content)
+        if ck in _TOWN_CONTENT_UNAMBIG:
+            return _TOWN_CONTENT_UNAMBIG[ck], None, 'address-town'
+        if ck in _TOWN_CONTENT_AMBIG:
+            return None, _TOWN_CONTENT_AMBIG[ck], 'address-town'
+    return None, None, None
+
+
 def _scan_address(address):
     """
-    Whole-string town/province scan with false-positive guards. Returns
-    (province, method, candidates):
-      - (province, 'address-province'|'address-town', None) for a confident
-        UNAMBIGUOUS match;
-      - (None, None, frozenset) when the best match is an AMBIGUOUS town (its
-        candidate provinces are returned for the postal/explicit/court tiebreaker);
-      - (None, None, None) when nothing matches.
-    Longest n-gram wins; ties broken by the RIGHTMOST position (trailing town
-    beats a street-name town earlier in the string).
+    CONSERVATIVE single-candidate scan (v7). Returns (province, method, candidates).
 
-    Compound-town correctness (v6): a multi-word n-gram matches the gazetteer in
-    its natural, article-inverted, OR connector-stripped ("content") form, so a
-    co-official compound ("La Pobla de Vallbona", "Santa Cristina d'Aro",
-    "Polinyà del Xúquer") matches its own entry and longest-wins picks it. And a
-    SUB-TOKEN GUARD stops a bare component ("Vallbona"/"Cristina"/"Móra") filling
-    a different province when it is a fragment of a longer compound in the string.
+    Fills a province ONLY when the whole address yields exactly ONE distinct
+    unambiguous municipality province — the "hijack signature" (2+ town tokens
+    pointing to DIFFERENT provinces) resolves to NULL (or, via `candidates`, is
+    left for the postal/explicit-province/court tiebreaker). This kills the class
+    of misfills where the real town fails to match and a stray token (road name,
+    surname, smaller town) grabs a different province.
+
+    A town match only COUNTS as a candidate when it "dominates" its comma/;
+    segment: it is not street-context, not preceded by an "and"-chain word, and no
+    further significant PLACE word follows it in the segment (so "Las Mesas del
+    Diente" / "Campos Paraí" — a longer paraje — do not fill from the sub-name).
+    Compound fragments (a component token next to a connector/name-particle) count
+    as competitors but never fill on their own. Correctness > coverage.
     """
-    words = _address_words(address)
-    n = len(words)
-    best = None  # (L, i, method_or_None, province_or_None, candidates_or_None)
-    for i in range(n):
-        if words[i].isdigit():
-            continue
-        if _street_context(words, i):
-            continue
-        maxL = min(_MAX_NGRAM, n - i)
-        for L in range(maxL, 0, -1):
-            seg = words[i:i + L]
-            if any(w.isdigit() for w in seg):
+    strong = set()          # provinces from dominant, non-street unambiguous matches
+    fillable = {}           # province -> method (dominant, non-street, NOT a fragment)
+    ambig_sets = []         # candidate sets from dominant ambiguous single towns
+    for seg in _segments(address):
+        n = len(seg)
+        for i in range(n):
+            if seg[i].isdigit():
                 continue
-            if L == 1:
-                w = seg[0]
-                if len(w) < 4 or w in _STREET_WORDS:
-                    continue
-            key = ' '.join(seg)
-            method = province = candidates = None
-            if key in _PROV_WORD:
-                method, province = 'address-province', _PROV_WORD[key]
-            elif key in _TOWN_WORD_UNAMBIG:
-                method, province = 'address-town', _TOWN_WORD_UNAMBIG[key]
-            elif key in _TOWN_WORD_AMBIG:
-                candidates = _TOWN_WORD_AMBIG[key]
-            else:
-                # Connector-stripped ("content") match for compounds whose
-                # de/del/d' differs from the gazetteer (multi content-word only).
-                content = [w for w in seg if w not in _CONNECTORS]
-                if len(content) >= 2:
-                    ck = ' '.join(content)
-                    if ck in _TOWN_CONTENT_UNAMBIG:
-                        method, province = 'address-town', _TOWN_CONTENT_UNAMBIG[ck]
-                    elif ck in _TOWN_CONTENT_AMBIG:
-                        candidates = _TOWN_CONTENT_AMBIG[ck]
-                    else:
-                        continue
-                else:
-                    continue
-            # SUB-TOKEN HIJACK GUARD: a bare single-token TOWN match that is a
-            # known component of a longer municipality AND sits in a connector
-            # context ("…de X" / "X de …") is a compound fragment — never fill
-            # from it (leave for a longer match / UNKNOWABLE). Never applies to
-            # province-name matches (distinctive) or multi-word matches.
-            if (L == 1 and province is not None and method == 'address-town'
-                    and seg[0] in _COMPONENT_TOKENS and _connector_neighbor(words, i)):
+            if i - 1 >= 0 and seg[i - 1] in _AND_WORDS:
+                continue  # part of an "X y Y" chain (street / list), not a town
+            if _street_context(seg, i):
                 continue
-            hit = (L, i, method, province, candidates)
-            if best is None or hit[0] > best[0] or (hit[0] == best[0] and hit[1] > best[1]):
-                best = hit
-            break  # took the longest n-gram at this start
-    if best is None:
-        return None, None, None
-    return best[3], best[2], best[4]
+            maxL = min(_MAX_NGRAM, n - i)
+            for L in range(maxL, 0, -1):
+                span = seg[i:i + L]
+                if any(w.isdigit() for w in span):
+                    continue
+                if L == 1 and (len(span[0]) < 4 or span[0] in _STREET_WORDS):
+                    continue
+                province, candidates, method = _lookup(span)
+                if method is None and candidates is None:
+                    continue
+                # DOMINANCE: no significant PLACE word after the span in this
+                # segment (noise/direction/connector words are allowed to trail).
+                end = i + L
+                if any(not _seg_is_noise(seg[k]) for k in range(end, n)):
+                    break  # longer name than a municipality -> not a clean town
+                fragment = (L == 1 and province is not None
+                            and span[0] in _COMPONENT_TOKENS
+                            and _connector_neighbor(seg, i))
+                if province is not None:
+                    # A compound fragment (bare component of a longer town next to
+                    # a connector/particle) is IGNORED — it is part of a longer
+                    # name, never a competitor and never a fill on its own.
+                    if not fragment:
+                        strong.add(province)
+                        fillable.setdefault(province, method)
+                elif candidates is not None:
+                    ambig_sets.append(frozenset(candidates))
+                break  # longest n-gram at this start
+    # ── decision ──────────────────────────────────────────────────────────
+    if len(strong) >= 2:
+        return None, None, frozenset(strong)          # competing towns -> tiebreaker
+    if len(strong) == 1:
+        p = next(iter(strong))
+        # An ambiguous town pointing OUTSIDE the single strong province competes.
+        if any(p not in s for s in ambig_sets):
+            return None, None, frozenset(strong)
+        if p in fillable:
+            return p, fillable[p], None
+        return None, None, frozenset(strong)          # fragment only -> corroborate/NULL
+    # no unambiguous match — a single ambiguous town can still go to the tiebreaker.
+    if len(strong) == 0 and ambig_sets:
+        first = ambig_sets[0]
+        if all(s == first for s in ambig_sets):
+            return None, None, first
+        union = frozenset().union(*ambig_sets)
+        return None, None, union
+    return None, None, None
 
 
 def derive_province_from_address(address: Optional[str]):
