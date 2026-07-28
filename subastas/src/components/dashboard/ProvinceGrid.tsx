@@ -14,6 +14,16 @@ interface ProvinceGridProps {
   }>;
   onProvinceClick: (province: string) => void;
   onMunicipalityClick?: (municipality: string, province: string) => void;
+  /**
+   * AUTHORITATIVE "total auctions we have" (Dennis 2026-07-28) = the true full
+   * registry count (COUNT(*) WHERE inScope=true, incl. unknown-status +
+   * province-less rows), supplied by HomeObservatory from
+   * /api/auctions/counts `totals.registryTotal`. When present (> 0) it drives
+   * the headline "Total subastas" counter — DECOUPLED from Σ(province rows),
+   * which can only ever count province-assigned auctions. Omitted / 0 falls back
+   * to the Σ-of-rows total so the counter never blanks.
+   */
+  totalAuctions?: number;
 }
 
 interface MunicipalityData {
@@ -79,7 +89,7 @@ const PROVINCES: Array<{ label: string; key: string }> = [
   { label: 'Zaragoza', key: 'Zaragoza' }
 ];
 
-export function ProvinceGrid({ provinceCounts, onProvinceClick, onMunicipalityClick }: ProvinceGridProps) {
+export function ProvinceGrid({ provinceCounts, onProvinceClick, onMunicipalityClick, totalAuctions }: ProvinceGridProps) {
   const [expandedProvince, setExpandedProvince] = useState<string | null>(null);
   const [municipalityData, setMunicipalityData] = useState<Record<string, MunicipalityData[]>>({});
   const [loadingMunicipalities, setLoadingMunicipalities] = useState<string | null>(null);
@@ -164,6 +174,16 @@ export function ProvinceGrid({ provinceCounts, onProvinceClick, onMunicipalityCl
   // heading can surface a "Total subastas" counter and the badge colors get
   // an explicit legend. We sum from `provinceCounts` (already passed in by
   // HomeObservatory) so this stays presentational — no extra fetch.
+  //
+  // Registry-sync (2026-07-28, Dennis): the HEADLINE total is now DECOUPLED
+  // from Σ(province rows). The Σ-of-rows figure (`rowsTotal`) can only ever
+  // count province-assigned auctions, so it structurally undercounts the true
+  // catalog (it misses unknown-status INDETERMINADO rows the registry rollup
+  // excludes AND province-less rows entirely). When the parent supplies the
+  // authoritative `totalAuctions` (COUNT(*) WHERE inScope=true), we show THAT as
+  // the headline — even though it will legitimately exceed the visible rows'
+  // sum while province-less rows exist / the province backfill is pending. The
+  // Σ-of-rows total remains the fallback so the counter never blanks.
   const aggregateTotals = useMemo(() => {
     let active = 0;
     let preAuction = 0;
@@ -178,13 +198,16 @@ export function ProvinceGrid({ provinceCounts, onProvinceClick, onMunicipalityCl
     // `total` may not include `finished` in every payload; fall back to the
     // sum-of-buckets if the explicit total reads suspiciously low.
     const bucketSum = active + preAuction + finished;
+    const rowsTotal = Math.max(total, bucketSum);
     return {
       active,
       preAuction,
       finished,
-      total: Math.max(total, bucketSum),
+      rowsTotal,
+      // Authoritative full-catalog total when available, else Σ-of-rows.
+      total: totalAuctions && totalAuctions > 0 ? totalAuctions : rowsTotal,
     };
-  }, [provinceCounts]);
+  }, [provinceCounts, totalAuctions]);
 
   const formatNumber = (n: number) => n.toLocaleString('es-ES');
 

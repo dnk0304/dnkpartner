@@ -23,6 +23,7 @@ import {
   MAP_CATEGORY_ALL_KNOWN_DB_LABELS,
 } from '@/lib/map-category';
 import { getSourceLabel } from '@/lib/source-labels';
+import { getRegistryTotalCount } from '@/lib/registro/registry-total';
 
 // FORGE 2026-06-07 (multi-town-api / Feature F1) — array-param caps + parser.
 // Mirrors the listing route. Keep these in sync.
@@ -490,7 +491,15 @@ export async function GET(request: NextRequest) {
     const activeTotal = Object.values(counts.active).reduce((sum, val) => sum + val, 0);
     const preAuctionTotal = Object.values(counts.preAuction).reduce((sum, val) => sum + val, 0);
     const finishedTotal = Object.values(counts.finished).reduce((sum, val) => sum + val, 0);
-    
+
+    // AUTHORITATIVE "total auctions we have" (Dennis 2026-07-28): the true full
+    // registry count = COUNT(*) WHERE inScope=true — INCLUDING unknown-status
+    // (INDETERMINADO) and province-less rows. This is DECOUPLED from `grandTotal`
+    // above (which is Σ province-valid buckets and therefore excludes both). The
+    // home ProvinceGrid headline reads THIS field so it stops undercounting.
+    // Single source of truth: src/lib/registro/registry-total.ts (memoized).
+    const registryTotal = await getRegistryTotalCount().catch(() => 0);
+
     const response = {
       success: true,
       groupBy,
@@ -499,7 +508,10 @@ export async function GET(request: NextRequest) {
         total: grandTotal,
         active: activeTotal,
         preAuction: preAuctionTotal,
-        finished: finishedTotal
+        finished: finishedTotal,
+        // The authoritative full-catalog total (COUNT(*) WHERE inScope=true).
+        // 0 means "unavailable" — consumers fall back to their derived total.
+        registryTotal
       },
       performance: {
         total: Date.now() - startTime,

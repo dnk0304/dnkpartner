@@ -7,6 +7,7 @@ import {
   ACTIVE_CLOCK_GUARD_SQL,
   IN_SCOPE_GUARD_SQL,
 } from '@/lib/auction-status';
+import { getRegistryTotalCount } from '@/lib/registro/registry-total';
 
 interface AuctionStatsRow {
   totalAuctions: number;
@@ -215,13 +216,17 @@ export async function GET() {
     // Landing hero "Rastreadas" chip consumes this field.
     const totalTrackedAllSql = `SELECT COUNT(*) AS totalTrackedAll FROM Auction`;
 
-    const [trueActiveRow, trueLiveRow, trueUpcomingRow, newThisMonthRow, newLast30DaysRow, totalTrackedAllRaw] = await Promise.all([
+    const [trueActiveRow, trueLiveRow, trueUpcomingRow, newThisMonthRow, newLast30DaysRow, totalTrackedAllRaw, totalInScope] = await Promise.all([
       queryOne<{ count: number }>(trueActiveSql, [...ACTIVE_DB_STATUSES]),
       queryOne<{ count: number }>(trueLiveSql, [...LIVE_NOW_DB_STATUSES]),
       queryOne<{ count: number }>(trueUpcomingSql, [...PRE_AUCTION_DB_STATUSES]),
       queryOne<{ count: number }>(newThisMonthSql, [monthAnchor]),
       queryOne<{ count: number }>(newLast30DaysSql, [thirtyDayAnchor]),
       queryOne<TotalTrackedAllRow>(totalTrackedAllSql, []),
+      // AUTHORITATIVE "total auctions we have" — the SAME single-source value the
+      // home ProvinceGrid headline shows (COUNT(*) WHERE inScope=true, incl.
+      // unknown-status + province-less). Shared helper so the two never drift.
+      getRegistryTotalCount(),
     ]);
 
     const trueRaw: TrueActiveRow = {
@@ -265,6 +270,12 @@ export async function GET() {
       // Raw grand total — COUNT(*) over Auction with NO filters. The honest
       // "auctions we've ever tracked" number for the hero "Rastreadas" chip.
       totalTrackedAll: Number(totalTrackedAllRaw?.totalTrackedAll || 0),
+      // AUTHORITATIVE public "total auctions we have" (Dennis 2026-07-28) =
+      // COUNT(*) WHERE inScope=true. Sits BETWEEN totalAuctions (province-valid,
+      // undercounts) and totalTrackedAll (raw, includes soft-hidden junk). This
+      // is the number the home headline shows — exposed here so every surface
+      // reads one value. See src/lib/registro/registry-total.ts.
+      totalInScope: Number(totalInScope || 0),
     };
 
     return NextResponse.json({ success: true, data: stats });
