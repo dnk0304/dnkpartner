@@ -14,8 +14,63 @@ bien*/postal columns, so the address parser is the primary path under test.
 from scraper.backfill_province_less import classify_province_less, JUNK_PROVINCE_SQL, SOURCE_KEYS
 from scraper.config.municipality_province import (
     derive_province_from_address, resolve_province_less, municipality_to_province,
-    _INE_UNAMBIGUOUS, _AMBIGUOUS_TOWNS,
+    court_province_hint, _INE_UNAMBIGUOUS, _AMBIGUOUS_TOWNS, _AMBIGUOUS_CANDIDATES,
 )
+
+
+# ── COURT / SOURCE tiebreaker for ambiguous towns (deep pass) ─────────────────
+
+def test_court_hint_parses_province_from_juzgado():
+    assert court_province_hint("Juzgado de Primera Instancia N.º 2 de Cáceres") == "Cáceres"
+    assert court_province_hint("Juzgado de lo Mercantil N.º 1 de Alicante") == "Alicante"
+    # court city that is a small town resolves to its province
+    assert court_province_hint("Juzgado de 1ª Instancia e Instrucción N.º 1 de Nules") == "Castellón"
+    # multi-"de" city name
+    assert court_province_hint("Juzgado de lo Mercantil N.º 1 de Jerez de la Frontera") == "Cádiz"
+    assert court_province_hint("") is None
+    assert court_province_hint(None) is None
+
+
+def test_ambiguous_resolves_with_matching_court_province():
+    # Arroyomolinos = {Madrid, Cáceres}; the court province picks the right one.
+    assert _AMBIGUOUS_CANDIDATES["arroyomolinos"] == frozenset({"Madrid", "Cáceres"})
+    assert resolve_province_less(
+        address="Calle Real 1, Arroyomolinos",
+        court_name="Juzgado de 1ª Instancia N.º 2 de Cáceres",
+    ) == ("Cáceres", "court-disambig")
+    assert resolve_province_less(
+        address="Calle Real 1, Arroyomolinos",
+        court_name="Juzgado N.º 5 de Madrid",
+    ) == ("Madrid", "court-disambig")
+    # ambiguous MUNICIPALITY field + court also resolves
+    assert resolve_province_less(
+        municipality="Cieza", court_name="Juzgado N.º 1 de Murcia",
+    ) == ("Murcia", "court-disambig")
+
+
+def test_court_not_among_candidates_never_overrides():
+    # Court points to Sevilla, which is NOT a candidate of Arroyomolinos
+    # (Madrid/Cáceres) -> flagged as a conflict, row left UNKNOWABLE (no wrong fill).
+    assert resolve_province_less(
+        address="Calle Real 1, Arroyomolinos",
+        court_name="Juzgado N.º 1 de Sevilla",
+    ) == (None, "court-conflict")
+
+
+def test_ambiguous_without_court_signal_stays_unknowable():
+    assert resolve_province_less(address="Calle Real 1, Arroyomolinos") == (None, None)
+    assert resolve_province_less(address="Calle Real 1, Arroyomolinos", court_name="") == (None, None)
+    # a court whose city/province cannot be parsed gives no hint -> unknowable
+    assert resolve_province_less(
+        address="Calle Real 1, Arroyomolinos", court_name="Notaría número 3",
+    ) == (None, None)
+
+
+def test_court_never_overrides_a_confident_address():
+    # An unambiguous address must NOT be second-guessed by a court in another province.
+    assert resolve_province_less(
+        address="C/ X, Torrevieja", court_name="Juzgado N.º 1 de Madrid",
+    ) == ("Alicante", "address-town")
 
 
 # ── FULL INE register loaded (2026-07-28) ────────────────────────────────────
@@ -146,7 +201,8 @@ def test_classify_matches_resolve():
 def test_source_keys_cover_all_reported_sources():
     assert set(SOURCE_KEYS) == {
         "address-postal", "address-province", "address-town",
-        "municipality", "bienProvincia", "postalCode", "bienLocalidad",
+        "municipality", "court-disambig",
+        "bienProvincia", "postalCode", "bienLocalidad",
     }
 
 

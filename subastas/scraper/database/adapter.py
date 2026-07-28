@@ -243,10 +243,11 @@ class DatabaseAdapter:
         # INGESTION PROVINCE GUARD (2026-07-28) — universal net for EVERY source
         # path (BOE / registro / teju / split-lote). If a new row would land with
         # an empty/junk province, derive the REAL one from the SAME signals the
-        # backfill uses (address -> municipality -> bien*), via the shared
-        # resolve_province_less. This stops new province-less rows accumulating
-        # (~1,915 in the last 60d). Never guesses: no confident signal -> the
-        # junk value is left as-is (the row is still stored, just province-less).
+        # backfill uses (address -> municipality -> court tiebreaker -> bien*),
+        # via the shared resolve_province_less. This stops new province-less rows
+        # accumulating (~1,915 in the last 60d). Never guesses: no confident
+        # signal (or a court that conflicts with an ambiguous town's candidates)
+        # -> the junk value is left as-is (row still stored, just province-less).
         if _is_junk_province(data.get('province')):
             derived, _src = resolve_province_less(
                 address=data.get('address'),
@@ -255,7 +256,10 @@ class DatabaseAdapter:
                 postal_code=data.get('postal_code'),
                 bien_localidad=data.get('bien_localidad'),
                 court_province=data.get('province'),
+                court_name=data.get('court_name'),
             )
+            # `derived` is None for both UNKNOWABLE and 'court-conflict' — either
+            # way we leave the province as-is (never a wrong override).
             if derived:
                 data['province'] = derived
 
