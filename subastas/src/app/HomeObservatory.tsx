@@ -135,6 +135,14 @@ export default function HomeObservatory() {
   const t = useTranslations("home");
   const [mapItems, setMapItems] = React.useState<AuctionItem[]>([]);
   const [provinceCounts, setProvinceCounts] = React.useState<Record<string, { active: number; preAuction: number; finished: number; total: number }>>({});
+  // AUTHORITATIVE "total auctions we have" (Dennis 2026-07-28) — the true full
+  // registry count = COUNT(*) WHERE inScope=true (incl. unknown-status +
+  // province-less rows). Sourced from /api/auctions/counts `totals.registryTotal`
+  // (single source of truth: src/lib/registro/registry-total.ts) and handed to
+  // ProvinceGrid as the DECOUPLED headline total, so the headline no longer
+  // undercounts by summing only the province-assigned rows. 0 = unavailable →
+  // ProvinceGrid falls back to its Σ-of-rows total.
+  const [registryTotal, setRegistryTotal] = React.useState<number>(0);
 
   // Quick search (funnel redesign #3). Plain submit → the list's existing
   // accent-folded `?search=` (matches all card-text columns server-side).
@@ -270,6 +278,10 @@ export default function HomeObservatory() {
         if (cancelled || !countsRes.ok) return;
         const body = await countsRes.json();
         if (cancelled || !body?.success) return;
+
+        // Authoritative full-catalog total for the headline (decoupled from the
+        // per-province buckets below). Guard NaN → 0 (treated as unavailable).
+        setRegistryTotal(Number(body.totals?.registryTotal) || 0);
 
         // Base buckets from the live counts API.
         const out: Record<string, { active: number; preAuction: number; finished: number; total: number }> = {};
@@ -607,6 +619,7 @@ export default function HomeObservatory() {
             the two was removed (Dennis, 2026-06-07). */}
         <ProvinceGrid
           provinceCounts={provinceCounts}
+          totalAuctions={registryTotal}
           onProvinceClick={(province: string) =>
             router.push(provinceHref(province))
           }
