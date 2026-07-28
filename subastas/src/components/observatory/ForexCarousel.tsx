@@ -283,7 +283,12 @@ export function ForexCarousel({
   seeAllHref = "/subastas?when=activas",
   className,
   category = null,
-  province = null,
+  // GEO REMOVED (Dennis 2026-07-28): the carousel no longer filters by
+  // province/proximity. A pinned province shrank the pool to ~2 rows which
+  // the marquee cloned to fill (the "same 2 cards repeating" bug). The
+  // carousel now always draws the full national newest-added pool. `province`
+  // stays on the prop signature for API stability but is never sent.
+  province: _province = null,
   // `when` is accepted for API stability with HomeCarouselSection (chip
   // value still flows through the section), but the carousel-mix endpoint
   // does not honour it — the mix is its own ratio-driven slice. Renamed to
@@ -332,7 +337,8 @@ export function ForexCarousel({
       // post-filter (the old path biased properties-dominant and shipped a
       // ~4-card vehicle row on a 30-card limit).
       if (category) params.set("category", category);
-      if (province) params.set("province", province);
+      // GEO REMOVED (Dennis 2026-07-28): province is intentionally NOT sent —
+      // the carousel draws the full national newest-added pool.
       if (categoryGroup) params.set("categoryGroup", categoryGroup);
       const res = await apiFetch(`/api/auctions/carousel-mix?${params.toString()}`);
       if (!res.ok) return;
@@ -370,8 +376,8 @@ export function ForexCarousel({
     // accept a `when` bucket (it composes its own ratio across active /
     // próxima / suspendida), so changing the chip shouldn't refetch on
     // that axis. Kept on the prop signature for API stability with
-    // HomeCarouselSection.
-  }, [limit, category, province, categoryGroup]);
+    // HomeCarouselSection. `province` removed from deps with the geo logic.
+  }, [limit, category, categoryGroup]);
 
   React.useEffect(() => {
     setLoading(true);
@@ -384,14 +390,17 @@ export function ForexCarousel({
     onItemsCountChange?.(items.length);
   }, [items.length, onItemsCountChange]);
 
-  // Endless-loop guardrail (Wave C1b, 2026-06-07). When the source set is
-  // small (<6 cards), TWO-copy duplication leaves a visible cadence — the
-  // same card returns ~every 13s/card. Rendering a THIRD copy smooths the
-  // visual rhythm without changing the wrap maths (the modulo loop still
-  // wraps after ONE copy of the list — the extra copy just delays the
-  // visual "I've seen this before" moment). The track always has at least
-  // 2 copies so the wrap point is always backed by visible cards.
-  const trackCopies = items.length > 0 && items.length < 6 ? 3 : 2;
+  // Marquee loop copies. TWO copies is the minimum for a seamless infinite
+  // loop (the rAF modulo-wraps after ONE copy's width; the second copy backs
+  // the wrap point so cards are always visible at the seam).
+  //
+  // PADDING REMOVED (Dennis 2026-07-28): the old guardrail rendered a THIRD
+  // copy when items.length < 6 to smooth the cadence of a tiny set. With geo
+  // filtering gone the carousel now draws the full national newest-added pool
+  // (dozens of rows), so a small set no longer occurs on the happy path — and
+  // the extra copy was exactly what made the "same 2 cards repeating" bug
+  // visually worse when a province was pinned. Always two copies now.
+  const trackCopies = 2;
 
   // Measure the unduplicated track width so the rAF loop knows where to wrap.
   // ResizeObserver re-fires on layout shifts and when the chip filter mutates
@@ -739,21 +748,6 @@ export function ForexCarousel({
             {items.map((a) => (
               <ExpandedCard
                 key={`b-${a.id}`}
-                auction={a}
-                onCardClick={onCardClick}
-                duplicate
-                isDragging={dragging}
-                compact={compact}
-                categoryGroup={categoryGroup}
-              />
-            ))}
-            {/* Third copy (small-set guardrail) — only rendered when the
-                source list is <6 cards. The rAF loop still wraps after ONE
-                copy worth of width; the extra copy just makes the loop point
-                visually quieter on a thin vehicle row. */}
-            {trackCopies === 3 && items.map((a) => (
-              <ExpandedCard
-                key={`c-${a.id}`}
                 auction={a}
                 onCardClick={onCardClick}
                 duplicate

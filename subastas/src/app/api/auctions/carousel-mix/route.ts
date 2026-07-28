@@ -231,6 +231,7 @@ const AUCTION_CARD_SELECT = {
   boeLink: true,
   latitude: true,
   longitude: true,
+  createdAt: true,
   updatedAt: true,
   transitionedAt: true,
   pujaStatus: true,
@@ -272,6 +273,7 @@ type AuctionRow = {
   boeLink: string | null;
   latitude: number | null;
   longitude: number | null;
+  createdAt: Date | null;
   updatedAt: Date | null;
   transitionedAt: Date | null;
   pujaStatus?: string | null;
@@ -491,10 +493,21 @@ async function fetchBucket(
 
   const where: Record<string, unknown> = {
     status: { in: dbStatuses as string[] },
+    // Scope soft-hide gate (wave155): every catalog surface ANDs `inScope`.
+    // The carousel is a catalog surface — never surface hidden/junk rows.
+    inScope: true,
   };
   if (applyClockGuard) {
     Object.assign(where, activeClockGuardPrisma());
   }
+  // GEO REMOVED (Dennis 2026-07-28): the home "Últimos" carousels no longer
+  // do province/proximity filtering. A pinned province shrank the pool to a
+  // handful of rows (e.g. Las Palmas → 2 upcoming vehicles), which the
+  // marquee then cloned to fill the row — reading as "the same 2 cards
+  // repeating". The carousel now always draws from the FULL national pool,
+  // newest-added first. `provinceFilter` is retained on the signature for API
+  // stability but is never passed by the carousel component any more; when
+  // absent we apply only the placeholder/junk-province guard.
   if (provinceFilter) {
     where.province = { equals: provinceFilter, mode: "insensitive" };
   } else {
@@ -521,7 +534,11 @@ async function fetchBucket(
 
   const rows = await prisma.auction.findMany({
     where: where as never,
-    orderBy: [{ transitionedAt: "desc" }, { updatedAt: "desc" }],
+    // NEWEST-ADDED FIRST (Dennis 2026-07-28): fill the carousel with the most
+    // recently ingested auctions. `createdAt` is the row-insert timestamp;
+    // `id` (a monotonic-ish uuid) is a stable secondary so pagination/order is
+    // deterministic when many rows share a createdAt second.
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: poolSize,
     select: AUCTION_CARD_SELECT,
   });
@@ -531,7 +548,10 @@ async function fetchBucket(
   // Build candidates + scores.
   const candidates: Candidate[] = [];
   for (const r of rows) {
-    const at = (r.transitionedAt ?? r.updatedAt)?.toISOString();
+    // Newest-added timestamp (Dennis 2026-07-28). `createdAt` is the row-
+    // insert time — the "recency" the carousel now sorts on. Fall back to
+    // transitionedAt/updatedAt only for legacy rows with a null createdAt.
+    const at = (r.createdAt ?? r.transitionedAt ?? r.updatedAt)?.toISOString();
     if (!at) continue;
     candidates.push({ row: r as AuctionRow, score: qualityScoreOf(r as AuctionRow), at });
   }
@@ -671,7 +691,7 @@ export async function GET(req: NextRequest) {
     const merged = weightedInterleave(activeRows, proximaRows, suspRows);
 
     const items: FeedItem[] = merged.map((a) => {
-      const at = (a.transitionedAt ?? a.updatedAt)?.toISOString() ?? "";
+      const at = (a.createdAt ?? a.transitionedAt ?? a.updatedAt)?.toISOString() ?? "";
       return {
         id: `auction-${a.id}`,
         kind: "auction",
