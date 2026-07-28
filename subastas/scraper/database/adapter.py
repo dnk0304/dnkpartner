@@ -21,6 +21,22 @@ from ..config.settings import DATABASE_URL, DATABASE_TYPE, PROJECT_ROOT
 from .models import AuctionModel, AuctionStatus
 from .legacy_rows import is_legacy_row
 from ..config.scope import decide_scope
+from ..config.municipality_province import resolve_province_less
+
+# Province values the catalog treats as "no province" (mirror of the app's
+# isValidProvince inverse). A new row landing with one of these gets a last-resort
+# derivation from address/municipality before insert (see _ensure_province).
+_PROVINCE_JUNK = {
+    '', 'unknown', 'desconocida', 'mapa de la zona',
+    'mapa del municipio', 'null', 'undefined',
+}
+
+
+def _is_junk_province(value) -> bool:
+    if value is None:
+        return True
+    s = str(value).strip()
+    return len(s) <= 1 or s.lower() in _PROVINCE_JUNK
 
 logger = logging.getLogger(__name__)
 
@@ -223,7 +239,26 @@ class DatabaseAdapter:
             data = auction_data.to_dict()
         else:
             data = auction_data
-        
+
+        # INGESTION PROVINCE GUARD (2026-07-28) — universal net for EVERY source
+        # path (BOE / registro / teju / split-lote). If a new row would land with
+        # an empty/junk province, derive the REAL one from the SAME signals the
+        # backfill uses (address -> municipality -> bien*), via the shared
+        # resolve_province_less. This stops new province-less rows accumulating
+        # (~1,915 in the last 60d). Never guesses: no confident signal -> the
+        # junk value is left as-is (the row is still stored, just province-less).
+        if _is_junk_province(data.get('province')):
+            derived, _src = resolve_province_less(
+                address=data.get('address'),
+                municipality=data.get('municipality'),
+                bien_provincia=data.get('bien_provincia'),
+                postal_code=data.get('postal_code'),
+                bien_localidad=data.get('bien_localidad'),
+                court_province=data.get('province'),
+            )
+            if derived:
+                data['province'] = derived
+
         conn = self.connect()
         
         try:

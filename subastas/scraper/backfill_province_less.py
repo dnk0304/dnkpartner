@@ -2,16 +2,19 @@
 """
 backfill_province_less.py — SURGICAL province backfill for province-LESS rows.
 
-Fixes the ~29k `inScope=true` rows whose `province` column is EMPTY / junk
+Fixes the ~35.7k `inScope=true` rows whose `province` column is EMPTY / junk
 ('', 'Unknown', 'desconocida', sentinels, length<=1) so the home "TOTAL SUBASTAS"
-headline and the province grid stop dropping them. Derives the REAL province ONLY
-from signals the scraper already captured, reusing the SAME helper the scraper and
-the operational backfill use (`derive_property_province`) so the logic can never
-drift:
+headline and the province grid stop dropping them.
 
-    1. bienProvincia   (BOE "Datos del bien → Provincia", most reliable)
-    2. postalCode       (first 2 digits = INE province code, strict)
-    3. bienLocalidad    (real town -> INE municipality->province map)
+Ken's prod dry-run (2026-07-28) proved the earlier bien*/postal derivation filled
+only 13/35,740 — those structured columns are EMPTY on these rows. The recoverable
+signal is in `address` (populated on 93%) and `municipality`. Derivation now reads,
+via the SHARED resolve_province_less() (the SAME helper the ingestion path uses so
+a backfilled row and a freshly-ingested row resolve identically):
+
+    1. address       -> postal code / explicit province / town->province map
+    2. municipality  -> INE town->province map
+    3. bienProvincia -> postalCode -> bienLocalidad   (structured fallbacks)
     -> otherwise LEFT UNTOUCHED and reported as UNKNOWABLE. NEVER fabricates.
 
 How this differs from the broader `backfill_province_municipality.py` (which
@@ -67,26 +70,26 @@ except ImportError:
 
 # Reuse the EXACT derivation helper the scraper + operational backfill use, so
 # the province we write here is identical to what those paths would write.
-# Import is tried across the three known run layouts:
+# Import the derivation from the LIGHT config module (no scraper/browser stack).
+# Ken's prod dry-run (2026-07-28) proved the province-less rows have EMPTY
+# bien*/postal fields but a POPULATED `address` (93%) / `municipality`, so the
+# derivation now reads address -> municipality -> bien* via resolve_province_less
+# (the SAME helper the ingestion path uses). Tried across the three run layouts:
 #   1. cwd = subastas/          -> `scraper.*`   (repo + pytest convention)
-#   2. cwd = subastas/scraper/  -> `scrapers.*`  (legacy operational-script cwd)
+#   2. cwd = subastas/scraper/  -> `config.*`    (legacy operational-script cwd)
 #   3. /app container           -> `app.*`
-canonical_province = None
-derive_property_province = None
-for _prov_mod, _boe_mod in (
-    ("scraper.config.provinces", "scraper.scrapers.boe_scraper"),
-    ("config.provinces", "scrapers.boe_scraper"),
-    ("app.config.provinces", "app.scrapers.boe_scraper"),
-):
+resolve_province_less = None
+for _mp_mod in ("scraper.config.municipality_province",
+                "config.municipality_province",
+                "app.config.municipality_province"):
     try:
-        canonical_province = __import__(_prov_mod, fromlist=["canonical_province"]).canonical_province
-        derive_property_province = __import__(_boe_mod, fromlist=["derive_property_province"]).derive_property_province
+        resolve_province_less = __import__(_mp_mod, fromlist=["resolve_province_less"]).resolve_province_less
         break
     except ImportError:
         continue
-if canonical_province is None or derive_property_province is None:
+if resolve_province_less is None:
     logger.error(
-        "Could not import derivation helpers. Run from subastas/ (as `scraper` "
+        "Could not import resolve_province_less. Run from subastas/ (as `scraper` "
         "package), subastas/scraper/, or the /app container."
     )
     sys.exit(1)
@@ -127,21 +130,28 @@ def _now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 
-def classify_province_less(bien_prov, postal, bien_loc, cur_prov):
+# Sources the backfill reports (in derivation priority order).
+SOURCE_KEYS = (
+    "address-postal", "address-province", "address-town",  # from `address`
+    "municipality",                                        # from `municipality`
+    "bienProvincia", "postalCode", "bienLocalidad",        # structured fallbacks
+)
+
+
+def classify_province_less(address=None, municipality=None, bien_provincia=None,
+                           postal_code=None, bien_localidad=None, court_province=None):
     """
     Decide whether a province-less row is FILLABLE and, if so, with which real
-    province and from which source. Pure — the single decision the backfill makes,
-    exposed for unit testing.
-
-    Returns (province, source) when an AUTHORITATIVE signal (bienProvincia /
-    postalCode / bienLocalidad) resolves to a REAL canonical province; otherwise
-    (None, None) = genuinely unknowable, leave the row untouched. NEVER guesses:
-    a 'court-fallback' result or a non-canonical province is treated as unknowable.
+    province and from which source. Thin wrapper over the shared
+    resolve_province_less (the SAME logic ingestion uses) — exposed for unit
+    testing. Returns (province, source) or (None, None) = UNKNOWABLE, leave the
+    row untouched. NEVER guesses (no confident signal -> unknowable).
     """
-    new_prov, src = derive_property_province(bien_prov, postal, bien_loc, cur_prov)
-    if src in ("bienProvincia", "postalCode", "bienLocalidad") and new_prov and canonical_province(new_prov):
-        return new_prov, src
-    return None, None
+    return resolve_province_less(
+        address=address, municipality=municipality, bien_provincia=bien_provincia,
+        postal_code=postal_code, bien_localidad=bien_localidad,
+        court_province=court_province,
+    )
 
 
 def run_apply(dry_run=True, limit=None, audit_path=DEFAULT_AUDIT):
@@ -162,7 +172,7 @@ def run_apply(dry_run=True, limit=None, audit_path=DEFAULT_AUDIT):
     scanned = 0
     fillable = 0
     unknowable = 0
-    by_source = {"bienProvincia": 0, "postalCode": 0, "bienLocalidad": 0}
+    by_source = {k: 0 for k in SOURCE_KEYS}
     audit_fh = None
     if not dry_run:
         os.makedirs(os.path.dirname(audit_path), exist_ok=True) if os.path.dirname(audit_path) else None
@@ -172,7 +182,8 @@ def run_apply(dry_run=True, limit=None, audit_path=DEFAULT_AUDIT):
     while True:
         cur.execute(
             f'''
-            SELECT id, "boeId", province, "bienProvincia", "bienLocalidad", "postalCode"
+            SELECT id, "boeId", province, address, municipality,
+                   "bienProvincia", "bienLocalidad", "postalCode"
             FROM "Auction"
             WHERE {JUNK_PROVINCE_SQL} AND id > %s
             ORDER BY id
@@ -187,16 +198,20 @@ def run_apply(dry_run=True, limit=None, audit_path=DEFAULT_AUDIT):
         updates = []  # (new_province, id)
         audit_lines = []
 
-        for rid, boe_id, cur_prov, bien_prov, bien_loc, postal in rows:
+        for rid, boe_id, cur_prov, address, municipality, bien_prov, bien_loc, postal in rows:
             scanned += 1
-            new_prov, src = classify_province_less(bien_prov, postal, bien_loc, cur_prov)
+            new_prov, src = classify_province_less(
+                address=address, municipality=municipality,
+                bien_provincia=bien_prov, postal_code=postal,
+                bien_localidad=bien_loc, court_province=cur_prov,
+            )
 
-            # Fillable ONLY when an authoritative signal resolved to a REAL
-            # canonical province. court-fallback (or a non-canonical result) means
-            # nothing authoritative was captured -> genuinely unknowable, leave it.
+            # Fillable ONLY when a confident signal (address / municipality /
+            # bien*) resolved to a REAL canonical province. No signal -> genuinely
+            # unknowable, leave it untouched (never guess).
             if src is not None:
                 fillable += 1
-                by_source[src] += 1
+                by_source[src] = by_source.get(src, 0) + 1
                 updates.append((new_prov, rid))
                 audit_lines.append(json.dumps({
                     "id": rid, "boeId": boe_id, "old": cur_prov,
@@ -228,8 +243,14 @@ def run_apply(dry_run=True, limit=None, audit_path=DEFAULT_AUDIT):
 
     logger.info("=" * 64)
     logger.info("Province-less backfill complete")
+    addr_total = by_source['address-postal'] + by_source['address-province'] + by_source['address-town']
     logger.info(f"  Rows scanned (province-less):   {scanned:,}")
     logger.info(f"  FILLABLE (real province found): {fillable:,}")
+    logger.info(f"    via address (total):          {addr_total:,}")
+    logger.info(f"      - address postal code:      {by_source['address-postal']:,}")
+    logger.info(f"      - address province name:    {by_source['address-province']:,}")
+    logger.info(f"      - address town->province:   {by_source['address-town']:,}")
+    logger.info(f"    via municipality:             {by_source['municipality']:,}")
     logger.info(f"    via bienProvincia:            {by_source['bienProvincia']:,}")
     logger.info(f"    via postalCode:               {by_source['postalCode']:,}")
     logger.info(f"    via bienLocalidad:            {by_source['bienLocalidad']:,}")
