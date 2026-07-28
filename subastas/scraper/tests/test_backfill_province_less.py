@@ -12,7 +12,49 @@ bien*/postal columns, so the address parser is the primary path under test.
 """
 
 from scraper.backfill_province_less import classify_province_less, JUNK_PROVINCE_SQL, SOURCE_KEYS
-from scraper.config.municipality_province import derive_province_from_address, resolve_province_less
+from scraper.config.municipality_province import (
+    derive_province_from_address, resolve_province_less, municipality_to_province,
+    _INE_UNAMBIGUOUS, _AMBIGUOUS_TOWNS,
+)
+
+
+# ── FULL INE register loaded (2026-07-28) ────────────────────────────────────
+
+def test_full_ine_register_loaded():
+    # The complete register must be present (thousands of towns), not a partial list.
+    assert len(_INE_UNAMBIGUOUS) > 7500
+    assert len(_AMBIGUOUS_TOWNS) >= 1
+
+
+def test_newly_covered_small_towns():
+    # Small towns the old partial map missed now resolve (unambiguous single-province).
+    assert municipality_to_province("Nules") == "Castellón"
+    assert municipality_to_province("Olivenza") == "Badajoz"
+    assert derive_province_from_address("Calle Mayor 2, 12520 Nules")[0] == "Castellón"
+    assert derive_province_from_address("Plaza de España, Olivenza")[0] == "Badajoz"
+
+
+# ── DUPLICATE / AMBIGUOUS town names — correctness > coverage ─────────────────
+
+def test_ambiguous_town_unknowable_without_disambiguator():
+    # Arroyomolinos exists in Madrid AND Cáceres; Cieza in Murcia AND Cantabria.
+    # From the town name alone we must NOT guess.
+    assert municipality_to_province("Arroyomolinos") is None
+    assert municipality_to_province("Cieza") is None
+    assert derive_province_from_address("Calle Real 1, Arroyomolinos") == (None, None)
+    assert resolve_province_less(address="Av X, Cieza") == (None, None)
+
+
+def test_ambiguous_town_resolves_with_postal():
+    # A postal-code prefix disambiguates (higher-priority signal).
+    assert derive_province_from_address("Calle Real 1, 28939 Arroyomolinos") == ("Madrid", "address-postal")
+    assert derive_province_from_address("Av X, 30530 Cieza") == ("Murcia", "address-postal")
+
+
+def test_ambiguous_town_resolves_with_explicit_province():
+    # An explicit province name in the address disambiguates.
+    assert derive_province_from_address("Calle Real 1, Arroyomolinos, Cáceres") == ("Cáceres", "address-province")
+    assert derive_province_from_address("Calle Real 1, Arroyomolinos (Madrid)") == ("Madrid", "address-province")
 
 
 # ── address -> province extraction (the primary path) ────────────────────────
