@@ -78,3 +78,43 @@ def test_unmappable_court_town_is_null_and_flagged():
 
 def test_no_suffix_court_is_null():
     assert court_province_from_name("JUZGADO DE PRIMERA INSTANCIA Nº 4") == (None, None, "no-town")
+
+
+# ── widen (wave166): short/regional/co-official court-town spellings resolve ──
+# The wave165 prod map left 3,140 rows unmappable on 134 distinct court-towns whose
+# suffix uses an article/connector-stripped or co-official/abbreviated spelling.
+# Resolution now routes through the co-official INE index (article-inversion +
+# connector-stripped) and a curated, human-verified partido-override map. Each of
+# these MUST resolve to the correct province (never wrong, never ambiguous-away).
+
+def _court_prov(town):
+    return court_province_from_name(f"JUZGADO DE PRIMERA INSTANCIA N.1 - {town}")[0]
+
+
+def test_widened_index_recovered_spellings():
+    # Recovered via the gazetteer's article-inversion / connector-stripping.
+    assert _court_prov("EJIDO") == "Almería"              # El Ejido
+    assert _court_prov("JEREZ FRONTERA") == "Cádiz"        # Jerez de la Frontera
+    assert _court_prov("ARENYS MAR") == "Barcelona"        # Arenys de Mar
+    assert _court_prov("SANLUCAR BARRAMEDA") == "Cádiz"     # Sanlúcar de Barrameda
+    assert _court_prov("ALCALA HENARES") == "Madrid"        # Alcalá de Henares
+
+
+def test_widened_curated_override_spellings():
+    # Co-official / partido abbreviations resolved via the verified override map.
+    assert _court_prov("ELX") == "Alicante"
+    assert _court_prov("VILAFRANCA PENEDES") == "Barcelona"
+    assert _court_prov("BISBAL") == "Girona"
+    assert _court_prov("VIELHA") == "Lleida"
+    assert _court_prov("LOS CRISTIANOS") == "Santa Cruz de Tenerife"
+    assert _court_prov("PLAYA LOS CRISTIANOS") == "Santa Cruz de Tenerife"
+
+
+def test_widening_does_not_break_ambiguous_or_aeat():
+    # Genuinely ambiguous court-town still NULL + flagged (never guessed).
+    assert court_province_from_name("JUZGADO N.1 - CIEZA")[2] == "ambiguous"
+    # AEAT still has no town suffix.
+    assert court_province_from_name(
+        "AGENCIA ESTATAL DE ADMINISTRACION TRIBUTARIA - DELEGACION DE MADRID")[2] == "no-town"
+    # A truly unknown court-town is still unmappable, not a wrong guess.
+    assert court_province_from_name("JUZGADO N.1 - ZZZNOWHERE")[2] == "unmappable"
