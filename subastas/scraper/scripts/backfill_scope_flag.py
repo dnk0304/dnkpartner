@@ -13,11 +13,16 @@ the catalog, per the wave155 scope rules (Dennis-approved 2026-07-28):
   'rights'         category ∈ rights bucket (Derechos/Participaciones/…)
   'unclassified'   category is NULL or matches no known taxonomy label
   'empty-shell'    IN-scope category (property/land or vehicle) BUT no REAL
-                   data — no description, no address, no genuine appraisal,
-                   no documents (e.g. the €55 PLABI "ACTIVO FRISU" shell).
-                   A dead source link ALONE is NOT a reason (this predicate
-                   never looks at the link) — a real-data row with a dead link
-                   (e.g. the suspended Las Palmas auction) stays inScope=true.
+                   EXTRACTED CONTENT — no real description (>=40 chars), no
+                   street-level address (>=5 chars), no cadastral ref, no
+                   meaningful valuation (appraisal OR valorSubasta >= €1,000).
+                   i.e. only the bare skeleton of price + generic category +
+                   city (e.g. the €55 PLABI "ACTIVO FRISU" shell).
+                   Snapshot/documents are NOT considered — every auction has a
+                   snapshot, so document presence proves nothing. A dead source
+                   link ALONE is NOT a reason either (this predicate never looks
+                   at the link) — a real-content row with a dead link (e.g. the
+                   suspended Las Palmas auction) stays inScope=true.
 
 Everything else stays ``inScope = true`` — including the 1,176 property/vehicle
 rows that the corrected 410 middleware fix un-retires (they have real data, so
@@ -75,16 +80,35 @@ _IN_SCOPE = sorted(
     c for c, b in CATEGORY_SCOPE_BUCKET.items() if b in ('property', 'vehicle')
 )
 
-# "No real data" — mirrors scope.has_real_data() (description OR address OR
-# genuine appraisal OR ≥1 document). `a` is the Auction alias.
-NO_REAL_DATA_SQL = """(
-    COALESCE(TRIM(a."lotDescription"), '') = ''
-    AND COALESCE(TRIM(a."propertyDescription"), '') = ''
-    AND COALESCE(TRIM(a."address"), '') = ''
-    AND COALESCE(a."appraisalValue", 0) <= 0
-    AND NOT EXISTS (
-        SELECT 1 FROM "AuctionDocument" d WHERE d."auctionId" = a.id
+# "No real extracted content" — mirrors scope.has_real_data() EXACTLY:
+# NONE of (real description >=40 / street-level address / street-level title /
+# cadastral ref / meaningful valuation >= €1,000). "Street-level" = length>=5
+# AND (contains a digit OR a thoroughfare token) — separates real streets from
+# bare city echoes. Snapshot documents are deliberately NOT consulted (every
+# auction has one). `a` is the Auction alias.
+_THOROUGHFARE_RE = (
+    r"(calle|c/|avda|avenida|av\.|avinguda|carrer|carretera|ctra|camino|cami|"
+    r"plaza|pza|placa|paseo|passeig|paraje|partida|urbanizacion|urbanizacio|"
+    r"poligono|poligon|travesia|ronda|rambla|glorieta|barrio)"
+)
+
+
+def _street_level_sql(col):
+    v = f'COALESCE(a."{col}", \'\')'
+    return (
+        f"(LENGTH(TRIM({v})) >= 5 "
+        f"AND ({v} ~ '[0-9]' OR {v} ~* '{_THOROUGHFARE_RE}'))"
     )
+
+
+NO_REAL_DATA_SQL = f"""(
+    COALESCE(LENGTH(TRIM(a."lotDescription")), 0) < 40
+    AND COALESCE(LENGTH(TRIM(a."propertyDescription")), 0) < 40
+    AND NOT {_street_level_sql('address')}
+    AND NOT {_street_level_sql('title')}
+    AND COALESCE(TRIM(a."cadastralRef"), '') = ''
+    AND COALESCE(a."appraisalValue", 0) < 1000
+    AND COALESCE(a."valorSubasta", 0) < 1000
 )"""
 
 
@@ -124,47 +148,53 @@ def do_revert(cur):
     return cur.rowcount
 
 
-def do_apply(cur):
-    """Set inScope=false + reason for each hidden bucket. Idempotent — only
-    writes rows whose (inScope, scopeReason) differ. Returns per-reason counts."""
-    results = {}
+def do_apply(cur, reasons):
+    """Set inScope=false + reason for each SELECTED hidden bucket. Idempotent —
+    only writes rows whose (inScope, scopeReason) differ. `reasons` is the set of
+    reasons to apply this run. Returns per-reason counts (0 for skipped)."""
+    results = {r: 0 for r in MANAGED_REASONS}
 
-    # 1) movable
-    cur.execute(
-        f'''UPDATE "Auction" a SET "inScope" = false, "scopeReason" = 'movable'
-            WHERE a."category" IN {_in_list(cur, _MOVABLE)}
-              AND ("inScope" IS DISTINCT FROM false OR "scopeReason" IS DISTINCT FROM 'movable')''',
-        _MOVABLE,
-    )
-    results['movable'] = cur.rowcount
+    # The category buckets (movable/rights/unclassified) are content-independent
+    # and SAFE to apply confidently. 'empty-shell' is content-based and should be
+    # dry-run-reviewed on live prod BEFORE applying (see the module note); stage
+    # it separately via --reasons if desired.
 
-    # 2) rights
-    cur.execute(
-        f'''UPDATE "Auction" a SET "inScope" = false, "scopeReason" = 'rights'
-            WHERE a."category" IN {_in_list(cur, _RIGHTS)}
-              AND ("inScope" IS DISTINCT FROM false OR "scopeReason" IS DISTINCT FROM 'rights')''',
-        _RIGHTS,
-    )
-    results['rights'] = cur.rowcount
+    if 'movable' in reasons:
+        cur.execute(
+            f'''UPDATE "Auction" a SET "inScope" = false, "scopeReason" = 'movable'
+                WHERE a."category" IN {_in_list(cur, _MOVABLE)}
+                  AND ("inScope" IS DISTINCT FROM false OR "scopeReason" IS DISTINCT FROM 'movable')''',
+            _MOVABLE,
+        )
+        results['movable'] = cur.rowcount
 
-    # 3) unclassified — NULL category or a label in no known bucket.
-    cur.execute(
-        f'''UPDATE "Auction" a SET "inScope" = false, "scopeReason" = 'unclassified'
-            WHERE (a."category" IS NULL OR a."category" NOT IN {_in_list(cur, _ALL_KNOWN)})
-              AND ("inScope" IS DISTINCT FROM false OR "scopeReason" IS DISTINCT FROM 'unclassified')''',
-        _ALL_KNOWN,
-    )
-    results['unclassified'] = cur.rowcount
+    if 'rights' in reasons:
+        cur.execute(
+            f'''UPDATE "Auction" a SET "inScope" = false, "scopeReason" = 'rights'
+                WHERE a."category" IN {_in_list(cur, _RIGHTS)}
+                  AND ("inScope" IS DISTINCT FROM false OR "scopeReason" IS DISTINCT FROM 'rights')''',
+            _RIGHTS,
+        )
+        results['rights'] = cur.rowcount
 
-    # 4) empty-shell — in-scope category but no real data.
-    cur.execute(
-        f'''UPDATE "Auction" a SET "inScope" = false, "scopeReason" = 'empty-shell'
-            WHERE a."category" IN {_in_list(cur, _IN_SCOPE)}
-              AND {NO_REAL_DATA_SQL}
-              AND ("inScope" IS DISTINCT FROM false OR "scopeReason" IS DISTINCT FROM 'empty-shell')''',
-        _IN_SCOPE,
-    )
-    results['empty-shell'] = cur.rowcount
+    if 'unclassified' in reasons:
+        cur.execute(
+            f'''UPDATE "Auction" a SET "inScope" = false, "scopeReason" = 'unclassified'
+                WHERE (a."category" IS NULL OR a."category" NOT IN {_in_list(cur, _ALL_KNOWN)})
+                  AND ("inScope" IS DISTINCT FROM false OR "scopeReason" IS DISTINCT FROM 'unclassified')''',
+            _ALL_KNOWN,
+        )
+        results['unclassified'] = cur.rowcount
+
+    if 'empty-shell' in reasons:
+        cur.execute(
+            f'''UPDATE "Auction" a SET "inScope" = false, "scopeReason" = 'empty-shell'
+                WHERE a."category" IN {_in_list(cur, _IN_SCOPE)}
+                  AND {NO_REAL_DATA_SQL}
+                  AND ("inScope" IS DISTINCT FROM false OR "scopeReason" IS DISTINCT FROM 'empty-shell')''',
+            _IN_SCOPE,
+        )
+        results['empty-shell'] = cur.rowcount
 
     return results
 
@@ -173,7 +203,18 @@ def main():
     ap = argparse.ArgumentParser(description='wave155 scope soft-hide backfill')
     ap.add_argument('--apply', action='store_true', help='write changes (default: dry-run)')
     ap.add_argument('--revert', action='store_true', help='undo: set inScope=true for managed rows')
+    ap.add_argument(
+        '--reasons', default=','.join(MANAGED_REASONS),
+        help=('comma-separated subset to apply (default: all). Stage e.g. '
+              "--reasons movable,rights,unclassified first, then 'empty-shell' "
+              'after reviewing its live dry-run count + a sample.'),
+    )
     args = ap.parse_args()
+    reasons = {r.strip() for r in args.reasons.split(',') if r.strip()}
+    bad = reasons - set(MANAGED_REASONS)
+    if bad:
+        logger.error('Unknown --reasons %s (valid: %s)', bad, MANAGED_REASONS)
+        sys.exit(2)
 
     if psycopg2 is None:
         logger.error('psycopg2 not available — cannot run against PostgreSQL.')
@@ -205,7 +246,8 @@ def main():
             n = do_revert(cur)
             logger.info('REVERT: %d rows reset to inScope=true, scopeReason=NULL', n)
         else:
-            results = do_apply(cur)
+            logger.info('Applying reasons: %s', sorted(reasons))
+            results = do_apply(cur, reasons)
             logger.info(
                 'APPLY (rows changed this run): movable=%d rights=%d unclassified=%d empty-shell=%d',
                 results['movable'], results['rights'],

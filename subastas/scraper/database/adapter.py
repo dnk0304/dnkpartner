@@ -919,9 +919,12 @@ class DatabaseAdapter:
                 in_scope, scope_reason = decide_scope(
                     category=data.get('category'),
                     appraisal_value=data.get('appraisal_value'),
+                    valor_subasta=data.get('valor_subasta'),
                     address=data.get('address'),
                     lot_description=data.get('lot_description'),
                     property_description=data.get('property_description'),
+                    cadastral_ref=data.get('cadastral_ref'),
+                    title=data.get('title'),
                 )
                 col_names.append('"inScope"')
                 placeholders.append('%s')

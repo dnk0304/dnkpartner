@@ -53,76 +53,136 @@ def test_classifier_default_is_unclassified_not_otros_inmuebles():
     assert get_category_type('Vivienda unifamiliar en Madrid') == 'Viviendas'
 
 
-# ── Data-quality gate (empty-shell) — Dennis's three cases ───────────────────
+# ── Data-quality gate (content-based, Dennis-clarified 2026-07-28) ───────────
 
-def test_empty_shell_dead_link_is_excluded():
-    # €55 PLABI "ACTIVO FRISU": property-ish category, dead 0x link, but no real
-    # data — just a price + placeholder title. EXCLUDED on data-quality grounds.
+def test_empty_shell_is_excluded_content_based():
+    # €55 PLABI "ACTIVO FRISU": in-scope-ish category BUT only price + generic
+    # category + city — no extracted content. EXCLUDED as 'empty-shell'.
     in_scope, reason = decide_scope(
         category='Otros inmuebles',
         source='PLABI',
-        boe_id='0xFRISU',           # dead link — but link is NOT what excludes it
+        boe_id='0xFRISU',           # dead link — NOT what excludes it
         appraisal_value=None,
-        valor_subasta=55,           # a bare price does NOT count as real data
+        valor_subasta=55,           # nominal price, below the €1,000 floor
         current_bid=55,
-        address=None,
+        address='las palmas',       # bare city echo — not street-level
         lot_description=None,
         property_description=None,
-        title='ACTIVO FRISU',
+        cadastral_ref=None,
+        title='ACTIVO FRISU',       # placeholder — no thoroughfare, no digit
     )
     assert in_scope is False
     assert reason == 'empty-shell'
 
 
-def test_real_data_dead_link_is_kept():
-    # Suspended Las Palmas case: real cached data + dead 0x link → KEEP (frozen).
+def test_city_echo_shell_is_excluded():
+    # The real junk shape seen in the data: "Subasta de Otros inmuebles, Sarria"
+    # + address "sarria" — a bare city echo, no street, no valuation. HIDDEN.
+    in_scope, reason = decide_scope(
+        category='Otros inmuebles',
+        title='Subasta de Otros inmuebles, Sarria',
+        address='sarria',
+        appraisal_value=0,
+    )
+    assert in_scope is False
+    assert reason == 'empty-shell'
+
+
+def test_street_in_title_keeps_row():
+    # Older rows carry the street in the TITLE (structured cols were backfilled
+    # later). A thoroughfare token in the title = real content → KEEP.
+    in_scope, reason = decide_scope(
+        category='Otros inmuebles',
+        title='Subasta de Inmueble en calle magallanes, 5, Arganda del Rey',
+        address=None,
+        appraisal_value=0,
+    )
+    assert in_scope is True
+    assert reason is None
+
+
+def test_street_in_address_keeps_row():
+    in_scope, reason = decide_scope(
+        category='Viviendas',
+        title='Unknown',                       # placeholder title
+        address='calle de doña maría de garay, 6',  # real street
+        appraisal_value=0,
+    )
+    assert in_scope is True
+    assert reason is None
+
+
+def test_snapshot_document_does_not_rescue_a_shell():
+    # CRITICAL (Dennis): every auction has a snapshot document. Document presence
+    # must NOT count as real data — a bare shell that happens to have a snapshot
+    # is still an empty-shell. (has_documents is accepted but ignored.)
+    in_scope, reason = decide_scope(
+        category='Otros inmuebles',
+        valor_subasta=55,
+        has_documents=True,         # snapshot exists — irrelevant
+    )
+    assert in_scope is False
+    assert reason == 'empty-shell'
+
+
+def test_real_content_dead_link_is_kept():
+    # Suspended Las Palmas case: real extracted content + dead 0x link → KEEP.
     in_scope, reason = decide_scope(
         category='Viviendas',
         source='BOE',
-        boe_id='0xBC7D9A14',        # dead link — irrelevant to the decision
-        appraisal_value=185000,
+        boe_id='0xBC7D9A14',        # dead link — irrelevant
+        appraisal_value=185000,     # meaningful valuation (>= €1,000)
         address='Calle León y Castillo 373, Vega de San Mateo',
-        lot_description='Vivienda de 90 m2 ...',
         status='SUSPENDIDA',
     )
     assert in_scope is True
     assert reason is None
 
 
-def test_real_data_working_link_is_kept():
+def test_meaningful_valuation_alone_keeps_a_row():
+    # A real high valuation is substantive content even with a short description.
     in_scope, reason = decide_scope(
-        category='Turismos',
-        source='BOE',
-        boe_id='SUB-JA-2025-1',     # live link
-        appraisal_value=12000,
-        address=None,
-        lot_description='BMW 320d, año 2018',
+        category='Otros inmuebles',
+        appraisal_value=250000,
+        lot_description='Inmueble',   # short — but valuation carries it
     )
     assert in_scope is True
     assert reason is None
 
 
-def test_movable_excluded_regardless_of_rich_data():
-    # A jewel lot with a full description is still out of scope (category rule
-    # runs before the data-quality gate).
+def test_movable_excluded_regardless_of_rich_content():
+    # A jewel lot with a full description is still out of scope (category first).
     in_scope, reason = decide_scope(
         category='Joyas',
         appraisal_value=9000,
-        lot_description='Lote de anillos de oro 18k',
+        lot_description='Lote de anillos de oro 18k con certificado de tasación oficial',
     )
     assert in_scope is False
     assert reason == 'movable'
 
 
-# ── has_real_data granularity ────────────────────────────────────────────────
+# ── has_real_data granularity (content-substance thresholds) ─────────────────
 
-def test_has_real_data_signals():
-    assert has_real_data(lot_description='algo') is True
-    assert has_real_data(property_description='algo') is True
+def test_has_real_data_content_signals():
+    # Substantive fields → real.
+    assert has_real_data(lot_description='x' * 40) is True
+    assert has_real_data(property_description='x' * 40) is True
     assert has_real_data(address='Calle X 1') is True
-    assert has_real_data(appraisal_value=1) is True
-    assert has_real_data(has_documents=True) is True
-    # A bare price / valor is NOT counted, and neither is an empty/blank blob.
-    assert has_real_data(appraisal_value=0) is False
-    assert has_real_data(appraisal_value=None, address='   ', lot_description='') is False
+    assert has_real_data(cadastral_ref='1234567AB1234C0001XY') is True
+    assert has_real_data(appraisal_value=1000) is True
+    assert has_real_data(valor_subasta=250000) is True
+
+
+def test_has_real_data_rejects_bare_skeleton():
+    # Below-floor price / short description / blank fields / snapshot → NOT real.
+    assert has_real_data(valor_subasta=55) is False
+    assert has_real_data(appraisal_value=999.99) is False
+    assert has_real_data(lot_description='Otros inmuebles') is False   # 15 chars < 40
+    assert has_real_data(address='CP') is False                        # 2 chars < 5
+    # A bare city echo (as address OR as the tail of a generic title) is NOT
+    # street-level → not real content.
+    assert has_real_data(address='sarria') is False
+    assert has_real_data(title='Subasta de Otros inmuebles, Sarria') is False
+    assert has_real_data(appraisal_value=0, address='   ', lot_description='') is False
+    assert has_real_data(has_documents=True) is False                  # snapshot ignored
     assert has_real_data() is False
