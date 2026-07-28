@@ -5,10 +5,17 @@
  * Flow (Ken brief 2026-07-25, Niki "pure one-click" decision):
  *   1. Verify the stateless HMAC token (src/lib/follow-token.ts): signature,
  *      purpose ("follow"), and expiry (30 days).
- *   2. Valid → idempotently create the Favorite (the follow record) for the
- *      token's (userId, auctionId), then redirect to the auction detail page
- *      with ?follow=ok (new) / ?follow=exists (already following).
- *   3. Invalid / expired → FALLBACK: redirect to the auction page (login-gated
+ *   2. Require an authenticated session (Option B, Dennis 2026-07-28). No
+ *      session → redirect to /login?callbackUrl=<this confirm URL, token intact>
+ *      so the user lands back here after auth and the flow completes.
+ *   3. Session present but session.userId !== token.userId → REFUSE. Never
+ *      follow under the wrong account (redirect ?follow=mismatch). This blocks
+ *      cross-account follows AND email-scanner prefetch auto-following (a
+ *      scanner has no session, so it can never create a follow anymore).
+ *   4. Session matches the token's user → idempotently create the Favorite
+ *      (the follow record) for the token's (userId, auctionId), then redirect to
+ *      the auction detail page with ?follow=ok (new) / ?follow=exists.
+ *   5. Invalid / expired → FALLBACK: redirect to the auction page (login-gated
  *      on-page "Seguir" still works) with ?follow=expired. When the token isn't
  *      even signature-valid, redirect to the auctions listing with the flag.
  *
@@ -16,16 +23,18 @@
  * per-event notify prefs from the table's column DEFAULTs (all notifyOn* = true,
  * channels = 'email,inapp'), exactly like the on-page "Seguir" (POST /api/favorites).
  *
- * Security: the userId is INSIDE the signed payload, so a token can only ever
- * follow that one auction for that one user (see follow-token.ts for the full
- * property list). This endpoint therefore needs NO session — the token IS the
- * (narrowly-scoped, expiring, unforgeable) authorization.
+ * Security: the userId is INSIDE the signed payload (unforgeable, expiring,
+ * single-purpose — see follow-token.ts). Option B adds a second gate on top: the
+ * follow is only recorded once the token's user has authenticated in THIS browser
+ * session, so a follow is always explicitly tied to a proven, logged-in account.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { queryOne, execute } from '@/lib/db';
+import { auth } from '@/lib/auth';
 import { verifyFollowToken, peekAuctionId } from '@/lib/follow-token';
+import { decideFollowConfirm } from '@/lib/follow-confirm-decision';
 import { buildAuctionSlug } from '@/lib/seo/auction-slug';
 
 export const dynamic = 'force-dynamic';
@@ -78,6 +87,37 @@ export async function GET(request: NextRequest) {
 
   const { userId, auctionId } = result;
 
+  // ── Option B: require an authenticated session tied to the token's user ────
+  // Read the current session. A failure here is treated as "no session" so the
+  // user is sent through login rather than hitting a 500.
+  const session = await auth().catch(() => null);
+  const decision = decideFollowConfirm({
+    sessionUserId: session?.user?.id ?? null,
+    tokenUserId: userId,
+    // path+query preserves the token so auth returns straight back here.
+    confirmPath: `${request.nextUrl.pathname}${request.nextUrl.search}`,
+  });
+
+  if (decision.kind === 'need-login') {
+    // Not logged in → bounce to login and come straight back to THIS URL (token
+    // preserved in the callbackUrl). After auth the confirm route re-runs with a
+    // session and the follow completes. Because a login is now mandatory, an
+    // email-scanner / link-prefetch (which carries no session cookie) can no
+    // longer silently auto-create a follow.
+    const loginUrl = new URL('/login', origin);
+    loginUrl.searchParams.set('callbackUrl', decision.callbackUrl);
+    return NextResponse.redirect(loginUrl, { status: 303 });
+  }
+
+  if (decision.kind === 'mismatch') {
+    // Logged in as a DIFFERENT account than the token was minted for. Do NOT
+    // follow under the wrong account — deny with an explicit mismatch state.
+    const row = await loadSlugRow(auctionId).catch(() => undefined);
+    if (row) return redirectTo(origin, `/subastas/subasta/${buildAuctionSlug(row)}?follow=mismatch`);
+    return redirectTo(origin, `/subastas?follow=mismatch`);
+  }
+
+  // decision.kind === 'follow' → the authenticated user IS the token's user.
   try {
     const row = await loadSlugRow(auctionId);
     if (!row) {
