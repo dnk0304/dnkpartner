@@ -6,19 +6,26 @@
  * GET /api/follow/confirm (Ken brief 2026-07-25).
  *
  * Driven by the `?follow=` query flag the confirm endpoint sets:
- *   ok      → newly following      (green + "Deshacer")
- *   exists  → already following    (green + "Deshacer")
- *   expired → link expired         (amber, log-in-and-Seguir hint)
- *   gone    → auction not found    (amber)
- *   error   → transient failure    (amber, retry hint)
+ *   ok       → newly following      (green + account name + "Mis favoritas" + "Deshacer")
+ *   exists   → already following    (green + account name + "Mis favoritas" + "Deshacer")
+ *   mismatch → token belongs to a   (amber — logged in as the wrong account)
+ *              different account
+ *   expired  → link expired         (amber, log-in-and-Seguir hint)
+ *   gone     → auction not found    (amber)
+ *   error    → transient failure    (amber, retry hint)
+ *
+ * Option B (Dennis 2026-07-28): the confirm route now requires a login, so a
+ * successful follow is always tied to a proven account. We surface that account
+ * here ("como <email>") plus a link to /favoritos so the user KNOWS it worked.
  *
  * "Deshacer" (Undo) calls the existing authenticated DELETE /api/favorites.
- * Deliberately minimal (Ken: route a Pixel follow-up if real polish is wanted).
  */
 
 import { useState } from 'react';
+import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 
-type FollowFlag = 'ok' | 'exists' | 'expired' | 'gone' | 'error';
+type FollowFlag = 'ok' | 'exists' | 'mismatch' | 'expired' | 'gone' | 'error';
 
 export function FollowConfirmBanner({
   flag,
@@ -27,8 +34,16 @@ export function FollowConfirmBanner({
   flag: string | undefined;
   auctionId: string;
 }) {
+  const { data: session } = useSession();
+  const accountLabel = session?.user?.name || session?.user?.email || null;
+
   const initial: FollowFlag | null =
-    flag === 'ok' || flag === 'exists' || flag === 'expired' || flag === 'gone' || flag === 'error'
+    flag === 'ok' ||
+    flag === 'exists' ||
+    flag === 'mismatch' ||
+    flag === 'expired' ||
+    flag === 'gone' ||
+    flag === 'error'
       ? flag
       : null;
 
@@ -70,7 +85,12 @@ export function FollowConfirmBanner({
 
   let message: string;
   if (state === 'undone') message = 'Has dejado de seguir esta subasta.';
-  else if (isFollowing) message = 'Ya sigues esta subasta ✓ · Te avisaremos de novedades.';
+  else if (isFollowing)
+    message = accountLabel
+      ? `Ya sigues esta subasta ✓ como ${accountLabel}. Te avisaremos de novedades.`
+      : 'Ya sigues esta subasta ✓ · Te avisaremos de novedades.';
+  else if (state === 'mismatch')
+    message = 'Este enlace de seguimiento pertenece a otra cuenta. Cierra sesión e inicia sesión con la cuenta correcta para seguir esta subasta.';
   else if (state === 'expired') message = 'El enlace para seguir ha expirado. Inicia sesión y pulsa «Seguir» para seguir esta subasta.';
   else if (state === 'gone') message = 'Esta subasta ya no está disponible.';
   else message = 'No pudimos completar el seguimiento. Prueba con el botón «Seguir».';
@@ -80,6 +100,14 @@ export function FollowConfirmBanner({
       <div className="flex items-center justify-between gap-3">
         <span>{message}</span>
         <div className="flex items-center gap-3">
+          {isFollowing && (
+            <Link
+              href="/favoritos"
+              className="shrink-0 rounded-md border border-emerald-300 bg-white px-3 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+            >
+              Mis favoritas
+            </Link>
+          )}
           {isFollowing && (
             <button
               type="button"

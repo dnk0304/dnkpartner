@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { sanitizeCallbackUrl } from '@/lib/follow-confirm-decision';
 
 /**
  * Inline Google "G" mark. SVG so it renders without an extra asset fetch
@@ -54,6 +55,9 @@ export default function LoginPage() {
   // We also pre-fill the email so they can just type their password.
   const justRegistered = searchParams?.get('registered') === '1';
   const prefilledEmail = searchParams?.get('email') ?? '';
+  // Where to send the user after a successful login. Set by any surface that
+  // gates on auth (e.g. the email one-click follow at /api/follow/confirm).
+  const safeCallbackUrl = sanitizeCallbackUrl(searchParams?.get('callbackUrl'));
   const [email, setEmail] = useState(prefilledEmail);
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -75,8 +79,15 @@ export default function LoginPage() {
       if (result?.error) {
         setError(t('errorBadCredentials'));
       } else if (result?.ok) {
-        router.push('/');
-        router.refresh();
+        if (safeCallbackUrl) {
+          // Hard navigation so a callbackUrl pointing at a server route (e.g.
+          // /api/follow/confirm, which itself responds with a redirect) is
+          // executed as a real GET carrying the freshly-set session cookie.
+          window.location.assign(safeCallbackUrl);
+        } else {
+          router.push('/');
+          router.refresh();
+        }
       }
     } catch (err) {
       setError(t('errorUnexpected'));
@@ -90,7 +101,7 @@ export default function LoginPage() {
     setError('');
     setSocialLoading('google');
     try {
-      await signIn('google', { callbackUrl: '/' });
+      await signIn('google', { callbackUrl: safeCallbackUrl ?? '/' });
     } catch (err) {
       setError(t('errorGoogle'));
       console.error('google sign in error:', err);
