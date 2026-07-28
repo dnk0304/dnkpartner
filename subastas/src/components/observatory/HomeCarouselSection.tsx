@@ -64,7 +64,13 @@ const GROUPS: ReadonlyArray<{ group: CategoryGroup; labelKey: string }> = [
 export function HomeCarouselSection({
   limit = 30,
   seeAllHref = "/subastas?when=activas",
-  province = null,
+  // GEO REMOVED (Dennis 2026-07-28): the "Últimos" carousels no longer filter
+  // by proximity. A pinned province shrank the pool to ~2 rows which the
+  // marquee cloned to fill (the "same 2 cards repeating" bug). Both tabs now
+  // draw the full national newest-added pool. `province` is retained on the
+  // prop type so the home page caller (HomeObservatory) keeps compiling
+  // unchanged, but it is intentionally no longer forwarded to the carousels.
+  province: _province = null,
   className,
 }: HomeCarouselSectionProps) {
   const t = useTranslations("home");
@@ -179,7 +185,6 @@ export function HomeCarouselSection({
               compact
               heading={t(group === "movable" ? "vehiclesHeading" : "propertiesHeading")}
               categoryGroup={group}
-              province={province}
               onCardClick={cardClickProp}
               pause={popupOpen || !selected}
             />
