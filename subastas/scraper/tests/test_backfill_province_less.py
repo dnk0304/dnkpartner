@@ -27,7 +27,11 @@ def test_accented_hyphenated_town_now_matches():
 
 
 def test_lowercase_accented_town_matches():
-    assert derive_province_from_address("carrer sant joan, alcúdia") == ("Illes Balears", "address-town")
+    # Unambiguous lowercase + accented town (Sabiñánigo -> Huesca). NB: bare
+    # "Alcúdia" is now CORRECTLY ambiguous (Mallorca's Alcúdia vs Valencia's
+    # l'Alcúdia collapse to the same article-stripped key) -> see the compound
+    # ambiguity test below; it must NOT fill from the bare name.
+    assert derive_province_from_address("carrer sant joan, sabiñánigo") == ("Huesca", "address-town")
 
 
 def test_town_embedded_without_comma_delimiter():
@@ -68,6 +72,66 @@ def test_longest_match_beats_street_province_word():
 def test_rural_no_town_stays_unknowable():
     assert derive_province_from_address("Finca El Prado, Paraje Los Llanos") == (None, None)
     assert derive_province_from_address("Polígono 3, Parcela 45") == (None, None)
+
+
+def _assert_true_or_null(address, true_province, wrong_province):
+    """The v6 correctness contract for a compound town: it resolves to its TRUE
+    province OR stays UNKNOWABLE — NEVER to the wrong (sub-token) province."""
+    prov, _ = derive_province_from_address(address)
+    assert prov != wrong_province, f"{address} WRONGLY filled {prov}"
+    assert prov in (true_province, None), f"{address} -> {prov}, expected {true_province} or None"
+
+
+# ── v6: co-official compound towns must resolve TRUE or NULL, never WRONG ─────
+
+def test_compound_pobla_de_vallbona_valencia():
+    assert derive_province_from_address("La Pobla de Vallbona") == ("Valencia", "address-town")
+    _assert_true_or_null("Av del Riu 3, La Pobla de Vallbona", "Valencia", "Barcelona")
+
+
+def test_compound_santa_cristina_daro_girona():
+    assert derive_province_from_address("Santa Cristina d'Aro") == ("Girona", "address-town")
+    _assert_true_or_null("C/ del Mar 5, Santa Cristina d'Aro", "Girona", "Badajoz")
+
+
+def test_compound_mora_debre_tarragona():
+    assert derive_province_from_address("Móra d'Ebre") == ("Tarragona", "address-town")
+
+
+def test_compound_polinya_del_xuquer_valencia():
+    # co-official "del Xúquer" vs Castilian "de Júcar" — connector-stripped match.
+    assert derive_province_from_address("Polinyà del Xúquer") == ("Valencia", "address-town")
+
+
+def test_compound_mora_la_nova_true_or_null_never_toledo():
+    # Not in the co-official set -> must be Tarragona or NULL, never Toledo.
+    _assert_true_or_null("Móra la Nova", "Tarragona", "Toledo")
+
+
+def test_truncated_compound_never_subtoken_misfills():
+    # "Sotillo de la Adrad" (source-truncated) must NOT fill Segovia via "Sotillo".
+    prov, _ = derive_province_from_address("Sotillo de la Adrad")
+    assert prov in ("Ávila", None) and prov != "Segovia"
+
+
+def test_subtoken_guard_no_hijack_in_compound_context():
+    # A bare hijacking sub-token in a connector (compound) context must never fill
+    # its WRONG province.
+    assert derive_province_from_address("Pda de Vallbona") != ("Barcelona", "address-town")
+    assert derive_province_from_address("Zona de Cristina") != ("Badajoz", "address-town")
+
+
+def test_legit_standalone_subtoken_still_fills():
+    # A genuine standalone town that happens to be a compound component still
+    # fills when it is NOT in a connector (compound) context.
+    assert derive_province_from_address("Calle Mayor 2, Vallbona") == ("Barcelona", "address-town")
+
+
+def test_no_regression_street_name_towns():
+    # The street-name guard (v5) must still hold after the compound rework.
+    assert derive_province_from_address("Calle Málaga 3, Granada")[0] == "Granada"
+    assert derive_province_from_address("Avda de Cádiz, La Carlota")[0] == "Córdoba"
+    assert derive_province_from_address("Avenida de Alicante 20") == (None, None)
 
 
 def test_ambiguous_town_midstring_still_needs_tiebreaker():

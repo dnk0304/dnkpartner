@@ -29,6 +29,62 @@ def normalize_municipality(name: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Tokenisation helpers for the whole-string address matcher + compound handling.
+# Defined early so the gazetteer loader can build word/content/component indexes.
+# ---------------------------------------------------------------------------
+# Any run of non-alphanumerics is a token separator (accents already folded, and
+# apostrophes in "d'Aro" / "l'Alcúdia" split into separate tokens).
+_NONWORD_RE = re.compile(r'[^a-z0-9]+')
+# Articles + prepositions that link the parts of a compound town name. Dropping
+# these makes "Polinyà DEL Xúquer" and "Polinyà DE Xúquer" (co-official vs es)
+# match, and lets an article-inverted gazetteer form ("Pobla de Vallbona, la")
+# match the natural address order ("la Pobla de Vallbona").
+_CONNECTORS = frozenset({'de', 'del', 'la', 'las', 'el', 'los', 'l', 'd',
+                         'y', 'e', 'i', 'o', 'u', 'dels', 'els', 'les',
+                         'des', 'lo', 'as', 'os', 'da', 'do'})
+# The subset that can lead/trail a name as a definite article (for inversion).
+_ARTICLES = frozenset({'la', 'el', 'els', 'les', 'los', 'las', 'l',
+                       'lo', 'as', 'os', 'a', 'o'})
+
+
+def _address_words(text):
+    """Fold to lowercase/accent-stripped tokens (punctuation -> separator)."""
+    if not text:
+        return []
+    norm = normalize_municipality(text)  # lowercase, accents removed, ws collapsed
+    return [w for w in _NONWORD_RE.sub(' ', norm).split() if w]
+
+
+def _wordkey(name):
+    """Gazetteer key in the SAME token form the address scan produces, so
+    "Vélez-Málaga" (key "velez malaga") matches address n-gram "velez malaga"."""
+    return ' '.join(_address_words(name))
+
+
+def _content_key(name):
+    """Connector-stripped key ("pobla vallbona") so de/del/d' article variation
+    between the co-official and Castilian forms can't block a compound match."""
+    return ' '.join(w for w in _address_words(name) if w not in _CONNECTORS)
+
+
+def _word_variants(name):
+    """All word-form keys a name should be indexed under: the natural form plus
+    article-inversion variants, so both "la Pobla de Vallbona" and the
+    register's inverted "Pobla de Vallbona, la" resolve."""
+    base = _wordkey(name)
+    if not base:
+        return set()
+    out = {base}
+    w = base.split()
+    if len(w) > 1 and w[-1] in _ARTICLES:      # "pobla de vallbona la"
+        out.add(' '.join([w[-1]] + w[:-1]))     # -> "la pobla de vallbona"
+        out.add(' '.join(w[:-1]))               # -> "pobla de vallbona"
+    if len(w) > 1 and w[0] in _ARTICLES:        # "la pobla de vallbona"
+        out.add(' '.join(w[1:]))                # -> "pobla de vallbona"
+    return out
+
+
+# ---------------------------------------------------------------------------
 # municipality (normalized) -> province name (matching provinces.py keys)
 # ---------------------------------------------------------------------------
 # Format: lowercase-no-accent municipio -> province name as in provinces.py
@@ -724,38 +780,83 @@ import csv as _csv
 import os as _os
 from collections import defaultdict as _defaultdict
 
+# Base name->province maps (keyed by normalize_municipality) used by
+# municipality_to_province(), the court tiebreaker, and _ambiguous_candidates().
 _INE_UNAMBIGUOUS: dict[str, str] = {}
 _AMBIGUOUS_TOWNS: set[str] = set()
 # normalized ambiguous town name -> the frozenset of provinces it exists in.
-# Used by the court/source tiebreaker to check whether a second signal points at
-# exactly ONE of a town's candidate provinces (2026-07-28, deep pass).
 _AMBIGUOUS_CANDIDATES: dict[str, frozenset] = {}
+
+# Word-form indexes for the whole-string address scan (keyed by _wordkey, incl.
+# article-inversion variants).
+_TOWN_WORD_UNAMBIG: dict[str, str] = {}
+_TOWN_WORD_AMBIG: dict[str, frozenset] = {}
+# Connector-stripped ("content") indexes so de/del/d' variation between the
+# co-official and Castilian compound forms still matches (multi-token only).
+_TOWN_CONTENT_UNAMBIG: dict[str, str] = {}
+_TOWN_CONTENT_AMBIG: dict[str, frozenset] = {}
+# Single tokens that are a component of some MULTI-word municipality name — used
+# by the sub-token hijack guard (a bare "Vallbona"/"Cristina"/"Móra" must not
+# fill when it is a fragment of a longer compound town in the address).
+_COMPONENT_TOKENS: set = set()
+
+# The gazetteer data files (committed alongside this module — no runtime network):
+#   ine_municipalities.csv             — 8,229 towns, Castilian (es) label + prov
+#   ine_municipalities_coofficial.csv  — Catalan/Valencian/Galician/Basque +
+#                                        official (P1705) names, same INE->prov
+#                                        (fixes "La Pobla de Vallbona"→Valencia etc)
+_GAZETTEER_FILES = ("ine_municipalities.csv", "ine_municipalities_coofficial.csv")
 
 
 def _load_ine_register() -> None:
-    """Build the unambiguous name->province map, the ambiguous-name set, AND the
-    ambiguous name->candidate-provinces map from the committed INE CSV. Failure is
-    non-fatal — the curated `_RAW` map still works (the full register just makes
-    fewer rows fillable)."""
-    path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
-                         "ine_municipalities.csv")
-    try:
-        name_to_provs: dict[str, set] = _defaultdict(set)
-        with open(path, encoding="utf-8") as fh:
+    """Load the committed gazetteer(s) and build every index the matcher uses:
+    base name->province, word-form (incl. article variants), connector-stripped
+    content-form, and the compound-component token set. Duplicate names across
+    provinces become AMBIGUOUS (never silently wrong). Failure is non-fatal."""
+    base: dict[str, set] = _defaultdict(set)
+    word: dict[str, set] = _defaultdict(set)
+    content: dict[str, set] = _defaultdict(set)
+    here = _os.path.dirname(_os.path.abspath(__file__))
+    loaded_any = False
+    for fname in _GAZETTEER_FILES:
+        try:
+            fh = open(_os.path.join(here, fname), encoding="utf-8")
+        except OSError:
+            continue
+        loaded_any = True
+        with fh:
             for row in _csv.DictReader(fh):
                 nom = (row.get("municipio") or "").strip()
                 prov = (row.get("provincia") or "").strip()
                 if not nom or not prov:
                     continue
-                name_to_provs[normalize_municipality(nom)].add(prov)
-        for name, provs in name_to_provs.items():
-            if len(provs) == 1:
-                _INE_UNAMBIGUOUS[name] = next(iter(provs))
-            else:
-                _AMBIGUOUS_TOWNS.add(name)
-                _AMBIGUOUS_CANDIDATES[name] = frozenset(provs)
-    except OSError:
-        pass
+                base[normalize_municipality(nom)].add(prov)
+                for k in _word_variants(nom):
+                    word[k].add(prov)
+                toks = [w for w in _address_words(nom) if w not in _CONNECTORS]
+                if len(toks) >= 2:
+                    content[' '.join(toks)].add(prov)
+                    for t in toks:
+                        if len(t) >= 3:
+                            _COMPONENT_TOKENS.add(t)
+    if not loaded_any:
+        return
+    for name, provs in base.items():
+        if len(provs) == 1:
+            _INE_UNAMBIGUOUS[name] = next(iter(provs))
+        else:
+            _AMBIGUOUS_TOWNS.add(name)
+            _AMBIGUOUS_CANDIDATES[name] = frozenset(provs)
+    for k, provs in word.items():
+        if len(provs) == 1:
+            _TOWN_WORD_UNAMBIG[k] = next(iter(provs))
+        else:
+            _TOWN_WORD_AMBIG[k] = frozenset(provs)
+    for k, provs in content.items():
+        if len(provs) == 1:
+            _TOWN_CONTENT_UNAMBIG[k] = next(iter(provs))
+        else:
+            _TOWN_CONTENT_AMBIG[k] = frozenset(provs)
 
 
 _load_ine_register()
@@ -1053,9 +1154,6 @@ _LEADING_NUM_RE = re.compile(r'^\s*\d[\d\s\-\.º/]*')
 #   - an AMBIGUOUS town never fills from the name alone (postal / explicit
 #     province / court tiebreaker still required).
 
-# Purely non-alphanumeric run -> a token separator (accents already folded).
-_NONWORD_RE = re.compile(r'[^a-z0-9]+')
-
 # Street-type lead words (Spanish + co-official). A town appearing right after
 # one of these (optionally through a connector) is a STREET NAME, not the town.
 _STREET_WORDS = frozenset({
@@ -1068,37 +1166,12 @@ _STREET_WORDS = frozenset({
     'parcela', 'finca', 'sector', 'fase', 'edificio', 'edif', 'residencial',
     'grupo', 'conjunto', 'lugar', 'paraje', 'diseminado', 'pasaje', 'senda',
     'vereda', 'canada', 'muelle', 'cuesta', 'bajada', 'subida', 'rambla',
-    'senda', 'camino', 'apartamento', 'apto', 'chalet', 'nave', 'local',
+    'apartamento', 'apto', 'chalet', 'nave', 'local',
 })
-# Small connector words skipped when looking back for a street lead.
-_CONNECTORS = frozenset({'de', 'del', 'la', 'las', 'el', 'los', 'l', 'd',
-                         'y', 'e', 'i', 'o', 'u', 'dels', 'els'})
 
-
-def _address_words(text):
-    """Fold to lowercase/accent-stripped tokens (punctuation -> separator)."""
-    if not text:
-        return []
-    norm = normalize_municipality(text)  # lowercase, accents removed, ws collapsed
-    return [w for w in _NONWORD_RE.sub(' ', norm).split() if w]
-
-
-def _wordkey(name):
-    """Gazetteer key in the SAME token form the address scan produces, so
-    "Vélez-Málaga" (key "velez malaga") matches address n-gram "velez malaga"."""
-    return ' '.join(_address_words(name))
-
-
-# Word-form indexes for the scan (built once, from the already-loaded maps).
-_TOWN_WORD_UNAMBIG: dict[str, str] = {}
-_TOWN_WORD_AMBIG: dict[str, frozenset] = {}
+# Province NAME index for the scan (own map — curated `_RAW` towns + province
+# names overlaid onto the CSV-built word/content indexes below).
 _PROV_WORD: dict[str, str] = {}
-for _n, _c in _AMBIGUOUS_CANDIDATES.items():
-    _TOWN_WORD_AMBIG.setdefault(_wordkey(_n), _c)
-for _n, _p in _INE_UNAMBIGUOUS.items():
-    _k = _wordkey(_n)
-    if _k and _k not in _TOWN_WORD_AMBIG:
-        _TOWN_WORD_UNAMBIG.setdefault(_k, _p)
 for _n, _p in _RAW.items():  # curated capitals + BOE variants (single-province)
     _k = _wordkey(_n)
     if _k and _k not in _TOWN_WORD_AMBIG:
@@ -1122,6 +1195,18 @@ def _street_context(words, i):
     return j >= 0 and words[j] in _STREET_WORDS
 
 
+def _connector_neighbor(words, i):
+    """True when words[i] is linked by a connector (de/del/d'/la…) to another
+    content word on either side — i.e. it is part of a longer "A de B" place
+    expression (a compound town), not a standalone town."""
+    n = len(words)
+    left = (i - 1 >= 0 and words[i - 1] in _CONNECTORS
+            and i - 2 >= 0 and not words[i - 2].isdigit())
+    right = (i + 1 < n and words[i + 1] in _CONNECTORS
+             and i + 2 < n and not words[i + 2].isdigit())
+    return left or right
+
+
 def _scan_address(address):
     """
     Whole-string town/province scan with false-positive guards. Returns
@@ -1133,6 +1218,13 @@ def _scan_address(address):
       - (None, None, None) when nothing matches.
     Longest n-gram wins; ties broken by the RIGHTMOST position (trailing town
     beats a street-name town earlier in the string).
+
+    Compound-town correctness (v6): a multi-word n-gram matches the gazetteer in
+    its natural, article-inverted, OR connector-stripped ("content") form, so a
+    co-official compound ("La Pobla de Vallbona", "Santa Cristina d'Aro",
+    "Polinyà del Xúquer") matches its own entry and longest-wins picks it. And a
+    SUB-TOKEN GUARD stops a bare component ("Vallbona"/"Cristina"/"Móra") filling
+    a different province when it is a fragment of a longer compound in the string.
     """
     words = _address_words(address)
     n = len(words)
@@ -1152,15 +1244,36 @@ def _scan_address(address):
                 if len(w) < 4 or w in _STREET_WORDS:
                     continue
             key = ' '.join(seg)
+            method = province = candidates = None
             if key in _PROV_WORD:
-                hit = (L, i, 'address-province', _PROV_WORD[key], None)
+                method, province = 'address-province', _PROV_WORD[key]
             elif key in _TOWN_WORD_UNAMBIG:
-                hit = (L, i, 'address-town', _TOWN_WORD_UNAMBIG[key], None)
+                method, province = 'address-town', _TOWN_WORD_UNAMBIG[key]
             elif key in _TOWN_WORD_AMBIG:
-                hit = (L, i, None, None, _TOWN_WORD_AMBIG[key])
+                candidates = _TOWN_WORD_AMBIG[key]
             else:
+                # Connector-stripped ("content") match for compounds whose
+                # de/del/d' differs from the gazetteer (multi content-word only).
+                content = [w for w in seg if w not in _CONNECTORS]
+                if len(content) >= 2:
+                    ck = ' '.join(content)
+                    if ck in _TOWN_CONTENT_UNAMBIG:
+                        method, province = 'address-town', _TOWN_CONTENT_UNAMBIG[ck]
+                    elif ck in _TOWN_CONTENT_AMBIG:
+                        candidates = _TOWN_CONTENT_AMBIG[ck]
+                    else:
+                        continue
+                else:
+                    continue
+            # SUB-TOKEN HIJACK GUARD: a bare single-token TOWN match that is a
+            # known component of a longer municipality AND sits in a connector
+            # context ("…de X" / "X de …") is a compound fragment — never fill
+            # from it (leave for a longer match / UNKNOWABLE). Never applies to
+            # province-name matches (distinctive) or multi-word matches.
+            if (L == 1 and province is not None and method == 'address-town'
+                    and seg[0] in _COMPONENT_TOKENS and _connector_neighbor(words, i)):
                 continue
-            # Longest match at this start; prefer longer, then rightmost.
+            hit = (L, i, method, province, candidates)
             if best is None or hit[0] > best[0] or (hit[0] == best[0] and hit[1] > best[1]):
                 best = hit
             break  # took the longest n-gram at this start
