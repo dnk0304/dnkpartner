@@ -53,6 +53,7 @@ import { ChevronLeft, ChevronRight, ArrowRight, Loader2, MapPin } from "lucide-r
 import { apiFetch } from "@/lib/api-path";
 import { StatusBadge } from "./StatusBadge";
 import { AuctionCardTypeBanner } from "./AuctionCardTypeBanner";
+import { SourceBadge } from "./SourceBadge";
 import { resolveCardImage, fallbackImageFor, isVariosLotesTitle } from "@/lib/resolve-card-image";
 import { statusDateLabel } from "@/lib/auction-status";
 import { OFFICIAL_CATEGORIES } from "@/lib/constants";
@@ -106,6 +107,12 @@ export type FeedAuction = {
   municipality: string | null;
   status: string;
   auctionType: string | null;
+  /** WHICH official portal this row was scraped from (BOE / SEGSOCIAL / PLABI
+   *  …). Drives the SourceBadge on the carousel card. Projected by
+   *  /api/auctions/carousel-mix and /api/auctions/recent. Optional + nullable:
+   *  older cached payloads may leave it undefined, and SourceBadge renders
+   *  nothing in that case (no empty chip). */
+  source?: string | null;
   /** BOE bien-heading type ("Trastero", "Garaje", …). Populated by the
    *  doc-archive scraper backfill — most active rows are still null today,
    *  so the card falls back to `category`. Drives the type headline. */
@@ -995,6 +1002,9 @@ function ExpandedCard({
         <span className="absolute top-1.5 left-1.5 flex flex-col items-start gap-1">
           <StatusBadge status={effectiveStatus} size="sm" />
           <AuctionCardTypeBanner item={auction} size="sm" />
+          {/* Source (which official portal the row came from). Null-safe —
+              renders nothing until the endpoint projects `source`. */}
+          <SourceBadge source={auction.source} size="xs" />
         </span>
         {/* Days-left badge — ACTIVE only (Wave52, Pixel 2026-06-04). On a
             PROXIMA / SUSPENDIDA / terminal row this badge is suppressed

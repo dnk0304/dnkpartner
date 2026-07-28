@@ -15,6 +15,7 @@ import { OccupancyBadge } from '@/components/observatory/PujaOccupancyBadges';
 import { RegionBenchmarkChip } from '@/components/observatory/RegionBenchmarkChip';
 import { auctionCardTitle } from '@/lib/seo/display-title';
 import { OFFICIAL_CATEGORIES } from '@/lib/constants';
+import { SourceBadge } from '@/components/observatory/SourceBadge';
 
 interface AuctionCardProps {
   item: AuctionItem;
@@ -366,7 +367,14 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
                 </span>
               </Badge>
             )}
-            
+
+            {/* Source Badge — WHICH official portal this row was scraped from
+                (BOE / Seguridad Social / PLABI …). Distinct from the auction
+                TYPE badge above. Sits in the same top-right identity stack for
+                consistency with AuctionListCard. Null-safe: renders nothing for
+                a blank/unknown source, so an empty chip never appears. */}
+            <SourceBadge source={item.source} size="sm" />
+
             {/* Suspended Badge (from title) - only if not already showing suspended status */}
             {isSuspended && !isSuspendedStatus && (
               <Badge className="bg-[var(--color-status-suspended-soft)] text-[var(--color-ink-primary)] border border-[var(--color-status-suspended)] font-bold shadow-sm px-3 py-1.5 text-xs">

@@ -106,6 +106,9 @@ type FeedAuctionProjection = {
   address: string | null;
   status: string;
   auctionType: string | null;
+  // WHICH official portal the row was scraped from (BOE / SEGSOCIAL / PLABI …).
+  // Card-safe identity field — drives the SourceBadge on the carousel card.
+  source: string | null;
   propertyType: string | null;
   currentBid: number | null;
   appraisalValue: number | null;
@@ -248,6 +251,7 @@ function projectAuction(a: {
   address: string | null;
   status: unknown;
   auctionType: string | null;
+  source: string | null;
   propertyType: string | null;
   currentBid: number | null;
   appraisalValue: number | null;
@@ -293,6 +297,7 @@ function projectAuction(a: {
     address: null,                              // WALL — exact street address
     status: mapStatus(a.status as string | null | undefined),
     auctionType: mapType(a.auctionType ?? null),
+    source: a.source ?? null,                   // KEEP — card-safe portal origin
     propertyType: a.propertyType ?? null,
     currentBid: null,                           // WALL — bid breakdown
     appraisalValue: a.appraisalValue ?? null,   // KEEP — reference valuation
@@ -405,6 +410,7 @@ const AUCTION_CARD_SELECT = {
   address: true,
   status: true,
   auctionType: true,
+  source: true,
   propertyType: true,
   currentBid: true,
   appraisalValue: true,
