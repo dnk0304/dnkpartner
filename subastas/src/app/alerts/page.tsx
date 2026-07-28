@@ -35,6 +35,7 @@ import {
   NotificationHistoryModal,
   type NotificationHistoryItem,
 } from '@/components/alerts/NotificationHistoryModal';
+import { MisSubastasSection } from '@/components/alerts/MisSubastasSection';
 
 interface Alert {
   id: string;
@@ -754,6 +755,11 @@ export default function AlertsPage() {
             )}
           </div>
         </div>
+
+        {/* Mis Subastas — the auctions the user is currently following. Stacked
+            as a distinct section below "Mis Alertas" (see MisSubastasSection
+            header for the section-vs-tab-vs-panel rationale). */}
+        <MisSubastasSection />
 
         {/* How it Works Section */}
         <Card className="mt-8">
