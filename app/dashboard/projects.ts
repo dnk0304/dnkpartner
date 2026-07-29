@@ -63,6 +63,14 @@ export const DASHBOARD_PROJECTS: readonly DashboardProject[] = [
     state: 'live',
   },
   {
+    id: 'trading-control-center',
+    name: 'Trading Control Center',
+    description: 'Live risk light, EA fleet, and news-reaction prognosis.',
+    href: 'https://control.dnkpartner.com',
+    external: true,
+    state: 'live',
+  },
+  {
     id: 'room-designer',
     name: 'Room Designer',
     description: 'Interior visualisation tool.',

@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowUpRight, ArrowRight, Gavel, PenSquare, LineChart, PhoneCall, Sofa, Sticker } from 'lucide-react';
+import { ArrowUpRight, ArrowRight, Gavel, PenSquare, LineChart, PhoneCall, Gauge, Sofa, Sticker } from 'lucide-react';
 import { validateSessionToken } from '@/lib/auth';
 import { AppShell } from '@/components/AppShell';
 import { DASHBOARD_PROJECTS, type DashboardProject } from './projects';
@@ -81,6 +81,7 @@ const PROJECT_ICONS: Record<string, React.ComponentType<{ className?: string }>>
   studio: PenSquare,
   trends: LineChart,
   computercaller: PhoneCall,
+  'trading-control-center': Gauge,
   'room-designer': Sofa,
   'panini-pano': Sticker,
 };
