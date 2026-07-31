@@ -133,6 +133,8 @@ const DB_TO_FRONTEND_STATUS: Record<string, string> = {
 export default function AuctionDetailClient({
   id,
   hideHeader = false,
+  initialData = null,
+  showOfficialAuctionLink = true,
 }: {
   id: string;
   /**
@@ -144,10 +146,33 @@ export default function AuctionDetailClient({
    * fallback, internal navigation) — they keep the standalone hero.
    */
   hideHeader?: boolean;
+  /**
+   * SSR seed (Wave-B2 ungate, 2026-07-31). When the server component has
+   * already built the full detail payload (via buildAuctionDetailPayload) it
+   * passes it here so the FIRST render — including the server-side render that
+   * produces the initial HTML stream — paints the full auction content instead
+   * of the loading skeleton. This is what puts the address / pricing / details
+   * into the SSR HTML so Googlebot (and any no-JS client) sees them without
+   * executing JavaScript. The component still revalidates via the API after
+   * mount to freshen `isFollowing` / history / live state.
+   *
+   * When null (legacy /auction/[id] route, internal nav), behaviour is
+   * unchanged: skeleton → client fetch.
+   */
+  initialData?: DetailResponse["data"] | null;
+  /**
+   * Runtime feature flag (default OPEN). Governs ONLY the "go to the official
+   * auction / place your bid" ACTION links (the "Fuente oficial" source-link
+   * block, the BOE portal document link, and the mobile bottom-bar CTA). It
+   * NEVER gates auction information. Read from env at request time by the
+   * server page (see lib/feature-flags.ts) so it can be flipped without a
+   * rebuild. Defaults true so every other call site keeps showing the link.
+   */
+  showOfficialAuctionLink?: boolean;
 }) {
-  const [data, setData] = React.useState<DetailResponse["data"] | null>(null);
+  const [data, setData] = React.useState<DetailResponse["data"] | null>(initialData);
   const [error, setError] = React.useState<string | null>(null);
-  const [loading, setLoading] = React.useState(true);
+  const [loading, setLoading] = React.useState(!initialData);
   const [photoFailed, setPhotoFailed] = React.useState(false);
 
   React.useEffect(() => {
@@ -156,19 +181,22 @@ export default function AuctionDetailClient({
       try {
         const res = await apiFetch(`/api/auctions/${encodeURIComponent(id)}`);
         if (cancelled) return;
+        // When we already have an SSR seed, a failed/blank revalidation must
+        // NEVER blank the page — keep showing the seeded content. Only surface
+        // an error screen when there was no seed to fall back to.
         if (res.status === 404) {
-          setError("not_found");
+          if (!initialData) setError("not_found");
           return;
         }
         if (!res.ok) {
-          setError("server_error");
+          if (!initialData) setError("server_error");
           return;
         }
         const body = (await res.json()) as DetailResponse;
         if (!cancelled && body.success && body.data) setData(body.data);
-        else if (!cancelled) setError(body.error || "unknown_error");
+        else if (!cancelled && !initialData) setError(body.error || "unknown_error");
       } catch {
-        if (!cancelled) setError("network_error");
+        if (!cancelled && !initialData) setError("network_error");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -176,7 +204,7 @@ export default function AuctionDetailClient({
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, initialData]);
 
   // Status-block shell that adapts to hideHeader. When the SSR teaser has
   // already painted the page chrome (freemium-gate path), we render a bare
@@ -668,11 +696,13 @@ export default function AuctionDetailClient({
               </section>
             )}
 
-            {/* Source links — labelled set of "go to the official source"
-                buttons. Replaces the previous ad-hoc single boeLink/edictUrl/
-                pdfUrl rendering. Documents[] (cached files) stays separate
-                below. */}
-            {Array.isArray(raw.sourceLinks) && raw.sourceLinks.length > 0 && (
+            {/* Source links — labelled set of "go to the official auction"
+                buttons (the place to place a bid). This is the ACTION surface
+                gated by the SHOW_OFFICIAL_AUCTION_LINK runtime flag (default
+                OPEN); it is NOT information. Documents[] (edicto / anuncio /
+                nota simple — information) stays separate below and is never
+                gated. */}
+            {showOfficialAuctionLink && Array.isArray(raw.sourceLinks) && raw.sourceLinks.length > 0 && (
               <section aria-labelledby="sources-heading">
                 <h2 id="sources-heading" className="font-serif text-xl text-[var(--color-ink-primary)]">
                   Fuente oficial
@@ -996,7 +1026,12 @@ export default function AuctionDetailClient({
                       </a>
                     </li>
                   )}
-                  {raw.boeLink && (
+                  {/* Portal de Subastas del BOE — this is the official auction
+                      (where a bid is placed), so it rides the
+                      SHOW_OFFICIAL_AUCTION_LINK flag (default OPEN), NOT the
+                      information rule. The edicto / anuncio PDFs above stay
+                      public unconditionally. */}
+                  {showOfficialAuctionLink && raw.boeLink && (
                     <DocLink href={raw.boeLink} label="Ficha completa en el Portal de Subastas del BOE" />
                   )}
                 </ul>
@@ -1178,7 +1213,10 @@ export default function AuctionDetailClient({
               initialFollowing={data.isFollowing}
               className="flex-1 justify-center"
             />
-            {href && (
+            {/* Go-to-official-auction action — gated by the
+                SHOW_OFFICIAL_AUCTION_LINK runtime flag (default OPEN). The
+                Follow button (an app action, not the bid link) always stays. */}
+            {showOfficialAuctionLink && href && (
               <a
                 href={href}
                 target="_blank"
