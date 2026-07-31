@@ -31,53 +31,159 @@ import { apiFetch } from "@/lib/api-path";
  * client bundle loaded.
  *
  * Data sources: /api/admin/backfill, /stats, /users, /emails (all gated).
+ *
+ * CLIENT-CRASH HARDENING (wave171 follow-up): every one of those endpoints
+ * can return (a) its real success payload, (b) an `{ error: '...' }` body
+ * (403/500 — still a truthy object), or (c) nothing on a network fault.
+ * The render code below NEVER touches a raw response. Each response is run
+ * through a `normalize*()` function that returns a guaranteed-shaped
+ * view-model with numeric/array defaults, so a missing/partial/error payload
+ * renders a sane empty state instead of throwing
+ * `Cannot read properties of undefined`. In particular the backfill route
+ * returns `{ scrapers, totals }` (NOT the legacy `{ progress, completedMonths }`
+ * shape) — the normalizer is the single point that reconciles that.
  */
 
-interface BackfillStatus {
+// ---------------------------------------------------------------------------
+// View-models — the ONLY shapes the render tree is allowed to read. Every
+// field is non-optional with a safe default, so there is no undefined access.
+// ---------------------------------------------------------------------------
+
+interface BackfillView {
   isRunning: boolean;
-  completedMonths: string[];
-  totalAuctions: number;
-  errors: any[];
-  progress: {
-    total: number;
-    completed: number;
-    remaining: number;
-    percentage: number;
-  };
-}
-
-interface AuctionStats {
+  percentage: number;
+  completed: number;
   total: number;
-  byStatus: { status: string; count: number }[];
+  remaining: number;
+  totalAuctions: number;
+  errors: { month?: string; error?: string; timestamp?: string }[];
+}
+
+interface StatsView {
+  total: number;
+  withCoords: number;
+  withoutCoords: number;
+  coordsPct: number;
   byCategory: { category: string; count: number }[];
-  bySource: { source: string; count: number }[];
   byProvince: { province: string; count: number }[];
-  coordinates: {
-    withCoords: number;
-    withoutCoords: number;
-  };
-  dateRange: {
-    earliest: string | null;
-    latest: string | null;
-  };
 }
 
-interface UsersData {
-  users: any[];
-  summary: {
-    total: number;
-    byTier: { tier: string; count: number }[];
-    withSubscriptions: number;
-    withActiveTrials: number;
-  };
+interface UserRowView {
+  id: string;
+  email: string;
+  name: string | null;
+  tier: string;
+  alertCount: number;
+  hasSubscription: boolean;
+  status?: 'paid' | 'trial' | 'expired';
+  trialDaysLeft: number | null;
+  trialEndDate: string | null;
+  createdAt: string | null;
 }
 
-interface EmailData {
+interface UsersView {
+  total: number;
+  withSubscriptions: number;
+  withActiveTrials: number;
+  freeCount: number;
+  users: UserRowView[];
+}
+
+interface EmailsView {
   totalAlerts: number;
   activeAlerts: number;
   inactiveAlerts: number;
-  topUsers: any[];
-  recentActivity: any[];
+  topUsers: { userId: string; email: string; count: number }[];
+  recentActivity: { date: string; count: number }[];
+}
+
+const toNum = (v: unknown, fallback = 0): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+};
+const toArr = (v: unknown): any[] => (Array.isArray(v) ? v : []);
+
+/**
+ * Reconcile the LIVE backfill API shape `{ scrapers, totals }` into the flat
+ * view-model the panel renders. The legacy `{ progress, completedMonths }`
+ * shape this file was originally written against does not exist on the route —
+ * reading it was the source of the `percentage` TypeError.
+ */
+function normalizeBackfill(raw: any): BackfillView {
+  const scrapers = toArr(raw?.scrapers);
+  const totals = raw?.totals ?? {};
+  const total = toNum(totals.batches);
+  const completed = toNum(totals.completed);
+  const errors = scrapers.flatMap((s: any) => toArr(s?.errors));
+  return {
+    isRunning: scrapers.some((s: any) => Boolean(s?.isRunning)),
+    percentage: toNum(totals.percentage),
+    completed,
+    total,
+    remaining: Math.max(0, total - completed),
+    totalAuctions: toNum(totals.auctions),
+    errors,
+  };
+}
+
+function normalizeStats(raw: any): StatsView {
+  const total = toNum(raw?.total);
+  const withCoords = toNum(raw?.coordinates?.withCoords);
+  const withoutCoords = toNum(raw?.coordinates?.withoutCoords);
+  return {
+    total,
+    withCoords,
+    withoutCoords,
+    coordsPct: total > 0 ? Math.round((withCoords / total) * 100) : 0,
+    byCategory: toArr(raw?.byCategory)
+      .filter((c: any) => c && c.category != null)
+      .map((c: any) => ({ category: String(c.category), count: toNum(c.count) })),
+    byProvince: toArr(raw?.byProvince)
+      .filter((p: any) => p && p.province != null)
+      .map((p: any) => ({ province: String(p.province), count: toNum(p.count) })),
+  };
+}
+
+function normalizeUsers(raw: any): UsersView {
+  const summary = raw?.summary ?? {};
+  const byTier = toArr(summary.byTier);
+  return {
+    total: toNum(summary.total),
+    // API summary exposes `paid` (tier-based) + `trial` (active trials); the
+    // legacy `withSubscriptions` / `withActiveTrials` names don't exist.
+    withSubscriptions: toNum(summary.paid),
+    withActiveTrials: toNum(summary.trial),
+    freeCount: toNum(byTier.find((t: any) => t?.tier === 'FREE')?.count),
+    users: toArr(raw?.users).map((u: any) => ({
+      id: String(u?.id ?? ''),
+      email: String(u?.email ?? ''),
+      name: u?.name ?? null,
+      tier: String(u?.tier ?? ''),
+      alertCount: toNum(u?.alertCount),
+      hasSubscription: Boolean(u?.hasSubscription),
+      status: u?.status,
+      trialDaysLeft: u?.trialDaysLeft ?? null,
+      trialEndDate: u?.trialEndDate ?? null,
+      createdAt: u?.createdAt ?? null,
+    })),
+  };
+}
+
+function normalizeEmails(raw: any): EmailsView {
+  return {
+    totalAlerts: toNum(raw?.totalAlerts),
+    activeAlerts: toNum(raw?.activeAlerts),
+    inactiveAlerts: toNum(raw?.inactiveAlerts),
+    topUsers: toArr(raw?.topUsers).map((u: any) => ({
+      userId: String(u?.userId ?? ''),
+      email: String(u?.email ?? ''),
+      count: toNum(u?.count),
+    })),
+    recentActivity: toArr(raw?.recentActivity).map((a: any) => ({
+      date: String(a?.date ?? ''),
+      count: toNum(a?.count),
+    })),
+  };
 }
 
 /**
@@ -134,32 +240,54 @@ function TrialCell({
   );
 }
 
+function formatDate(value: string | null): string {
+  if (!value) return '-';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString();
+}
+
+function formatDateTime(value?: string): string {
+  if (!value) return '';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString();
+}
+
 export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
-  const [backfillStatus, setBackfillStatus] = useState<BackfillStatus | null>(null);
-  const [auctionStats, setAuctionStats] = useState<AuctionStats | null>(null);
-  const [usersData, setUsersData] = useState<UsersData | null>(null);
-  const [emailData, setEmailData] = useState<EmailData | null>(null);
+  const [backfill, setBackfill] = useState<BackfillView | null>(null);
+  const [stats, setStats] = useState<StatsView | null>(null);
+  const [usersData, setUsersData] = useState<UsersView | null>(null);
+  const [emailData, setEmailData] = useState<EmailsView | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'backfill' | 'users' | 'emails'>('overview');
 
   useEffect(() => {
     fetchAllData();
   }, []);
 
+  const safeJson = async (path: string): Promise<any> => {
+    try {
+      const r = await apiFetch(path);
+      return await r.json();
+    } catch {
+      return null;
+    }
+  };
+
   const fetchAllData = async () => {
     setLoading(true);
     try {
-      const [backfill, stats, users, emails] = await Promise.all([
-        apiFetch('/api/admin/backfill').then(r => r.json()),
-        apiFetch('/api/admin/stats').then(r => r.json()),
-        apiFetch('/api/admin/users').then(r => r.json()),
-        apiFetch('/api/admin/emails').then(r => r.json())
+      const [backfillRaw, statsRaw, usersRaw, emailsRaw] = await Promise.all([
+        safeJson('/api/admin/backfill'),
+        safeJson('/api/admin/stats'),
+        safeJson('/api/admin/users'),
+        safeJson('/api/admin/emails'),
       ]);
 
-      setBackfillStatus(backfill);
-      setAuctionStats(stats);
-      setUsersData(users);
-      setEmailData(emails);
+      // Normalizers are total functions: null / {error} / partial -> safe view.
+      setBackfill(normalizeBackfill(backfillRaw));
+      setStats(normalizeStats(statsRaw));
+      setUsersData(normalizeUsers(usersRaw));
+      setEmailData(normalizeEmails(emailsRaw));
     } catch (error) {
       console.error('Error fetching admin data:', error);
     } finally {
@@ -247,7 +375,7 @@ export default function AdminDashboard() {
 
       <div className="max-w-7xl mx-auto">
         {/* Overview Tab */}
-        {activeTab === 'overview' && auctionStats && (
+        {activeTab === 'overview' && stats && (
           <div className="space-y-6">
             {/* Key Metrics */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -256,7 +384,7 @@ export default function AdminDashboard() {
                   <CardTitle className="text-sm font-medium text-gray-600">Total Subastas</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-gray-900">{auctionStats.total.toLocaleString()}</div>
+                  <div className="text-3xl font-bold text-gray-900">{stats.total.toLocaleString()}</div>
                   <p className="text-xs text-gray-500 mt-1">En toda la base de datos</p>
                 </CardContent>
               </Card>
@@ -267,10 +395,10 @@ export default function AdminDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-green-600">
-                    {auctionStats.coordinates.withCoords.toLocaleString()}
+                    {stats.withCoords.toLocaleString()}
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    {Math.round((auctionStats.coordinates.withCoords / auctionStats.total) * 100)}% del total
+                    {stats.coordsPct}% del total
                   </p>
                 </CardContent>
               </Card>
@@ -281,7 +409,7 @@ export default function AdminDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-orange-600">
-                    {auctionStats.coordinates.withoutCoords.toLocaleString()}
+                    {stats.withoutCoords.toLocaleString()}
                   </div>
                   <p className="text-xs text-gray-500 mt-1">Pendientes de geocodificación</p>
                 </CardContent>
@@ -293,10 +421,10 @@ export default function AdminDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-blue-600">
-                    {backfillStatus?.progress.percentage || 0}%
+                    {backfill?.percentage ?? 0}%
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    {backfillStatus?.progress.completed || 0} / {backfillStatus?.progress.total || 72} meses
+                    {backfill?.completed ?? 0} / {backfill?.total ?? 0} lotes
                   </p>
                 </CardContent>
               </Card>
@@ -309,7 +437,7 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {auctionStats.byCategory.slice(0, 10).map((cat) => (
+                  {stats.byCategory.slice(0, 10).map((cat) => (
                     <div key={cat.category} className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-700">{cat.category}</span>
                       <Badge variant="secondary">{cat.count.toLocaleString()}</Badge>
@@ -326,7 +454,7 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {auctionStats.byProvince.map((prov) => (
+                  {stats.byProvince.map((prov) => (
                     <div key={prov.province} className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-700">{prov.province}</span>
                       <Badge variant="secondary">{prov.count.toLocaleString()}</Badge>
@@ -339,14 +467,14 @@ export default function AdminDashboard() {
         )}
 
         {/* Backfill Tab */}
-        {activeTab === 'backfill' && backfillStatus && (
+        {activeTab === 'backfill' && backfill && (
           <div className="space-y-6">
             {/* Status Card */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span>Estado del Scraper Backfill</span>
-                  {backfillStatus.isRunning ? (
+                  {backfill.isRunning ? (
                     <Badge className="bg-green-500">
                       <Clock className="h-3 w-3 mr-1 animate-pulse" />
                       En Ejecución
@@ -362,17 +490,17 @@ export default function AdminDashboard() {
                   <div>
                     <div className="flex justify-between text-sm mb-2">
                       <span className="font-medium">Progreso Total</span>
-                      <span>{backfillStatus.progress.percentage}%</span>
+                      <span>{backfill.percentage}%</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-4">
                       <div
                         className="bg-blue-600 h-4 rounded-full transition-all duration-300"
-                        style={{ width: `${backfillStatus.progress.percentage}%` }}
+                        style={{ width: `${backfill.percentage}%` }}
                       />
                     </div>
                     <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>{backfillStatus.progress.completed} meses completados</span>
-                      <span>{backfillStatus.progress.remaining} meses restantes</span>
+                      <span>{backfill.completed} lotes completados</span>
+                      <span>{backfill.remaining} lotes restantes</span>
                     </div>
                   </div>
 
@@ -380,15 +508,15 @@ export default function AdminDashboard() {
                   <div className="grid grid-cols-3 gap-4 pt-4 border-t">
                     <div>
                       <p className="text-sm text-gray-600">Total Subastas</p>
-                      <p className="text-2xl font-bold text-gray-900">{backfillStatus.totalAuctions.toLocaleString()}</p>
+                      <p className="text-2xl font-bold text-gray-900">{backfill.totalAuctions.toLocaleString()}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-600">Meses Completados</p>
-                      <p className="text-2xl font-bold text-green-600">{backfillStatus.progress.completed}</p>
+                      <p className="text-sm text-gray-600">Lotes Completados</p>
+                      <p className="text-2xl font-bold text-green-600">{backfill.completed}</p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-600">Errores</p>
-                      <p className="text-2xl font-bold text-red-600">{backfillStatus.errors.length}</p>
+                      <p className="text-2xl font-bold text-red-600">{backfill.errors.length}</p>
                     </div>
                   </div>
                 </div>
@@ -396,44 +524,31 @@ export default function AdminDashboard() {
             </Card>
 
             {/* Errors */}
-            {backfillStatus.errors.length > 0 && (
+            {backfill.errors.length > 0 && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-red-600">
                     <AlertCircle className="h-5 w-5" />
-                    Errores ({backfillStatus.errors.length})
+                    Errores ({backfill.errors.length})
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {backfillStatus.errors.map((err: any, idx: number) => (
+                    {backfill.errors.map((err, idx) => (
                       <div key={idx} className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                        <p className="font-medium text-sm text-red-900">{err.month}</p>
-                        <p className="text-xs text-red-700 mt-1">{err.error}</p>
-                        <p className="text-xs text-gray-500 mt-1">{new Date(err.timestamp).toLocaleString()}</p>
+                        {err?.month && <p className="font-medium text-sm text-red-900">{err.month}</p>}
+                        <p className="text-xs text-red-700 mt-1">
+                          {typeof err === 'string' ? err : err?.error ?? 'Error desconocido'}
+                        </p>
+                        {formatDateTime(err?.timestamp) && (
+                          <p className="text-xs text-gray-500 mt-1">{formatDateTime(err?.timestamp)}</p>
+                        )}
                       </div>
                     ))}
                   </div>
                 </CardContent>
               </Card>
             )}
-
-            {/* Completed Months */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Meses Completados ({backfillStatus.completedMonths.length})</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-6 gap-2">
-                  {backfillStatus.completedMonths.sort().reverse().map((month) => (
-                    <Badge key={month} variant="outline" className="justify-center">
-                      <CheckCircle2 className="h-3 w-3 mr-1 text-green-600" />
-                      {month}
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
           </div>
         )}
 
@@ -447,7 +562,7 @@ export default function AdminDashboard() {
                   <CardTitle className="text-sm font-medium text-gray-600">Total Usuarios</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-gray-900">{usersData.summary.total}</div>
+                  <div className="text-3xl font-bold text-gray-900">{usersData.total}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -455,7 +570,7 @@ export default function AdminDashboard() {
                   <CardTitle className="text-sm font-medium text-gray-600">Con Suscripción</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-green-600">{usersData.summary.withSubscriptions}</div>
+                  <div className="text-3xl font-bold text-green-600">{usersData.withSubscriptions}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -463,7 +578,7 @@ export default function AdminDashboard() {
                   <CardTitle className="text-sm font-medium text-gray-600">Trials Activos</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-blue-600">{usersData.summary.withActiveTrials}</div>
+                  <div className="text-3xl font-bold text-blue-600">{usersData.withActiveTrials}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -472,7 +587,7 @@ export default function AdminDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-gray-600">
-                    {usersData.summary.byTier.find(t => t.tier === 'FREE')?.count || 0}
+                    {usersData.freeCount}
                   </div>
                 </CardContent>
               </Card>
@@ -523,7 +638,7 @@ export default function AdminDashboard() {
                             />
                           </td>
                           <td className="py-2 px-4 text-gray-600">
-                            {new Date(user.createdAt).toLocaleDateString()}
+                            {formatDate(user.createdAt)}
                           </td>
                         </tr>
                       ))}
