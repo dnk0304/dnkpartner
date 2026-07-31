@@ -109,6 +109,15 @@ export async function GET(request: NextRequest) {
         trialEnd.getTime() > now;
       const isPaid =
         user.tier === 'ACCESO' || user.tier === 'GOLD' || user.tier === 'DIAMOND';
+      // Whole days remaining on the trial clock, floored at 0. `null` only when
+      // the row has no trialEndDate at all. Derived from trialEndDate for every
+      // tier (paid users get the number too — the UI keys "Pagado" off `status`,
+      // not this field). Additive: feeds Pixel's "días restantes" column so the
+      // client renders a number instead of doing date math.
+      const trialDaysLeft: number | null =
+        trialEnd !== null && Number.isFinite(trialEnd.getTime())
+          ? Math.max(0, Math.ceil((trialEnd.getTime() - now) / 86_400_000))
+          : null;
       return {
         id: user.id,
         email: user.email,
@@ -118,6 +127,7 @@ export async function GET(request: NextRequest) {
         emailVerified: user.emailVerified,
         trialStartDate: user.trialStartDate,
         trialEndDate: user.trialEndDate,
+        trialDaysLeft,
         alertCount: Number(
           alertCounts.find((a) => a.userId === user.id)?.count ?? 0,
         ),
