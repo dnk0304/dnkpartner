@@ -10,6 +10,7 @@
 
 import Link from 'next/link';
 import { buildAuctionSlug, type AuctionForSlug } from '@/lib/seo/auction-slug';
+import { ParticiparButton } from '@/components/auction/ParticiparButton';
 
 type Row = AuctionForSlug & {
   title: string | null;
@@ -144,6 +145,14 @@ export function SeoAuctionGrid({ auctions, emptyMessage }: { auctions: Row[]; em
                   <div className="mt-2 text-sm text-[var(--color-text-muted)]">Sin precio publicado</div>
                 )}
               </Link>
+              {/* Participar CTA — client island, a SIBLING of the crawlable
+                  <Link> above (never nested inside it: a <button> inside an
+                  <a> is invalid HTML and would break the wave167 crawl path).
+                  Carries only the auction id + slug; the official URL is
+                  resolved server-side by /api/participar/[id]. */}
+              <div className="mt-3">
+                <ParticiparButton auctionId={a.id} slug={slug} size="sm" />
+              </div>
             </li>
           );
         })}

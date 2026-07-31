@@ -59,6 +59,7 @@ import { statusDateLabel } from "@/lib/auction-status";
 import { OFFICIAL_CATEGORIES } from "@/lib/constants";
 import { buildAuctionSlug } from "@/lib/seo/auction-slug";
 import { auctionCardTitle } from "@/lib/seo/display-title";
+import { ParticiparButton } from "@/components/auction/ParticiparButton";
 import {
   formatPrice,
   formatDaysLeft,
@@ -942,14 +943,32 @@ function ExpandedCard({
 
   // Card width: full 260px in default mode; ~25 % smaller (195px) in compact
   // mode for the home page properties + vehicles two-row layout.
-  const cardClass = cn(
+  //
+  // Wave169 (Pixel): the card is now a SHELL (a plain <div> flex child that the
+  // marquee measures) wrapping TWO siblings — the clickable body (link/button
+  // to the detail page) and the Participar CTA. This keeps the two interactive
+  // elements as siblings (never a <button> nested in a <button>/<a>, which is
+  // invalid HTML) while the shell keeps the exact width the rAF loop measures,
+  // so the marquee mechanics are unchanged.
+  const shellClass = cn(
     "snap-start shrink-0 rounded-lg border bg-[var(--color-surface)] overflow-hidden",
     compact ? "w-[195px]" : "w-[260px]",
-    "flex flex-col transition-colors text-left cursor-pointer",
+    "flex flex-col transition-colors",
     "hover:border-[var(--color-brand-soft)]/50 hover:shadow-[var(--shadow-card)]",
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-soft)]/40",
     urgent ? "border-[var(--color-warn-critical)]/60" : "border-[var(--color-hairline)]",
   );
+  const bodyClass = cn(
+    "flex flex-1 flex-col text-left cursor-pointer",
+    "focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--color-brand-soft)]/40",
+  );
+  // Detail-page slug for the Participar logged-out `next` (same slug the Link
+  // branch routes to).
+  const detailSlug = buildAuctionSlug({
+    id: auction.id,
+    auctionType: auction.auctionType,
+    province: auction.province,
+    municipality: auction.municipality,
+  });
 
   const innerBody = (
     <>
@@ -1205,22 +1224,48 @@ function ExpandedCard({
   // Click handler: when wired (Item G), the card becomes a `<button>` that
   // opens the detail modal in the parent. When not wired, it falls back to a
   // `<Link>` to the canonical auction page (G-not-shipped fallback).
+  // Participar CTA — a sibling of the clickable body (never nested inside the
+  // card <button>/<Link>). Carries only the auction id + slug; the official
+  // URL is resolved server-side by /api/participar/[id] and never touches this
+  // DOM. `onClickCapture` swallows the click that follows a drag-scrub (same
+  // guard the body uses); `stopPropagation` keeps a real click on Participar
+  // from also opening the detail modal/link. Duplicate marquee copies stay
+  // mouse-clickable but drop out of the tab order + a11y tree (via the shell's
+  // aria-hidden + tabIndex -1 here).
+  const participarFooter = (
+    <div
+      className="hairline-t px-2 pb-2 pt-1.5"
+      onClickCapture={handleClickCapture}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <ParticiparButton
+        auctionId={auction.id}
+        slug={detailSlug}
+        size="sm"
+        tabIndex={duplicate ? -1 : undefined}
+        className={compact ? "!py-1.5 !text-[12px]" : undefined}
+      />
+    </div>
+  );
+
   if (onCardClick) {
     return (
-      <button
-        type="button"
-        onClick={() => onCardClick(auction)}
-        onClickCapture={handleClickCapture}
-        // Duplicate-track copies are presentational — hide from a11y tree and
-        // the tab order, so the user only ever focuses one copy of a card.
-        aria-hidden={duplicate || undefined}
-        tabIndex={duplicate ? -1 : 0}
-        className={cardClass}
-        title={cardHeadline}
-        aria-label={t("verDetalles", { title: cardHeadline })}
-      >
-        {innerBody}
-      </button>
+      // Duplicate-track copies are presentational — the shell is hidden from
+      // the a11y tree so the user only ever perceives one copy of a card.
+      <div className={shellClass} aria-hidden={duplicate || undefined}>
+        <button
+          type="button"
+          onClick={() => onCardClick(auction)}
+          onClickCapture={handleClickCapture}
+          tabIndex={duplicate ? -1 : 0}
+          className={bodyClass}
+          title={cardHeadline}
+          aria-label={t("verDetalles", { title: cardHeadline })}
+        >
+          {innerBody}
+        </button>
+        {participarFooter}
+      </div>
     );
   }
 
@@ -1229,24 +1274,21 @@ function ExpandedCard({
   // `{tipo}-{provincia}-{municipio}-{id}`. We always route here from the
   // home carousel (Dennis 2026-06-07): the popup modal path is OFF, cards
   // become plain links so clicks land on the SEO + funnel destination.
-  const detailHref = `/subastas/subasta/${buildAuctionSlug({
-    id: auction.id,
-    auctionType: auction.auctionType,
-    province: auction.province,
-    municipality: auction.municipality,
-  })}`;
+  const detailHref = `/subastas/subasta/${detailSlug}`;
 
   return (
-    <Link
-      href={detailHref}
-      onClickCapture={handleClickCapture}
-      aria-hidden={duplicate || undefined}
-      tabIndex={duplicate ? -1 : 0}
-      className={cardClass}
-      title={cardHeadline}
-    >
-      {innerBody}
-    </Link>
+    <div className={shellClass} aria-hidden={duplicate || undefined}>
+      <Link
+        href={detailHref}
+        onClickCapture={handleClickCapture}
+        tabIndex={duplicate ? -1 : 0}
+        className={bodyClass}
+        title={cardHeadline}
+      >
+        {innerBody}
+      </Link>
+      {participarFooter}
+    </div>
   );
 }
 

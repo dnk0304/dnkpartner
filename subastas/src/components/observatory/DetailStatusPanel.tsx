@@ -21,17 +21,16 @@
  */
 
 import * as React from "react";
-import { ExternalLink } from "lucide-react";
 import { AuctionItem } from "@/types";
 import { StatusBadge } from "./StatusBadge";
 import { LiveCountdown } from "./LiveCountdown";
 import { FollowButton } from "@/components/notifications/FollowButton";
 import { NotifyPrefsPopover } from "@/components/notifications/NotifyPrefsPopover";
 import { CrearAlertaCTA } from "@/components/auction/CrearAlertaCTA";
+import { ParticiparButton } from "@/components/auction/ParticiparButton";
 import { formatPrice, formatDateLong } from "./format";
 import { getStatusMeta, isLive, isUpcoming, effectiveStatus } from "./status";
 import { statusDateLabel } from "@/lib/auction-status";
-import { getSourceLabel } from "@/lib/source-labels";
 import { cn } from "@/lib/utils";
 
 export type DetailStatusPanelProps = {
@@ -213,39 +212,14 @@ export function DetailStatusPanel({
         </dl>
       )}
 
-      {/* Action cluster — source-aware official-source CTA (QC P1 fix,
-          2026-06-07). A PLABI row used to render "Ir al Portal del BOE"
-          pointing at plabi.justicia.es; we now resolve the label and href
-          per source. Falls back to BOE for BOE/legacy rows. */}
+      {/* Action cluster — the gated "Participar" CTA (wave169). The official
+          auction URL is NO LONGER rendered here; it is resolved server-side by
+          GET /api/participar/[id] behind the login gate. The button carries
+          only auction.id — no official URL ever reaches this DOM. Logged-out
+          users are routed to sign-up; logged-in users open the official portal
+          in a new tab. */}
       <div className="space-y-3 hairline-t pt-4">
-        {(() => {
-          const upper = (auction.source ?? "").trim().toUpperCase();
-          const isBoeFamily = upper === "BOE" || upper === "TEJU" || upper === "";
-          // PLABI / SEGSOCIAL — use the row's originalSource when present,
-          // never the BOE homepage. BOE family keeps the legacy fallback.
-          const href = isBoeFamily
-            ? (auction.boeLink ?? "https://subastas.boe.es")
-            : ((auction as { originalSource?: string | null }).originalSource ?? auction.boeLink ?? null);
-          const label = isBoeFamily
-            ? "Ir al Portal del BOE"
-            : `Ir al portal de ${getSourceLabel(auction.source) ?? "la fuente"}`;
-          if (!href) return null;
-          return (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cn(
-                "flex w-full items-center justify-center gap-2 rounded-md px-4 py-3 text-sm font-semibold transition-colors",
-                "bg-[var(--color-action)] text-white hover:bg-[var(--color-action-hover)]",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/40 focus-visible:ring-offset-2",
-              )}
-            >
-              {label}
-              <ExternalLink className="h-4 w-4" aria-hidden="true" />
-            </a>
-          );
-        })()}
+        <ParticiparButton auctionId={auction.id} />
         <p className="text-[11px] text-[var(--color-ink-tertiary)] text-center">
           Las pujas se realizan únicamente en el portal oficial.
         </p>

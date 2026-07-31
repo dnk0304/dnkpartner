@@ -16,6 +16,7 @@ import { RegionBenchmarkChip } from '@/components/observatory/RegionBenchmarkChi
 import { auctionCardTitle } from '@/lib/seo/display-title';
 import { OFFICIAL_CATEGORIES } from '@/lib/constants';
 import { SourceBadge } from '@/components/observatory/SourceBadge';
+import { ParticiparButton } from '@/components/auction/ParticiparButton';
 
 interface AuctionCardProps {
   item: AuctionItem;
@@ -615,6 +616,18 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
 
           </div>
         </PremiumGuard>
+
+        {/* Participar — kept OUTSIDE PremiumGuard so the conversion CTA is
+            never blurred for a locked tier. The whole Card is clickable
+            (onClick → detail), so we stop propagation here: clicking Participar
+            triggers ONLY the gated /api/participar/[id] route, not card
+            navigation. No official URL in the DOM. */}
+        <div
+          className="mt-4"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ParticiparButton auctionId={item.id} size="sm" />
+        </div>
       </CardContent>
     </Card>
   );
