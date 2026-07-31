@@ -15,6 +15,7 @@
     "accountFavorites": "My favourites",
     "accountAlerts": "My alerts",
     "accountSettings": "My account",
+    "accountAdmin": "Admin",
     "accountSignOut": "Sign out"
   },
   "home": {
