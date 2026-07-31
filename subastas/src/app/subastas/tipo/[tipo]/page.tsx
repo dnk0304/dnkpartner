@@ -25,6 +25,7 @@ import { SeoIntroBlock } from '@/components/seo/SeoIntroBlock';
 import { Breadcrumbs } from '@/components/seo/Breadcrumbs';
 import { AuctionType } from '@/types';
 import SubastasListClient from '../../SubastasListClient';
+import { buildSeoAuctions } from '../../_shared/seo-auctions';
 
 type PageProps = { params: Promise<{ tipo: string }> };
 
@@ -93,6 +94,13 @@ export default async function TipoPage({ params }: PageProps) {
   const label = t(`tipoLabel.${slug}`);
   const lockedAuctionType = TIPO_SLUG_TO_AUCTION_TYPE[slug];
 
+  // SSR crawlable auction block (P1/P2) — page 1 for this tipo.
+  const auctions = await buildSeoAuctions({
+    filter: { auctionTypeKeys: TIPO_SLUG_TO_DB_KEYS[slug] },
+    basePath: `/subastas/tipo/${tipo}`,
+    locationLabel: label,
+  });
+
   const introSlot = (
     <>
       <Breadcrumbs
@@ -119,6 +127,7 @@ export default async function TipoPage({ params }: PageProps) {
         lockedFilter={{ type: lockedAuctionType }}
         seoTitle={t('tipoTitle', { label })}
         seoIntroSlot={introSlot}
+        seoAuctionsSlot={auctions.node}
       />
     </Suspense>
   );

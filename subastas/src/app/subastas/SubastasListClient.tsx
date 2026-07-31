@@ -92,6 +92,16 @@ export type SubastasListClientProps = {
    * the "Por tipo de subasta en {label}" and similar internal-link clusters.
    */
   seoFooterSlot?: React.ReactNode;
+  /**
+   * SSR crawlable auction block (SeoAuctionSection = full-info cards with real
+   * <a href> detail links + path-based pagination). Rendered IN PLACE OF the
+   * loading skeleton so it lands in the initial HTML. Real users' client fetch
+   * to /api/auctions flips `loading` false and the live list replaces it;
+   * Googlebot can't fetch the robots-blocked /api/auctions, so `loading` stays
+   * true and this crawlable block persists in the rendered DOM — that's the
+   * crawl-path unlock (P1/P2).
+   */
+  seoAuctionsSlot?: React.ReactNode;
 };
 
 export default function SubastasListClient({
@@ -99,6 +109,7 @@ export default function SubastasListClient({
   seoTitle,
   seoIntroSlot,
   seoFooterSlot,
+  seoAuctionsSlot,
 }: SubastasListClientProps = {}) {
   const t = useTranslations("subastasList");
   const locale = useLocale() as "es" | "en";
@@ -538,7 +549,15 @@ export default function SubastasListClient({
                 </div>
               </div>
             ) : loading ? (
-              <LoadingBody />
+              // SEO routes pass an SSR crawlable auction block; render it in
+              // place of the skeleton so the detail-page links land in the
+              // initial HTML (and persist for Googlebot, whose /api/auctions
+              // fetch is robots-blocked). Non-SEO /subastas keeps the skeleton.
+              seoAuctionsSlot ? (
+                <div data-seo-ssr-auctions>{seoAuctionsSlot}</div>
+              ) : (
+                <LoadingBody />
+              )
             ) : error ? (
               <ErrorBody />
             ) : filtered.length === 0 ? (
