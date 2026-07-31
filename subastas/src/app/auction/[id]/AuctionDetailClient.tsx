@@ -61,7 +61,8 @@ import { cn } from "@/lib/utils";
 import { AuctionFinancialsTable, type FinancialEntry } from "@/components/auction/AuctionFinancialsTable";
 import { RegionBenchmarkChip } from "@/components/observatory/RegionBenchmarkChip";
 import { AuctionCountdownBadge } from "@/components/auction/AuctionCountdownBadge";
-import { AuctionSourceLinks, type SourceLink } from "@/components/auction/AuctionSourceLinks";
+import { type SourceLink } from "@/components/auction/AuctionSourceLinks";
+import { ParticiparButton } from "@/components/auction/ParticiparButton";
 import { AuctionMapPanel } from "@/components/auction/AuctionMapPanel";
 import { CrearAlertaCTA } from "@/components/auction/CrearAlertaCTA";
 import { SimilarAuctionsCarousel } from "@/components/auction/SimilarAuctionsCarousel";
@@ -134,7 +135,6 @@ export default function AuctionDetailClient({
   id,
   hideHeader = false,
   initialData = null,
-  showOfficialAuctionLink = true,
 }: {
   id: string;
   /**
@@ -160,15 +160,6 @@ export default function AuctionDetailClient({
    * unchanged: skeleton → client fetch.
    */
   initialData?: DetailResponse["data"] | null;
-  /**
-   * Runtime feature flag (default OPEN). Governs ONLY the "go to the official
-   * auction / place your bid" ACTION links (the "Fuente oficial" source-link
-   * block, the BOE portal document link, and the mobile bottom-bar CTA). It
-   * NEVER gates auction information. Read from env at request time by the
-   * server page (see lib/feature-flags.ts) so it can be flipped without a
-   * rebuild. Defaults true so every other call site keeps showing the link.
-   */
-  showOfficialAuctionLink?: boolean;
 }) {
   const [data, setData] = React.useState<DetailResponse["data"] | null>(initialData);
   const [error, setError] = React.useState<string | null>(null);
@@ -696,25 +687,13 @@ export default function AuctionDetailClient({
               </section>
             )}
 
-            {/* Source links — labelled set of "go to the official auction"
-                buttons (the place to place a bid). This is the ACTION surface
-                gated by the SHOW_OFFICIAL_AUCTION_LINK runtime flag (default
-                OPEN); it is NOT information. Documents[] (edicto / anuncio /
-                nota simple — information) stays separate below and is never
-                gated. */}
-            {showOfficialAuctionLink && Array.isArray(raw.sourceLinks) && raw.sourceLinks.length > 0 && (
-              <section aria-labelledby="sources-heading">
-                <h2 id="sources-heading" className="font-serif text-xl text-[var(--color-ink-primary)]">
-                  Fuente oficial
-                </h2>
-                <p className="mt-0.5 text-xs text-[var(--color-ink-tertiary)]">
-                  Enlaces directos al BOE y otros orígenes oficiales. Se abren en una nueva pestaña.
-                </p>
-                <div className="mt-3">
-                  <AuctionSourceLinks links={raw.sourceLinks} />
-                </div>
-              </section>
-            )}
+            {/* "Fuente oficial" source-link block REMOVED (wave169). These
+                were the outbound official-auction / place-a-bid deep-links
+                (detalleSubasta.php / portal) — now consolidated behind the
+                gated Participar CTA in DetailStatusPanel + the mobile bar, so
+                the official URL never renders into this page's HTML/RSC
+                payload. The edicto / anuncio PDFs those links duplicated remain
+                fully public in the "Documentos oficiales" section below. */}
 
             {/* Mobile-only inline state panel */}
             <div className="md:hidden">
@@ -1026,14 +1005,12 @@ export default function AuctionDetailClient({
                       </a>
                     </li>
                   )}
-                  {/* Portal de Subastas del BOE — this is the official auction
-                      (where a bid is placed), so it rides the
-                      SHOW_OFFICIAL_AUCTION_LINK flag (default OPEN), NOT the
-                      information rule. The edicto / anuncio PDFs above stay
-                      public unconditionally. */}
-                  {showOfficialAuctionLink && raw.boeLink && (
-                    <DocLink href={raw.boeLink} label="Ficha completa en el Portal de Subastas del BOE" />
-                  )}
+                  {/* "Ficha completa en el Portal de Subastas del BOE" link
+                      REMOVED (wave169). That was the official-auction ficha
+                      (where a bid is placed) — an ACTION, not information — so
+                      it is now reached only via the gated Participar CTA. The
+                      official URL no longer renders into this DOM. The edicto /
+                      anuncio PDFs above stay public unconditionally. */}
                 </ul>
               </section>
             )}
@@ -1195,41 +1172,23 @@ export default function AuctionDetailClient({
         </div>
 
       {/* Mobile bottom action bar (position:fixed — escapes any ancestor).
-          Source-aware CTA (QC P1 fix, 2026-06-07): PLABI / SEGSOCIAL rows
-          route to their own portal; only BOE-family rows say "Ir al BOE". */}
-      {(() => {
-        const upper = (raw.source ?? "").trim().toUpperCase();
-        const isBoeFamily = upper === "BOE" || upper === "TEJU" || upper === "";
-        const href = isBoeFamily
-          ? (auctionItem.boeLink ?? "https://subastas.boe.es")
-          : (raw.originalSource ?? auctionItem.boeLink ?? null);
-        const label = isBoeFamily
-          ? "Ir al BOE"
-          : `Ir a ${getSourceLabel(raw.source) ?? "la fuente"}`;
-        return (
-          <div className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-[var(--color-surface)] hairline-t p-3 flex gap-2">
-            <FollowButton
-              auctionId={auctionItem.id}
-              initialFollowing={data.isFollowing}
-              className="flex-1 justify-center"
-            />
-            {/* Go-to-official-auction action — gated by the
-                SHOW_OFFICIAL_AUCTION_LINK runtime flag (default OPEN). The
-                Follow button (an app action, not the bid link) always stays. */}
-            {showOfficialAuctionLink && href && (
-              <a
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 inline-flex items-center justify-center gap-2 rounded-md bg-[var(--color-action-soft)] border border-[var(--color-action)] text-[var(--color-ink-primary)] px-4 py-2 text-sm font-semibold hover:bg-[var(--color-action-soft)]/80"
-              >
-                {label}
-                <ExternalLink className="h-4 w-4" aria-hidden="true" />
-              </a>
-            )}
-          </div>
-        );
-      })()}
+          The go-to-official-auction action is now the gated Participar CTA
+          (wave169): a real <button> carrying only the auction id — no official
+          URL in this DOM. Server-side GET /api/participar/[id] resolves the
+          BOE/portal URL behind the login gate. The Follow button (an app
+          action, not the bid link) always stays. */}
+      <div className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-[var(--color-surface)] hairline-t p-3 flex gap-2">
+        <FollowButton
+          auctionId={auctionItem.id}
+          initialFollowing={data.isFollowing}
+          className="flex-1 justify-center"
+        />
+        <ParticiparButton
+          auctionId={auctionItem.id}
+          variant="soft"
+          className="flex-1 !py-2"
+        />
+      </div>
     </OuterShell>
   );
 }

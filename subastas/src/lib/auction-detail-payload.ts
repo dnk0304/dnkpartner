@@ -32,9 +32,7 @@
  * ADJUDICADA rows with a published winning bid. Fixed here.)
  */
 import { prisma } from '@/lib/prisma';
-import { boeLinkFor } from '@/lib/boe-link';
 import { publicPathForDocId } from '@/lib/auction-docs/storage';
-import { buildSourceLinks } from '@/lib/source-links';
 import { buildFinancials } from '@/lib/financials';
 import {
   buildRegionBenchmarkSignal,
@@ -169,15 +167,14 @@ export async function buildAuctionDetailPayload(
       downloadUrl: d.storedPath ? publicPathForDocId(d.id) : null,
     }));
 
-  const sourceLinks = buildSourceLinks({
-    boeId: auction.boeId,
-    boeLink: auction.boeLink,
-    loteNumber: loteNumberSafe,
-    edictUrl: auction.edictUrl,
-    pdfUrl: auction.pdfUrl,
-    source: auction.source,
-    originalSource: auction.originalSource,
-  });
+  // wave169 — the official-auction URL is NO LONGER projected to the client.
+  // The former `sourceLinks[]` (detalleSubasta.php / portal deep-links) plus
+  // `boeLink` / `originalSource` all carried the outbound "place a bid" URL
+  // into the RSC/hydration payload, which defeated the participate-gate (any
+  // logged-out viewer could read it from view-source). Those fields are dropped
+  // / nulled below; the URL now lives ONLY server-side in GET /api/participar/[id].
+  // The edicto / anuncio document PDFs stay public via `documents[]` +
+  // edictUrl/pdfUrl in the Documentos section.
   const financials = buildFinancials({
     valorSubasta: auction.valorSubasta,
     appraisalValue: auction.appraisalValue,
@@ -272,14 +269,18 @@ export async function buildAuctionDetailPayload(
     lotDescription: safeLotDescription,
     propertyDescription: safePropertyDescription,
     registryInfo: safeRegistryInfo,
-    boeLink: boeLinkFor(auction.boeId, auction.boeLink),
+    // wave169 — official-auction URL fields are hard-nulled so they never reach
+    // the client. `...auctionScalars` spreads the raw `boeLink` / `originalSource`
+    // columns, so we MUST override both here (a bare spread would re-leak them).
+    // Reach the official portal via the gated GET /api/participar/[id] instead.
+    boeLink: null,
+    originalSource: null,
     loteNumber: Number.isFinite(loteNumberSafe as number) ? loteNumberSafe : null,
     currentBidAmount: currentBidAmountSafe,
     // BigInt → number (see header). Prevents a serialisation crash on concluded
     // rows with a published winning bid.
     soldPrice: soldPriceSafe,
     documents,
-    sourceLinks,
     financials,
     regionBenchmark,
     endDate: auction.endsAt ? auction.endsAt.toISOString() : null,

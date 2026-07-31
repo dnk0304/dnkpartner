@@ -22,10 +22,11 @@
  *   logged-out teaser + <FullInfoWall> "Regístrate para ver la dirección" gate
  *   is GONE. The page stays 200 + indexable per the robots gate below.
  *
- *   The ONLY optionally-gated surface is the "go to the official auction /
- *   place a bid" ACTION link, behind the SHOW_OFFICIAL_AUCTION_LINK runtime
- *   flag (default OPEN, flippable without a rebuild — see lib/feature-flags.ts).
- *   It gates NO information.
+ *   The "go to the official auction / place a bid" ACTION is now an auth-gated
+ *   "Participar" button (wave169): the official URL is resolved server-side by
+ *   GET /api/participar/[id] and never rendered into this page. Logged-out →
+ *   sign-up; logged-in → official portal. It gates NO information. (The old
+ *   SHOW_OFFICIAL_AUCTION_LINK env flag was retired — it was a leaky half-gate.)
  *
  *   The paid product is alerts/notifications — see /api/alerts/route.ts. That
  *   is the only paid-gated surface left in the app.
@@ -46,7 +47,6 @@ import { FollowConfirmBanner } from '@/components/auction/FollowConfirmBanner';
 import { auctionMetaTitle, auctionDisplayTitle } from '@/lib/seo/display-title';
 import { buildAuctionJsonLd } from '@/lib/seo/json-ld';
 import { buildAuctionDetailPayload } from '@/lib/auction-detail-payload';
-import { showOfficialAuctionLink } from '@/lib/feature-flags';
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -318,13 +318,12 @@ export default async function SubastaDetailPage({ params, searchParams }: PagePr
       <main className="mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8">
         {followFlag && <FollowConfirmBanner flag={followFlag} auctionId={a.id} />}
         {/* Full public detail — SSR-seeded so the complete auction information
-            renders in the initial HTML for EVERYONE. `showOfficialAuctionLink`
-            is the ONE runtime-flippable gate, and it governs ONLY the
-            official-auction / bid ACTION link (default OPEN) — never info. */}
+            renders in the initial HTML for EVERYONE. The official-auction / bid
+            ACTION is now the auth-gated Participar button (wave169); the
+            official URL is resolved server-side and never enters this HTML. */}
         <AuctionDetailClient
           id={a.id}
           initialData={initialData}
-          showOfficialAuctionLink={showOfficialAuctionLink()}
         />
       </main>
     </div>
