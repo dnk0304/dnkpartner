@@ -25,7 +25,7 @@ import {
   Heart,
   LogOut,
   Search,
-  User,
+  Shield,
   UserCircle2,
 } from "lucide-react";
 import {
@@ -39,8 +39,27 @@ import {
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { apiFetch } from "@/lib/api-path";
+import { isAdminEmail } from "@/lib/admin";
 import { formatUpdatedDayEs } from "./format";
 import { cn } from "@/lib/utils";
+
+/**
+ * Derive a 1–2 char monogram for the avatar. Prefers the display name's
+ * initials; falls back to the first alphanumeric char of the email. Always
+ * uppercase, never empty (defaults to "U" for a nameless/emailless session).
+ */
+function initialsFrom(name?: string | null, email?: string | null): string {
+  const source = (name ?? "").trim();
+  if (source) {
+    const parts = source.split(/\s+/).filter(Boolean);
+    const first = parts[0]?.[0] ?? "";
+    const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
+    const initials = `${first}${last}`.toUpperCase();
+    if (initials) return initials;
+  }
+  const emailChar = (email ?? "").trim().match(/[a-z0-9]/i)?.[0];
+  return (emailChar ?? "U").toUpperCase();
+}
 
 export type ObservatoryHeaderProps = {
   /** Hide the search box on pages where it's redundant (e.g. detail). */
@@ -67,6 +86,12 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
   }, [locale]);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [lastUpdate, setLastUpdate] = React.useState<string | null>(null);
+
+  // Admin link visibility is a pure email-allowlist test (lib/admin.ts). The
+  // /admin route is still gated server-side; this only decides whether the
+  // in-menu shortcut is shown. Non-admins never see it.
+  const isAdmin = isAdminEmail(session?.user?.email);
+  const avatarInitials = initialsFrom(session?.user?.name, session?.user?.email);
 
   // Fetch last-update timestamp from /api/auctions/stats once per mount.
   // This is the "Datos actualizados hace X min" trust signal — refresh every
@@ -184,12 +209,21 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
               <DropdownMenuTrigger
                 aria-label={t("accountMenuAria")}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm cursor-pointer",
+                  "inline-flex items-center gap-1.5 rounded-md py-1 pl-1 pr-1.5 text-sm cursor-pointer",
                   "text-[var(--color-ink-secondary)] hover:text-[var(--color-brand)] hover:bg-[var(--color-brand)]/5",
                   "transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/30",
                 )}
               >
-                <User className="h-4 w-4" aria-hidden="true" />
+                {/* Monogram avatar — no profile image today, so initials stand in. */}
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
+                    "bg-[var(--color-brand)]/10 text-[var(--color-brand)] text-xs font-semibold tnum",
+                  )}
+                >
+                  {avatarInitials}
+                </span>
                 <span className="hidden sm:inline">{t("myPanel")}</span>
                 <ChevronDown className="h-3.5 w-3.5 text-[var(--color-ink-tertiary)]" aria-hidden="true" />
               </DropdownMenuTrigger>
@@ -222,6 +256,17 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
                     <span>{t("accountSettings")}</span>
                   </Link>
                 </DropdownMenuItem>
+                {isAdmin && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild className="cursor-pointer">
+                      <Link href="/admin" className="flex items-center gap-2">
+                        <Shield className="h-4 w-4 text-[var(--color-ink-tertiary)]" aria-hidden="true" />
+                        <span>{t("accountAdmin")}</span>
+                      </Link>
+                    </DropdownMenuItem>
+                  </>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onSelect={() => {
