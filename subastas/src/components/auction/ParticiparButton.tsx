@@ -32,7 +32,7 @@
 import * as React from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ExternalLink } from "lucide-react";
+import { Gavel } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type ParticiparButtonProps = {
@@ -41,10 +41,22 @@ export type ParticiparButtonProps = {
   slug?: string | null;
   /** Visual variant. "primary" = solid CTA; "soft" = bordered secondary. */
   variant?: "primary" | "soft";
+  /**
+   * Density. "md" (default) = the detail-page CTA (px-4 py-3, text-sm).
+   * "sm" = the compact card CTA (px-3 py-2, text-[13px]) so the button reads
+   * as the primary action without crowding a dense auction card.
+   */
+  size?: "sm" | "md";
   /** Label override. Defaults to "Participar". */
   label?: string;
   /** Accessible label override. */
   ariaLabel?: string;
+  /**
+   * Tab-order override. Only used by presentational duplicate copies (e.g. the
+   * ForexCarousel marquee clone), which pass -1 so the cloned button stays
+   * mouse-clickable but is removed from the keyboard tab order.
+   */
+  tabIndex?: number;
   className?: string;
 };
 
@@ -52,8 +64,10 @@ export function ParticiparButton({
   auctionId,
   slug,
   variant = "primary",
+  size = "md",
   label = "Participar",
   ariaLabel = "Participar en esta subasta oficial",
+  tabIndex,
   className,
 }: ParticiparButtonProps) {
   const { status } = useSession();
@@ -76,6 +90,7 @@ export function ParticiparButton({
   }, [status, slug, pathname, auctionId, router]);
 
   const isPrimary = variant === "primary";
+  const isSm = size === "sm";
 
   return (
     <button
@@ -83,18 +98,20 @@ export function ParticiparButton({
       onClick={handleClick}
       disabled={navigating}
       aria-label={ariaLabel}
+      tabIndex={tabIndex}
       className={cn(
-        "inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-3 text-sm font-semibold transition-colors",
+        "inline-flex w-full items-center justify-center gap-2 rounded-md font-semibold transition-colors",
+        isSm ? "px-3 py-2 text-[13px]" : "px-4 py-3 text-sm",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-action)]/40 focus-visible:ring-offset-2",
         isPrimary
-          ? "bg-[var(--color-action)] text-white hover:bg-[var(--color-action-hover)]"
+          ? "bg-[var(--color-action)] text-white shadow-[var(--shadow-card)] hover:bg-[var(--color-action-hover)]"
           : "border border-[var(--color-action)] bg-[var(--color-action-soft)] text-[var(--color-ink-primary)] hover:bg-[var(--color-action-soft)]/80",
         navigating && "opacity-70 cursor-progress",
         className,
       )}
     >
+      <Gavel className={cn(isSm ? "h-3.5 w-3.5" : "h-4 w-4")} aria-hidden="true" />
       {label}
-      <ExternalLink className="h-4 w-4" aria-hidden="true" />
     </button>
   );
 }

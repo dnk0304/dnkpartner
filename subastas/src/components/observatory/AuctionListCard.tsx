@@ -26,6 +26,7 @@ import { PropertyFactsBadges } from "./PropertyFactsBadges";
 import { RegionBenchmarkChip } from "./RegionBenchmarkChip";
 import { LiveCountdown } from "./LiveCountdown";
 import { FollowButton } from "@/components/notifications/FollowButton";
+import { ParticiparButton } from "@/components/auction/ParticiparButton";
 import { formatPrice, capitalize, titleCase, formatDaysLeft, formatDateMed, prettifyAuctionType, formatM2, formatPricePerM2 } from "./format";
 import { auctionCardTitle } from "@/lib/seo/display-title";
 import { effectiveStatus } from "./status";
@@ -572,6 +573,17 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
             </a>
           );
         })()}
+
+        {/* Participar — the card's committed action. A real <button> (no href,
+            no official URL in the DOM); the gated /api/participar/[id] route
+            resolves + redirects server-side. Sits at the foot of the card as
+            the primary CTA, visually separated from the info stack. Sibling of
+            the detail <Link>s above — the article is not itself an anchor, so
+            there is no nested-interactive issue and clicking Participar never
+            triggers card navigation. */}
+        <div className="hairline-t pt-2 mt-0.5">
+          <ParticiparButton auctionId={item.id} size="sm" />
+        </div>
       </div>
     </article>
   );
