@@ -10,7 +10,8 @@ import {
   Clock,
   BarChart3,
   RefreshCw,
-  Shield
+  Shield,
+  Calendar
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -77,6 +78,60 @@ interface EmailData {
   inactiveAlerts: number;
   topUsers: any[];
   recentActivity: any[];
+}
+
+/**
+ * Trial-standing cell for the Users table. Reads the API's derived `status`
+ * (paid | trial | expired) plus the additive `trialDaysLeft` field (Forge) —
+ * no client-side date math. Every state carries a text label so the meaning
+ * never depends on color alone (WCAG 1.4.1).
+ *   - paid      -> green "Pagado" (a paying user is never "expired")
+ *   - trial     -> blue "N días" (+ end date on hover/subtext)
+ *   - expired w/ a past trial date -> red "Caducado"
+ *   - no trial date at all         -> muted "—" (never started a trial)
+ */
+function TrialCell({
+  status,
+  trialDaysLeft,
+  trialEndDate,
+}: {
+  status?: 'paid' | 'trial' | 'expired';
+  trialDaysLeft: number | null;
+  trialEndDate: string | null;
+}) {
+  if (status === 'paid') {
+    return (
+      <Badge className="bg-green-100 text-green-800 border border-green-300 hover:bg-green-100">
+        Pagado
+      </Badge>
+    );
+  }
+
+  if (status === 'trial' && trialDaysLeft !== null && trialDaysLeft > 0) {
+    const endLabel = trialEndDate
+      ? `Prueba finaliza el ${new Date(trialEndDate).toLocaleDateString()}`
+      : undefined;
+    return (
+      <span className="inline-flex items-center gap-1.5" title={endLabel}>
+        <Badge className="bg-blue-100 text-blue-800 border border-blue-300 hover:bg-blue-100">
+          <Calendar className="h-3 w-3 mr-1" aria-hidden="true" />
+          {trialDaysLeft} {trialDaysLeft === 1 ? 'día' : 'días'}
+        </Badge>
+      </span>
+    );
+  }
+
+  // No trial date ever set — not expired, simply never on trial.
+  if (trialDaysLeft === null) {
+    return <span className="text-gray-400">—</span>;
+  }
+
+  // Trial date exists but has elapsed.
+  return (
+    <Badge className="bg-red-100 text-red-800 border border-red-300 hover:bg-red-100">
+      Caducado
+    </Badge>
+  );
 }
 
 export default function AdminDashboard() {
@@ -438,6 +493,7 @@ export default function AdminDashboard() {
                         <th className="text-left py-2 px-4">Tier</th>
                         <th className="text-left py-2 px-4">Alertas</th>
                         <th className="text-left py-2 px-4">Suscripción</th>
+                        <th scope="col" className="text-left py-2 px-4">Prueba</th>
                         <th className="text-left py-2 px-4">Registro</th>
                       </tr>
                     </thead>
@@ -458,6 +514,13 @@ export default function AdminDashboard() {
                             ) : (
                               '-'
                             )}
+                          </td>
+                          <td className="py-2 px-4">
+                            <TrialCell
+                              status={user.status}
+                              trialDaysLeft={user.trialDaysLeft}
+                              trialEndDate={user.trialEndDate}
+                            />
                           </td>
                           <td className="py-2 px-4 text-gray-600">
                             {new Date(user.createdAt).toLocaleDateString()}
