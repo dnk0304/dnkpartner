@@ -32,6 +32,13 @@ type Row = AuctionForSlug & {
    */
   claimedAmount?: number | null;
   endsAt: Date | null;
+  /**
+   * Street address — PUBLIC (Dennis 2026-07-31: auction data is fully
+   * ungated). Shown as the card's location line when present; falls back to
+   * municipality + province. Optional so pre-projection call sites still
+   * compile.
+   */
+  address?: string | null;
 };
 
 const EUR = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
@@ -83,7 +90,12 @@ export function SeoAuctionGrid({ auctions, emptyMessage }: { auctions: Row[]; em
       <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {auctions.map((a) => {
           const slug = buildAuctionSlug(a);
-          const where = [a.municipality, a.province].filter(Boolean).join(', ');
+          // Full public location line: prefer the real street address (ungated
+          // 2026-07-31), append the town/province for context; fall back to
+          // town + province when no address is stored.
+          const region = [a.municipality, a.province].filter(Boolean).join(', ');
+          const addr = (a.address ?? '').trim();
+          const where = addr ? [addr, region].filter(Boolean).join(' · ') : region;
           const lines = valueLinesFor(a);
           // Fallback to currentBid only when NONE of the three primary values
           // exist (keeps the existing "Sin precio publicado" affordance).

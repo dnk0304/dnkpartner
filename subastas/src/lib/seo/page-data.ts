@@ -83,6 +83,99 @@ export const findActiveAuctions = unstable_cache(
   { revalidate: 60, tags: ['seo-counts'] },
 );
 
+// ---------------------------------------------------------------------------
+// P1 + P2 (SEO crawl-path unlock, 2026-07-31) — server-rendered, PAGINATED,
+// scope-gated auction slice for the hub/listing pages.
+//
+// WHY: the hub pages (/subastas, /subastas/<prov>, /subastas/<prov>/<muni>,
+// /subastas/tipo/<t>) render their auction cards CLIENT-side from
+// /api/auctions, which robots blocks (Disallow: /api/). Googlebot therefore
+// saw ZERO crawlable <a href> to any detail page → the ~active detail pages
+// were sitemap-only orphans. This helper lets the SERVER component render the
+// cards as real anchors in the initial HTML + drive path-based pagination.
+//
+// SCOPE GATE: ANDs `inScope = true` (wave155 soft-hide) so hidden/junk rows
+// never surface — the SAME predicate every other catalog surface uses. Status
+// gate is the SEO ACTIVE set (matches the detail page's index gate + sitemap),
+// so a linked auction is always an indexable page (no crawl-path to noindex).
+// ---------------------------------------------------------------------------
+
+/** Cards per hub page. Kept modest so SSR of a hub never blows up render. */
+export const SEO_PAGE_SIZE = 24;
+
+/** One card's worth of columns — matches SeoAuctionGrid's Row shape. */
+const SEO_CARD_SELECT = {
+  id: true,
+  title: true,
+  category: true,
+  province: true,
+  municipality: true,
+  status: true,
+  auctionType: true,
+  currentBid: true,
+  minimumBid: true,
+  appraisalValue: true,
+  valorSubasta: true,
+  claimedAmount: true,
+  endsAt: true,
+  // Ungated (Dennis 2026-07-31): auction data is fully public — the card shows
+  // the real street address, no registration wall.
+  address: true,
+} satisfies Prisma.AuctionSelect;
+
+export type ScopedAuctionCard = Prisma.AuctionGetPayload<{ select: typeof SEO_CARD_SELECT }>;
+
+export type ScopedAuctionPage = {
+  rows: ScopedAuctionCard[];
+  total: number;
+  totalPages: number;
+  page: number;
+  pageSize: number;
+};
+
+function scopedWhere({ province, auctionTypeKeys, category, municipality }: CountInput): Prisma.AuctionWhereInput {
+  const where: Prisma.AuctionWhereInput = { status: { in: ACTIVE_STATUSES }, inScope: true };
+  if (province) where.province = province;
+  if (auctionTypeKeys && auctionTypeKeys.length > 0) where.auctionType = { in: auctionTypeKeys };
+  if (category) where.category = category;
+  if (municipality) where.municipality = municipality;
+  return where;
+}
+
+async function _findScopedAuctionsPage(
+  args: CountInput & { page: number; pageSize?: number },
+): Promise<ScopedAuctionPage> {
+  const pageSize = args.pageSize && args.pageSize > 0 ? Math.floor(args.pageSize) : SEO_PAGE_SIZE;
+  const page = Number.isFinite(args.page) && args.page > 0 ? Math.floor(args.page) : 1;
+  const where = scopedWhere(args);
+  const [total, rows] = await Promise.all([
+    prisma.auction.count({ where }),
+    prisma.auction.findMany({
+      where,
+      // Deterministic + stable across requests so skip/take pages never overlap
+      // or skip a row (same rule the sitemap detail chunks rely on). endsAt asc
+      // surfaces the soonest-closing auctions first; id asc is the tiebreak.
+      orderBy: [{ endsAt: 'asc' }, { id: 'asc' }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: SEO_CARD_SELECT,
+    }),
+  ]);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  return { rows, total, totalPages, page, pageSize };
+}
+
+/**
+ * Scope-gated, paginated auction slice for a hub page. Cached 60s (the counts
+ * cache TTL) — keyed by the full args object (filter + page) so every hub +
+ * page combination memoises independently.
+ */
+export const findScopedAuctionsPage = unstable_cache(
+  _findScopedAuctionsPage,
+  ['seo-scoped-auctions-page'],
+  { revalidate: 60, tags: ['seo-counts'] },
+);
+
 /** Resolve a tipo slug to its DB auctionType keys. */
 export function tipoSlugToDbKeys(slug: TipoSlug): string[] {
   return TIPO_SLUG_TO_DB_KEYS[slug] ?? [];

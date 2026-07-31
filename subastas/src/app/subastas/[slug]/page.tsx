@@ -42,6 +42,7 @@ import { SeoIntroBlock } from '@/components/seo/SeoIntroBlock';
 import { Breadcrumbs } from '@/components/seo/Breadcrumbs';
 import { capitalizeLocation } from '@/lib/utils';
 import SubastasListClient from '../SubastasListClient';
+import { buildSeoAuctions } from '../_shared/seo-auctions';
 
 type PageProps = { params: Promise<{ slug: string }> };
 const SITE = 'https://subastasactivas.com';
@@ -104,9 +105,14 @@ async function renderCategoryPage(slugUrl: string, r: {
   const t = await getTranslations('listTemplates');
   const plural = t(`categoryLabel.${cat}`);
 
-  const [count, minPrice] = await Promise.all([
+  const [count, minPrice, auctions] = await Promise.all([
     countActiveAuctions({ category: dbLabel }),
     minStartingPrice({ category: dbLabel }),
+    buildSeoAuctions({
+      filter: { category: dbLabel },
+      basePath: `/subastas/${slugUrl}`,
+      locationLabel: plural,
+    }),
   ]);
 
   const introSlot = (
@@ -135,6 +141,7 @@ async function renderCategoryPage(slugUrl: string, r: {
         lockedFilter={{ category: dbLabel }}
         seoTitle={t('categoryTitle', { plural })}
         seoIntroSlot={introSlot}
+        seoAuctionsSlot={auctions.node}
       />
     </Suspense>
   );
@@ -154,10 +161,15 @@ async function renderProvincePage(slugUrl: string, r: {
 }) {
   const { dbKey, label } = r;
   const t = await getTranslations('listTemplates');
-  const [count, minPrice, municipalities] = await Promise.all([
+  const [count, minPrice, municipalities, auctions] = await Promise.all([
     countActiveAuctions({ province: dbKey }),
     minStartingPrice({ province: dbKey }),
     municipalitiesInProvince(dbKey),
+    buildSeoAuctions({
+      filter: { province: dbKey },
+      basePath: `/subastas/${slugUrl}`,
+      locationLabel: label,
+    }),
   ]);
 
   // CollectionPage JSON-LD now points at the clean canonical URL.
@@ -249,6 +261,7 @@ async function renderProvincePage(slugUrl: string, r: {
         seoTitle={t('provinceTitle', { province: label })}
         seoIntroSlot={introSlot}
         seoFooterSlot={footerSlot}
+        seoAuctionsSlot={auctions.node}
       />
     </Suspense>
   );

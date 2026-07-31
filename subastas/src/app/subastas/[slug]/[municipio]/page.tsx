@@ -45,6 +45,7 @@ import { SeoIntroBlock } from '@/components/seo/SeoIntroBlock';
 import { Breadcrumbs } from '@/components/seo/Breadcrumbs';
 import { capitalizeLocation } from '@/lib/utils';
 import SubastasListClient from '../../SubastasListClient';
+import { buildSeoAuctions } from '../../_shared/seo-auctions';
 
 type PageProps = { params: Promise<{ slug: string; municipio: string }> };
 const SITE = 'https://subastasactivas.com';
@@ -134,6 +135,13 @@ export default async function MunicipioPage({ params }: PageProps) {
   if (!data) notFound();
   const t = await getTranslations('listTemplates');
   const muniLabel = capitalizeLocation(data.municipalityName);
+
+  // SSR crawlable auction block (P1/P2) — page 1 for this town.
+  const auctions = await buildSeoAuctions({
+    filter: { province: data.provinceDbKey, municipality: data.municipalityName },
+    basePath: `/subastas/${data.provinceSlug}/${data.municipioSlug}`,
+    locationLabel: `${muniLabel} (${data.provinceLabel})`,
+  });
 
   // BreadcrumbList + CollectionPage JSON-LD (mirror province page).
   const collectionLd = {
@@ -270,6 +278,7 @@ export default async function MunicipioPage({ params }: PageProps) {
         seoTitle={t('townTitle', { town: muniLabel, province: data.provinceLabel })}
         seoIntroSlot={introSlot}
         seoFooterSlot={footerSlot}
+        seoAuctionsSlot={auctions.node}
       />
     </Suspense>
   );
