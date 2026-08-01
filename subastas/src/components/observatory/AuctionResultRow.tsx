@@ -98,6 +98,12 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
     vehicleYear: item.vehicleYear,
     lotDescription: item.lotDescription,
     useFullStreet: !isVehicle,
+    // Bare-address card titles (2026-08-01, Dennis-locked): the DEFAULT
+    // /subastas list row drops the "{Tipo} – " prefix and shows the bare street
+    // ("Calle Mayor 12, Murcia"). Address-less rows still fall back to
+    // "{Tipo} en {town}". (Brief named AuctionListCard, but the default list
+    // view renders AuctionResultRow — this is the real listing-card surface.)
+    bareAddress: !isVehicle,
   });
   const vehicleMakeModel =
     isVehicle && item.vehicleMake && item.vehicleModel

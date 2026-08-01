@@ -29,9 +29,11 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, ExternalLink, FileText, Landmark, ImageOff, Download, Calendar, Phone, Building2 } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { ArrowLeft, ExternalLink, Landmark, ImageOff, Calendar, Phone, Building2 } from "lucide-react";
 import { apiFetch } from "@/lib/api-path";
-import { AuctionItem, AuctionDocument } from "@/types";
+import { AuctionItem } from "@/types";
+import { AuctionDocsDisclosure } from "@/components/auction/AuctionDocsDisclosure";
 import { resolveCardImage, isVehicleCategory } from "@/lib/resolve-card-image";
 import { buildCatastroUrl } from "@/lib/catastro-url";
 import { effectiveStatus } from "@/components/observatory/status";
@@ -113,6 +115,9 @@ type DetailResponse = {
     };
     followCount: number;
     isFollowing: boolean;
+    /** wave173 (2026-08-01) — paid gate for documents (Option A). true → our
+     *  cached downloadUrls are nulled; the public BOE officialUrl stays. */
+    documentsLocked?: boolean;
   };
   error?: string;
 };
@@ -161,6 +166,7 @@ export default function AuctionDetailClient({
    */
   initialData?: DetailResponse["data"] | null;
 }) {
+  const pathname = usePathname();
   const [data, setData] = React.useState<DetailResponse["data"] | null>(initialData);
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(!initialData);
@@ -259,6 +265,8 @@ export default function AuctionDetailClient({
   }
 
   const raw = data.auction;
+  // wave173 (Option A): server-projected paid gate for the documents surface.
+  const documentsLocked = data.documentsLocked === true;
   // Clock-wins status: if the DB says CELEBRANDOSE/PROXIMA_APERTURA but
   // `endsAt` has already passed, every status-driven surface on this page
   // (badge, countdown prefix, "Ir al BOE" CTA shape) must agree it's
@@ -886,134 +894,21 @@ export default function AuctionDetailClient({
               </dl>
             </section>
 
-            {/* Documents — combined surface for legacy single-doc fields
-                (pdfUrl/edictUrl/boeLink) AND the document-archive wave's
-                full `documents[]` array (each with downloadUrl + officialUrl).
-                The whole section is null-omitted when nothing is present.
-                Pre-backfill rows still see the BOE anuncio + Edicto + portal
-                ficha; backfilled rows additionally see "Nota simple", etc. */}
-            {(raw.pdfUrl || raw.edictUrl || raw.boeLink ||
-              (Array.isArray(raw.documents) && raw.documents.length > 0)) && (
-              <section aria-labelledby="docs-heading">
-                <h2 id="docs-heading" className="font-serif text-xl text-[var(--color-ink-primary)]">
-                  Documentos oficiales
-                </h2>
-                {Array.isArray(raw.documents) && raw.documents.length > 0 && (() => {
-                  // Exclude SNAPSHOT rows from the subtitle docnames list so
-                  // the "Captura BOE (ver=3)" label doesn't leak in here
-                  // either. Same filter rule as the list below.
-                  const visible = (raw.documents as AuctionDocument[]).filter((d) => {
-                    const k = (d.kind ?? '').toLowerCase();
-                    if (k === 'snapshot') return false;
-                    if ((d.docType ?? '').toUpperCase() === 'SNAPSHOT') return false;
-                    return true;
-                  });
-                  if (visible.length === 0) return null;
-                  return (
-                    <p className="mt-0.5 text-xs text-[var(--color-ink-tertiary)]">
-                      {visible.map((d) => d.title?.trim() || prettifyDocType(d.docType)).join(" · ")}
-                    </p>
-                  );
-                })()}
-                <ul className="mt-3 space-y-2 text-sm">
-                  {/* Doc-archive wave: full list rendered first with both
-                      "Descargar" (our cached copy) AND "Fuente BOE" (the
-                      official URL). downloadUrl null → fall back to officialUrl
-                      as the single primary action. */}
-                  {Array.isArray(raw.documents) && (raw.documents as AuctionDocument[]).map((doc) => {
-                    // Drop the per-auction BOE snapshot row (the "Captura BOE
-                    // (ver=3)" label) — Dennis 2026-06-08: the canonical
-                    // "Fuente BOE" link covers the same surface; the snapshot
-                    // adds noise. API already filters these; this is the
-                    // belt-and-braces second-pass at render time so a stale
-                    // payload in the browser cache can't resurrect the row.
-                    const kind = (doc.kind ?? '').toLowerCase();
-                    const docTypeUpper = (doc.docType ?? '').toUpperCase();
-                    if (kind === 'snapshot' || docTypeUpper === 'SNAPSHOT') return null;
-                    const label = doc.title?.trim() || prettifyDocType(doc.docType);
-                    const primaryHref = doc.downloadUrl ?? doc.officialUrl;
-                    if (!primaryHref) return null;
-                    return (
-                      <li key={doc.id} className="rounded-md border border-[var(--color-hairline)] bg-[var(--color-surface)] p-3">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="text-[10px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">
-                              {prettifyDocType(doc.docType)}
-                            </div>
-                            <div className="font-medium text-[var(--color-ink-primary)] break-words">
-                              {label}
-                            </div>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2 shrink-0">
-                            <a
-                              href={primaryHref}
-                              {...(doc.downloadUrl
-                                ? { download: "" }
-                                : { target: "_blank", rel: "noopener noreferrer" })}
-                              className="inline-flex items-center gap-1.5 rounded-md bg-[var(--color-brand)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40 cursor-pointer"
-                              aria-label={
-                                doc.downloadUrl
-                                  ? `Descargar ${label}`
-                                  : `Abrir ${label} (fuente BOE)`
-                              }
-                            >
-                              {doc.downloadUrl ? (
-                                <>
-                                  <Download className="h-3.5 w-3.5" aria-hidden="true" />
-                                  Descargar
-                                </>
-                              ) : (
-                                <>
-                                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                                  Abrir BOE
-                                </>
-                              )}
-                            </a>
-                            {doc.downloadUrl && doc.officialUrl && (
-                              <a
-                                href={doc.officialUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-hairline)] bg-[var(--color-surface)] px-3 py-1.5 text-xs font-medium text-[var(--color-ink-secondary)] hover:bg-[var(--color-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ink-tertiary)]/30 cursor-pointer"
-                                aria-label={`Ver ${label} en el BOE`}
-                              >
-                                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                                Fuente BOE
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      </li>
-                    );
-                  })}
-                  {/* SEO-public: BOE anuncio PDF + portal ficha. NEVER gated. */}
-                  {raw.pdfUrl && <DocLink href={raw.pdfUrl} label="Anuncio del BOE (PDF)" />}
-                  {/* Wave-B (2026-06-07): edicto del juzgado is public now —
-                      the previous <GatedField> wrap is gone. The inline <li>
-                      shape stays so the <ul>/<li> nesting is valid. */}
-                  {raw.edictUrl && (
-                    <li>
-                      <a
-                        href={raw.edictUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 text-[var(--color-brand)] hover:underline focus-visible:outline-none focus-visible:underline cursor-pointer"
-                      >
-                        <FileText className="h-4 w-4" aria-hidden="true" />
-                        Edicto del juzgado (PDF)
-                        <ExternalLink className="h-3.5 w-3.5 opacity-60" aria-hidden="true" />
-                      </a>
-                    </li>
-                  )}
-                  {/* "Ficha completa en el Portal de Subastas del BOE" link
-                      REMOVED (wave169). That was the official-auction ficha
-                      (where a bid is placed) — an ACTION, not information — so
-                      it is now reached only via the gated Participar CTA. The
-                      official URL no longer renders into this DOM. The edicto /
-                      anuncio PDFs above stay public unconditionally. */}
-                </ul>
-              </section>
-            )}
+            {/* Documents (wave173, 2026-08-01): the sprawling main-body section
+                is GONE — the surface now lives in the compact collapsed
+                <AuctionDocsDisclosure> side widget (right rail on desktop,
+                rendered below in the main flow on mobile only so the single-
+                column layout never re-introduces the long doc scroll). All
+                per-doc affordances (Descargar / Fuente BOE / legacy PDFs) and
+                the Option-A paid gate live inside that component. */}
+            <AuctionDocsDisclosure
+              className="md:hidden"
+              documents={raw.documents}
+              pdfUrl={raw.pdfUrl}
+              edictUrl={raw.edictUrl}
+              documentsLocked={documentsLocked}
+              detailPath={pathname}
+            />
 
             {/* Cadastral block (wave-C M3) — server-projected `cadastral{}`
                 object. Renders only the fields that resolve (NULL-safe).
@@ -1151,10 +1046,18 @@ export default function AuctionDetailClient({
             </section>
           </div>
 
-          {/* Right rail (desktop only) — sticky state panel */}
+          {/* Right rail (desktop only) — sticky state panel + the collapsed
+              documents disclosure directly beneath it (wave173). */}
           <div className="hidden md:block">
-            <div className="sticky top-24">
+            <div className="sticky top-24 space-y-4">
               <DetailStatusPanel auction={auctionItem} initialFollowing={data.isFollowing} />
+              <AuctionDocsDisclosure
+                documents={raw.documents}
+                pdfUrl={raw.pdfUrl}
+                edictUrl={raw.edictUrl}
+                documentsLocked={documentsLocked}
+                detailPath={pathname}
+              />
             </div>
           </div>
         </div>
@@ -1216,45 +1119,3 @@ function KV({ label, value, mono = false }: { label: string; value: React.ReactN
   );
 }
 
-function DocLink({ href, label }: { href: string; label: string }) {
-  return (
-    <li>
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-2 text-[var(--color-brand)] hover:underline focus-visible:outline-none focus-visible:underline cursor-pointer"
-      >
-        <FileText className="h-4 w-4" aria-hidden="true" />
-        {label}
-        <ExternalLink className="h-3.5 w-3.5 opacity-60" aria-hidden="true" />
-      </a>
-    </li>
-  );
-}
-
-/**
- * Pretty label for an `AuctionDocument.docType` slug. Maps the doc-archive
- * scraper's known slugs to Spanish UX labels; unknown values capitalised so
- * future scraper additions still render readably.
- */
-function prettifyDocType(docType: string | null | undefined): string {
-  if (!docType) return "Documento";
-  const k = docType.toLowerCase().replace(/[-_\s]+/g, "_");
-  const MAP: Record<string, string> = {
-    nota_simple: "Nota simple",
-    edicto: "Edicto",
-    edicto_juzgado: "Edicto del juzgado",
-    anuncio_boe: "Anuncio del BOE",
-    tasacion: "Tasación",
-    tasación: "Tasación",
-    informe: "Informe",
-    pliego: "Pliego de condiciones",
-    pliego_condiciones: "Pliego de condiciones",
-    cargas: "Cargas",
-  };
-  if (MAP[k]) return MAP[k];
-  const trimmed = String(docType).trim();
-  if (!trimmed) return "Documento";
-  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase().replace(/_/g, " ");
-}

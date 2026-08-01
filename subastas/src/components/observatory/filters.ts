@@ -132,6 +132,12 @@ export const AUCTION_TYPE_LABEL: Record<string, { label: string; shortLabel: str
 /** Sort options — match Forge's whitelisted values on /api/auctions. */
 export type SortValue = "active_first" | "category_rank" | "endsAt_asc" | "published_desc" | "price_asc" | "price_desc";
 export const SORT_OPTIONS: Array<{ id: SortValue; label: string }> = [
+  // wave173 (2026-08-01): the DEFAULT sort (`active_first`) is now a labelled,
+  // selectable option so the default landing view highlights a correct sort
+  // chip instead of falling back to a mismatched one. Tiers active → próxima →
+  // finished, then newest-published within each tier. Kept FIRST so it reads as
+  // the natural default. The other chips below are unchanged.
+  { id: "active_first", label: "Activas primero" },
   { id: "category_rank", label: "Destacados" },
   { id: "endsAt_asc", label: "Termina antes" },
   // C2 (2026-06-07): label flipped "Más recientes" → "Publicadas recientes"

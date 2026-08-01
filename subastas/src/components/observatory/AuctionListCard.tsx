@@ -84,6 +84,10 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
     vehicleYear: item.vehicleYear,
     lotDescription: item.lotDescription,
     useFullStreet: !isVehicle,
+    // Bare-address card titles (2026-08-01, Dennis-locked): listing cards drop
+    // the "{Tipo} – " prefix and show the bare street ("Calle Mayor 12,
+    // Murcia"). Address-less rows still fall back to "{Tipo} en {town}".
+    bareAddress: !isVehicle,
   });
   const vehicleMakeModel =
     isVehicle && item.vehicleMake && item.vehicleModel

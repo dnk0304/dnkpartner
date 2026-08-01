@@ -293,6 +293,17 @@ export interface CardTitleInput extends DisplayTitleInput {
    *  take the `movable` branch above. Prefer this over `useShortStreet` on all
    *  card surfaces. */
   useFullStreet?: boolean | null;
+  /** Bare-address card title (2026-08-01, Dennis-locked) — opt-in, only
+   *  meaningful alongside `useFullStreet` on the real-estate street branch.
+   *  When true AND a street resolves via {@link resolveTitleStreet}, the card
+   *  title drops the "{Tipo} – " prefix and renders the bare address only
+   *  ("Calle Mayor 12, Murcia" instead of "Solar – Calle Mayor 12, Murcia").
+   *  The town suffix is preserved (it's part of the address and aids scanning).
+   *  When no street resolves (vehicles / plots / address-less rows) this flag
+   *  has no effect — the standard `muniFallback()` "{Tipo} en {town}" phrasing
+   *  is used. Set ONLY on the listing-card caller; every other caller keeps the
+   *  descriptive "{Tipo} – {street}" form. */
+  bareAddress?: boolean | null;
 }
 
 /**
@@ -765,6 +776,9 @@ export function auctionCardTitle(input: CardTitleInput): string {
         municipality && !lowerStreet.includes(municipality.toLowerCase())
           ? `, ${titleCase(municipality)}`
           : '';
+      // Bare-address mode (2026-08-01, Dennis-locked): strip ONLY the
+      // "{Tipo} – " type prefix, keep the resolved street + town suffix.
+      if (input.bareAddress === true) return `${full}${muniSuffix}`;
       return `${tipo} – ${full}${muniSuffix}`;
     }
     return muniFallback() ?? tipo;

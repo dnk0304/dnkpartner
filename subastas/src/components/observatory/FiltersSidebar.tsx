@@ -606,6 +606,9 @@ export function SortTabs({
   // parent (here we just render the 3 quick tabs + "Más" as the default
   // category_rank, which is the urgency-first multi-tier sort).
   const QUICK: Array<{ id: typeof SORT_OPTIONS[number]["id"]; label: string }> = [
+    // wave173: the default sort (active_first) leads so the default landing view
+    // highlights a correct, self-explanatory chip. Existing chips kept.
+    { id: "active_first", label: t("activasPrimero") },
     { id: "endsAt_asc", label: t("fechaFin") },
     { id: "published_desc", label: t("publicadasRecientes") },
     { id: "price_asc", label: t("baratas") },
