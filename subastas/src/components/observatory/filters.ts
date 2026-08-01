@@ -130,7 +130,7 @@ export const AUCTION_TYPE_LABEL: Record<string, { label: string; shortLabel: str
 })();
 
 /** Sort options — match Forge's whitelisted values on /api/auctions. */
-export type SortValue = "category_rank" | "endsAt_asc" | "published_desc" | "price_asc" | "price_desc";
+export type SortValue = "active_first" | "category_rank" | "endsAt_asc" | "published_desc" | "price_asc" | "price_desc";
 export const SORT_OPTIONS: Array<{ id: SortValue; label: string }> = [
   { id: "category_rank", label: "Destacados" },
   { id: "endsAt_asc", label: "Termina antes" },
@@ -147,8 +147,15 @@ export const SORT_OPTIONS: Array<{ id: SortValue; label: string }> = [
  * first) and finished/older drop below. Pairs with `DEFAULT_FILTERS.when =
  * "todas"` below. URL-explicit `?sort=category_rank` continues to win.
  * Server-side default in /api/auctions route.ts is flipped to match.
+ *
+ * wave173 (2026-08-01): default flipped `published_desc` → `active_first`.
+ * `published_desc` was status-blind and surfaced recently-published CONCLUIDA
+ * rows at the very top. `active_first` tiers by status (active → próxima →
+ * finished) then publishedAt DESC within each tier. Must stay identical to the
+ * server default in /api/auctions route.ts. Chip-label/dropdown coordination
+ * is Pixel's — this file only fixes the DEFAULT so SSR/CSR agree.
  */
-export const DEFAULT_SORT: SortValue = "published_desc";
+export const DEFAULT_SORT: SortValue = "active_first";
 
 /** All precise categories. */
 export const ALL_CATEGORIES: AuctionCategory[] = [
@@ -336,7 +343,7 @@ export const DEFAULT_FILTERS: ObservatoryFilters = {
   mapCategory: "",
 };
 
-const VALID_SORTS: SortValue[] = ["category_rank", "endsAt_asc", "published_desc", "price_asc", "price_desc"];
+const VALID_SORTS: SortValue[] = ["active_first", "category_rank", "endsAt_asc", "published_desc", "price_asc", "price_desc"];
 
 /** Read an ObservatoryFilters from URLSearchParams. */
 export function filtersFromParams(p: URLSearchParams): ObservatoryFilters {

@@ -189,6 +189,43 @@ export function isLiveNowStatus(
   return dbStatus != null && LIVE_NOW_SET.has(dbStatus);
 }
 
+// ─── Status-tiered ORDER BY ("active first") ──────────────────────────────
+
+/**
+ * Numeric rank a row's status gets in the default "active first" ordering:
+ *   0 = active (live / suspended, ACTIVE_DB_STATUSES)
+ *   1 = pre-auction / próxima (PRE_AUCTION_DB_STATUSES)
+ *   2 = everything else (finished / cancelled / unknown)
+ * Kept aligned with isActiveStatus / isPreAuctionStatus by construction.
+ */
+export function activeFirstRankOf(dbStatus: string | null | undefined): number {
+  if (isActiveStatus(dbStatus)) return 0;
+  if (isPreAuctionStatus(dbStatus)) return 1;
+  return 2;
+}
+
+/**
+ * Build the SQL `CASE` expression mapping `status` → active-first rank for use
+ * in `ORDER BY`. Generated from ACTIVE_DB_STATUSES / PRE_AUCTION_DB_STATUSES so
+ * it can NEVER drift from the predicate helpers above (single source of truth,
+ * mirroring buildCategoryRankCaseSql in @/lib/category-rank). Status literals
+ * are hardcoded (NOT user input) but single-quote-escaped defensively.
+ *
+ * `column` defaults to the bare `status` column; callers pass a quoted/aliased
+ * form only if needed. Emits: `(CASE WHEN status IN (...) THEN 0 WHEN status IN
+ * (...) THEN 1 ELSE 2 END)`.
+ */
+export function buildActiveFirstCaseSql(column: string = 'status'): string {
+  const list = (vals: readonly string[]) =>
+    vals.map((v) => `'${v.replace(/'/g, "''")}'`).join(', ');
+  return (
+    `(CASE ` +
+    `WHEN ${column} IN (${list(ACTIVE_DB_STATUSES)}) THEN 0 ` +
+    `WHEN ${column} IN (${list(PRE_AUCTION_DB_STATUSES)}) THEN 1 ` +
+    `ELSE 2 END)`
+  );
+}
+
 // ─── Clock guard ──────────────────────────────────────────────────────────
 
 /**

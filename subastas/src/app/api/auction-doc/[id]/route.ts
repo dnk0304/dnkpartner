@@ -2,9 +2,14 @@
  * GET /api/auction-doc/[id]
  *
  * Serves a cached auction document PDF from the Hetzner host volume mounted
- * at AUCTION_DOCS_DIR (default /data/auction-docs). Public, no auth — mirrors
- * the /api/auction-image/[boeId] precedent: the underlying BOE document is
- * public + indexable, and we add no extra exposure by mirroring it.
+ * at AUCTION_DOCS_DIR (default /data/auction-docs).
+ *
+ * PAID FEATURE (wave173, 2026-08-01, Option A): our CACHED copy is the paid
+ * value-add. This endpoint enforces hasFullAccessServer() (paid OR trial-active)
+ * and returns 403 {error:'access_required'} for non-entitled viewers BEFORE any
+ * DB/disk access, so a guessed/leaked URL can't exfiltrate the file. The free
+ * public BOE source (AuctionDocument.officialUrl) is NOT gated — it stays
+ * visible + crawlable in the detail payload as the non-entitled fallback.
  *
  * Lookup is by AuctionDocument.id (PRIMARY KEY) so the URL never carries a
  * raw path — no path-traversal surface. The stored relative path is then
@@ -16,6 +21,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { hasFullAccessServer } from '@/lib/access';
 import { readDoc, SNAPSHOT_FILENAME } from '@/lib/auction-docs/storage';
 
 export const runtime = 'nodejs';
@@ -53,6 +59,19 @@ export async function GET(
   const { id } = await ctx.params;
   if (!id) {
     return NextResponse.json({ error: 'id_required' }, { status: 400 });
+  }
+
+  // wave173 (2026-08-01) — PAID gate (Option A). Our cached document copy is the
+  // paid value-add: enforce entitlement server-side BEFORE any DB row lookup or
+  // disk read, so even a guessed/leaked /api/auction-doc/<id> URL 403s for a
+  // non-entitled (guest / expired-trial) viewer. Fail-closed via
+  // hasFullAccessServer() (paid OR trial-active — the SAME predicate
+  // participar/alerts use; a session/DB blip collapses to false). The free
+  // public BOE link (AuctionDocument.officialUrl) remains the fallback for the
+  // non-entitled — it's served from the detail payload, not this endpoint.
+  const hasFullAccess = await hasFullAccessServer();
+  if (!hasFullAccess) {
+    return NextResponse.json({ error: 'access_required' }, { status: 403 });
   }
 
   const doc = await prisma.auctionDocument.findUnique({

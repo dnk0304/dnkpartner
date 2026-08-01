@@ -32,6 +32,7 @@
  * ADJUDICADA rows with a published winning bid. Fixed here.)
  */
 import { prisma } from '@/lib/prisma';
+import { hasFullAccessServer } from '@/lib/access';
 import { publicPathForDocId } from '@/lib/auction-docs/storage';
 import { buildFinancials } from '@/lib/financials';
 import {
@@ -69,6 +70,31 @@ export interface AuctionDetailPayload {
   };
   followCount: number;
   isFollowing: boolean;
+  /**
+   * wave173 (2026-08-01) — document access is a PAID feature (Option A).
+   * `true` when the current viewer is NOT entitled (guest / expired-trial):
+   * documents[].downloadUrl is nulled (our cached-copy value-add is gated) and
+   * GET /api/auction-doc/[id] returns 403 for them. The free public BOE link
+   * (documents[].officialUrl + edictUrl/pdfUrl) stays populated + crawlable.
+   * `false` when paid or trial-active — full download URLs present.
+   */
+  documentsLocked: boolean;
+}
+
+/**
+ * wave173 (2026-08-01) — the PAID-gate decision for a single document's
+ * download URL, extracted as a pure function so it's unit-testable without a DB.
+ * Returns our cached-copy path ONLY when the viewer is entitled AND the row has
+ * a stored file; otherwise null (the free public officialUrl is the fallback,
+ * projected separately and never gated — Option A). Keep this the single rule
+ * both the payload map and its test consume.
+ */
+export function projectDocDownloadUrl(
+  hasFullAccess: boolean,
+  storedPath: string | null | undefined,
+  docId: string,
+): string | null {
+  return hasFullAccess && storedPath ? publicPathForDocId(docId) : null;
 }
 
 /**
@@ -80,6 +106,15 @@ export async function buildAuctionDetailPayload(
   opts: { viewerUserId?: string | null } = {},
 ): Promise<AuctionDetailPayload | null> {
   const viewerUserId = opts.viewerUserId ?? undefined;
+
+  // wave173 (2026-08-01) — PAID gate on document downloads (Option A). Reads the
+  // CURRENT viewer's access state (paid OR trial-active) via the SAME predicate
+  // participar/alerts use — never a new/hardcoded rule, so it stays correct as
+  // payment rolls out. Fail-closed: hasFullAccessServer() collapses any
+  // session/DB blip to false, so a transient error withholds the download URL
+  // rather than leaking it. Content (address/pricing/description) is unchanged —
+  // ONLY the cached-copy download URL is gated.
+  const hasFullAccess = await hasFullAccessServer();
 
   // Include AuctionDocument so the payload can project docs[].
   const auction = await prisma.auction.findUnique({
@@ -163,8 +198,16 @@ export async function buildAuctionDetailPayload(
       docType: d.docType,
       title: d.title,
       kind: d.kind,
+      // Option A (Dennis 2026-08-01): the free public BOE anuncio/edicto URL
+      // stays visible + crawlable for EVERYONE — gating it only costs SEO, it's
+      // public info. officialUrl is null ONLY when the doc genuinely has no
+      // public source URL.
       officialUrl: d.officialUrl,
-      downloadUrl: d.storedPath ? publicPathForDocId(d.id) : null,
+      // Our CACHED COPY (the paid value-add) — the /api/auction-doc/[id] path.
+      // Gated: null for non-entitled viewers so the URL never lands in the
+      // DOM/RSC (defence-in-depth alongside the endpoint's own 403). Present
+      // only when the row has a stored file AND the viewer is entitled.
+      downloadUrl: projectDocDownloadUrl(hasFullAccess, d.storedPath, d.id),
     }));
 
   // wave169 — the official-auction URL is NO LONGER projected to the client.
@@ -295,5 +338,6 @@ export async function buildAuctionDetailPayload(
     history: { statuses: statusHistory, bids: bidHistory },
     followCount: auction.favoriteCount,
     isFollowing,
+    documentsLocked: !hasFullAccess,
   };
 }

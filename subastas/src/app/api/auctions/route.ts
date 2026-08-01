@@ -25,6 +25,7 @@ import {
   FINISHED_DB_STATUSES,
   ACTIVE_CLOCK_GUARD_SQL,
   IN_SCOPE_GUARD_SQL,
+  buildActiveFirstCaseSql,
   DB_TO_FRONTEND_STATUS,
   isActiveStatus as sharedIsActiveStatus,
   isPreAuctionStatus as sharedIsPreAuctionStatus,
@@ -325,6 +326,13 @@ function isPreAuctionStatus(dbStatus: DBStatus): boolean {
 // identical to the original implementation.
 const CATEGORY_RANK_CASE_SQL = buildCategoryRankCaseSql();
 
+// FORGE wave173 (2026-08-01) — status-tiered "active first" ordering for the
+// default landing view. The CASE builder lives in @/lib/auction-status next to
+// the canonical status sets (single source of truth) so it can NEVER drift from
+// isActiveStatus / isPreAuctionStatus. Precomputed once at module load, same as
+// CATEGORY_RANK_CASE_SQL above.
+const ACTIVE_FIRST_CASE_SQL = buildActiveFirstCaseSql();
+
 function buildGeneralInfo(item: AuctionFromDB): string | null {
   const parts: string[] = [];
 
@@ -574,8 +582,15 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
       imageUrl: guestImageUrl,
       hasImage: isRealAuctionImage(item.imageUrl),
       isLocked: true,
-      // WALL — exact street address.
-      address: null,
+      // PUBLIC (wave168 one-way ungate, re-confirmed wave173 2026-08-01): the
+      // exact street address is public + Google-cacheable on the detail page,
+      // and catalog/list/cards are PUBLIC per @/lib/access.ts. The former
+      // address:null wall was a stale pre-wave168 remnant that forced every
+      // guest card title to muniFallback() ("{Tipo} en {municipio}"). Project
+      // the real address so the address-led card title renders for logged-out
+      // viewers too. Honest-NULL preserved: rows with genuinely no street
+      // (many solares/plots, vehicles) stay null → card falls back correctly.
+      address: item.address,
       // KEEP (coarse) — town-level coords so the card map-pin still renders;
       // exact parcel is walled. See GUEST_COORD_MODE.
       latitude: coarseCoord(item.latitude),
@@ -593,7 +608,12 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
       generalInfo: null,
       warning: null,
       propertyDescription: null,
-      lotDescription: null,
+      // PUBLIC (wave173 2026-08-01): the lot description is public auction
+      // information (mirrors the address ungate above) — projected on the
+      // locked teaser so the card body has real text. The genuine leaks
+      // (generalInfo aggregate: VIN/plate/cadastral/registry/contact) stay
+      // walled above.
+      lotDescription: item.lotDescription,
       chargesDetail: null,
       cadastralRef: null,
       // #16 / #17 — pujaStatus + occupancy are low-info badges (kept public);
@@ -1112,9 +1132,15 @@ export async function GET(request: NextRequest) {
     //   handles this — `usingOffset` is set further down. Counts and
     //   teaserCounts are computed from snapshots taken BEFORE the ORDER BY
     //   is appended, so this change cannot affect them.
-    type SortKey = 'category_rank' | 'endsAt_asc' | 'published_desc' | 'price_asc' | 'price_desc';
+    type SortKey = 'active_first' | 'category_rank' | 'endsAt_asc' | 'published_desc' | 'price_asc' | 'price_desc';
     const EFFECTIVE_PRICE = 'COALESCE("currentBid", "minimumBid", "appraisalValue")';
     const SORT_MAP: Record<SortKey, { orderBy: string; cursorMode: 'endsAt' | 'publishedAt' | 'offset' }> = {
+      // FORGE wave173 — DEFAULT landing order: active auctions on top, then
+      // pre-auction/próxima, then finished/cancelled at the tail; newest-active
+      // first within each tier (publishedAt DESC), id DESC as the stable
+      // pagination tiebreak. A CASE can't keyset-paginate → cursorMode:'offset'
+      // (same posture as category_rank).
+      active_first:    { orderBy: `${ACTIVE_FIRST_CASE_SQL} ASC, "publishedAt" DESC, id DESC`, cursorMode: 'offset' },
       category_rank:   { orderBy: `${CATEGORY_RANK_CASE_SQL} ASC, "publishedAt" DESC, id DESC`, cursorMode: 'offset' },
       endsAt_asc:      { orderBy: '"endsAt" ASC NULLS LAST, id ASC',     cursorMode: 'endsAt' },
       published_desc:  { orderBy: '"publishedAt" DESC, id DESC',          cursorMode: 'publishedAt' },
@@ -1126,6 +1152,7 @@ export async function GET(request: NextRequest) {
     // both spellings — keep both pointing at the same ORDER BY).
     const normalizedSort: SortKey = (() => {
       switch (rawSort) {
+        case 'active_first':
         case 'category_rank':
         case 'endsAt_asc':
         case 'published_desc':
@@ -1135,13 +1162,17 @@ export async function GET(request: NextRequest) {
         case 'publishedAt_desc':
           return 'published_desc';
         default:
-          // FORGE 2026-06-07 (C2 batch-c #9): default flipped
-          // `category_rank` → `published_desc` so a URL-less /subastas surfaces
-          // active/próximas by `publishedAt DESC` first, then finished/older
-          // rows fall to the tail. Mirrors DEFAULT_SORT in
-          // src/components/observatory/filters.ts. Explicit ?sort=category_rank
-          // still resolves above and continues to work for legacy callers.
-          return 'published_desc';
+          // FORGE wave173 (2026-08-01): default flipped
+          // `published_desc` → `active_first`. `published_desc` was
+          // status-blind, so a URL-less /subastas surfaced recently-published
+          // CONCLUIDA rows at the very top (looked dead). `active_first` tiers
+          // by status (active → próxima → finished) then `publishedAt DESC`
+          // within each tier, so live auctions lead and finished rows drop to
+          // the tail. Mirrors DEFAULT_SORT in
+          // src/components/observatory/filters.ts. Explicit ?sort= params still
+          // resolve above (user choice wins). This only reorders WITHIN "Todas";
+          // the status filter TABS are unaffected.
+          return 'active_first';
       }
     })();
     // Parameterized great-circle distance in km (haversine). Binds, in order:
