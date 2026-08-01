@@ -113,6 +113,29 @@ function fmtMoney(value: unknown): string {
   return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value);
 }
 
+/**
+ * FINISHED "Puja final" fragment — honest about hidden/absent amounts.
+ * Ghost packs finalBidCents (highest captured live BOE bid, in CENTS) and
+ * pujaStatus into the outbox payload. Order of truth:
+ *   1. finalBidCents finite & > 0        -> the real euro amount ("€128.400")
+ *   2. pujaStatus SIN_PUJA               -> "subasta desierta (sin pujas)"
+ *   3. pujaStatus CON_PUJA / CON_PUJA-*  -> "con puja (importe no publicado)"
+ *   4. anything else (legacy rows)       -> "—"  (no regression)
+ * Returns only the fragment AFTER "Puja final: " — callers add the label.
+ */
+function fmtFinalBid(payload: DispatchPayload): string {
+  const cents = payload.finalBidCents;
+  if (typeof cents === 'number' && Number.isFinite(cents) && cents > 0) {
+    return fmtMoney(cents / 100);
+  }
+  const puja = payload.pujaStatus;
+  if (puja === 'SIN_PUJA') return 'subasta desierta (sin pujas)';
+  if (typeof puja === 'string' && puja.startsWith('CON_PUJA')) {
+    return 'con puja (importe no publicado)';
+  }
+  return '—';
+}
+
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => {
     const map: Record<string, string> = {
@@ -137,6 +160,10 @@ export function renderEmail(
   const municipality = (payload.municipality as string) ?? '';
   const url = buildAuctionUrl(payload, appUrl);
   const loc = [municipality, province].filter(Boolean).join(', ');
+  // Prefer the property street address (public on the detail cards); fall back
+  // to municipality/province when there is no street (vehicles/plots).
+  const addr = (payload.address as string | undefined)?.trim();
+  const locLine = addr || loc;
 
   let subject: string;
   let intro: string;
@@ -177,9 +204,8 @@ export function renderEmail(
       break;
     }
     case EVENT_TYPES.FINISHED: {
-      const finalBid = fmtMoney(payload.finalBid ?? payload.currentBid);
       subject = `🏁 Subasta finalizada: ${title}`;
-      intro = `Puja final: ${finalBid}.`;
+      intro = `Puja final: ${fmtFinalBid(payload)}.`;
       break;
     }
     default:
@@ -187,7 +213,7 @@ export function renderEmail(
       intro = `Hay una actualización sobre una subasta que sigues.`;
   }
 
-  const text = `${intro}\n\n${title}\n${loc}\n\nVer subasta: ${url}\n`;
+  const text = `${intro}\n\n${title}\n${locLine}\n\nVer subasta: ${url}\n`;
 
   const html = `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>${escapeHtml(subject)}</title></head>
@@ -196,7 +222,7 @@ export function renderEmail(
     <h2 style="margin:0 0 16px;font-size:20px;">${escapeHtml(subject)}</h2>
     <p style="margin:0 0 16px;">${escapeHtml(intro)}</p>
     <p style="margin:0 0 8px;"><strong>${escapeHtml(title)}</strong></p>
-    ${loc ? `<p style="margin:0 0 16px;color:#6b7280;">${escapeHtml(loc)}</p>` : ''}
+    ${locLine ? `<p style="margin:0 0 16px;color:#6b7280;">${escapeHtml(locLine)}</p>` : ''}
     <p style="margin:24px 0;"><a href="${escapeHtml(url)}" style="display:inline-block;background:#000;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;">Ver subasta</a></p>
     <p style="margin:24px 0 0;color:#9ca3af;font-size:12px;">Recibes este aviso porque sigues esta subasta. Cambia tus preferencias en el panel de seguimientos.</p>
   </div>
@@ -244,7 +270,7 @@ export function renderPush(
       break;
     case EVENT_TYPES.FINISHED:
       pushTitle = '🏁 Subasta finalizada';
-      body = `${title} — ${fmtMoney(payload.finalBid ?? payload.currentBid)}`;
+      body = `${title} — ${fmtFinalBid(payload)}`;
       break;
     default:
       pushTitle = 'Actualización de subasta';

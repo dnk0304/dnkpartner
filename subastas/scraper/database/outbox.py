@@ -147,8 +147,11 @@ def emit_status_change(
     to_status: str,
     province: str = "",
     municipality: str = "",
+    address: str = "",
     appraisal_value: float = 0.0,
     current_bid: Optional[float] = None,
+    current_bid_amount: Optional[int] = None,
+    puja_status: Optional[str] = None,
     ends_at: Optional[datetime] = None,
     suspension_reason: Optional[str] = None,
     resume_at: Optional[datetime] = None,
@@ -185,8 +188,17 @@ def emit_status_change(
         "toStatus": to_status,
         "province": province,
         "municipality": municipality,
+        # Property street address (falls back to municipality/province in the
+        # renderer when absent — vehicles/plots often have no street).
+        "address": address or None,
         "appraisalValue": appraisal_value,
         "currentBid": current_bid,
+        # Real captured bid for the FINISHED email's "Puja final" line.
+        # finalBidCents = highest live BOE bid in CENTS (currentBidAmount on the
+        # row); pujaStatus lets the renderer say "desierta"/"importe no publicado"
+        # honestly when there is no published amount. DB-free: packed by caller.
+        "finalBidCents": current_bid_amount,
+        "pujaStatus": puja_status,
         "endsAt": ends_at.isoformat() if ends_at else None,
         "suspensionReason": suspension_reason,
         "resumeAt": resume_at.isoformat() if resume_at else None,

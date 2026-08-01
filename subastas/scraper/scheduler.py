@@ -190,6 +190,7 @@ class ScraperScheduler:
                 SELECT id, "boeId", "endsAt", status, title,
                        "boeLink", province, municipality,
                        "appraisalValue", "currentBid",
+                       "address", "currentBidAmount", "pujaStatus",
                        "suspensionReason", "resumeAt"
                 FROM "Auction"
                 WHERE status IN ('ACTIVE', 'CELEBRANDOSE', 'SUSPENDIDA')
@@ -207,6 +208,7 @@ class ScraperScheduler:
                 SELECT id, "boeId", "endsAt", status, title,
                        "boeLink", province, municipality,
                        "appraisalValue", "currentBid",
+                       "address", "currentBidAmount", "pujaStatus",
                        "suspensionReason", "resumeAt"
                 FROM "Auction"
                 WHERE status = 'PROXIMA_APERTURA'
@@ -249,6 +251,7 @@ class ScraperScheduler:
                     auction_id, boe_id, ends_at, from_status, title,
                     boe_link, province, municipality,
                     appraisal_value, current_bid,
+                    address, current_bid_amount, puja_status,
                     suspension_reason, resume_at,
                 ) in expired:
                     try:
@@ -262,8 +265,11 @@ class ScraperScheduler:
                             to_status="CONCLUIDA_PORTAL",
                             province=province or "",
                             municipality=municipality or "",
+                            address=address or "",
                             appraisal_value=float(appraisal_value or 0),
                             current_bid=float(current_bid) if current_bid else None,
+                            current_bid_amount=int(current_bid_amount) if current_bid_amount else None,
+                            puja_status=puja_status,
                             ends_at=ends_at,
                             detected_by="scheduler.monitor_status_changes",
                         )
@@ -554,7 +560,8 @@ class ScraperScheduler:
             cursor.execute(f"""
                 SELECT id, "boeId", "endsAt", status, title,
                        "boeLink", province, municipality,
-                       "appraisalValue", "currentBid", "updatedAt"
+                       "appraisalValue", "currentBid",
+                       "address", "currentBidAmount", "pujaStatus", "updatedAt"
                 FROM "Auction"
                 WHERE status = 'PROXIMA_APERTURA'
                   AND "opensAt" IS NULL
@@ -591,7 +598,8 @@ class ScraperScheduler:
             for (
                 auction_id, boe_id, ends_at, from_status, title,
                 boe_link, province, municipality,
-                appraisal_value, current_bid, updated_at,
+                appraisal_value, current_bid,
+                address, current_bid_amount, puja_status, updated_at,
             ) in candidates:
                 # Record Dennis wants: boeId + prior state per withdrawal.
                 self.log(
@@ -609,8 +617,11 @@ class ScraperScheduler:
                         to_status="CANCELADA",                   # -> auction.finished event + history
                         province=province or "",
                         municipality=municipality or "",
+                        address=address or "",
                         appraisal_value=float(appraisal_value or 0),
                         current_bid=float(current_bid) if current_bid else None,
+                        current_bid_amount=int(current_bid_amount) if current_bid_amount else None,
+                        puja_status=puja_status,
                         ends_at=ends_at,
                         suspension_reason="WITHDRAWN_PRE_AUCTION",
                         detected_by="scheduler.cleanup_withdrawn_preauctions",
@@ -768,7 +779,8 @@ class ScraperScheduler:
             cursor = conn.cursor()
             cursor.execute(f"""
                 SELECT id, "boeId", "endsAt", title, "boeLink",
-                       province, municipality, "appraisalValue", "currentBid"
+                       province, municipality, "appraisalValue", "currentBid",
+                       "address", "currentBidAmount", "pujaStatus"
                 FROM "Auction"
                 WHERE status = 'SUSPENDIDA'
                   AND "boeId" IS NOT NULL
@@ -803,7 +815,8 @@ class ScraperScheduler:
             now = datetime.utcnow()
 
             for (auction_id, boe_id, ends_at, title, boe_link,
-                 province, municipality, appraisal_value, current_bid) in suspended:
+                 province, municipality, appraisal_value, current_bid,
+                 address, current_bid_amount, puja_status) in suspended:
                 try:
                     info = scraper._fetch_detail_info(boe_id)
                     # Confirmed successful parse only: the full return dict has an
@@ -849,8 +862,11 @@ class ScraperScheduler:
                             boe_link=boe_link or f"https://subastas.boe.es/detalleSubasta.php?idSub={boe_id}",
                             title=title or "", from_status='SUSPENDIDA', to_status=detail_status,
                             province=province or "", municipality=municipality or "",
+                            address=address or "",
                             appraisal_value=float(appraisal_value or 0),
                             current_bid=float(current_bid) if current_bid else None,
+                            current_bid_amount=int(current_bid_amount) if current_bid_amount else None,
+                            puja_status=puja_status,
                             ends_at=eff_ends, detected_by="scheduler.recheck_suspended_auctions")
                         conn2.commit(); c.close()
                         terminal += 1
