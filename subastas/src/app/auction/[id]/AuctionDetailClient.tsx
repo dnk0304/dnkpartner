@@ -101,7 +101,10 @@ type DetailResponse = {
         fromStatus: string | null;
         toStatus: string;
         changedAt: string;
-        reason: string | null;
+        // I18N-1: raw `reason` is no longer part of the payload — only the
+        // Spanish label resolved at the DTO boundary (@/lib/timeline-labels).
+        reasonCode: string | null;
+        reasonLabel: string | null;
         resumeAt: string | null;
         source: string;
       }>;

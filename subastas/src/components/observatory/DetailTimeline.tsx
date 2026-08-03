@@ -17,6 +17,7 @@ import * as React from "react";
 import { StatusDot } from "./StatusBadge";
 import { getStatusMeta } from "./status";
 import { formatPrice, formatDateLong, formatRelativeEs } from "./format";
+import { frontendStatusOf } from "@/lib/timeline-labels";
 import { cn } from "@/lib/utils";
 
 type StatusEvent = {
@@ -25,7 +26,12 @@ type StatusEvent = {
   at: string; // ISO
   fromStatus: string | null;
   toStatus: string;
-  reason: string | null;
+  /**
+   * Already-translated Spanish text (or null = render nothing). The RAW
+   * `reason` column never reaches this component — see
+   * `@/lib/timeline-labels` and the DTO boundary in auction-detail-payload.
+   */
+  reasonLabel: string | null;
 };
 
 type BidEvent = {
@@ -44,7 +50,7 @@ export type DetailTimelineProps = {
     fromStatus: string | null;
     toStatus: string;
     changedAt: string | Date;
-    reason: string | null;
+    reasonLabel: string | null;
   }>;
   bids: Array<{
     id: string;
@@ -57,25 +63,11 @@ export type DetailTimelineProps = {
   className?: string;
 };
 
-// Map DB status (uppercase) to frontend status (lowercase-hyphen) — kept
-// local because the timeline data is rendered without the API normalization.
-function normalizeStatus(s: string | null | undefined): string {
-  if (!s) return "concluida-portal";
-  const map: Record<string, string> = {
-    PROXIMA_APERTURA: "proxima-apertura",
-    CELEBRANDOSE: "celebrandose",
-    SUSPENDIDA: "suspendida",
-    CANCELADA: "cancelada",
-    CONCLUIDA_PORTAL: "concluida-portal",
-    FINALIZADA_AUTORIDAD: "finalizada-autoridad",
-    PRE_AUCTION: "proxima-apertura",
-    ACTIVE: "celebrandose",
-    FINISHED: "concluida-portal",
-    SUSPENDED: "suspendida",
-    CANCELLED: "cancelada",
-  };
-  return map[s] ?? s.toLowerCase();
-}
+// I18N-1 (2026-08-03): the local ad-hoc status map used to live here, ending in
+// `?? s.toLowerCase()` — a leak vector for any status value the map didn't
+// know. It now delegates to the central, enum-exhaustive mapper in
+// @/lib/timeline-labels, which is `Record<AuctionStatus, …>`: a new Prisma enum
+// member breaks the build instead of reaching the page.
 
 export function DetailTimeline({
   statuses,
@@ -93,9 +85,9 @@ export function DetailTimeline({
         id: s.id,
         kind: "status",
         at,
-        fromStatus: s.fromStatus ? normalizeStatus(s.fromStatus) : null,
-        toStatus: normalizeStatus(s.toStatus),
-        reason: s.reason,
+        fromStatus: s.fromStatus ? frontendStatusOf(s.fromStatus) : null,
+        toStatus: frontendStatusOf(s.toStatus),
+        reasonLabel: s.reasonLabel,
       });
     }
     for (const b of bids) {
@@ -200,8 +192,8 @@ function TimelineRow({ event }: { event: Event }) {
               {to.label}
             </span>
           )}
-          {event.reason && (
-            <span className="text-[var(--color-ink-tertiary)]"> · {event.reason}</span>
+          {event.reasonLabel && (
+            <span className="text-[var(--color-ink-tertiary)]"> · {event.reasonLabel}</span>
           )}
         </div>
       </div>

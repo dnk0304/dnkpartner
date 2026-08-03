@@ -44,6 +44,7 @@ import {
 } from '@/lib/benchmark';
 import { sanitizeExtractedText } from '@/lib/sanitize-extracted-text';
 import { SNAPSHOT_ID_DOC_SENTINEL } from '@/lib/auction-docs/storage';
+import { resolveTimelineReason, type TimelineReasonCode } from '@/lib/timeline-labels';
 
 export interface AuctionDetailPayload {
   // Raw Prisma row (BigInt-coerced) + wave-B/C projection. Typed loosely — the
@@ -56,7 +57,16 @@ export interface AuctionDetailPayload {
       fromStatus: string | null;
       toStatus: string;
       changedAt: Date;
-      reason: string | null;
+      /**
+       * I18N-1 (2026-08-03): the RAW `reason` column is deliberately NOT part
+       * of this DTO. It holds internal sentinels (WITHDRAWN_PRE_AUCTION,
+       * audit_cleanup_*) that were leaking verbatim onto the public Spanish
+       * page. Only the translated pair crosses the boundary, so no render site
+       * can print an internal even by accident.
+       */
+      reasonCode: TimelineReasonCode | null;
+      /** Spanish text, or null to render nothing. Never a raw DB value. */
+      reasonLabel: string | null;
       resumeAt: Date | null;
       source: string;
     }>;
@@ -335,7 +345,16 @@ export async function buildAuctionDetailPayload(
 
   return {
     auction: projectedAuction as Record<string, unknown>,
-    history: { statuses: statusHistory, bids: bidHistory },
+    // I18N-1: translate `reason` HERE, at the DTO boundary, and drop the raw
+    // column from the payload entirely. Unmapped values are counted + logged
+    // inside resolveTimelineReason(), never silently swallowed.
+    history: {
+      statuses: statusHistory.map(({ reason, ...rest }) => {
+        const resolved = resolveTimelineReason(reason);
+        return { ...rest, reasonCode: resolved.code, reasonLabel: resolved.label };
+      }),
+      bids: bidHistory,
+    },
     followCount: auction.favoriteCount,
     isFollowing,
     documentsLocked: !hasFullAccess,
