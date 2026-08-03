@@ -953,6 +953,13 @@ def apply_property_geo(rec: Dict[str, Any], logger_fn=None) -> Dict[str, Any]:
     flag, reason = False, None
     if prov_src == 'court-fallback':
         flag, reason = True, 'no authoritative province signal (court-fallback)'
+    elif prov_src == 'address':
+        # The cross-check is STRUCTURALLY BLIND here: the address is both the
+        # source and the check, so it always agrees with itself. Measured
+        # precision of the address tier in the 2026-08-03 pilot was 87.0%
+        # (and only 41.9% on a bare street string with no town tail), so these
+        # rows are ~13% wrong and must not be treated as confident.
+        flag, reason = True, 'province from address string only - uncorroborated'
     else:
         agrees, detail = geo_cross_check(prov, town, address)
         if not agrees:
