@@ -16,12 +16,74 @@
 #   verify-app                   after an app-only deploy: proves every
 #                                protected container is byte-identical to the
 #                                pre-state preflight-app recorded.
+#   guard-check                  proves the RUNNING guard is byte-identical to
+#                                the repo's committed copy. Runs first inside
+#                                both preflight modes; exposed for testing.
 LOCK=/data/dnksubastas-deploy/.deploy.lock
 PRESTATE=/data/dnksubastas-deploy/.protected-prestate
 REPO=/data/dnksubastas-deploy/repo
 DEPLOY_DIR=/data/dnksubastas-deploy
 SELF=/data/dnksubastas-deploy/deploy-guard.sh
+GUARD_REPO_PATH=subastas/scripts/deploy-guard.sh
 LOG=/data/dnksubastas-deploy/scheduler-logs/scheduler_$(date +%Y%m%d).log
+
+# Absolute path of the file ACTUALLY EXECUTING, resolved at startup BEFORE any
+# function cds. Hashing $SELF instead would verify the installed copy even when
+# a different copy is the one running — which is the exact substitution this
+# check exists to catch.
+RUNNING=$(cd "$(dirname "$0")" 2>/dev/null && pwd)/$(basename "$0")
+
+# ---------------------------------------------------------------------------
+# GUARD SELF-INTEGRITY (Ken, 2026-08-04).
+#
+# "Two md5-identical copies become two sources of truth the first time someone
+#  patches one in a hurry; check the property, don't trust the arrangement."
+#
+# So the guard does not assume it matches the repo — it PROVES it, on every
+# preflight, before anything else runs and before the lock is taken. The
+# comparison is against the COMMITTED blob at HEAD, not the working-tree file:
+# a hand-edit to either copy is then caught, independently of ordering with
+# box_sane's dirty-tree check.
+#
+# Fail closed on every unknown: missing md5sum, unreadable running file, path
+# absent at HEAD. A guard that cannot prove its own provenance must not gate a
+# deploy.
+# ---------------------------------------------------------------------------
+guard_in_sync() {
+    if ! command -v md5sum >/dev/null 2>&1; then
+        echo "STOP: md5sum unavailable — cannot verify the guard against the repo."
+        echo "Refusing (fail closed)."; return 1
+    fi
+    running_md5=$(md5sum < "$RUNNING" 2>/dev/null | awk '{print $1}')
+    if [ -z "$running_md5" ]; then
+        echo "STOP: cannot read the running guard at '$RUNNING'. Refusing (fail closed)."; return 1
+    fi
+
+    tmp=$(mktemp) || { echo "STOP: mktemp failed. Refusing (fail closed)."; return 1; }
+    if ! git -C "$REPO" show "HEAD:$GUARD_REPO_PATH" > "$tmp" 2>/dev/null; then
+        rm -f "$tmp"
+        echo "STOP: '$GUARD_REPO_PATH' not found at HEAD in $REPO."
+        echo "The guard has no committed counterpart to be checked against. Refusing (fail closed)."
+        return 1
+    fi
+    repo_md5=$(md5sum < "$tmp" | awk '{print $1}')
+    rm -f "$tmp"
+
+    if [ "$running_md5" != "$repo_md5" ]; then
+        echo "STOP: the running guard does NOT match the repo's committed copy."
+        echo "    running : $RUNNING"
+        echo "              md5 $running_md5"
+        echo "    repo    : $GUARD_REPO_PATH @ $(git -C "$REPO" rev-parse --short HEAD 2>/dev/null)"
+        echo "              md5 $repo_md5"
+        echo "    box vs origin (ahead behind): $(git -C "$REPO" rev-list --left-right --count HEAD...origin/dnksubastas 2>/dev/null)"
+        echo "Either the box copy was patched by hand, or this checkout is stale/diverged."
+        echo "Reconcile through the repo — never by editing the box copy. Refusing."
+        return 1
+    fi
+    echo "guard in sync with repo (md5 $running_md5, HEAD $(git -C "$REPO" rev-parse --short HEAD 2>/dev/null))"
+    [ "$RUNNING" != "$SELF" ] && echo "NOTE: running from '$RUNNING', not the install path '$SELF'."
+    return 0
+}
 
 pulse_safe() {
     last=$(grep -n -e 'Running pulse mode' -e 'Pulse targeting' -e 'Pulse complete' \
@@ -101,6 +163,7 @@ record_prestate() {
 
 preflight_app() {
     actor=$1; shift
+    guard_in_sync || return 1
     if [ $# -eq 0 ]; then
         echo "STOP: preflight-app needs the service list you intend to deploy."
         echo "usage: deploy-guard.sh preflight-app <actor> <service> [service…]"
@@ -177,8 +240,9 @@ case "$1" in
     pulse-safe)
         pulse_safe; exit $? ;;
     preflight)
-        pulse_safe || exit 1
-        box_sane   || exit 1
+        guard_in_sync || exit 1
+        pulse_safe    || exit 1
+        box_sane      || exit 1
         sh "$SELF" acquire "${2:-unknown}" || exit 1
         echo "PREFLIGHT OK — cleared to deploy."; exit 0 ;;
     preflight-app)
@@ -186,6 +250,8 @@ case "$1" in
         preflight_app "$@"; exit $? ;;
     verify-app)
         verify_app; exit $? ;;
+    guard-check)
+        guard_in_sync; exit $? ;;
     *)
-        echo "usage: deploy-guard.sh {acquire <actor>|release <actor>|pulse-safe|preflight <actor>|preflight-app <actor> <service…>|verify-app}"; exit 2 ;;
+        echo "usage: deploy-guard.sh {acquire <actor>|release <actor>|pulse-safe|preflight <actor>|preflight-app <actor> <service…>|verify-app|guard-check}"; exit 2 ;;
 esac
