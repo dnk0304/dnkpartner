@@ -42,6 +42,22 @@ export type LiveCountdownProps = {
    * When omitted, behaviour is unchanged (legacy callers).
    */
   effectiveStatus?: string | null;
+  /**
+   * The single authoritative "now" for the initial render, in epoch ms.
+   *
+   * HYDRATION CONTRACT (React #418): the server render and the first client
+   * render MUST agree. Reading `Date.now()` in the render body / lazy state
+   * initializer breaks that — the two renders sample different clocks and a
+   * countdown straddling a second/threshold boundary produces mismatched HTML.
+   * So the owning SERVER component samples the clock once and threads the
+   * value down as this prop.
+   *
+   * Deliberately REQUIRED with no default value. A `= Date.now()` default
+   * would silently reintroduce the exact bug this prop exists to prevent.
+   * After hydration the interval below uses the live `Date.now()` — that is
+   * correct, because effects run client-only.
+   */
+  nowMs: number;
   className?: string;
 };
 
@@ -58,9 +74,12 @@ type Parts = {
   isPast: boolean;
 };
 
-function diffParts(targetMs: number): Parts {
-  const now = Date.now();
-  const totalMs = targetMs - now;
+/**
+ * Pure: no ambient clock read. `nowMs` is required on purpose — see the
+ * `nowMs` prop doc above for why a default parameter is forbidden here.
+ */
+function diffParts(targetMs: number, nowMs: number): Parts {
+  const totalMs = targetMs - nowMs;
   const isPast = totalMs <= 0;
   const abs = Math.abs(totalMs);
   const days = Math.floor(abs / (24 * 60 * 60 * 1000));
@@ -85,6 +104,7 @@ export function LiveCountdown({
   prefix,
   onElapsed,
   effectiveStatus,
+  nowMs,
   className,
 }: LiveCountdownProps) {
   const targetMs = React.useMemo(() => {
@@ -95,8 +115,11 @@ export function LiveCountdown({
     return Number.isFinite(t) ? t : null;
   }, [target]);
 
+  // Seeded from the SERVER-sampled clock so the SSR HTML and the first client
+  // render are byte-identical. The effect below immediately re-syncs to the
+  // real client clock after hydration.
   const [parts, setParts] = React.useState<Parts | null>(() =>
-    targetMs == null ? null : diffParts(targetMs),
+    targetMs == null ? null : diffParts(targetMs, nowMs),
   );
 
   React.useEffect(() => {
@@ -104,9 +127,10 @@ export function LiveCountdown({
       setParts(null);
       return;
     }
-    setParts(diffParts(targetMs));
+    // Client-only from here on — `Date.now()` is CORRECT inside an effect.
+    setParts(diffParts(targetMs, Date.now()));
     const id = window.setInterval(() => {
-      const next = diffParts(targetMs);
+      const next = diffParts(targetMs, Date.now());
       setParts(next);
       if (next.isPast) {
         window.clearInterval(id);

@@ -31,10 +31,16 @@ import { cn } from "@/lib/utils";
 
 type Props = {
   items: AuctionItem[];
+  /**
+   * Server-sampled epoch ms for the initial render, threaded down from the
+   * owning server component. Required with no default on purpose — see the
+   * `nowMs` doc on LiveCountdownProps for the React #418 hydration contract.
+   */
+  nowMs: number;
   className?: string;
 };
 
-export function RegistroTable({ items, className }: Props) {
+export function RegistroTable({ items, nowMs, className }: Props) {
   return (
     <div
       className={cn(
@@ -57,7 +63,7 @@ export function RegistroTable({ items, className }: Props) {
           </thead>
           <tbody className="divide-y divide-[var(--color-hairline-soft)]">
             {items.map((it) => (
-              <RegistroRow key={it.id} item={it} />
+              <RegistroRow key={it.id} item={it} nowMs={nowMs} />
             ))}
           </tbody>
         </table>
@@ -66,7 +72,14 @@ export function RegistroTable({ items, className }: Props) {
   );
 }
 
-function RegistroRow({ item }: { item: AuctionItem }) {
+function RegistroRow({
+  item,
+  nowMs,
+}: {
+  item: AuctionItem;
+  /** Server-sampled epoch ms — see LiveCountdownProps#nowMs (React #418). */
+  nowMs: number;
+}) {
   // Clock-wins: if the DB still says celebrandose/proxima but endDate is in
   // the past (stale row not yet swept), every status-driven cell in this row
   // — ESTADO column, countdown, warn-flags — must agree it's concluded.
@@ -154,7 +167,7 @@ function RegistroRow({ item }: { item: AuctionItem }) {
       </td>
       <td className="hidden md:table-cell py-3 pr-3 align-top text-[12px] text-[var(--color-ink-primary)] whitespace-nowrap">
         {item.endDate ? (
-          <LiveCountdown target={item.endDate} size="sm" effectiveStatus={effective} />
+          <LiveCountdown target={item.endDate} size="sm" effectiveStatus={effective} nowMs={nowMs} />
         ) : (
           <span className="text-[var(--color-ink-quiet)]">—</span>
         )}

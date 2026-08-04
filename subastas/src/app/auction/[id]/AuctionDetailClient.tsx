@@ -143,6 +143,7 @@ export default function AuctionDetailClient({
   id,
   hideHeader = false,
   initialData = null,
+  nowMs,
 }: {
   id: string;
   /**
@@ -168,6 +169,17 @@ export default function AuctionDetailClient({
    * unchanged: skeleton → client fetch.
    */
   initialData?: DetailResponse["data"] | null;
+  /**
+   * Server-sampled epoch ms, taken ONCE in the owning server component and
+   * threaded down to every countdown surface in this subtree.
+   *
+   * React #418: the countdown components seed lazy `useState` from this value.
+   * That initializer runs on BOTH the server render and the first client
+   * render, so it must not read the ambient clock. Required with no default —
+   * a defaulted `Date.now()` is exactly the foot-gun that reintroduces the
+   * hydration mismatch silently. Post-hydration effects use the live clock.
+   */
+  nowMs: number;
 }) {
   const pathname = usePathname();
   const [data, setData] = React.useState<DetailResponse["data"] | null>(initialData);
@@ -499,6 +511,7 @@ export default function AuctionDetailClient({
             endDate={raw.endDate ?? raw.endsAt ?? null}
             bidStatus={raw.bidStatus ?? null}
             effectiveStatus={status}
+            nowMs={nowMs}
           />
         </header>
         </>
@@ -708,7 +721,7 @@ export default function AuctionDetailClient({
 
             {/* Mobile-only inline state panel */}
             <div className="md:hidden">
-              <DetailStatusPanel auction={auctionItem} initialFollowing={data.isFollowing} />
+              <DetailStatusPanel auction={auctionItem} initialFollowing={data.isFollowing} nowMs={nowMs} />
             </div>
 
             {/* Timeline */}
@@ -1053,7 +1066,7 @@ export default function AuctionDetailClient({
               documents disclosure directly beneath it (wave173). */}
           <div className="hidden md:block">
             <div className="sticky top-24 space-y-4">
-              <DetailStatusPanel auction={auctionItem} initialFollowing={data.isFollowing} />
+              <DetailStatusPanel auction={auctionItem} initialFollowing={data.isFollowing} nowMs={nowMs} />
               <AuctionDocsDisclosure
                 documents={raw.documents}
                 pdfUrl={raw.pdfUrl}
@@ -1074,6 +1087,7 @@ export default function AuctionDetailClient({
             seedId={raw.id}
             seedProvince={raw.province}
             seedCategory={raw.category}
+            nowMs={nowMs}
           />
         </div>
 

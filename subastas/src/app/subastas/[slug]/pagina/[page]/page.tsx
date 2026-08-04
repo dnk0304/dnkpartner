@@ -93,9 +93,18 @@ export default async function SubastasSlugPaginaPage({ params }: PageProps) {
     const data = await findScopedAuctionsPage({ category: r.dbLabel, page: n });
     if (n > data.totalPages) notFound();
     const node = await seoAuctionsNode(data, `/subastas/${slug}`, plural);
+    // ⭐ ONE CLOCK for the countdown subtree (React #418). Sampled ONCE here in
+    // the SERVER component that owns the subtree and threaded down as a prop, so
+    // the SSR render and the first client render seed their countdown state from
+    // an identical value and cannot disagree. Every countdown component below
+    // takes `nowMs` as a REQUIRED prop with no default, so this can never be
+    // quietly bypassed by a client-side Date.now().
+    const nowMs = Date.now();
+
     return (
       <Suspense fallback={<div className="min-h-screen bg-[var(--color-page)]" />}>
         <SubastasListClient
+          nowMs={nowMs}
           lockedFilter={{ category: r.dbLabel }}
           seoTitle={t('categoryTitle', { plural }) + t('pageSuffix', { page: n })}
           seoIntroSlot={
@@ -117,9 +126,18 @@ export default async function SubastasSlugPaginaPage({ params }: PageProps) {
   const data = await findScopedAuctionsPage({ province: r.dbKey, page: n });
   if (n > data.totalPages) notFound();
   const node = await seoAuctionsNode(data, `/subastas/${slug}`, r.label);
+  // ⭐ ONE CLOCK for the countdown subtree (React #418). Sampled ONCE here in
+  // the SERVER component that owns the subtree and threaded down as a prop, so
+  // the SSR render and the first client render seed their countdown state from
+  // an identical value and cannot disagree. Every countdown component below
+  // takes `nowMs` as a REQUIRED prop with no default, so this can never be
+  // quietly bypassed by a client-side Date.now().
+  const nowMs = Date.now();
+
   return (
     <Suspense fallback={<div className="min-h-screen bg-[var(--color-page)]" />}>
       <SubastasListClient
+        nowMs={nowMs}
         lockedFilter={{ province: r.dbKey }}
         seoTitle={t('provinceTitle', { province: r.label }) + t('pageSuffix', { page: n })}
         seoIntroSlot={

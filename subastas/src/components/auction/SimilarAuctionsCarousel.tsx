@@ -55,6 +55,12 @@ export type SimilarAuctionsCarouselProps = {
   seedId: string;
   seedProvince: string | null | undefined;
   seedCategory: string | null | undefined;
+  /**
+   * Server-sampled epoch ms for the initial render, threaded down from the
+   * owning server component. Required with no default on purpose — see the
+   * `nowMs` doc on LiveCountdownProps for the React #418 hydration contract.
+   */
+  nowMs: number;
   className?: string;
 };
 
@@ -76,6 +82,7 @@ export function SimilarAuctionsCarousel({
   seedId,
   seedProvince,
   seedCategory,
+  nowMs,
   className,
 }: SimilarAuctionsCarouselProps) {
   const [items, setItems] = React.useState<SimilarAuction[] | null>(null);
@@ -156,14 +163,21 @@ export function SimilarAuctionsCarousel({
         aria-label="Lista deslizable de subastas parecidas"
       >
         {items.map((auction) => (
-          <SimilarCard key={auction.id} auction={auction} />
+          <SimilarCard key={auction.id} auction={auction} nowMs={nowMs} />
         ))}
       </div>
     </section>
   );
 }
 
-function SimilarCard({ auction }: { auction: SimilarAuction }) {
+function SimilarCard({
+  auction,
+  nowMs,
+}: {
+  auction: SimilarAuction;
+  /** Server-sampled epoch ms — see LiveCountdownProps#nowMs (React #418). */
+  nowMs: number;
+}) {
   const [imgFailed, setImgFailed] = React.useState(false);
   const status = effectiveStatus(
     DB_TO_FRONTEND_STATUS[auction.status] ?? auction.status,
@@ -241,6 +255,7 @@ function SimilarCard({ auction }: { auction: SimilarAuction }) {
             target={auction.endsAt ?? auction.endDate ?? null}
             size="sm"
             effectiveStatus={status}
+            nowMs={nowMs}
           />
         </div>
       </div>

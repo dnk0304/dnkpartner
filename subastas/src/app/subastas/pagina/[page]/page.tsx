@@ -54,9 +54,18 @@ export default async function SubastasRootPaginaPage({ params }: PageProps) {
   if (n > data.totalPages) notFound();
   const node = await seoAuctionsNode(data, '/subastas', t('spain'));
 
+  // ⭐ ONE CLOCK for the countdown subtree (React #418). Sampled ONCE here in
+  // the SERVER component that owns the subtree and threaded down as a prop, so
+  // the SSR render and the first client render seed their countdown state from
+  // an identical value and cannot disagree. Every countdown component below
+  // takes `nowMs` as a REQUIRED prop with no default, so this can never be
+  // quietly bypassed by a client-side Date.now().
+  const nowMs = Date.now();
+
   return (
     <Suspense fallback={<div className="min-h-screen bg-[var(--color-page)]" />}>
       <SubastasListClient
+        nowMs={nowMs}
         seoIntroSlot={
           <Breadcrumbs
             items={[
