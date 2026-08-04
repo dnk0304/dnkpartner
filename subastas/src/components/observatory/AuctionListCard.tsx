@@ -39,10 +39,16 @@ import { googleMapsSearchUrl } from "@/lib/maps-link";
 
 export type AuctionListCardProps = {
   item: AuctionItem & { hasImage?: boolean | null };
+  /**
+   * Server-sampled epoch ms for the initial render, threaded down from the
+   * owning server component. Required with no default on purpose — see the
+   * `nowMs` doc on LiveCountdownProps for the React #418 hydration contract.
+   */
+  nowMs: number;
   className?: string;
 };
 
-export function AuctionListCard({ item, className }: AuctionListCardProps) {
+export function AuctionListCard({ item, nowMs, className }: AuctionListCardProps) {
   const t = useTranslations("listUi");
   const tDomain = useTranslations("domain");
   const locale = useLocale() as "es" | "en";
@@ -465,7 +471,7 @@ export function AuctionListCard({ item, className }: AuctionListCardProps) {
               never render "Termina en"; their status-appropriate date line
               shows in the row below this strip. */}
           {dateLabel === "Termina" && hasEndDate && (
-            <LiveCountdown target={item.endDate} size="sm" prefix={t("terminaEnPrefix")} effectiveStatus={effective} />
+            <LiveCountdown target={item.endDate} size="sm" prefix={t("terminaEnPrefix")} effectiveStatus={effective} nowMs={nowMs} />
           )}
         </div>
 

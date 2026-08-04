@@ -45,12 +45,19 @@ export type DetailStatusPanelProps = {
     valorSubasta?: number | null;
   };
   initialFollowing: boolean;
+  /**
+   * Server-sampled epoch ms for the initial render, threaded down from the
+   * owning server component. Required with no default on purpose — see the
+   * `nowMs` doc on LiveCountdownProps for the React #418 hydration contract.
+   */
+  nowMs: number;
   className?: string;
 };
 
 export function DetailStatusPanel({
   auction,
   initialFollowing,
+  nowMs,
   className,
 }: DetailStatusPanelProps) {
   // Defence-in-depth: even though AuctionDetailClient resolves an
@@ -164,6 +171,7 @@ export function DetailStatusPanel({
             size="lg"
             className="mt-1"
             effectiveStatus={resolvedStatus}
+            nowMs={nowMs}
           />
           <div className="mt-1.5 text-xs text-[var(--color-ink-tertiary)] tnum">
             {live

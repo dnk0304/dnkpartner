@@ -102,6 +102,18 @@ export type SubastasListClientProps = {
    * crawl-path unlock (P1/P2).
    */
   seoAuctionsSlot?: React.ReactNode;
+  /**
+   * Server-sampled epoch ms, taken ONCE in the server page that owns this
+   * subtree and threaded down to every countdown surface below.
+   *
+   * React #418: the countdown components seed lazy `useState` from this value,
+   * and that initializer runs on BOTH the server render and the first client
+   * render — so it must not read the ambient clock. REQUIRED with no default
+   * (which is also why this props object no longer defaults to `{}`): a
+   * defaulted `Date.now()` is exactly the foot-gun that reintroduces the
+   * hydration mismatch silently. Post-hydration effects use the live clock.
+   */
+  nowMs: number;
 };
 
 export default function SubastasListClient({
@@ -110,7 +122,8 @@ export default function SubastasListClient({
   seoIntroSlot,
   seoFooterSlot,
   seoAuctionsSlot,
-}: SubastasListClientProps = {}) {
+  nowMs,
+}: SubastasListClientProps) {
   const t = useTranslations("subastasList");
   const locale = useLocale() as "es" | "en";
   const numberLocale = locale === "en" ? "en-US" : "es-ES";
@@ -568,17 +581,17 @@ export default function SubastasListClient({
             ) : viewMode === "cards" ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {filtered.map((it) => (
-                  <AuctionListCard key={it.id} item={it} />
+                  <AuctionListCard key={it.id} item={it} nowMs={nowMs} />
                 ))}
               </div>
             ) : viewMode === "registro" ? (
-              <RegistroTable items={filtered} />
+              <RegistroTable items={filtered} nowMs={nowMs} />
             ) : (
               // DEFAULT — horizontal card-rows (the new layout).
               <ul className="space-y-3">
                 {filtered.map((it) => (
                   <li key={it.id}>
-                    <AuctionResultRow item={it} />
+                    <AuctionResultRow item={it} nowMs={nowMs} />
                   </li>
                 ))}
               </ul>

@@ -46,12 +46,31 @@ export type AuctionCountdownBadgeProps = {
    * CELEBRÁNDOSE without any end date (QC fix, Pixel 2026-06-07).
    */
   hideWhenEmpty?: boolean;
+  /**
+   * The single authoritative "now" for the initial render, in epoch ms,
+   * sampled ONCE by the owning server component and threaded down.
+   *
+   * HYDRATION CONTRACT (React #418): the tier below is seeded in a lazy
+   * `useState` initializer, which runs on BOTH the server render and the
+   * first client render. If that initializer read the ambient clock, an
+   * auction sitting near a tier boundary (0 / 1h / 24h) would tier
+   * differently in the two renders and React would report a hydration
+   * mismatch. One clock, one value, both renders.
+   *
+   * Deliberately REQUIRED with no default — a defaulted `Date.now()` is
+   * exactly the foot-gun that reintroduces this bug silently.
+   */
+  nowMs: number;
   className?: string;
 };
 
 type Tier = "calm" | "soon" | "imminent" | "past" | "missing";
 
-function tierFor(endDate: AuctionCountdownBadgeProps["endDate"]): Tier {
+/**
+ * Pure: `nowMs` is a required parameter on purpose. Do NOT give it a
+ * `= Date.now()` default — see the `nowMs` prop doc above.
+ */
+function tierFor(endDate: AuctionCountdownBadgeProps["endDate"], nowMs: number): Tier {
   if (!endDate) return "missing";
   const ms =
     endDate instanceof Date
@@ -60,7 +79,7 @@ function tierFor(endDate: AuctionCountdownBadgeProps["endDate"]): Tier {
         ? endDate
         : new Date(endDate).getTime();
   if (!Number.isFinite(ms)) return "missing";
-  const delta = ms - Date.now();
+  const delta = ms - nowMs;
   if (delta <= 0) return "past";
   if (delta < 60 * 60 * 1000) return "imminent";
   if (delta < 24 * 60 * 60 * 1000) return "soon";
@@ -72,15 +91,23 @@ export function AuctionCountdownBadge({
   bidStatus,
   effectiveStatus,
   hideWhenEmpty = true,
+  nowMs,
   className,
 }: AuctionCountdownBadgeProps) {
+  // Seeded from the SERVER-sampled clock so SSR and the first client render
+  // agree (React #418). The effect below re-syncs to the real client clock
+  // immediately after hydration.
+  const [tier, setTier] = React.useState<Tier>(() => tierFor(endDate, nowMs));
   // Re-tier every minute so the surface escalates on its own. Cheaper than
   // mirroring LiveCountdown's per-second loop — the tier only changes a few
-  // times per auction lifetime.
-  const [tier, setTier] = React.useState<Tier>(() => tierFor(endDate));
+  // times per auction lifetime. `Date.now()` is CORRECT here: effects are
+  // client-only and run after hydration has already committed.
   React.useEffect(() => {
-    setTier(tierFor(endDate));
-    const id = window.setInterval(() => setTier(tierFor(endDate)), 60 * 1000);
+    setTier(tierFor(endDate, Date.now()));
+    const id = window.setInterval(
+      () => setTier(tierFor(endDate, Date.now())),
+      60 * 1000,
+    );
     return () => window.clearInterval(id);
   }, [endDate]);
 
@@ -133,6 +160,7 @@ export function AuctionCountdownBadge({
             target={endDate ?? null}
             size="sm"
             effectiveStatus={effectiveStatus ?? null}
+            nowMs={nowMs}
             className="text-sm font-semibold"
           />
         )}

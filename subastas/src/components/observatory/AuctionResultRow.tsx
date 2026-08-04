@@ -59,10 +59,16 @@ import { googleMapsSearchUrl } from "@/lib/maps-link";
 
 export type AuctionResultRowProps = {
   item: AuctionItem & { hasImage?: boolean | null };
+  /**
+   * Server-sampled epoch ms for the initial render, threaded down from the
+   * owning server component. Required with no default on purpose — see the
+   * `nowMs` doc on LiveCountdownProps for the React #418 hydration contract.
+   */
+  nowMs: number;
   className?: string;
 };
 
-export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
+export function AuctionResultRow({ item, nowMs, className }: AuctionResultRowProps) {
   const t = useTranslations("listUi");
   const tDomain = useTranslations("domain");
   const locale = useLocale() as "es" | "en";
@@ -381,6 +387,7 @@ export function AuctionResultRow({ item, className }: AuctionResultRowProps) {
               size="sm"
               prefix={t("terminaEnPrefix")}
               effectiveStatus={effective}
+              nowMs={nowMs}
             />
           </div>
         )}

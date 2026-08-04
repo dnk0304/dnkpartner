@@ -34,10 +34,16 @@ import { OFFICIAL_CATEGORIES } from "@/lib/constants";
 
 export type AuctionListRowProps = {
   item: AuctionItem & { hasImage?: boolean | null };
+  /**
+   * Server-sampled epoch ms for the initial render, threaded down from the
+   * owning server component. Required with no default on purpose — see the
+   * `nowMs` doc on LiveCountdownProps for the React #418 hydration contract.
+   */
+  nowMs: number;
   className?: string;
 };
 
-export function AuctionListRow({ item, className }: AuctionListRowProps) {
+export function AuctionListRow({ item, nowMs, className }: AuctionListRowProps) {
   const t = useTranslations("listUi");
   const tDomain = useTranslations("domain");
   const locale = useLocale() as "es" | "en";
@@ -355,7 +361,7 @@ export function AuctionListRow({ item, className }: AuctionListRowProps) {
             SUSPEND  → "Reanudación · resumeAt / Fecha por confirmar".
             Terminal → em-dash (status badge handles the label). */}
         {dateLabel === "Termina" ? (
-          <LiveCountdown target={item.endDate} size="sm" effectiveStatus={effective} />
+          <LiveCountdown target={item.endDate} size="sm" effectiveStatus={effective} nowMs={nowMs} />
         ) : dateLabel === "Próxima apertura" ? (
           <span className="tnum">
             <span className="block text-[10px] uppercase tracking-wide text-[var(--color-ink-tertiary)]">

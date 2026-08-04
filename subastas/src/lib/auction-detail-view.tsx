@@ -273,6 +273,15 @@ export async function renderAuctionDetail(args: {
   if (!payload) return null;
   const initialData = JSON.parse(JSON.stringify(payload));
 
+  // ⭐ ONE CLOCK for the whole countdown subtree (React #418). Sampled here,
+  // in the SERVER component that owns the subtree, and threaded down as a
+  // prop. Because this exact number is serialized into the RSC payload, the
+  // server render and the first client render seed their countdown state from
+  // an identical value and cannot produce mismatched HTML. Every countdown
+  // component below takes `nowMs` as a REQUIRED prop with no default so this
+  // can never be quietly bypassed by a client-side `Date.now()`.
+  const nowMs = Date.now();
+
   return (
     <div className="min-h-screen bg-[var(--color-page)] pb-12">
       {jsonLd && (
@@ -289,7 +298,7 @@ export async function renderAuctionDetail(args: {
             renders in the initial HTML for EVERYONE. The official-auction / bid
             ACTION is the auth-gated Participar button (wave169); the official
             URL is resolved server-side and never enters this HTML. */}
-        <AuctionDetailClient id={a.id} initialData={initialData} />
+        <AuctionDetailClient id={a.id} initialData={initialData} nowMs={nowMs} />
       </main>
     </div>
   );
