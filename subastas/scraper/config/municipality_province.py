@@ -758,14 +758,25 @@ _RAW: dict[str, str] = {
 
 
 # ===========================================================================
-# FULL INE MUNICIPALITY REGISTER (2026-07-28)
+# FULL INE MUNICIPALITY REGISTER
 # ---------------------------------------------------------------------------
-# Dennis approved loading the COMPLETE official Spanish municipality list so the
-# ~23.5k remaining province-less rows become fillable. Sourced from Wikidata
-# (P772 = INE municipality code, es labels) — 8,229 municipalities across all 52
-# provinces (incl. Ceuta / Melilla). Committed as `ine_municipalities.csv`
-# alongside this module (no network at runtime). The province of each town is the
-# INE code prefix (first 2 digits), resolved via provinces.py.
+# The COMPLETE official Spanish municipality list, so province-less rows become
+# fillable. Sourced from INE's own register — "Relación de municipios y códigos
+# por comunidades autónomas y provincias", diccionario{YY}.xlsx — NOT from
+# Wikidata/Wikipedia/a scrape. 8,132 municipalities across all 52 provinces
+# (incl. Ceuta / Melilla). Regenerate with:
+#
+#     python scripts/build-ine-gazetteer.py
+#
+# The exact edition, its date and its sha256 are written into the `#` banner at
+# the top of each CSV — read the file to learn how old it is. Committed
+# alongside this module (no network at runtime). The province of each town is
+# the INE code prefix (first 2 digits), resolved via provinces.py.
+#
+# HISTORY: until 2026-08-04 this was a Wikidata-derived list carrying pre-1989
+# Castilian-only names ("Alegría de Álava", "Aramayona") and invented 11-digit
+# sub-municipal rows. Every downstream municipality URL resolves against this
+# file, so it is now generated from the official register only.
 #
 # CRITICAL — DUPLICATE NAMES: some town names exist in >1 province (e.g.
 # Arroyomolinos = Madrid AND Cáceres). A bare name is AMBIGUOUS for those, so
@@ -806,10 +817,15 @@ _TOWN_DISPLAY: dict[str, str] = {}
 _COMPONENT_TOKENS: set = set()
 
 # The gazetteer data files (committed alongside this module — no runtime network):
-#   ine_municipalities.csv             — 8,229 towns, Castilian (es) label + prov
-#   ine_municipalities_coofficial.csv  — Catalan/Valencian/Galician/Basque +
-#                                        official (P1705) names, same INE->prov
-#                                        (fixes "La Pobla de Vallbona"→Valencia etc)
+#   ine_municipalities.csv             — 8,132 municipalities, primary official
+#                                        denomination + INE code + province
+#   ine_municipalities_coofficial.csv  — every OTHER official written form of the
+#                                        same INE code: the co-official-language
+#                                        denominations INE stores slash-separated
+#                                        ("Agurain/Salvatierra", "Elx/Elche") and
+#                                        INE's inverted-article filing form
+#                                        ("Coruña, A"). Derived mechanically from
+#                                        the official NOMBRE — nothing invented.
 _GAZETTEER_FILES = ("ine_municipalities.csv", "ine_municipalities_coofficial.csv")
 
 
@@ -833,7 +849,11 @@ def _load_ine_register() -> None:
             continue
         loaded_any = True
         with fh:
-            for row in _csv.DictReader(fh):
+            # The generated files carry a `#` provenance banner (source URL,
+            # INE edition date, sha256) so "how old is this?" is answerable
+            # from the file itself. Strip it before the CSV reader sees it.
+            body = (ln for ln in fh if not ln.startswith("#") and ln.strip())
+            for row in _csv.DictReader(body):
                 nom = (row.get("municipio") or "").strip()
                 prov = (row.get("provincia") or "").strip()
                 if not nom or not prov:

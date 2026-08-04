@@ -83,7 +83,12 @@ let rejectedGazetteerRows = 0;
 
 function readIne(file: string): Array<{ ine: string; municipio: string; provincia: string }> {
   const text = readFileSync(file, 'utf8').replace(/^﻿/, '');
-  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  // `#` lines are the generated provenance banner (INE source URL, edition
+  // date, sha256) that scripts/build-ine-gazetteer.py writes into the file so
+  // its age is answerable without archaeology. Not data.
+  const lines = text
+    .split(/\r?\n/)
+    .filter((l) => l.trim().length > 0 && !l.startsWith('#'));
   lines.shift(); // header
   const rows: Array<{ ine: string; municipio: string; provincia: string }> = [];
   for (const line of lines) {
