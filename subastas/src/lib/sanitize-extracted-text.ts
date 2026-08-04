@@ -44,6 +44,177 @@ const PAGE_DUMP_TOKENS: readonly string[] = [
  */
 const MAX_FIELD_LEN = 1500;
 
+// ---------------------------------------------------------------------------
+// SANITIZE-DISPLAY (2026-08-04, Ken ruling) — excision of justice-system
+// document stamps and personal contact data from published free text.
+//
+// Ghost's ADDRFIELD work (77566fb, `subastas/scraper/scrapers/boe_scraper.py`)
+// proved that BOE's own text carries e-justice document stamps spliced into
+// property prose. His fix runs at EXTRACTION time and only guards
+// `Auction.address`. The same blobs are ALSO published verbatim from
+// `lotDescription` — on the detail body, in JSON-LD, and via the title/H1
+// fallback. This is the display-side half.
+//
+// The stamp patterns below are PORTED VERBATIM from Ghost's `_ADDR_STAMP_RES`
+// (same order, same semantics, Python `re` → JS RegExp). They are deliberately
+// NOT a third implementation: this module is the single TypeScript source of
+// truth, and it mirrors his Python set rule-for-rule. A cross-language shared
+// module is not possible (his runs in the Python scraper, this in Next.js), so
+// "shared" here means one TS module consumed by every TS surface.
+//
+// Added beyond Ghost's set, because the display surface publishes to the whole
+// internet and to search-engine structured data:
+//   - e-mail addresses          (25 rows in prod carry one)
+//   - Spanish phone numbers     (67 rows; several are a named private
+//                                depositary's personal mobile)
+// Personal contact data about identifiable people must never be rendered.
+//
+// RULING (Ken, 2026-08-04): do NOT weaken these to preserve legitimate
+// content. Over-stripping is the correct failure direction.
+//
+// NOT stripped, deliberately:
+//   - licence plates / VINs. On a VEHICLE lot the plate IS the goods being
+//     auctioned, not third-party PII; stripping it would gut the listing.
+//     Ghost NULLs a plate only when it lands in the ADDRESS cell, which is a
+//     different question. `matrícula SE-62` (a social-housing registry code)
+//     survives for the same reason it survives his extractor.
+//   - road codes (`A-92`, `N-340`), cadastral refs, IDUFIR, postal codes.
+// ---------------------------------------------------------------------------
+
+/** A single excision rule. `name` is what we log — never the matched text. */
+interface RedactionRule {
+  readonly name: string;
+  readonly re: RegExp;
+}
+
+/**
+ * Order matters, exactly as in Ghost's `_ADDR_STAMP_RES`: URLs first (the
+ * stamp's trailing verification URL), then the stamp prose, then contact data.
+ * Every pattern is written stateless (no `g` flag stored on a shared object is
+ * mutated — we clone per call via `new RegExp` in `redactSensitiveText`).
+ */
+const REDACTION_RULES: readonly RedactionRule[] = [
+  // Ghost rule 1 — any URL, including the bare `www.` form (brief: "bare
+  // http/www fragments").
+  { name: 'url', re: /\s*(?:https?:\/\/|www\.)\S+/gi },
+  // e-mail (display-side addition).
+  { name: 'email', re: /\s*[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g },
+  // Ghost rule 2 — "Código Seguro de Verificación E04799402-MI:h6Rb-…-S".
+  // Accent-optional: the corpus holds both "Código" and "Codigo".
+  {
+    name: 'csv-label',
+    re: /\s*C[oó]digo\s+Seguro\s+de\s+Verificaci[oó]n\s*:?\s*\S+/gi,
+  },
+  // Ghost rule 3 — the abbreviated form.
+  { name: 'csv-abbrev', re: /\s*\bCSV\s*[:=]\s*\S+/gi },
+  // Ghost rule 4 — label only; the URL itself is already gone (rule 1), and
+  // consuming a further token here would eat the street name that follows.
+  { name: 'validation-url-label', re: /\s*URL\s+de\s+validaci[oó]n\s*:?/gi },
+  // Ghost rule 5.
+  {
+    name: 'verify-prose',
+    re: /\s*Puede\s+verificar\s+este\s+documento(?:\s+en)?/gi,
+  },
+  // Ghost rule 6, WIDENED for display. Ghost strips the label only; on the
+  // address cell the signer's name never followed. In `lotDescription` it does
+  // — every one of the 25 prod rows reads "Firmado por: <NAMED JUDICIAL
+  // OFFICER> <dd/mm/yyyy hh:mm>". We consume the label AND the following run of
+  // capitalised name tokens (bounded to 6), so the name does not survive the
+  // label's removal. Both casings occur in the corpus ("ANA SALA ICARDO" and
+  // "Marta González García"), hence the mixed-case continuation class. The run
+  // stops at the first token that does not start with a capital — in practice
+  // the signature timestamp — so it cannot walk on into the property prose.
+  {
+    name: 'signed-by',
+    re: /\s*Firmado\s+por\s*:?\s*(?:[A-ZÁÉÍÓÚÜÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ.'-]*(?:\s+|$)){0,6}/g,
+  },
+  // Contact data, labelled form: "teléfono 639649100", "Tfno: 91 123 45 67",
+  // "CON TELEFÓNO: 620546029", "Fax 954 00 00 00".
+  {
+    name: 'phone-labelled',
+    re: /\s*\b(?:tel[eé]f[oó]nos?|tel[eé]f[oó]no|tfnos?|tlfnos?|tlf|m[oó]vil(?:es)?|fax)\b\.?\s*:?\s*(?:\+?\d[\d\s.()-]{7,}\d)?/gi,
+  },
+  // Contact data, bare Spanish number: 9 digits opening 6/7/8/9, optional
+  // `+34`, optional space/hyphen grouping (3-3-3 or 3-2-2-2).
+  //
+  // The letter/digit/slash guards on BOTH sides are load-bearing: without them
+  // this would eat the 9-digit run inside a VIN ("VF1FDA1D644366300") or a
+  // cadastral reference. Dot-separated groups are deliberately NOT accepted —
+  // that is how Spanish writes money ("1.234.567"), not phone numbers.
+  {
+    name: 'phone-bare',
+    re: /(?<![\dA-Za-zÁÉÍÓÚÜÑáéíóúüñ/-])(?:\+?34[ -]?)?[6789]\d{2}(?:[ -]?\d{3}[ -]?\d{3}|[ -]?\d{2}[ -]?\d{2}[ -]?\d{2}|\d{6})(?![\dA-Za-zÁÉÍÓÚÜÑáéíóúüñ/-])/g,
+  },
+];
+
+/** Outcome of a redaction pass. `rules` lists the rule NAMES that fired. */
+export interface RedactionResult {
+  readonly text: string;
+  /** Rule names that matched, in rule order. Never contains stripped content. */
+  readonly rules: readonly string[];
+  /** Total number of excised spans across all rules. */
+  readonly count: number;
+}
+
+/**
+ * Excise justice-system document stamps, URLs and personal contact data from
+ * a free-text blob. Pure; returns the cleaned text plus a description of what
+ * fired, so callers can log WITHOUT logging the removed content itself
+ * (logging a stripped phone number into the application log would defeat the
+ * purpose of stripping it).
+ */
+export function redactSensitiveText(raw: string): RedactionResult {
+  let text = raw;
+  const rules: string[] = [];
+  let count = 0;
+  for (const rule of REDACTION_RULES) {
+    // Fresh RegExp per call: the module-level literals carry `g`, and a shared
+    // `lastIndex` across calls would make results order-dependent.
+    const re = new RegExp(rule.re.source, rule.re.flags);
+    let hits = 0;
+    text = text.replace(re, () => {
+      hits += 1;
+      return ' ';
+    });
+    if (hits > 0) {
+      rules.push(rule.name);
+      count += hits;
+    }
+  }
+  if (count > 0) {
+    text = text.replace(/[ \t]{2,}/g, ' ').replace(/\s+([,;.])/g, '$1');
+  }
+  return { text, rules, count };
+}
+
+/**
+ * Server-side observability hook. Logs the RULE NAMES that fired (never the
+ * stripped text) so the patterns can be refined later on evidence, per Ken's
+ * "log every strip" ruling. No-op in the browser bundle.
+ */
+function logRedaction(result: RedactionResult): void {
+  if (result.count === 0) return;
+  if (typeof window !== 'undefined') return;
+  console.warn(
+    `[SANITIZE-DISPLAY] redacted ${result.count} span(s): ${result.rules.join(',')}`,
+  );
+}
+
+/**
+ * Redact + trim a value for display. Returns null when nothing survives.
+ * Use this on any surface that renders scraper free text but does NOT already
+ * go through `sanitizeExtractedText` (JSON-LD, title fallbacks, list excerpts).
+ */
+export function redactForDisplay(
+  raw: string | null | undefined,
+): string | null {
+  if (typeof raw !== 'string') return null;
+  const result = redactSensitiveText(raw);
+  logRedaction(result);
+  const trimmed = result.text.trim().replace(/^[,;.\s-]+/, '').trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 /**
  * Returns the trimmed `raw` value when it looks like real extracted text,
  * or `null` when:
@@ -66,7 +237,12 @@ export function sanitizeExtractedText(
   for (const tok of PAGE_DUMP_TOKENS) {
     if (lower.includes(tok.toLowerCase())) return null;
   }
-  return trimmed;
+  // SANITIZE-DISPLAY (2026-08-04): page-dump rejection is all-or-nothing, but
+  // the CSV stamps / phones / e-mails sit INSIDE otherwise-legitimate prose —
+  // rejecting the whole field would delete real descriptions. Excise instead.
+  // Placed here so every existing consumer of this choke point (the detail
+  // payload projection and `stripStructuredLabelLines`) inherits it.
+  return redactForDisplay(trimmed);
 }
 
 /**

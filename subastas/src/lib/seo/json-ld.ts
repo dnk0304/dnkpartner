@@ -17,6 +17,7 @@
 import { buildAuctionSlug } from "./auction-slug";
 import { auctionDisplayTitle } from "./display-title";
 import { PROVINCE_DB_KEY_TO_SLUG } from "./slugs";
+import { sanitizeExtractedText } from "../sanitize-extracted-text";
 
 const SITE = "https://subastasactivas.com";
 
@@ -106,8 +107,13 @@ export function buildAuctionJsonLd(auction: AuctionLike): object | null {
     title: auction.title ?? null,
   });
 
+  // SANITIZE-DISPLAY (2026-08-04, Ken ruling). This description is emitted
+  // into `<script type="application/ld+json">` and ingested by search engines.
+  // Sanitising the rendered page body but NOT this would hide the problem from
+  // humans and leave it for machines — so the SAME redaction runs here.
+  // `sanitizeExtractedText` also applies the page-dump rejection.
   const description =
-    (auction.propertyDescription ?? auction.lotDescription ?? "").trim() || null;
+    sanitizeExtractedText(auction.propertyDescription ?? auction.lotDescription ?? null);
 
   const graph: Record<string, unknown>[] = [];
 
