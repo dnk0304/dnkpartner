@@ -85,12 +85,37 @@ export const SEO_INDEXABLE_SALE_RESULTS = SALE_RESULTS_FOR_INDEXABLE_OUTCOME;
 const CATEGORY_SET = new Set<string>(SEO_CONCLUDED_INDEXABLE_CATEGORIES);
 const STATUS_SET = new Set<string>(SEO_CONCLUDED_STATUSES);
 
+/**
+ * RECENCY FLOOR (wave-seoslug, Ken/Dennis 2026-08-03). A concluded auction that
+ * ended long ago is a stale sold-comp with near-zero crawl value; emitting ~200k
+ * of them (soldDate 2016–2021) into the sitemap with their REAL ancient lastmod
+ * is exactly what made Googlebot read the auction corpus as decade-old junk and
+ * skip it (the live symptom on sitemap/10.xml: uniform 2016-10-05 lastmod).
+ *
+ * We gate on `endsAt` (the auction's actual end date — 100% populated, unlike
+ * soldDate which is null on DESIERTA rows) rather than soldDate, so the floor is
+ * robust across both outcomes. A concluded page older than the window drops out
+ * of BOTH the sitemap AND the detail-page index gate (the CRITICAL INVARIANT
+ * holds — one predicate, both places). 24 months keeps genuinely-useful recent
+ * comps; tune via this single constant.
+ */
+export const SEO_CONCLUDED_MAX_AGE_MONTHS = 24;
+
+/** The `endsAt >=` cutoff Date for the recency floor. Computed per call. */
+export function concludedRecencyCutoff(now: Date = new Date()): Date {
+  const d = new Date(now);
+  d.setMonth(d.getMonth() - SEO_CONCLUDED_MAX_AGE_MONTHS);
+  return d;
+}
+
 /** Minimal row shape the in-memory predicate needs (detail-page gate). */
 export interface ConcludedIndexableRow {
   status: string | null | undefined;
   category: string | null | undefined;
   saleResult: SaleResult | string | null | undefined;
   resultCheckedAt: Date | null | undefined;
+  /** Auction end date — required for the recency floor. */
+  endsAt: Date | null | undefined;
 }
 
 /**
@@ -103,7 +128,27 @@ export interface ConcludedIndexableRow {
  * against string Sets so it accepts either the raw enum value or its string
  * form.
  */
-export function isConcludedIndexable(row: ConcludedIndexableRow): boolean {
+export function isConcludedIndexable(row: ConcludedIndexableRow, now: Date = new Date()): boolean {
+  return (
+    hasConcludedOutcome(row) &&
+    // Recency floor — mirrors the `endsAt >= cutoff` in concludedIndexableWhere().
+    // Only the CRAWL gate (robots meta + sitemap membership) applies it; content
+    // presence (the teaser) uses hasConcludedOutcome and shows old comps freely.
+    row.endsAt != null &&
+    row.endsAt >= concludedRecencyCutoff(now)
+  );
+}
+
+/**
+ * Content-presence predicate: does this concluded row carry a real, displayable
+ * sale outcome? Identical to isConcludedIndexable MINUS the recency floor. Used
+ * by the teaser (a user who lands on an old — noindexed — sold page should still
+ * see the sold-price block; recency is a crawl-budget concern, not a content
+ * one). Do NOT use this for robots/sitemap — those must carry the recency floor.
+ */
+export function hasConcludedOutcome(
+  row: Pick<ConcludedIndexableRow, 'status' | 'category' | 'saleResult' | 'resultCheckedAt'>,
+): boolean {
   return (
     row.status != null &&
     STATUS_SET.has(row.status) &&
@@ -120,11 +165,13 @@ export function isConcludedIndexable(row: ConcludedIndexableRow): boolean {
  * is valid here (do NOT apply `{ not: null }` to a non-nullable scalar — it
  * throws PrismaClientValidationError at runtime).
  */
-export function concludedIndexableWhere(): Prisma.AuctionWhereInput {
+export function concludedIndexableWhere(now: Date = new Date()): Prisma.AuctionWhereInput {
   return {
     status: { in: [...SEO_CONCLUDED_STATUSES] },
     category: { in: [...SEO_CONCLUDED_INDEXABLE_CATEGORIES] },
     resultCheckedAt: { not: null },
     saleResult: { in: [...SEO_INDEXABLE_SALE_RESULTS] },
+    // Recency floor — drop stale sold-comps (see SEO_CONCLUDED_MAX_AGE_MONTHS).
+    endsAt: { gte: concludedRecencyCutoff(now) },
   };
 }

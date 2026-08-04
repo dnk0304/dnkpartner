@@ -93,6 +93,10 @@ async function loadAuctionMeta(slug: string) {
       // (see isConcludedIndexable) so its sold-price comp can rank.
       saleResult: true,
       resultCheckedAt: true,
+      // Recency floor input for the concluded index gate (wave-seoslug): a
+      // concluded page older than SEO_CONCLUDED_MAX_AGE_MONTHS is noindex,follow
+      // even with a resolved outcome — stale sold-comps waste crawl budget.
+      endsAt: true,
     },
   });
   return auction;
