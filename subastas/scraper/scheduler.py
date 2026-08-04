@@ -282,10 +282,22 @@ class ScraperScheduler:
                 # portal can wipe the amount (JC/RC/JV/NE finalization). Only
                 # rows carrying a live puja signal are frozen; the rest stay
                 # saleResult NULL for the daily re-scrape (Mechanism 2).
+                freeze_failures_before = self.freeze_failures
                 self._freeze_sale_results(cursor, expired_ids, now)
 
                 conn.commit()
-                self.log(f"  Marked {len(expired)} auctions as CONCLUIDA_PORTAL (outbox written)")
+                # Prove the commit actually landed. A prior aborted transaction
+                # turns COMMIT into a silent ROLLBACK, and this line used to
+                # report success regardless.
+                if getattr(conn, "status", None) is not None and conn.status != 0:
+                    self.log("  SCHEDULER-ALARM CONCLUIDA_PORTAL commit did not settle")
+                if self.freeze_failures > freeze_failures_before:
+                    self.log(
+                        f"  Marked {len(expired)} auctions as CONCLUIDA_PORTAL "
+                        f"(outbox written) — FREEZE FAILED for this batch, see ALARM above"
+                    )
+                else:
+                    self.log(f"  Marked {len(expired)} auctions as CONCLUIDA_PORTAL (outbox written)")
 
             # ---- 2. ending_soon — emit once for auctions entering final 24h ----
             ending_soon_cutoff = now + timedelta(hours=ENDING_SOON_HOURS)
@@ -921,6 +933,7 @@ class ScraperScheduler:
     # Mechanism 1 — FREEZE-AT-CLOSE (helper, called by monitor_status_changes)
     # -----------------------------------------------------------------------
     _sale_cols_checked = None  # cache: True/False whether sale-result cols exist
+    freeze_failures = 0  # run-level alarm counter; non-zero == freeze is broken
 
     def _freeze_sale_results(self, cursor, expired_ids, now):
         """Set-based freeze of the last live puja máxima for rows just marked
@@ -953,14 +966,28 @@ class ScraperScheduler:
         if not self._sale_cols_checked:
             self.log("  Freeze-at-close skipped (sale-result columns not migrated yet)")
             return
+        # SAVEPOINT: this runs inside the caller's transaction, which also carries
+        # the CONCLUIDA_PORTAL status flip and the outbox rows. Without a
+        # savepoint ANY error here aborts that whole transaction, and the
+        # caller's conn.commit() then degrades to a silent ROLLBACK — the close
+        # transition and its notifications vanish while the log still claims
+        # "Marked N auctions as CONCLUIDA_PORTAL". That is exactly what happened
+        # from 2026-07-17 on. A freeze failure must never be able to take the
+        # close transition down with it.
+        try:
+            cursor.execute("SAVEPOINT freeze_at_close")
+        except Exception as e:
+            self.freeze_failures += 1
+            self.log(f"  SCHEDULER-ALARM Freeze-at-close: cannot open savepoint: {e}")
+            return
         try:
             cursor.execute(
                 """
                 UPDATE "Auction"
                 SET "saleResult" = CASE
                         WHEN COALESCE("currentBidAmount",0) > 0
-                             OR "pujaStatus" = 'CON_PUJA' THEN 'ADJUDICADA'
-                        WHEN "pujaStatus" = 'SIN_PUJA'     THEN 'DESIERTA'
+                             OR "pujaStatus" = 'CON_PUJA' THEN 'ADJUDICADA'::"SaleResult"
+                        WHEN "pujaStatus" = 'SIN_PUJA'     THEN 'DESIERTA'::"SaleResult"
                     END,
                     "soldPrice" = CASE
                         WHEN COALESCE("currentBidAmount",0) > 0
@@ -975,9 +1002,22 @@ class ScraperScheduler:
                 """,
                 (now, expired_ids),
             )
-            self.log(f"  Freeze-at-close: {cursor.rowcount} concluded rows frozen (puja máxima)")
+            frozen = cursor.rowcount
+            cursor.execute("RELEASE SAVEPOINT freeze_at_close")
+            self.log(f"  Freeze-at-close: {frozen} concluded rows frozen (puja máxima)")
         except Exception as e:
-            self.log(f"  Freeze-at-close failed (non-fatal): {e}")
+            # Roll back ONLY the freeze; the close transition survives and commits.
+            try:
+                cursor.execute("ROLLBACK TO SAVEPOINT freeze_at_close")
+                cursor.execute("RELEASE SAVEPOINT freeze_at_close")
+            except Exception:
+                pass
+            self.freeze_failures += 1
+            self.log(
+                f"  SCHEDULER-ALARM Freeze-at-close FAILED "
+                f"(run_failures={self.freeze_failures}, batch={len(expired_ids)} rows "
+                f"left unfrozen and exposed to portal wipe): {e}"
+            )
 
     # -----------------------------------------------------------------------
     # Mechanism 2 — DAILY POST-CLOSE RE-SCRAPE (catch freeze misses + history)
