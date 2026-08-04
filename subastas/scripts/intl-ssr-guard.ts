@@ -42,7 +42,7 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
 const ROOT = join(__dirname, "..", "src");
@@ -172,9 +172,19 @@ function tzProbe(): { ok: boolean; detail: string } {
     return { ok: true, detail: "tz-probe SKIPPED (INTL_GATE_SKIP_TZPROBE=1)" };
   }
   const probe = join(__dirname, "intl-ssr-tzprobe.ts");
+
+  // Resolve the LOCAL tsx binary rather than going through `npx`. This runs inside the Docker build
+  // (`RUN npm run build`), where an `npx` that decides to fetch a package would fail the image build
+  // on a network that may not exist. node_modules/.bin/tsx is already how `guard:url-v3` runs, so it
+  // is guaranteed present; npx stays only as a last-resort fallback for odd local setups.
+  const binDir = join(__dirname, "..", "node_modules", ".bin");
+  const local = process.platform === "win32" ? join(binDir, "tsx.cmd") : join(binDir, "tsx");
+  const useLocal = existsSync(local);
+
   const run = (tz: string) =>
-    // shell:true — on Windows `npx` is a .cmd and Node >=18.20 rejects it from execFile without it.
-    spawnSync("npx", ["tsx", probe], {
+    // shell:true — on Windows both `npx` and `tsx.cmd` are .cmd files, and Node >=18.20 rejects
+    // those from execFile without a shell.
+    spawnSync(useLocal ? local : "npx", useLocal ? [probe] : ["tsx", probe], {
       encoding: "utf8",
       shell: true,
       env: { ...process.env, TZ: tz },

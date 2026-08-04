@@ -1,4 +1,9 @@
 node_modules
+# Docker matches a bare pattern only at the context ROOT, so the line above does
+# NOT cover scripts/audit/node_modules — the measurement harness's dependency
+# island, which carries playwright and its ~200MB browser payload. Without this
+# it would be shipped into the build context and the image.
+**/node_modules
 .next
 .git
 data
