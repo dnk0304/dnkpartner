@@ -1210,6 +1210,14 @@ class ScraperScheduler:
                 except Exception:
                     pass
             self.log(f"  SCHEDULER-ALARM Freeze reconcile FAILED: {e}")
+        finally:
+            # This job runs every 30 min forever; _get_pg_conn() opens a NEW
+            # connection each call, so not closing it leaks one per cycle.
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     # -----------------------------------------------------------------------
     # Mechanism 2 — DAILY POST-CLOSE RE-SCRAPE (catch freeze misses + history)
