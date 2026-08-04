@@ -246,8 +246,17 @@ def extract_cadastral_refs(bienes_text: Optional[str]) -> tuple:
 # PRIORITY 1 — canonical structured labels. These catch ~100% of standard rows
 # (verified live 2026-06-03: 30/30 address-less actives carry one of these).
 _ADDR_LABELS = r'(?:Direcci[oó]n|Domicilio|Localizaci[oó]n)'
+# CELL-ANCHORED (2026-08-04, ADDRFIELD). The BOE "Datos del bien subastado"
+# block renders every label at the START of its own table cell — i.e. preceded
+# by a line break or a tab, never mid-sentence. The old un-anchored pattern also
+# matched the word "dirección" inside ordinary announcement prose, where it
+# means "web address": the AEAT/Hacienda-local boilerplate
+#   "Se puede consultar la WEB del Organismo en la siguiente dirección: https://…"
+# minted `address = "https://www.haciendalocal.es/…"` on real property rows.
+# Requiring the label to open a cell keeps every genuine KV hit and drops the
+# prose sense of the word. (Verified: SUB-RC-2022-1400100122038.)
 _ADDR_LABEL_RE = re.compile(
-    _ADDR_LABELS + r'\s*[:\t\n]\s*([^\t\n]+)',
+    r'(?:^|[\t\n])[ \t]*' + _ADDR_LABELS + r'\s*[:\t\n]\s*([^\t\n]+)',
     re.IGNORECASE,
 )
 # PRIORITY 2 — alternate structured labels seen on a tail of pages (rural fincas,
@@ -256,7 +265,7 @@ _ADDR_LABEL_RE = re.compile(
 # misses, so the standard path never regresses.
 _ADDR_ALT_LABELS = r'(?:Situaci[oó]n|Emplazamiento|V[ií]a\s+p[uú]blica|Paraje)'
 _ADDR_ALT_LABEL_RE = re.compile(
-    _ADDR_ALT_LABELS + r'\s*[:\t\n]\s*([^\t\n]+)',
+    r'(?:^|[\t\n])[ \t]*' + _ADDR_ALT_LABELS + r'\s*[:\t\n]\s*([^\t\n]+)',
     re.IGNORECASE,
 )
 # PRIORITY 3 — free-text description fallback. Old/rural fincas put the street
@@ -264,15 +273,39 @@ _ADDR_ALT_LABEL_RE = re.compile(
 # quince ..."). Anchor on a Spanish street-type token, then capture a bounded
 # fragment (the street phrase + up to ~60 chars) trimmed at the first sentence
 # break. Best-effort only — never the primary path.
+#
+# `cr\b` REMOVED from the prose token set (2026-08-04, ADDRFIELD). `CR` is how
+# BOE writes "carretera" in a *structured* address cell — but in free prose it is
+# the leading letters of a licence plate or a car model: it matched `CR-8348-X`,
+# `CR-2171-Z`, `CR-3870-Y` (plates, minted as property addresses) and `CR-V`,
+# `CR S&S ECOMOTIVE`, `CR Ecomotive Style` (model names). Priority 3 is the LAST
+# resort, so it only fires on rows with no address cell at all — overwhelmingly
+# the movable-goods rows — where a bare `CR` is essentially never a road. Cell
+# values ("CR ADANERO 30") come through priorities 1/2 and are unaffected.
 _ADDR_STREET_TOKENS = (
     r'calle|c/|c\.|avda|avenida|av\.|plaza|pza|pza\.|pl\.|paseo|p[º°]'
-    r'|camino|cam\.|carretera|ctra|ctra\.|cr\b|urbanizaci[oó]n|urb\.'
+    r'|camino|cam\.|carretera|ctra|ctra\.|urbanizaci[oó]n|urb\.'
     r'|partida|paraje|pol[ií]gono|pol\.|parcela|lugar|lg\b|barrio'
     r'|travesía|trav\.|ronda|rúa|rua|sector|finca'
 )
 _ADDR_DESC_RE = re.compile(
     r'\b(' + _ADDR_STREET_TOKENS + r')\b[^.;\n]{0,60}',
     re.IGNORECASE,
+)
+# A prose match must carry an actual street NAME, not just the street type. The
+# corpus holds 68 rows whose entire address is the word "Avda" and 28 "Ctra" —
+# harvested from the BOE site footer ("Avda. de Manoteras, 54") and from bare
+# cadastral abbreviations ("LG", "C.B", "C.E"). Require the fragment to contain
+# whitespace and >= 8 characters; "PASEO DE LAS DELICIAS Nº 101" passes, "Avda"
+# does not.
+_ADDR_DESC_MIN_LEN = 8
+
+
+def _prose_fragment_is_addressy(value: str) -> bool:
+    v = value.strip(' ,;-')
+    return len(v) >= _ADDR_DESC_MIN_LEN and ' ' in v
+_BIEN_HEADING_RE = re.compile(
+    r'Bien\s+\d+\s*-\s*[^\n(]*\([^)]*\)', re.IGNORECASE
 )
 _LOCALIDAD_RE = re.compile(
     r'Localidad\s*[:\t\n]\s*([^\t\n]+)',
@@ -289,19 +322,103 @@ def _strip_trailing_zero(value: str) -> str:
     return re.sub(r'\s+0$', '', value).strip()
 
 
+# ---------------------------------------------------------------------------
+# SOURCE-DEFECT handling (2026-08-04, ADDRFIELD).
+#
+# Distinct from the two extraction bugs above: on a minority of rows BOE's OWN
+# `Dirección` cell does not contain an address. Two verified shapes, and nothing
+# better exists on the page to extract — so the honest outcome is to clean or to
+# NULL, never to publish it. Same class as the 'Avda' and corrupt-cadastral-ref
+# findings.
+#
+#   (a) e-justice DOCUMENT STAMP bled into the cell by BOE's own PDF→text step,
+#       spliced INTO a real street:
+#         "…Aurelio Serrano y Enrique  Código Seguro de Verificación
+#          E04799402-MI:uWgK-…-D Puede verificar este documento en
+#          https://www.administraciondejusticia.gob.es  Fernánde"
+#       The street is real; only the stamp is foreign → EXCISE the stamp and
+#       keep the address. (SUB-JA-2025-242513, SUB-JA-2025-247149.)
+#
+#   (b) MOVABLE-GOODS identity written into the address cell — a taxi licence or
+#       a vehicle record, plate included:
+#         "LICENCIA DE AUTOTAXI Nº 12.767 … MATRICULA 5751GTS"
+#       There is no street anywhere on the row → honest-NULL, and the town-level
+#       geocoder (bienLocalidad + bienProvincia) takes over exactly as it does
+#       for an absent address. (SUB-JA-2018-89759, -2020-145159, -2021-174578.)
+#
+# The plate test requires a FULL plate shape (4 digits). This deliberately does
+# NOT fire on "matrícula SE-62" — the registry code of a social-housing group
+# ("Grupo de Viviendas General Merry") — which the mint-time slug guard could not
+# tell apart and over-stripped. At extraction time we can, because we still have
+# the digits.
+_ADDR_STAMP_RES = (
+    # order matters: URLs first (the stamp's trailing URL), then its prose
+    re.compile(r'\s*(?:https?://|www\.)\S+', re.IGNORECASE),
+    re.compile(r'\s*C[oó]digo\s+Seguro\s+de\s+Verificaci[oó]n\s*:?\s*\S+', re.IGNORECASE),
+    re.compile(r'\s*\bCSV\s*[:=]\s*\S+', re.IGNORECASE),
+    # label only — the URL itself is already removed by the first rule above;
+    # consuming a further token here would eat the street name that follows
+    # ("… URL de validación:https://… MONTEGOLF VII").
+    re.compile(r'\s*URL\s+de\s+validaci[oó]n\s*:?', re.IGNORECASE),
+    re.compile(r'\s*Puede\s+verificar\s+este\s+documento(?:\s+en)?', re.IGNORECASE),
+    re.compile(r'\s*Firmado\s+por\s*:?\s*', re.IGNORECASE),
+)
+# A full Spanish plate: modern (1234 BCD) or pre-2000 provincial (SE-1234-AB).
+_PLATE_RE = re.compile(
+    r'\b(?:[0-9]{4}\s?-?[BCDFGHJKLMNPRSTVWXYZ]{3}'
+    r'|[A-Z]{1,2}-?[0-9]{4}-?[A-Z]{1,2})\b'
+)
+_VEHICLE_ID_RES = (
+    re.compile(r'(?i)\bn?[º°o]?\.?\s*bastidor\b|\bbastidor\b'),
+    re.compile(r'(?i)\blicencia\s+de\s+(?:auto)?taxi\b'),
+    re.compile(r'(?i)\bmatr[ií]cula\b'),
+)
+
+
+def _excise_document_stamps(value: str) -> str:
+    """Remove e-justice CSV / verification-URL stamps bled into an address cell."""
+    for rx in _ADDR_STAMP_RES:
+        value = rx.sub(' ', value)
+    return re.sub(r'\s+', ' ', value).strip(' ,;-')
+
+
+def _is_movable_identity(value: str) -> bool:
+    """True when the cell is a vehicle / licence record rather than an address.
+
+    Requires a FULL plate shape *plus* a vehicle-identity keyword, or a bare
+    licence/bastidor record. A registry code like `matrícula SE-62` (no 4-digit
+    group) is NOT a plate and is left alone.
+    """
+    if not _PLATE_RE.search(value.upper()):
+        # no plate: only an explicit licence/bastidor record still counts
+        return bool(_VEHICLE_ID_RES[0].search(value) or _VEHICLE_ID_RES[1].search(value))
+    return any(rx.search(value) for rx in _VEHICLE_ID_RES)
+
+
 def _clean_addr_value(value: Optional[str]) -> Optional[str]:
-    """Normalize whitespace, strip BOE's trailing ` 0` cell, drop sentinels."""
+    """Normalize whitespace, strip BOE's trailing ` 0` cell, drop sentinels.
+
+    Also handles the two verified BOE source defects: e-justice document stamps
+    are excised (the surrounding street survives), and a cell that is a vehicle
+    or licence record rather than an address yields None (honest-NULL).
+    """
     if not value:
         return None
     v = re.sub(r'\s+', ' ', value).strip()
+    v = _excise_document_stamps(v)
     v = _strip_trailing_zero(v)
     v = v.strip(' ,;-')
     if not v or v.lower() in _ADDR_SENTINELS:
         return None
+    if _is_movable_identity(v):
+        return None
     return v
 
 
-def extract_address(bienes_text: Optional[str]) -> Optional[str]:
+def extract_address(
+    bienes_text: Optional[str],
+    prose_fallback: bool = True,
+) -> Optional[str]:
     """
     Extract the property's street address from a Bienes-section text blob.
 
@@ -333,10 +450,18 @@ def extract_address(bienes_text: Optional[str]) -> Optional[str]:
         m = _ADDR_ALT_LABEL_RE.search(bienes_text)
         if m:
             address = _clean_addr_value(m.group(1))
-    # Priority 3 — description street-fragment fallback.
-    if address is None:
-        m = _ADDR_DESC_RE.search(bienes_text)
-        if m:
+    # Priority 3 — description street-fragment fallback. Callers pass
+    # prose_fallback=False when the input is the WHOLE PAGE rather than the
+    # Bienes block: an unanchored street-token scan over page chrome, the
+    # court's own contact block and the announcement boilerplate is how junk
+    # ("Avda", "Finca rústica)", a depot polígono) got minted as a property
+    # address. On the whole page we accept only the structured labels.
+    if address is None and prose_fallback:
+        # The bien-type heading ("Bien 1 - Inmueble (Finca rústica)") contains
+        # street-type words that are property TYPES, not streets — it minted
+        # addresses like "Finca rústica)". Drop the headings before scanning.
+        m = _ADDR_DESC_RE.search(_BIEN_HEADING_RE.sub(' ', bienes_text))
+        if m and _prose_fragment_is_addressy(m.group(0)):
             address = _clean_addr_value(m.group(0))
     if address is None:
         return None
@@ -2928,7 +3053,9 @@ class BOEScraper(BaseScraper):
 
             # Address: prefer the Bienes-section anchor, fall back to whole body
             # (lote pages have no Bienes heading — see note above).
-            address = extract_address(bienes) or extract_address(body_text)
+            address = extract_address(bienes) or extract_address(
+                body_text, prose_fallback=False
+            )
 
             # G1 — discrete "Datos del bien subastado" fields. Parse from the
             # bien block (preferred) and fall back to the whole body for lote
