@@ -15,6 +15,14 @@ import dynamic from 'next/dynamic';
 import { GatedField } from './GatedField';
 import { resolveCardImage, fallbackImageFor } from '@/lib/resolve-card-image';
 import { statusDateLabel } from '@/lib/auction-status';
+import { APP_TIME_ZONE } from '@/components/observatory/format';
+
+// Hydration (#418), not style: pinned zone, and the date+time string is COMPOSED from two
+// single-purpose formatters with a connector we own — one compound formatter lets ICU pick the
+// connector literal, which differs between Node and Chromium (', ' vs ', a las ').
+const MODAL_DATE_FMT = new Intl.DateTimeFormat('es-ES', { year: 'numeric', month: 'long', day: 'numeric', timeZone: APP_TIME_ZONE });
+const MODAL_TIME_FMT = new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: APP_TIME_ZONE });
+const MODAL_LONG_FMT = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'long', year: 'numeric', timeZone: APP_TIME_ZONE });
 
 // Dynamically import the per-auction location map (Leaflet needs `window`).
 // Use AuctionLocationMap (single-property focus) rather than the Spain-wide
@@ -147,15 +155,7 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
     }).format(amount);
   };
 
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('es-ES', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
-  };
+  const formatDate = (date: Date) => `${MODAL_DATE_FMT.format(date)}, ${MODAL_TIME_FMT.format(date)}`;
 
   const getStatusBadge = () => {
     switch (auction.status) {
@@ -206,7 +206,6 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
       : modalResolved.src;
 
   // Resume / opens date strings for the status-branched fecha block below.
-  const FMT_LONG: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' };
   const modalResumeAt = (auction as { resumeAt?: string | null }).resumeAt ?? null;
   const modalResumeDate = (() => {
     if (!modalResumeAt) return null;
@@ -513,7 +512,7 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
                 </div>
                 <div className="text-2xl lg:text-3xl font-bold text-amber-700">
                   {modalOpensDate
-                    ? modalOpensDate.toLocaleDateString('es-ES', FMT_LONG)
+                    ? MODAL_LONG_FMT.format(modalOpensDate)
                     : <span className="text-amber-500">Fecha por confirmar</span>}
                 </div>
               </div>
@@ -526,7 +525,7 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
                 </div>
                 <div className="text-2xl lg:text-3xl font-bold text-slate-700">
                   {modalResumeDate
-                    ? modalResumeDate.toLocaleDateString('es-ES', FMT_LONG)
+                    ? MODAL_LONG_FMT.format(modalResumeDate)
                     : <span className="text-slate-500">Fecha por confirmar</span>}
                 </div>
               </div>

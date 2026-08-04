@@ -13,6 +13,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, Bell, ImageOff, Mail, MapPin } from 'lucide-react';
+import { APP_TIME_ZONE } from '@/components/observatory/format';
 
 /**
  * One notified-auction row, as returned by GET /api/user/notifications.
@@ -89,16 +90,16 @@ function useSentAtFormatter() {
     if (Number.isNaN(then)) return '';
     const diffMs = then - Date.now();
     const absSec = Math.abs(diffMs) / 1000;
+    // Never server-rendered: this runs only inside <DialogContent>, which Radix mounts on open,
+    // and the rows come from a client fetch (items are empty during SSR).
+    // intl-gate-ok: client-only modal body, never present in SSR HTML
     const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
     if (absSec < 60) return rtf.format(Math.round(diffMs / 1000), 'second');
     if (absSec < 3600) return rtf.format(Math.round(diffMs / 60000), 'minute');
     if (absSec < 86400) return rtf.format(Math.round(diffMs / 3600000), 'hour');
     if (absSec < 86400 * 7) return rtf.format(Math.round(diffMs / 86400000), 'day');
-    return new Date(iso).toLocaleDateString(locale, {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
+    // Hydration (#418), not style: pinned zone so the fallback absolute date is host-independent.
+    return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: APP_TIME_ZONE }).format(new Date(iso));
   };
 }
 

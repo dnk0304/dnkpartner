@@ -36,6 +36,11 @@ import {
   type NotificationHistoryItem,
 } from '@/components/alerts/NotificationHistoryModal';
 import { MisSubastasSection } from '@/components/alerts/MisSubastasSection';
+import { APP_TIME_ZONE } from '@/components/observatory/format';
+
+// Hydration (#418), not style: same numeric d/m/yyyy shape as toLocaleDateString('es-ES'),
+// but with the time zone pinned so the container and the browser agree on the day.
+const CREATED_ON_FMT = new Intl.DateTimeFormat('es-ES', { timeZone: APP_TIME_ZONE });
 
 interface Alert {
   id: string;
@@ -724,7 +729,7 @@ export default function AlertsPage() {
                             <span className={alert.smsEnabled ? 'text-gray-700' : 'text-gray-400'}>SMS</span>
                           </div>
                           <span aria-hidden="true">•</span>
-                          <span>{t('createdOn', { date: alert.createdAt.toLocaleDateString('es-ES') })}</span>
+                          <span>{t('createdOn', { date: CREATED_ON_FMT.format(alert.createdAt) })}</span>
                         </div>
                       </div>
 

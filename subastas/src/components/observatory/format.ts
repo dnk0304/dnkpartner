@@ -9,6 +9,48 @@
 // `getLocale()` at the call site to render en-GB dates on /en.
 import type { Locale } from "@/i18n/routing";
 
+/**
+ * APP_TIME_ZONE — the zone EVERY server-rendered date/time is formatted in.
+ *
+ * Two separate reasons, both load-bearing:
+ *
+ * 1. HYDRATION. With no `timeZone` option an Intl formatter uses the HOST zone. The container runs
+ *    UTC, the visitor's browser runs Europe/Madrid. Same instant, different wall clock, different
+ *    string, React #418 on every row that shows a time. The zone must be pinned to a constant so
+ *    both sides produce identical bytes.
+ *
+ * 2. CORRECTNESS — and this is why the constant is "UTC" and not "Europe/Madrid". The BOE auction
+ *    columns are Postgres `timestamp` (no zone) and the scraper writes MADRID WALL TIME into them
+ *    (see 5c3a0d1 "resumeAt must carry Madrid wall time, not a UTC-normalised value" — the ISO
+ *    branch was normalising BOE's 12:00 CET down to 10:00 and all 164 stored resumeAt values were
+ *    1-2h early). Prisma hands a zone-less timestamp back as a Date whose UTC fields hold exactly
+ *    those stored digits. So formatting in UTC prints the Madrid wall time the BOE published;
+ *    formatting in "Europe/Madrid" would add the offset a SECOND time and shift every auction hour
+ *    forward by 1-2h. UTC here means "render the stored digits", not "render in UTC".
+ *
+ * This matches the pre-existing convention in src/lib/noticias.ts (`timeZone: 'UTC'`).
+ */
+export const APP_TIME_ZONE = "UTC";
+
+/**
+ * DATE_TIME_CONNECTOR — the literal glue between the date part and the time part.
+ *
+ * THE BUG THIS CONSTANT EXISTS TO KILL. `Intl.DateTimeFormat(tag, { dateStyle: "long", timeStyle:
+ * "short" })` does not just concatenate; ICU picks a locale-specific compound pattern whose
+ * connector LITERAL is CLDR data. Node and Chromium ship different ICU versions, and es-ES changed:
+ *
+ *     Node (ICU 77 / CLDR 47)  →  "5 de agosto de 2026, 8:56"
+ *     Chromium (newer CLDR)    →  "5 de agosto de 2026, a las 8:56"
+ *
+ * Every auction detail page renders one of these, so ~100% of detail loads threw React #418 in
+ * production. No amount of pinning locale or zone fixes it — the divergence is in the pattern data
+ * itself. The only durable fix is to stop asking ICU for the compound string at all: format the
+ * date and the time with SEPARATE single-purpose formatters (whose patterns are CLDR-stable) and
+ * join them with a connector WE own. `scripts/intl-ssr-guard.ts` bans the dateStyle+timeStyle pair
+ * repo-wide so this cannot come back.
+ */
+const DATE_TIME_CONNECTOR: Record<Locale, string> = { es: ", ", en: ", " };
+
 // Cached per-locale formatter instances (Intl construction is expensive).
 // es → es-ES; en → en-GB ("7 July 2026", dd/mm/yyyy).
 function cache(build: (tag: string) => Intl.DateTimeFormat): Record<Locale, Intl.DateTimeFormat> {
@@ -31,25 +73,53 @@ const NUM_FORMAT = new Intl.NumberFormat("es-ES");
 // every snapshot).
 const NUM_FORMAT_GROUPED = new Intl.NumberFormat("es-ES", { useGrouping: "always" });
 
-const DATE_LONG = cache((tag) => new Intl.DateTimeFormat(tag, {
+// The date half of formatDateLong. Single-purpose (dateStyle only) so ICU cannot inject a compound
+// connector literal — see DATE_TIME_CONNECTOR.
+// intl-gate-ok: pinned timeZone (APP_TIME_ZONE) and deliberately NOT paired with timeStyle
+const DATE_LONG_DATE = cache((tag) => new Intl.DateTimeFormat(tag, {
   dateStyle: "long",
+  timeZone: APP_TIME_ZONE,
+}));
+
+// The time half of formatDateLong. `timeStyle: "short"` (not hour/minute 2-digit) preserves the
+// existing "8:56" rendering; formatTime below keeps its own zero-padded "08:56" contract.
+// intl-gate-ok: pinned timeZone (APP_TIME_ZONE) and deliberately NOT paired with dateStyle
+const DATE_LONG_TIME = cache((tag) => new Intl.DateTimeFormat(tag, {
   timeStyle: "short",
+  timeZone: APP_TIME_ZONE,
 }));
 
 const DATE_MED = cache((tag) => new Intl.DateTimeFormat(tag, {
   dateStyle: "medium",
+  timeZone: APP_TIME_ZONE,
 }));
 
 const DATE_SHORT = cache((tag) => new Intl.DateTimeFormat(tag, {
   day: "2-digit",
   month: "2-digit",
   year: "numeric",
+  timeZone: APP_TIME_ZONE,
 }));
 
 const TIME_HM = cache((tag) => new Intl.DateTimeFormat(tag, {
   hour: "2-digit",
   minute: "2-digit",
+  timeZone: APP_TIME_ZONE,
 }));
+
+// Day key in APP_TIME_ZONE, as epoch-ms at UTC midnight of that calendar day. Host-zone
+// independent, so a day bucket computed on the server equals the one computed in the browser.
+// intl-gate-ok: pinned timeZone (APP_TIME_ZONE); en-CA is a fixed ISO-shaped format, not user-facing
+const DAY_KEY = new Intl.DateTimeFormat("en-CA", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  timeZone: APP_TIME_ZONE,
+});
+
+function dayKeyMs(d: Date): number {
+  return Date.parse(`${DAY_KEY.format(d)}T00:00:00Z`);
+}
 
 export function formatPrice(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "—";
@@ -91,7 +161,8 @@ export function formatDateLong(value: string | Date | null | undefined, locale: 
   if (!value) return "—";
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
-  return DATE_LONG[locale].format(d);
+  // Composed, never compound — see DATE_TIME_CONNECTOR for why this is not one formatter.
+  return `${DATE_LONG_DATE[locale].format(d)}${DATE_TIME_CONNECTOR[locale]}${DATE_LONG_TIME[locale].format(d)}`;
 }
 
 export function formatDateMed(value: string | Date | null | undefined, locale: Locale = "es"): string {
@@ -129,12 +200,13 @@ export function formatUpdatedDayEs(value: string | Date | null | undefined, loca
   if (!value) return "—";
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
-  // Compare on local-date boundaries (not wall-clock diff) so a 23:55 update
-  // viewed at 00:05 reads as "ayer", not "hoy".
-  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const today = startOfDay(new Date());
-  const that = startOfDay(d);
-  const diffDays = Math.round((today - that) / (24 * 60 * 60 * 1000));
+  // Compare on DAY boundaries (not wall-clock diff) so a 23:55 update viewed at 00:05 reads as
+  // "ayer", not "hoy" — but the boundary must be the APP's day, not the HOST's. The previous
+  // implementation used local getters (getFullYear/getMonth/getDate), which put the container (UTC)
+  // and the visitor (Europe/Madrid) in different buckets for any timestamp inside the offset window
+  // — "hoy" server-side, "ayer" client-side, React #418 in the header and footer of EVERY page.
+  // en-CA yields an ISO-shaped "YYYY-MM-DD" that sorts and subtracts cleanly.
+  const diffDays = Math.round((dayKeyMs(new Date()) - dayKeyMs(d)) / (24 * 60 * 60 * 1000));
   if (diffDays <= 0) return locale === "en" ? "today" : "hoy";
   if (diffDays === 1) return locale === "en" ? "yesterday" : "ayer";
   // Older than yesterday: show the date so the user knows exactly how stale.

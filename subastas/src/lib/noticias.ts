@@ -28,6 +28,7 @@ import path from 'path';
 import matter from 'gray-matter';
 import type { Locale } from '@/i18n/routing';
 import { RESERVED_SEGMENTS } from '@/lib/seo/slugs';
+import { APP_TIME_ZONE } from '@/components/observatory/format';
 
 export interface NoticiaMeta {
   slug: string;
@@ -211,10 +212,7 @@ export function hasEnglish(slug: string): boolean {
 export function formatNoticiaDate(date: string, locale: Locale): string {
   const d = new Date(`${date}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return date;
-  return d.toLocaleDateString(locale === 'en' ? 'en-US' : 'es-ES', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
+  // Hydration (#418), not style: toLocale* resolves the host zone/locale even with options; an
+  // explicit formatter with the zone on the construction line is what the gate can verify.
+  return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'es-ES', { day: 'numeric', month: 'long', year: 'numeric', timeZone: APP_TIME_ZONE }).format(d);
 }

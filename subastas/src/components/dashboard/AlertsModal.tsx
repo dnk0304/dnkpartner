@@ -469,7 +469,7 @@ export const AlertsModal: React.FC<AlertsModalProps> = ({
                         )}
                         {(alert.minPrice || alert.maxPrice) && (
                           <span className="bg-gray-100 px-2 py-0.5 rounded">
-                            {alert.minPrice ? `Min: ${alert.minPrice.toLocaleString()}€` : 'Min: 0€'} • {alert.maxPrice ? `Max: ${alert.maxPrice.toLocaleString()}€` : 'Max: ∞'}
+                            {alert.minPrice ? `Min: ${alert.minPrice.toLocaleString('es-ES')}€` : 'Min: 0€'} • {alert.maxPrice ? `Max: ${alert.maxPrice.toLocaleString('es-ES')}€` : 'Max: ∞'}
                           </span>
                         )}
                         {alert.keywords && (

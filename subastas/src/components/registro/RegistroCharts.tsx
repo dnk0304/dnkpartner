@@ -21,6 +21,7 @@ import {
   type RegistrySummary,
   type TrendPoint,
 } from '@/lib/registro/registro-ui';
+import { APP_TIME_ZONE } from '@/components/observatory/format';
 
 const VIZ_SCOPE = 'reg-viz';
 
@@ -31,8 +32,11 @@ function pct(n: number, total: number): number {
 function monthLabel(period: string, locale: Locale): string {
   // period = 'YYYY-MM'
   const [y, m] = period.split('-');
-  const d = new Date(Number(y), Number(m) - 1, 1);
-  return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'es-ES', { month: 'short' }).format(d);
+  // Hydration (#418), not style: build the instant in UTC and format it in UTC. The old
+  // `new Date(y, m-1, 1)` was HOST-local midnight, which in Europe/Madrid is the previous
+  // month in UTC — the browser and the container labelled the same bar differently.
+  const d = new Date(Date.UTC(Number(y), Number(m) - 1, 1));
+  return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'es-ES', { month: 'short', timeZone: APP_TIME_ZONE }).format(d);
 }
 
 /** Keep a clean, recent window: drop pre-2015 strays + empty months, last 24. */

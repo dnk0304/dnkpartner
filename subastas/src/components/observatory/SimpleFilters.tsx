@@ -30,6 +30,13 @@ import {
 import { getSourceLabel } from "@/lib/source-labels";
 import { MAP_CATEGORY_LABEL } from "@/lib/map-category";
 import { cn } from "@/lib/utils";
+import { APP_TIME_ZONE } from "@/components/observatory/format";
+
+// Hydration (#418), not style: pinned zone so SSR and the client agree on the chip's day.
+const CHIP_DAY_MONTH_FMT = {
+  es: new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "short", timeZone: APP_TIME_ZONE }),
+  en: new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: APP_TIME_ZONE }),
+};
 
 export type SimpleFiltersProps = {
   filters: ObservatoryFilters;
@@ -397,7 +404,7 @@ export function ActiveFilterChips({
     const d = new Date(filters.endsBefore);
     const fmt = isNaN(d.getTime())
       ? filters.endsBefore
-      : d.toLocaleDateString(locale === "en" ? "en-GB" : "es-ES", { day: "numeric", month: "short" });
+      : (locale === "en" ? CHIP_DAY_MONTH_FMT.en : CHIP_DAY_MONTH_FMT.es).format(d);
     chips.push({
       key: "endsBefore",
       label: t("terminaAntesChip", { date: fmt }),
@@ -411,7 +418,7 @@ export function ActiveFilterChips({
     const d = new Date(iso);
     return isNaN(d.getTime())
       ? iso
-      : d.toLocaleDateString(locale === "en" ? "en-GB" : "es-ES", { day: "numeric", month: "short" });
+      : (locale === "en" ? CHIP_DAY_MONTH_FMT.en : CHIP_DAY_MONTH_FMT.es).format(d);
   };
   if (filters.endsAfter) {
     chips.push({

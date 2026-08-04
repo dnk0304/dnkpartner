@@ -68,8 +68,16 @@ import {
   capitalize,
   titleCase,
   prettifyAuctionType,
+  APP_TIME_ZONE,
 } from "./format";
 import { cn } from "@/lib/utils";
+
+// Hydration (#418), not style: pinned zone so the container (UTC) and the visitor's browser
+// (Europe/Madrid) render the same "5 ago" for the same stored instant.
+const DAY_MONTH_FMT = {
+  es: new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "short", timeZone: APP_TIME_ZONE }),
+  en: new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: APP_TIME_ZONE }),
+};
 
 /**
  * Category-group predicates — used by HomeCarouselSection to split the home
@@ -863,14 +871,14 @@ function ExpandedCard({
     const d = new Date(auction.opensAt);
     return Number.isNaN(d.getTime())
       ? null
-      : d.toLocaleDateString(locale === "en" ? "en-GB" : "es-ES", { day: "numeric", month: "short" });
+      : DAY_MONTH_FMT[locale].format(d);
   })();
   const resumeLabel = (() => {
     if (!auction.resumeAt) return null;
     const d = new Date(auction.resumeAt);
     return Number.isNaN(d.getTime())
       ? null
-      : d.toLocaleDateString(locale === "en" ? "en-GB" : "es-ES", { day: "numeric", month: "short" });
+      : DAY_MONTH_FMT[locale].format(d);
   })();
 
   // Wave C1b (2026-06-07): the Ref. BOE + Docs pill have been removed from

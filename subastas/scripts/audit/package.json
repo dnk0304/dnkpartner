@@ -1,0 +1,10 @@
+{
+  "name": "subastas-audit-harness",
+  "private": true,
+  "type": "module",
+  "description": "Dependency island for the hydra-418 measurement harness. Kept OUT of the app's package.json on purpose: playwright is a ~200MB browser-driving dev dependency that the production image must never install, and the app's node_modules is a symlink shared across every worktree in this repo family — adding to it would push a heavyweight dep onto builds that have nothing to do with measurement. Node resolves from the importing FILE upward, so `scripts/audit/node_modules` is found by these .mjs files and by nothing else. Install with: npm install --prefix scripts/audit",
+  "dependencies": {
+    "pg": "^8.11.0",
+    "playwright": "^1.44.0"
+  }
+}
