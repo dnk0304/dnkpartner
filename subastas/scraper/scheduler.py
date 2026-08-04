@@ -285,12 +285,26 @@ class ScraperScheduler:
                 freeze_failures_before = self.freeze_failures
                 self._freeze_sale_results(cursor, expired_ids, now)
 
+                # Prove the commit actually landed. A prior aborted statement
+                # turns COMMIT into a silent ROLLBACK: psycopg2 raises nothing
+                # and conn.status is STATUS_READY either way, so settlement has
+                # to be judged BEFORE the commit, on the transaction status.
+                # (The old check compared conn.status against 0 — but
+                # STATUS_READY == 1, so it alarmed after every healthy commit.)
+                from psycopg2 import extensions as _pg_ext
+
+                tx_status_pre_commit = getattr(conn.info, "transaction_status", None)
                 conn.commit()
-                # Prove the commit actually landed. A prior aborted transaction
-                # turns COMMIT into a silent ROLLBACK, and this line used to
-                # report success regardless.
-                if getattr(conn, "status", None) is not None and conn.status != 0:
-                    self.log("  SCHEDULER-ALARM CONCLUIDA_PORTAL commit did not settle")
+                if tx_status_pre_commit == _pg_ext.TRANSACTION_STATUS_INERROR:
+                    self.log(
+                        "  SCHEDULER-ALARM CONCLUIDA_PORTAL commit did not settle "
+                        "— transaction was aborted, COMMIT degraded to ROLLBACK"
+                    )
+                elif conn.status != _pg_ext.STATUS_READY:
+                    self.log(
+                        f"  SCHEDULER-ALARM CONCLUIDA_PORTAL connection not READY "
+                        f"after commit (status={conn.status})"
+                    )
                 if self.freeze_failures > freeze_failures_before:
                     self.log(
                         f"  Marked {len(expired)} auctions as CONCLUIDA_PORTAL "
