@@ -46,6 +46,19 @@ import {
 } from '@/lib/seo/slugs';
 import { categoryActiveCounts, activeMunicipalityPairs } from '@/lib/seo/page-data';
 import { buildAuctionSlug } from '@/lib/seo/auction-slug';
+/**
+ * URL-v3 (2026-08-04): detail urls in the sitemap now come from the SAME
+ * resolver the page canonical and the JSON-LD use. Ken's rule was that the
+ * sitemap is GENERATED here but NOT PUBLISHED by this dispatch — publication is
+ * the crawl event and belongs to the switch dispatch. That separation is real
+ * and mechanical, not a promise: with `URL_V3_SWITCH` unset `resolveAuctionPath`
+ * returns the legacy path and `fetchV3UrlsBatch` issues no query, so this
+ * served sitemap is byte-identical to the one before this change. The v3
+ * sitemap can be produced and inspected on demand via
+ * `scripts/url-v3-sitemap-generate.ts`, which writes to a FILE and never to a
+ * served route.
+ */
+import { fetchV3UrlsBatch, resolveAuctionPath } from '@/lib/seo/auction-url';
 import { listNoticias } from '@/lib/noticias';
 import { CHILD_SITEMAP_SIZE, classifyChunk } from '@/lib/seo/sitemap-config';
 import { concludedIndexableWhere } from '@/lib/seo/concluded-indexable';
@@ -100,9 +113,14 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
         skip: chunk.skip,
         take: CHILD_SITEMAP_SIZE,
       });
+      // URL-v3: ONE batch lookup per chunk, never per row — a per-row probe
+      // here would be an N+1 across 20,000 rows against a 192,589-row table.
+      // Returns an empty map (and issues no query) while the switch is off, so
+      // the emitted urls stay byte-identical to today's sitemap.
+      const v3 = await fetchV3UrlsBatch(activeAuctions.map((a) => a.id));
       for (const a of activeAuctions) {
         entries.push({
-          url: `${SITE}/subastas/subasta/${buildAuctionSlug(a)}`,
+          url: `${SITE}${resolveAuctionPath(a, v3.get(a.id))}`,
           lastModified: a.updatedAt ?? now,
           changeFrequency: 'daily',
           priority: 0.6,
@@ -139,9 +157,11 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
         skip: chunk.skip,
         take: CHILD_SITEMAP_SIZE,
       });
+      // URL-v3: one batch lookup per chunk (see the active band above).
+      const v3 = await fetchV3UrlsBatch(rows.map((a) => a.id));
       for (const a of rows) {
         entries.push({
-          url: `${SITE}/subastas/subasta/${buildAuctionSlug(a)}`,
+          url: `${SITE}${resolveAuctionPath(a, v3.get(a.id))}`,
           lastModified: a.soldDate ?? a.updatedAt ?? now,
           changeFrequency: 'monthly', // concluded outcomes don't change
           priority: 0.5,

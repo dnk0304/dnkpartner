@@ -1,5 +1,5 @@
 /**
- * /subastas/subasta/[slug] — the auction detail page (Spanish, nested).
+ * /subastas/subasta/[slug] — the LEGACY auction detail route.
  *
  * STANDING RULE (07 §1.7, Dennis directive #15, 2026-06-02): the detail page
  * is `/subastas/subasta/{slug}` — Spanish + nested under /subastas. The old
@@ -7,46 +7,59 @@
  *
  * Slug composition: see src/lib/seo/auction-slug.ts
  *   {tipo}-{provincia}-{municipio}-{auctionId}
- * The trailing token is the auction's cuid — extracted to resolve the row.
+ * The trailing token is the auction's uuid — extracted to resolve the row.
  *
- * Self-canonical: every detail page declares rel=canonical to its own
- * /subastas/subasta/{slug}. CONCLUIDA / FINALIZADA → noindex (don't index
- * expired auctions).
+ * The page body, metadata and gates live in `@/lib/auction-detail-view`, shared
+ * with the v3 route so the two can never render differently. See that file.
  *
- * GATE BOUNDARY (Dennis 2026-07-31, wave-B2 FULL UNGATE):
- *   The detail page is FULLY PUBLIC. Every viewer — anonymous, trial, paid —
- *   gets the full <AuctionDetailClient>, SSR-seeded with the complete payload
- *   (address, pricing/valuation, description, legal/cadastral data, documents,
- *   timeline). The full information renders in the initial HTML stream so
- *   Googlebot and no-JS clients see everything without executing JS. The old
- *   logged-out teaser + <FullInfoWall> "Regístrate para ver la dirección" gate
- *   is GONE. The page stays 200 + indexable per the robots gate below.
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ⭐ THE PERMANENT-REDIRECT LAYER (URL-v3, this dispatch)
  *
- *   The "go to the official auction / place a bid" ACTION is now an auth-gated
- *   "Participar" button (wave169): the official URL is resolved server-side by
- *   GET /api/participar/[id] and never rendered into this page. Logged-out →
- *   sign-up; logged-in → official portal. It gates NO information. (The old
- *   SHOW_OFFICIAL_AUCTION_LINK env flag was retired — it was a leaky half-gate.)
+ * This route is where old → new happens. Three things about it are deliberate:
  *
- *   The paid product is alerts/notifications — see /api/alerts/route.ts. That
- *   is the only paid-gated surface left in the app.
+ * 1. **308, not 301 — and that is the ruling, not a shortcut.** Ken amended the
+ *    brief: *"the requirement is a PERMANENT redirect; 301 or 308 both satisfy
+ *    it … do not force a Node runtime per request purely to emit the literal
+ *    number 301."* The only place that could emit a literal 301 cheaply is
+ *    `middleware.ts`, which runs on the **edge runtime** — where the `pg` pool
+ *    behind `@/lib/db` cannot open a socket. Redirecting from middleware would
+ *    therefore cost either a forced Node runtime or an extra network hop, on
+ *    every one of 192,589 URLs, to change a number Google treats identically.
+ *    `permanentRedirect()` runs inside this page's EXISTING Node render, on a
+ *    primary-key probe, and emits 308: permanent, method-preserving, equity-
+ *    preserving.
+ *
+ * 2. **It fires before the non-canonical-slug redirect.** An old link with a
+ *    derived/stale slug would otherwise go slug → canonical slug → v3: two
+ *    hops, and every hop leaks link equity and adds latency. Resolving v3
+ *    first makes it one hop from wherever the visitor started.
+ *
+ * 3. **No v3 row ⇒ no redirect, and the page serves 200 exactly as today.**
+ *    That is the entire handling of the hex-legacy (12,346), held (1,713),
+ *    degraded (13,964) and quarantined (20,279) sets — 48,303 rows that keep
+ *    their old shape. Ken's invariant *"every old URL must resolve, never a
+ *    404"* holds by construction: the redirect is conditional on finding a
+ *    target, so failing to find one falls through to the behaviour that was
+ *    already correct.
+ *
+ * With `URL_V3_SWITCH` unset (the shipped state) `fetchV3Url` returns null
+ * without querying at all, so none of this executes and the route behaves
+ * byte-identically to before this dispatch.
+ * ═══════════════════════════════════════════════════════════════════════════
  */
 
-import { notFound, redirect } from 'next/navigation';
+import { notFound, redirect, permanentRedirect } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getLocale, getTranslations } from 'next-intl/server';
-import { buildAlternates, ogLocale, SITE_ORIGIN } from '@/lib/seo/alternates';
 import type { Locale } from '@/i18n/routing';
-import { prisma } from '@/lib/prisma';
-import { auth } from '@/lib/auth';
 import { buildAuctionSlug, resolveAuctionIdFromSlug } from '@/lib/seo/auction-slug';
-import { isLegacyRow } from '@/lib/seo/legacy-rows';
-import { isConcludedIndexable } from '@/lib/seo/concluded-indexable';
-import AuctionDetailClient from '@/app/auction/[id]/AuctionDetailClient';
-import { FollowConfirmBanner } from '@/components/auction/FollowConfirmBanner';
-import { auctionMetaTitle, auctionDisplayTitle } from '@/lib/seo/display-title';
-import { buildAuctionJsonLd } from '@/lib/seo/json-ld';
-import { buildAuctionDetailPayload } from '@/lib/auction-detail-payload';
+import { fetchV3Url, resolveAuctionPath } from '@/lib/seo/auction-url';
+import {
+  loadAuctionMeta,
+  buildDetailMetadata,
+  renderAuctionDetail,
+  detailBlockReason,
+} from '@/lib/auction-detail-view';
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -55,281 +68,66 @@ type PageProps = {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
-/**
- * Lighter loader for metadata only — slug → id → 5 fields used in metadata.
- */
-async function loadAuctionMeta(slug: string) {
-  const id = resolveAuctionIdFromSlug(slug);
-  if (!id) return null;
-  const auction = await prisma.auction.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      title: true,
-      category: true,
-      province: true,
-      municipality: true,
-      status: true,
-      auctionType: true,
-      // Scope soft-hide gate (wave155) — out-of-scope / empty-shell rows are
-      // notFound()'d (never rendered, never indexed).
-      inScope: true,
-      // Surfaced for the title-from-address helper (wave-A, 2026-06-07).
-      // The page is now fully public so the address can lead the <title>.
-      address: true,
-      // Bug 2 (2026-06-09): read-time fallback source for the title street.
-      // When `address` is junk (mis-captured "Localización" blob), the clean
-      // street lives in the lotDescription "Dirección" tab — the title helper
-      // extracts ONLY that field, then keeps street + first number.
-      lotDescription: true,
-      propertyType: true,
-      // Price hint for SERP CTR — appraisal first (always populated when
-      // present), valorSubasta as a secondary if the row lacks an appraisal.
-      appraisalValue: true,
-      valorSubasta: true,
-      boeId: true,
-      // Sale-outcome fields (wave142) — drive the concluded-page index gate.
-      // A concluded property/vehicle with a resolved outcome becomes indexable
-      // (see isConcludedIndexable) so its sold-price comp can rank.
-      saleResult: true,
-      resultCheckedAt: true,
-      // Recency floor input for the concluded index gate (wave-seoslug): a
-      // concluded page older than SEO_CONCLUDED_MAX_AGE_MONTHS is noindex,follow
-      // even with a resolved outcome — stale sold-comps waste crawl budget.
-      endsAt: true,
-    },
-  });
-  return auction;
-}
-
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations('auctionDetail');
-  const a = await loadAuctionMeta(slug);
-  if (!a) return { title: t('metaNotFound'), robots: 'noindex' };
+
+  const id = resolveAuctionIdFromSlug(slug);
+  const a = id ? await loadAuctionMeta(id) : null;
+
+  const blocked = detailBlockReason(a);
+  if (blocked === 'missing') return { title: t('metaNotFound'), robots: 'noindex' };
   // Out-of-scope / empty-shell row (wave155) → hidden from the catalog; the
   // page notFound()s below. noindex so a crawler that remembers the URL drops it.
-  if (!a.inScope) return { title: t('metaNotFound'), robots: 'noindex,follow' };
-  // Retire predicate (CORRECTED wave155): dead `0x` boeId AND terminal status.
-  // The edge middleware 410 was removed; this page is now the single place the
-  // retire decision is made (it has the row's boeId + status). Suspended /
-  // live / real-SUB rows are NOT retired. noindex metadata + notFound() (404)
-  // in the body de-index the genuine dead-link junk. See legacy-rows.ts.
-  if (isLegacyRow(a)) return { title: t('metaRetired'), robots: 'noindex,follow' };
-  const canonicalSlug = buildAuctionSlug(a);
-  // Title-from-address (wave-A, 2026-06-07): the <title> now leads with the
-  // real street address (or municipality fallback for vehicles/land) — the
-  // page is fully public so this is safe, and it dramatically improves SERP
-  // CTR vs the previous reference-code title.
-  const title = auctionMetaTitle({
-    address: a.address,
-    lotDescription: a.lotDescription,
-    propertyType: a.propertyType,
-    auctionType: a.auctionType,
-    category: a.category,
-    municipality: a.municipality,
-    province: a.province,
-    title: a.title,
-  });
-  const where = [a.municipality, a.province].filter(Boolean).join(', ') || t('metaWhereFallback');
-  // Include the headline price in the meta description for CTR (Ken brief).
-  // Appraisal first; fall back to valorSubasta when no appraisal.
-  const priceForDescription = (() => {
-    const v = a.appraisalValue ?? a.valorSubasta;
-    if (v == null) return null;
-    const n = typeof v === 'bigint' ? Number(v) : Number(v);
-    if (!Number.isFinite(n) || n <= 0) return null;
-    try {
-      return new Intl.NumberFormat('es-ES', {
-        style: 'currency',
-        currency: 'EUR',
-        maximumFractionDigits: 0,
-      }).format(n);
-    } catch {
-      return null;
-    }
-  })();
-  const description = (priceForDescription
-    ? t('metaDescriptionWithPrice', { category: a.category, where, price: priceForDescription })
-    : t('metaDescription', { category: a.category, where })
-  ).slice(0, 158);
-  // Indexability gate. Two ways in:
-  //   1. ACTIVE / PRE-AUCTION states (unchanged — always were indexable).
-  //   2. CONCLUDED property/vehicle WITH a resolved sale outcome (wave142) —
-  //      via isConcludedIndexable, the SAME predicate the sitemap membership
-  //      query uses (concludedIndexableWhere). Keeping them identical (shared
-  //      module) means a sitemap URL is never noindex. Everything else
-  //      (SIN_RESULTADO, excluded categories, un-checked, cancelled, legacy)
-  //      stays noindex,follow.
-  const activeStates = ['ACTIVE', 'CELEBRANDOSE', 'PRE_AUCTION', 'PROXIMA_APERTURA', 'SUSPENDIDA', 'SUSPENDED'];
-  const indexable =
-    activeStates.includes(a.status as string) || isConcludedIndexable(a);
+  if (blocked === 'out-of-scope') return { title: t('metaNotFound'), robots: 'noindex,follow' };
+  // Retire predicate (CORRECTED wave155). noindex metadata + notFound() in the
+  // body de-index the genuine dead-link junk.
+  if (blocked === 'retired') return { title: t('metaRetired'), robots: 'noindex,follow' };
 
-  // Wave-B (2026-06-07): Open Graph + Twitter card. Auto-generated from the
-  // same address+tipo+price+where strings the description uses. Neither
-  // competitor portal emits these — easy SERP leapfrog.
-  const ogTitle = auctionDisplayTitle({
-    address: a.address,
-    lotDescription: a.lotDescription,
-    propertyType: a.propertyType,
-    auctionType: a.auctionType,
-    category: a.category,
-    municipality: a.municipality,
-    province: a.province,
-    title: a.title,
-  });
-  const path = `/subastas/subasta/${canonicalSlug}`;
-  const canonicalUrl = locale === 'en' ? `${SITE_ORIGIN}/en${path}` : `${SITE_ORIGIN}${path}`;
-  return {
-    title,
-    description,
-    ...buildAlternates(path, locale),
-    robots: indexable ? 'index,follow' : 'noindex,follow',
-    openGraph: {
-      title: ogTitle,
-      description,
-      url: canonicalUrl,
-      siteName: 'SubastasActivas',
-      locale: ogLocale(locale),
-      type: 'website',
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: ogTitle,
-      description,
-    },
-  };
+  // ⭐ Resolve the canonical ONCE. Switch off (or no minted row) ⇒ this is the
+  // legacy self-canonical, exactly as before. Switch on with a minted row ⇒ the
+  // canonical points at the v3 url this request is about to be redirected to,
+  // so even a crawler that ignores the 308 is told where the page really lives.
+  const v3Url = await fetchV3Url(a!.id);
+  const path = resolveAuctionPath(a!, v3Url);
+
+  return buildDetailMetadata({ a: a!, locale, path, t });
 }
 
 export default async function SubastaDetailPage({ params, searchParams }: PageProps) {
   const { slug } = await params;
   const sp = searchParams ? await searchParams : undefined;
   const followFlag = typeof sp?.follow === 'string' ? sp.follow : undefined;
-  const a = await loadAuctionMeta(slug);
-  if (!a) notFound();
-  // Out-of-scope / empty-shell row (wave155) → not part of the catalog. 404.
-  if (!a.inScope) notFound();
-  // Retire predicate (CORRECTED wave155): dead `0x` boeId AND terminal status
-  // only. Suspended / live / upcoming / real-SUB rows render normally. The old
-  // edge cuid-shape 410 (which killed 1,176 legit rows) is gone; this is the
-  // single retire gate now. notFound() = 404 (de-indexes the genuine junk).
-  if (isLegacyRow(a)) notFound();
+
+  const id = resolveAuctionIdFromSlug(slug);
+  const a = id ? await loadAuctionMeta(id) : null;
+  // notFound() = 404. Unchanged gates: unresolvable slug, out-of-scope shell
+  // row, and the retire predicate (dead `0x` boeId AND terminal status).
+  if (detailBlockReason(a) !== null) notFound();
+
+  // ── the permanent-redirect layer ────────────────────────────────────────
+  // Switch OFF ⇒ `fetchV3Url` returns null without touching the database, so
+  // this is dead weight in the shipped build and nothing below it changes.
+  const v3Url = await fetchV3Url(a!.id);
+  if (v3Url) {
+    // 308 Permanent Redirect. See the header note for why not 301.
+    permanentRedirect(v3Url);
+  }
+  // ────────────────────────────────────────────────────────────────────────
+
   // If the slug arrived non-canonical (e.g. somebody linked a derived form),
-  // 301 to the canonical composition. This is the dedup belt-and-braces.
-  const canonical = buildAuctionSlug(a);
+  // redirect to the canonical composition. Belt-and-braces dedup — only
+  // reachable for rows with NO v3 url, since a v3 row left above.
+  const canonical = buildAuctionSlug(a!);
   if (canonical !== slug) {
     redirect(`/subastas/subasta/${canonical}`);
   }
 
-  // Wave-B (2026-06-07): server-resolve a fuller row for JSON-LD. The same
-  // row gives us coords/price/endsAt/postalCode without a second roundtrip
-  // through the API. Kept to a `select` (NOT findUnique-with-include) so the
-  // build never breaks on additive migrations.
-  const seo = await prisma.auction.findUnique({
-    where: { id: a.id },
-    select: {
-      id: true,
-      boeId: true,
-      title: true,
-      category: true,
-      province: true,
-      municipality: true,
-      status: true,
-      auctionType: true,
-      propertyType: true,
-      address: true,
-      latitude: true,
-      longitude: true,
-      postalCode: true,
-      appraisalValue: true,
-      valorSubasta: true,
-      endsAt: true,
-      opensAt: true,
-      publishedAt: true,
-      // Sale-outcome fields (wave142) — feed the concluded-page "Resultado
-      // de la subasta" result block in the SSR teaser (Pixel 2026-07-18).
-      // saleResult + resultCheckedAt drive the same isConcludedIndexable gate
-      // the robots meta + sitemap use, so the block renders on EXACTLY the
-      // rows we index. soldPrice is BigInt CENTS (÷100 → €); soldDate = the
-      // recorded conclusion date. Aggregate financial fact only, NOT PII.
-      saleResult: true,
-      soldPrice: true,
-      soldDate: true,
-      resultCheckedAt: true,
-      propertyDescription: true,
-      lotDescription: true,
-      source: true,
-      // Wave-B2 (Pixel 2026-06-07): surface imageUrl so the SSR teaser can
-      // paint the same 3-rung imagery ladder (photo → map → neutral
-      // placeholder) the cards already use. Public information; no PII.
-      imageUrl: true,
-      // Wave E2 (2026-06-07) — vehicle fields surfaced for the SSR teaser
-      // so the address-led title resolution upstream can use them too,
-      // and so JSON-LD (future enhancement) can describe the vehicle.
-      // Honest-NULL on non-VEHICLE rows.
-      vehicleMake: true,
-      vehicleModel: true,
-      vehicleYear: true,
-    },
-  });
-  const jsonLd = seo ? buildAuctionJsonLd(seo) : null;
-
-  // Server-resolve initialFollowing for SSR-correct heart paint on the detail
-  // page. The client also reads `isFollowing` from /api/auctions/[id], so
-  // this is a small first-paint optimisation, not a correctness gate. When
-  // there's no session or no Favorite row, stays false (current behaviour).
-  // Best-effort; any failure (session lookup, DB blip) falls through to the
-  // existing client-side path.
-  // NOTE: passed to AuctionDetailClient via a new optional prop so existing
-  // call sites (legacy /auction/[id]) keep working unchanged.
-
-  // Wave-B2 ungate (Dennis 2026-07-31): the detail page is FULLY PUBLIC. Every
-  // viewer — anonymous, trial, paid — gets the full <AuctionDetailClient/>,
-  // SSR-seeded with the complete payload so the address / pricing / valuation /
-  // description / legal data / documents / timeline land in the initial HTML
-  // stream. Googlebot (and any no-JS client) sees the full information without
-  // executing JavaScript; the previous teaser + FullInfoWall gate is gone. The
-  // session is resolved ONLY to personalise `isFollowing` — it never withholds
-  // information. The paid product is alerts (see /api/alerts/route.ts).
-  let viewerUserId: string | undefined;
-  try {
-    const session = await auth();
-    viewerUserId = session?.user?.id;
-  } catch {
-    viewerUserId = undefined;
-  }
-
-  // Build the full payload with the SAME shared builder the API route uses, so
-  // the SSR HTML and the client's revalidation fetch can never disagree
-  // (no half-gated state). The JSON round-trip produces the exact wire shape
-  // the client already consumes from the API (Dates → ISO strings); the builder
-  // has already coerced every BigInt, so JSON.stringify is safe.
-  const payload = await buildAuctionDetailPayload(a.id, { viewerUserId });
-  if (!payload) notFound();
-  const initialData = JSON.parse(JSON.stringify(payload));
-
-  return (
-    <div className="min-h-screen bg-[var(--color-page)] pb-12">
-      {jsonLd && (
-        <script
-          type="application/ld+json"
-          // JSON.stringify is safe here — no user-supplied <, > in the
-          // graph keys; the values come from our schema columns.
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
-      )}
-      <main className="mx-auto max-w-editorial px-4 md:px-6 py-6 md:py-8">
-        {followFlag && <FollowConfirmBanner flag={followFlag} auctionId={a.id} />}
-        {/* Full public detail — SSR-seeded so the complete auction information
-            renders in the initial HTML for EVERYONE. The official-auction / bid
-            ACTION is now the auth-gated Participar button (wave169); the
-            official URL is resolved server-side and never enters this HTML. */}
-        <AuctionDetailClient
-          id={a.id}
-          initialData={initialData}
-        />
-      </main>
-    </div>
-  );
+  // No v3 url here by construction, so the path is the legacy self-canonical —
+  // the same string `generateMetadata` resolved for this render.
+  const path = resolveAuctionPath(a!, null);
+  const body = await renderAuctionDetail({ a: a!, path, followFlag });
+  if (!body) notFound();
+  return body;
 }
