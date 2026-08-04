@@ -1377,7 +1377,22 @@ class BOEScraper(BaseScraper):
                 'boe_link': f"{self.DETAIL_URL}?idSub={boe_id}",
                 'court_name': autoridad_gestora or None,
                 'published_at': datetime.now() - timedelta(days=5),  # Estimate
-                'ends_at': ends_at or datetime.now() + timedelta(days=7),
+                # HONEST-NULL (DATEFALLBACK, 2026-08-04). This used to fall back
+                # to `datetime.now() + timedelta(days=7)` — a pure invention with
+                # no source on the page. 17,749 stored rows carry that value
+                # (measured: |endsAt - createdAt - 7d| < 2min), and endsAt is
+                # copied verbatim into `soldDate` by the freeze, so the invention
+                # can end up published as a sale date.
+                #
+                # None is safe for both writers: database/adapter.py writes a
+                # column only when the value is not None, so a missing date can
+                # never blank an endsAt already stored, and a fresh insert simply
+                # lands NULL. Every consumer that acts on endsAt (the expiry
+                # sweep, the freeze sweep, ending-soon) already guards on
+                # `endsAt IS NOT NULL`, so a NULL is inert rather than wrong.
+                # The detail pass below overwrites this with the authoritative
+                # "Fecha de conclusión" whenever BOE publishes one.
+                'ends_at': ends_at,
             }
 
             # Persist the portal idSub explicitly into `auctionId` whenever
@@ -2448,24 +2463,61 @@ class BOEScraper(BaseScraper):
         town, _prov, _method = derive_municipality_from_address(text)
         return town
     
+    # An auction end date may ONLY come from a field that is LABELLED as the
+    # auction's conclusion. Anything else is a guess, and a guessed date is
+    # worse than no date at all: `endsAt` drives the expiry sweep
+    # (scheduler.monitor_status_changes), which flips a row to
+    # CONCLUIDA_PORTAL, and it is copied verbatim into `soldDate` by the freeze.
+    # A fabricated past date therefore *concludes an auction that never ran*.
+    #
+    # DEFECT REMOVED (DATEFALLBACK, 2026-08-04): this function used to carry a
+    # bare, unlabelled fallback `(\d{1,2})[/-](\d{1,2})[/-](\d{4})` that matched
+    # the FIRST date-shaped string anywhere in the search-result card. On rows
+    # where BOE publishes no auction dates yet (PROXIMA_APERTURA), that harvested
+    # whatever date the bien prose happened to contain:
+    #   "Fecha de matriculación: 07-07-2011"          -> endsAt 2011-07-07
+    #   "Escritura pública otorgada con fecha 29/09/2004" -> endsAt 2004-09-29
+    # (reproduced verbatim against the four rows repaired on 2026-08-04; see
+    # ghost_zombie_endsat_snapshot_20260804).
+    #
+    # "Fin"/"Hasta"/"Finaliza" are dropped too: they are not BOE auction-date
+    # labels, they are ordinary Spanish words that occur throughout bien prose
+    # and registry text ("finaliza la calle", "hasta el lindero"). Only the
+    # explicit conclusion labels BOE actually renders are accepted.
+    #
+    # The authoritative reader is `_extract_detail_date`, which is cell-anchored,
+    # prefers the tz-aware ISO form and keeps HH:MM:SS. This card-level reader is
+    # only a pre-detail hint; when it cannot find a labelled conclusion date the
+    # honest answer is None and the detail pass fills it in.
+    _END_DATE_LABEL_RE = re.compile(
+        r'Fecha\s+de\s+(?:conclusi[oó]n|fin(?:alizaci[oó]n)?)\s*[:\t\n]?\s*'
+        r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})'
+        r'(?:\s+(\d{1,2}):(\d{2}):(\d{2}))?',
+        re.IGNORECASE,
+    )
+
     def _extract_end_date(self, text: str) -> Optional[datetime]:
-        """Extract auction end date from text"""
-        # Look for date patterns like "Fin: 25/01/2026" or "Hasta: 25-01-2026"
-        patterns = [
-            r'(?:Fin|Hasta|Finaliza)[:\s]+(\d{1,2})[/-](\d{1,2})[/-](\d{4})',
-            r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})',
-        ]
-        
-        for pattern in patterns:
-            match = re.search(pattern, text)
-            if match:
-                try:
-                    day, month, year = match.groups()
-                    return datetime(int(year), int(month), int(day))
-                except:
-                    continue
-        
-        return None
+        """
+        Extract the auction end date from a search-result card.
+
+        ONLY a field explicitly labelled as the auction's conclusion date is
+        accepted ("Fecha de conclusión / de fin / de finalización"). Returns None
+        when no such label is present — never the nearest date-shaped string.
+        """
+        if not text:
+            return None
+        match = self._END_DATE_LABEL_RE.search(text)
+        if not match:
+            return None
+        day, month, year, hh, mm, ss = match.groups()
+        try:
+            return datetime(
+                int(year), int(month), int(day),
+                int(hh or 0), int(mm or 0), int(ss or 0),
+            )
+        except ValueError:
+            # An impossible calendar date is a parse failure, not a date.
+            return None
 
     def _fetch_detail_info(self, boe_id: str) -> Dict[str, Optional[str]]:
         """
