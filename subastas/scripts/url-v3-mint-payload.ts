@@ -23,7 +23,38 @@ import { resolveTown } from '@/lib/geo/resolve-town';
 import {
   buildDescriptorV3, buildAuctionPathV3, refTail, losesIdentifyingDetail, MAX_URL_LEN_V3,
 } from '@/lib/seo/descriptor-v3';
-import { PROVINCE_DB_KEY_TO_SLUG, slugify } from '@/lib/seo/slugs';
+import { PROVINCE_ALIAS_TO_CANONICAL, PROVINCE_DB_KEY_TO_SLUG, slugify } from '@/lib/seo/slugs';
+import municipalityAliases from '@/data/municipality-aliases.json';
+
+/**
+ * canonical "{prov}/{town}" -> every OTHER official spelling of that town, plus
+ * every alias spelling of the province. The address text almost always writes
+ * the locality in a different spelling than the canonical slug ("ELCHE" where
+ * the slug is `elx`), so these are what make the duplicate strippable.
+ */
+const ALIASES_BY_CANONICAL = (() => {
+  const m = new Map<string, string[]>();
+  const entries = (municipalityAliases as {
+    entries: Record<string, { canonical: string; ine: string; province: string }>;
+  }).entries;
+  for (const [key, v] of Object.entries(entries)) {
+    const [prov, aliasTown] = key.split('/');
+    const ck = `${prov}/${v.canonical}`;
+    if (!m.has(ck)) m.set(ck, []);
+    m.get(ck)!.push(aliasTown);
+  }
+  return m;
+})();
+
+const PROVINCE_ALIASES_BY_CANONICAL = (() => {
+  const m = new Map<string, string[]>();
+  for (const [alias, canon] of Object.entries(PROVINCE_ALIAS_TO_CANONICAL)) {
+    if (alias === canon) continue;
+    if (!m.has(canon)) m.set(canon, []);
+    m.get(canon)!.push(alias);
+  }
+  return m;
+})();
 
 /**
  * Route segments that already exist under /subastas. A province slug equal to
@@ -86,7 +117,13 @@ function main() {
     if (RESERVED_UNDER_SUBASTAS.has(provinceSlug)) reservedHits.add(`province:${provinceSlug}`);
     if (RESERVED_UNDER_PROVINCE.has(townSlug)) reservedHits.add(`town:${townSlug}`);
 
-    const d = buildDescriptorV3({ address: r.address, townSlug, provinceSlug });
+    const localityAliases = [
+      ...(ALIASES_BY_CANONICAL.get(`${provinceSlug}/${townSlug}`) ?? []),
+      ...(PROVINCE_ALIASES_BY_CANONICAL.get(provinceSlug) ?? []),
+    ];
+    const d = buildDescriptorV3({
+      address: r.address, townSlug, provinceSlug, postalCode: r.postalCode, localityAliases,
+    });
     if (d.signals.length) guarded += 1;
 
     const p = buildAuctionPathV3({

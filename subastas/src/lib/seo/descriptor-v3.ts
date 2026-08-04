@@ -71,7 +71,7 @@ export function compactUnit(folded: string): string {
  */
 export function stripTrailingLocality(seg: string, ...localities: string[]): string {
   let out = seg;
-  for (let pass = 0; pass < 4; pass += 1) {
+  for (let pass = 0; pass < 6; pass += 1) {
     const before = out;
     for (const loc of localities) {
       if (!loc || loc === 'sin-municipio') continue;
@@ -82,6 +82,29 @@ export function stripTrailingLocality(seg: string, ...localities: string[]): str
     if (out === before) break;
   }
   return out.replace(/-+$/, '');
+}
+
+/**
+ * Remove the row's OWN postcode from anywhere in the descriptor.
+ *
+ * Why this exists (measured on the first mint): Spanish addresses write the
+ * postcode MID-STRING — "CALLE ANACLA 4, 1 IZDA, 03203, ELCHE, Alicante" — so a
+ * tail-only stripper cannot reach it. 23,146 of 192,585 minted urls (12.0%)
+ * carried a 5-digit postcode inside the descriptor, and 23,047 of those had it
+ * mid-way rather than trailing.
+ *
+ * ⚠️ It strips ONLY the value this row actually carries in `Auction.postalCode`,
+ * never "any 5-digit token". A street number can be five digits; guessing would
+ * corrupt real addresses. Matching the row's own postcode is surgical and
+ * cannot false-positive on a house number unless that number IS the postcode.
+ */
+export function stripOwnPostcode(seg: string, postalCode: string | null | undefined): string {
+  const cp = (postalCode ?? '').trim();
+  if (!/^[0-9]{5}$/.test(cp)) return seg;
+  return seg
+    .replace(new RegExp(`(^|-)${cp}(-|$)`, 'g'), '$1')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-|-$/g, '');
 }
 
 /** Truncate on a hyphen (word) boundary. Never mid-word, never a dangling `-`. */
@@ -112,11 +135,25 @@ export function buildDescriptorV3(args: {
   address: string | null | undefined;
   townSlug: string;
   provinceSlug: string;
+  /** The row's own postcode — stripped from anywhere in the descriptor. */
+  postalCode?: string | null;
+  /**
+   * Other official spellings of this town/province (Castilian exonyms and
+   * co-official forms). Needed because the address usually writes the town in
+   * a DIFFERENT spelling than the canonical slug: the url segment is `elx` but
+   * the address says "ELCHE", `girona` but "GERONA", `lleida` but "LERIDA".
+   * Without these the duplicate survives — 17,273 urls repeated the locality
+   * in the first mint.
+   */
+  localityAliases?: string[];
   max?: number;
 }): DescriptorResult {
   const guarded = guardDescriptor(args.address);
   const folded = compactUnit(slugify(guarded.text));
-  const full = stripTrailingLocality(folded, args.townSlug, args.provinceSlug);
+  const noCp = stripOwnPostcode(folded, args.postalCode);
+  const full = stripTrailingLocality(
+    noCp, args.townSlug, args.provinceSlug, ...(args.localityAliases ?? []),
+  );
   const descriptor = capDescriptorV3(full, args.max ?? MAX_DESCRIPTOR_LEN_V3);
   return { descriptor, full, truncated: full.length > descriptor.length, signals: guarded.signals };
 }
