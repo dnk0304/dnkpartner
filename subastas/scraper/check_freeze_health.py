@@ -99,6 +99,11 @@ WHERE status = 'CONCLUIDA_PORTAL'
 
 PUJA_SIGNAL = '("pujaStatus" IS NOT NULL OR COALESCE("currentBidAmount",0) > 0)'
 
+# Statuses that end an auction WITHOUT ever producing a sale result (Ken ruling
+# 2026-08-04). Never freezable, never a violation, always reported under their
+# own label. Kept in shape with scheduler's FREEZE_TERMINAL_NO_RESULT.
+TERMINAL_NO_RESULT = ('CANCELADA',)
+
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -203,6 +208,20 @@ def main() -> int:
         incoherent = cur.fetchone()[0]
         print(f"INFO incoherent held back (endsAt NULL or future): {incoherent} "
               f"(not frozen by design; sweepable once endsAt passes)")
+
+        # 2d. TERMINAL WITHOUT A RESULT — labelled separately, never a violation.
+        # Kept in shape with scheduler.SchedulerClass.FREEZE_TERMINAL_NO_RESULT.
+        # A cancelled auction never produced a result, so freezing it would
+        # fabricate a sale. Reported under its own label so these rows can never
+        # be mistaken for a backlog the sweep is failing to drain — "nothing to
+        # do because terminal" vs "nothing to do because broken".
+        cur.execute(f"""SELECT count(*) FROM "Auction"
+                        WHERE status::text = ANY(%s)
+                          AND "saleResult" IS NULL AND {PUJA_SIGNAL}""",
+                    (list(TERMINAL_NO_RESULT),))
+        cancelled = cur.fetchone()[0]
+        print(f"INFO terminal-without-result (cancelled): {cancelled} "
+              f"(never freezable by design; excluded from the residual witness)")
 
         # 3. CONTRADICTED ROWS
         cur.execute(f"""SELECT count(*) FROM "Auction"

@@ -1073,9 +1073,9 @@ class ScraperScheduler:
     # counted and logged on every run, never frozen, and become sweepable on their
     # own the moment endsAt passes — no quarantine table, no manual step.
     #
-    # CANCELADA is deliberately NOT swept. A cancelled auction never produced a
-    # result; freezing it ADJUDICADA would fabricate a sale. Excluding it is not a
-    # gap in the invariant — it never reached a concluded state.
+    # CANCELADA is deliberately NOT swept, and is EXPLICITLY excluded below
+    # (FREEZE_TERMINAL_NO_RESULT) rather than merely left out of the witness
+    # allow-list. See the ruling on that constant.
 
     # Sweep predicate. Kept in shape with check_freeze_health.RECONCILE_SQL.
     FREEZE_RECONCILE_SQL = """
@@ -1109,6 +1109,29 @@ class ScraperScheduler:
     # exists to close. Making it identical to the sweep predicate would have made
     # it a tautology that is structurally always 0.
     FREEZE_WITNESS_FAMILY = ('CONCLUIDA_PORTAL', 'FINALIZADA_AUTORIDAD', 'FINISHED')
+
+    # TERMINAL-WITHOUT-A-RESULT (Ken ruling, 2026-08-04). Statuses that end an
+    # auction's life WITHOUT ever producing a sale result. They must never be
+    # swept — freezing a cancelled auction ADJUDICADA would fabricate a sale —
+    # and they must never sit in the witness, where ~139 permanently unfreezable
+    # rows would be indistinguishable from 139 rows the sweep is failing to
+    # reach. That is the distinction this constant exists to make:
+    #
+    #     residual  > 0  ->  nothing happened because something is BROKEN   (ALARM)
+    #     cancelled > 0  ->  nothing happened because the rows are TERMINAL  (info)
+    #
+    # This is an EXPLICIT, NAMED exclusion, not an implicit one. Before the
+    # ruling, CANCELADA was excluded only by being absent from
+    # FREEZE_WITNESS_FAMILY — an omission, which is exactly the kind of silent
+    # assumption that rots: anyone later widening the witness to "all terminal
+    # statuses" would have pulled 139 fabricated alarms in with it. The
+    # disjointness assertion in freeze_reconcile() makes that mistake LOUD
+    # instead of silent.
+    #
+    # Deliberately a code constant and NOT a schema/terminal-flag column: no
+    # migration is going into an armed deploy. If a downstream consumer needs
+    # this distinction in the DB later, that is its own dispatch.
+    FREEZE_TERMINAL_NO_RESULT = ('CANCELADA',)
 
     freeze_reconcile_failures = 0
 
@@ -1146,6 +1169,21 @@ class ScraperScheduler:
                 conn.rollback()
                 return
 
+            # The two families must stay disjoint. If a future edit widens the
+            # witness to cover a terminal-without-a-result status, the witness
+            # would alarm forever on rows that can never legitimately be frozen,
+            # and the alarm would be trained into noise. Fail loudly instead.
+            overlap = set(self.FREEZE_WITNESS_FAMILY) & set(self.FREEZE_TERMINAL_NO_RESULT)
+            if overlap:
+                self.freeze_reconcile_failures += 1
+                self.log(
+                    f"  SCHEDULER-ALARM Freeze reconcile misconfigured: {sorted(overlap)} "
+                    f"is both a witnessed and a terminal-without-result status — the "
+                    f"witness would alarm forever on rows that must never be frozen"
+                )
+                conn.rollback()
+                return
+
             cursor.execute(self.FREEZE_RECONCILE_SQL, (now, now))
             swept = cursor.rowcount
 
@@ -1179,6 +1217,19 @@ class ScraperScheduler:
             )
             incoherent = cursor.fetchone()[0]
 
+            # ---- TERMINAL-WITHOUT-A-RESULT: counted and LABELLED separately, so
+            # "nothing to do because these rows are terminal" can never be read as
+            # "nothing to do because the sweep is broken". Never an alarm. ----
+            cursor.execute(
+                """SELECT count(*) FROM "Auction"
+                   WHERE status::text = ANY(%s)
+                     AND "saleResult" IS NULL
+                     AND ("pujaStatus" IS NOT NULL
+                          OR COALESCE("currentBidAmount",0) > 0)""",
+                (list(self.FREEZE_TERMINAL_NO_RESULT),),
+            )
+            cancelled = cursor.fetchone()[0]
+
             conn.commit()
 
             # Unconditional heartbeat — logged even when swept == 0, so "the
@@ -1186,7 +1237,7 @@ class ScraperScheduler:
             # reconcile did not run".
             self.log(
                 f"  Freeze reconcile: swept={swept} residual={residual} "
-                f"incoherent={incoherent}"
+                f"incoherent={incoherent} cancelled={cancelled}"
             )
             if residual > 0:
                 self.freeze_reconcile_failures += 1

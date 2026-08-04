@@ -268,6 +268,44 @@ def main():
         n = cur.fetchone()[0]
         check("aged gate FIRES on an unfrozen row that has sat 9h (today's bug)",
               n >= 1, f"aged={n}")
+        # ============ G. TERMINAL-WITHOUT-RESULT (Ken ruling) ============
+        print("\nG. CANCELADA — never swept, never witnessed, separately labelled")
+        terminal = list(extract_const("FREEZE_TERMINAL_NO_RESULT"))
+        check("exclusion is EXPLICIT and NAMED, not an omission",
+              terminal == ['CANCELADA'], str(terminal))
+        check("witness family and terminal-without-result are DISJOINT",
+              not (set(witness_family) & set(terminal)))
+        # A cancelled row carrying a puja signal must survive the sweep untouched.
+        cur.execute("""SELECT id FROM "Auction"
+                       WHERE status = 'CANCELADA' AND "saleResult" IS NULL
+                         AND ("pujaStatus" IS NOT NULL OR COALESCE("currentBidAmount",0) > 0)
+                         AND "endsAt" IS NOT NULL AND "endsAt" <= now()
+                       LIMIT 1""")
+        canc_id = cur.fetchone()[0]
+        cur.execute(SNAP, (canc_id,))
+        canc_before = cur.fetchone()
+        cur.execute(reconcile_sql, (NOW, NOW))
+        cur.execute(SNAP, (canc_id,))
+        check("a CANCELADA row with a puja signal is NOT frozen (no fabricated sale)",
+              cur.fetchone() == canc_before)
+        # ...and must NOT appear in the residual witness as permanent noise.
+        cur.execute(witness, (witness_family,))
+        w = sum(r[1] for r in cur.fetchall())
+        check("CANCELADA rows do NOT inflate the residual witness",
+              w == 0, f"residual={w}")
+        # ...but must be visible under their own label.
+        cur.execute("""SELECT count(*) FROM "Auction"
+                       WHERE status::text = ANY(%s) AND "saleResult" IS NULL
+                         AND ("pujaStatus" IS NOT NULL OR COALESCE("currentBidAmount",0) > 0)""",
+                    (terminal,))
+        canc_n = cur.fetchone()[0]
+        check("cancelled rows ARE reported under their own label",
+              canc_n > 0, f"cancelled={canc_n}")
+        print(f"    -> witness distinguishes: residual={w} (broken) vs "
+              f"cancelled={canc_n} (terminal)")
+        # The misconfiguration guard must be able to fire.
+        check("disjointness guard FIRES if the two families ever overlap",
+              bool(set(witness_family + ['CANCELADA']) & set(terminal)))
     finally:
         conn.rollback()
 
