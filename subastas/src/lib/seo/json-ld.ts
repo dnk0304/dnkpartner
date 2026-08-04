@@ -85,14 +85,31 @@ function statusToAvailability(status: string | null | undefined): string {
  * Google parses every node. Order doesn't matter to Google but we keep
  * Product → Place → BreadcrumbList for legibility.
  */
-export function buildAuctionJsonLd(auction: AuctionLike): object | null {
-  const canonicalSlug = buildAuctionSlug({
+export function buildAuctionJsonLd(
+  auction: AuctionLike,
+  /**
+   * ⭐ URL-v3: the ABSOLUTE canonical url of the page being rendered, resolved
+   * once by `resolveAuctionPath` and passed down.
+   *
+   * It is optional purely so no other caller has to change; when omitted the
+   * legacy derivation below is used, exactly as before.
+   *
+   * Why it is a parameter at all: this graph stamps the page url into `@id`,
+   * `url`, the Offer, the Place and the last BreadcrumbList item. If the
+   * builder kept deriving it itself, a page served at a v3 url would emit a
+   * graph pointing at the LEGACY url while <head> declared the v3 one
+   * canonical — a page contradicting itself in two vocabularies at once, which
+   * is precisely the failure Ken called "worse than either choice alone".
+   * Taking it as an argument makes the head tag and the graph the same string.
+   */
+  canonicalPageUrl?: string,
+): object | null {
+  const pageUrl = canonicalPageUrl ?? `${SITE}/subastas/subasta/${buildAuctionSlug({
     id: auction.id,
     auctionType: auction.auctionType ?? null,
     province: auction.province ?? null,
     municipality: auction.municipality ?? null,
-  });
-  const pageUrl = `${SITE}/subastas/subasta/${canonicalSlug}`;
+  })}`;
 
   const displayName = auctionDisplayTitle({
     address: auction.address ?? null,

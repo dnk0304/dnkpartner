@@ -46,8 +46,8 @@ model Auction {
   // a dead source link ALONE never hides a row (real-data-but-dead-link rows,
   // e.g. the suspended Las Palmas auction, stay KEPT + frozen); only a row that
   // never captured real information is an empty shell.
-  inScope      Boolean       @default(true)
-  scopeReason  String?
+  inScope     Boolean @default(true)
+  scopeReason String?
 
   // Core auction values
   // Nullable: the real Tasación comes from the BOE detail page; when genuinely
@@ -828,19 +828,19 @@ model AuctionOutcomeStats {
   id String @id @default(cuid())
 
   // Month bucket "YYYY-MM".
-  period String
+  period       String
   // 'PUBLISHED' (on publishedAt) | 'CONCLUDED' (on endsAt). Both computed —
   // Dennis decision D3 (which the UI leads with) pending, so store both.
-  periodBasis String
+  periodBasis  String
   // '' = national rollup; otherwise the province.
-  province String @default("")
+  province     String @default("")
   // '' = province-level (or national) rollup; otherwise the municipality.
   municipality String @default("")
   // '' = all-categories rollup; otherwise the DB category label.
-  category String @default("")
+  category     String @default("")
   // Canonical outcome bucket: VENDIDA | DESIERTA | CANCELADA |
   // FINALIZADA_SIN_RESULTADO | INDETERMINADO.
-  outcome String
+  outcome      String
 
   // Always-emitted count of auctions in this bucket.
   count Int
@@ -908,4 +908,51 @@ model NoticiaMonthly {
   @@index([province, period])
   @@index([period])
   @@index([published, period])
+}
+
+/// ============================================================================
+/// URL-v3 minted permanent URLs. REGISTERED SO PRISMA CANNOT DROP IT.
+/// ============================================================================
+///
+/// This table holds the 192,589 permanent auction URLs. It was created by the
+/// mint (raw DDL), NOT by Prisma, and for a while it was absent from this file
+/// entirely — which made it *unknown* to Prisma, and therefore droppable:
+/// `prisma db push` removes tables the schema does not declare. Nothing would
+/// have warned anyone. `prisma migrate deploy` (what the Dockerfile runs) never
+/// touches an unmanaged table, so the rows were safe in practice, but "safe
+/// because of which command we happen to run" is a habit, not a property.
+///
+/// Declaring it here fixes THE TABLE: `db push` now sees a table it is supposed
+/// to keep. `scripts/db-target-guard.ts` fixes THE CLASS, by refusing a
+/// destructive push at an unproven target at all (Ken, 2026-08-04).
+///
+/// @@ignore keeps it OUT of the generated Client on purpose. Reads go through
+/// raw SQL in `src/lib/seo/auction-url.ts` — one PK probe and one UNIQUE-index
+/// probe on the render path — and the writer is the mint script. Exposing a
+/// Client model would invite a findMany over 192,589 rows from a request path.
+///
+/// ⚠️ The shape below must stay identical to the live table. It is not taken on
+/// trust: `npm run guard:db-model` runs `prisma migrate diff` against a real
+/// database carrying the minted table and fails if the two have drifted.
+/// The CHECK constraints (url length <= 200, url LIKE '/subastas/%',
+/// town_source in a 2-value set) are enforced in the DB and are not expressible
+/// in Prisma; they live in the migration and must not be dropped.
+model AuctionUrlV3 {
+  auctionId      String   @id @map("auction_id")
+  boeId          String   @unique @map("boe_id")
+  url            String   @unique
+  provinceSlug   String   @map("province_slug")
+  townSlug       String   @map("town_slug")
+  townSource     String   @map("town_source")
+  ine            String?
+  refTail        String   @map("ref_tail")
+  descriptor     String?
+  descriptorFull String?  @map("descriptor_full")
+  truncated      Boolean
+  guardSignals   String?  @map("guard_signals")
+  mintedAt       DateTime @default(now()) @map("minted_at") @db.Timestamptz(6)
+
+  @@index([provinceSlug, townSlug], map: "auction_url_v3_town_idx")
+  @@map("auction_url_v3")
+  @@ignore
 }
