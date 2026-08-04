@@ -9,6 +9,10 @@
 import { unstable_cache } from 'next/cache';
 import { AuctionStatus, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+// The canonical status predicates. `buildActiveFirstCaseSql` (used by
+// /api/auctions) builds its ORDER BY CASE from these SAME two functions, which
+// is what keeps the hub's SSR order and the client list's order from drifting.
+import { isActiveStatus, isPreAuctionStatus } from '@/lib/auction-status';
 import {
   TIPO_SLUG_TO_DB_KEYS,
   type TipoSlug,
@@ -32,13 +36,19 @@ type CountInput = {
   municipality?: string | null;
 };
 
-async function _countActive({ province, auctionTypeKeys, category, municipality }: CountInput): Promise<number> {
-  const where: Prisma.AuctionWhereInput = { status: { in: ACTIVE_STATUSES } };
-  if (province) where.province = province;
-  if (auctionTypeKeys && auctionTypeKeys.length > 0) where.auctionType = { in: auctionTypeKeys };
-  if (category) where.category = category;
-  if (municipality) where.municipality = municipality;
-  return prisma.auction.count({ where });
+/**
+ * The count shown in the H1 / <title> ("N subastas activas en Madrid").
+ *
+ * ⚠️ It now uses EXACTLY the same predicate as the list below (`scopedWhere`).
+ * It did not before: the count omitted `inScope`, so a hub could advertise a
+ * number it then failed to show — the count included soft-hidden rows the list
+ * filtered out. Found while adding the clock guard (2026-08-04); left
+ * un-diverged now, because a count that disagrees with the rows underneath it
+ * is precisely what a "does this hub show its active auctions" sweep flags,
+ * and the two drifting apart again is the failure mode worth designing out.
+ */
+async function _countActive(args: CountInput): Promise<number> {
+  return prisma.auction.count({ where: scopedWhere(args) });
 }
 
 /** Memoised count (60s cache — survives traffic bursts without hammering PG). */
@@ -118,6 +128,10 @@ const SEO_CARD_SELECT = {
   valorSubasta: true,
   claimedAmount: true,
   endsAt: true,
+  // Not rendered on the card — it is the SECONDARY sort key of the `active_first`
+  // ordering (status tier, then publishedAt DESC), so it has to be selected for
+  // the hub list to sort the same way the client list does.
+  publishedAt: true,
   // Ungated (Dennis 2026-07-31): auction data is fully public — the card shows
   // the real street address, no registration wall.
   address: true,
@@ -133,8 +147,40 @@ export type ScopedAuctionPage = {
   pageSize: number;
 };
 
+/**
+ * ⭐ THE CLOCK GUARD, Prisma form (Ken, 2026-08-04).
+ *
+ * Twin of `ACTIVE_CLOCK_GUARD_SQL` in `@/lib/auction-status` — same rule, same
+ * null-safety, expressed for a Prisma `where`:
+ *
+ *     endsAt IS NULL OR endsAt > now()
+ *
+ * WHY IT IS HERE. The hub list is ordered by status tier, but membership was
+ * status-only, and a stored status can be STALE — the scheduler sweep lags, so
+ * rows still marked PROXIMA_APERTURA sit in the table with an `endsAt` years in
+ * the past. Under the previous `endsAt ASC` ordering those rows sorted to
+ * position 1, and `/subastas/madrid` opened with auctions that ended in **2011
+ * and 2014**. Four such rows corpus-wide occupied the top slots of three
+ * province hubs plus the Madrid town hub — the most valuable real estate on the
+ * site, showing dead inventory.
+ *
+ * Null-safe deliberately: a row with no `endsAt` (the BOE has not published an
+ * end timestamp, common for PROXIMA_APERTURA) is still genuinely upcoming and
+ * must NOT be filtered out. That is also why the old ordering was wrong in the
+ * other direction — Postgres sorts NULLs last under ASC, so 48 active rows,
+ * including CELEBRANDOSE auctions being held *right now*, sank to the bottom.
+ * Ordering by status tier instead of by `endsAt` dissolves that entirely.
+ */
+function activeClockGuard(): Prisma.AuctionWhereInput {
+  return { OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }] };
+}
+
 function scopedWhere({ province, auctionTypeKeys, category, municipality }: CountInput): Prisma.AuctionWhereInput {
-  const where: Prisma.AuctionWhereInput = { status: { in: ACTIVE_STATUSES }, inScope: true };
+  const where: Prisma.AuctionWhereInput = {
+    status: { in: ACTIVE_STATUSES },
+    inScope: true,
+    ...activeClockGuard(),
+  };
   if (province) where.province = province;
   if (auctionTypeKeys && auctionTypeKeys.length > 0) where.auctionType = { in: auctionTypeKeys };
   if (category) where.category = category;
@@ -148,19 +194,53 @@ async function _findScopedAuctionsPage(
   const pageSize = args.pageSize && args.pageSize > 0 ? Math.floor(args.pageSize) : SEO_PAGE_SIZE;
   const page = Number.isFinite(args.page) && args.page > 0 ? Math.floor(args.page) : 1;
   const where = scopedWhere(args);
-  const [total, rows] = await Promise.all([
+
+  // ⭐ ORDERING NOW MATCHES THE CLIENT LIST EXACTLY (Ken, 2026-08-04).
+  //
+  // Was `endsAt ASC, id ASC` — soonest-closing first. The hydrated list
+  // (`SubastasListClient` -> /api/auctions) has defaulted to `active_first`
+  // since wave173, so the crawlable block and the list a user ends up looking
+  // at were ordered by different rules on the same page. Googlebot only ever
+  // sees the SSR order, and the URL-v3 flip is the worst possible moment to
+  // have the bot and the user disagree about what a hub's best content is.
+  //
+  // The rule is: status tier (active -> upcoming -> finished), then
+  // `publishedAt` DESC, then `id` DESC — identical to /api/auctions' SORT_MAP
+  // entry for `active_first`.
+  //
+  // Prisma cannot express a CASE in `orderBy`. Rather than write a second,
+  // raw-SQL copy of the membership predicate — which would be a second thing to
+  // drift, the exact defect this change exists to remove — the tier is applied
+  // in JS from `isActiveStatus` / `isPreAuctionStatus`: the SAME two predicates
+  // `buildActiveFirstCaseSql` builds its CASE from, in the same module that
+  // owns the status sets. One definition of "active", one of "upcoming", used
+  // by both surfaces.
+  //
+  // Sorting in memory is safe here because a hub scope is small: 853 active
+  // rows corpus-wide, at most 103 in the largest province. This is not a
+  // 240k-row sort, and `scopedWhere` still does all the filtering in Postgres.
+  const [total, matching] = await Promise.all([
     prisma.auction.count({ where }),
-    prisma.auction.findMany({
-      where,
-      // Deterministic + stable across requests so skip/take pages never overlap
-      // or skip a row (same rule the sitemap detail chunks rely on). endsAt asc
-      // surfaces the soonest-closing auctions first; id asc is the tiebreak.
-      orderBy: [{ endsAt: 'asc' }, { id: 'asc' }],
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      select: SEO_CARD_SELECT,
-    }),
+    prisma.auction.findMany({ where, select: SEO_CARD_SELECT }),
   ]);
+
+  const tier = (status: unknown): number => {
+    if (isActiveStatus(status as string)) return 0;
+    if (isPreAuctionStatus(status as string)) return 1;
+    return 2;
+  };
+  const publishedMs = (r: ScopedAuctionCard): number =>
+    r.publishedAt instanceof Date ? r.publishedAt.getTime() : Number.NEGATIVE_INFINITY;
+
+  const sorted = [...matching].sort((a, b) => {
+    const t = tier(a.status) - tier(b.status);
+    if (t !== 0) return t;
+    const p = publishedMs(b) - publishedMs(a); // publishedAt DESC, nulls last
+    if (p !== 0) return p;
+    return a.id < b.id ? 1 : a.id > b.id ? -1 : 0; // id DESC — the same tiebreak
+  });
+
+  const rows = sorted.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   return { rows, total, totalPages, page, pageSize };
 }
