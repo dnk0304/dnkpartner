@@ -15,12 +15,15 @@
  */
 import { readFileSync } from 'node:fs';
 import { resolveTown, type TownResolution } from '@/lib/geo/resolve-town';
-import { guardDescriptor, type StripKind } from '@/lib/seo/descriptor-guard';
-import { categoryKeyword, capDescriptor } from '@/lib/seo/slug-v2';
+import { type StripKind } from '@/lib/seo/descriptor-guard';
+import {
+  buildDescriptorV3, buildAuctionPathV3, refTail,
+  MAX_DESCRIPTOR_LEN_V3, MAX_URL_LEN_V3,
+} from '@/lib/seo/descriptor-v3';
 import { PROVINCE_DB_KEY_TO_SLUG, slugify } from '@/lib/seo/slugs';
 
-const DESCRIPTOR_CAP = 80;
-const TOTAL_URL_CEILING = 200;
+const DESCRIPTOR_CAP = MAX_DESCRIPTOR_LEN_V3;
+const TOTAL_URL_CEILING = MAX_URL_LEN_V3;
 
 type Row = {
   id: string;
@@ -62,13 +65,6 @@ function parseCsv(text: string): Row[] {
     }));
 }
 
-/** The official BOE/portal ref tail, with lotes expanded. Never truncated. */
-function refTail(boeId: string): string {
-  const m = boeId.match(/^(.*)-L(\d+)$/);
-  if (m) return `${m[1].toLowerCase()}-lote-${m[2]}`;
-  return boeId.toLowerCase();
-}
-
 function main() {
   const file = process.argv[2];
   if (!file) { console.error('usage: url-v3-premint-proof.ts <mintset.csv>'); process.exit(2); }
@@ -106,27 +102,25 @@ function main() {
     const provSlug = PROVINCE_DB_KEY_TO_SLUG[r.province];
     if (!provSlug) { noProvinceSlug += 1; continue; }
 
-    // ── GUARD AT MINT TIME, every row, every category ──────────────────────
-    const guarded = guardDescriptor(r.address);
-    if (guarded.signals.length) {
-      for (const s of guarded.signals) guardCounts[s.kind] += 1;
+    // ── GUARD + DESCRIPTOR AT MINT TIME, every row, every category ─────────
+    const townSlug = slugify(town.municipality);
+    const d = buildDescriptorV3({
+      address: r.address, townSlug, provinceSlug: provSlug, max: DESCRIPTOR_CAP,
+    });
+    if (d.signals.length) {
+      for (const s of d.signals) guardCounts[s.kind] += 1;
       guardedRows.push({
         boeId: r.boeId, category: r.category,
-        kinds: [...new Set(guarded.signals.map((s) => s.kind))],
-        matched: guarded.signals.map((s) => s.matched),
+        kinds: [...new Set(d.signals.map((s) => s.kind))],
+        matched: d.signals.map((s) => s.matched),
       });
     }
+    if (d.truncated) atCap += 1;
 
-    const townSlug = slugify(town.municipality);
-    const kw = categoryKeyword(r.category);
-    const descriptorFull = slugify(guarded.text);
-    const descriptor = capDescriptor(descriptorFull, DESCRIPTOR_CAP);
-    if (descriptorFull.length > DESCRIPTOR_CAP) atCap += 1;
-
-    const ref = refTail(r.boeId);
-    const url = descriptor
-      ? `/subastas/${provSlug}/${townSlug}/${kw}-${descriptor}-${ref}`
-      : `/subastas/${provSlug}/${townSlug}/${kw}-${townSlug}-${ref}`;
+    const url = buildAuctionPathV3({
+      provinceSlug: provSlug, townSlug, category: r.category,
+      descriptor: d.descriptor, ref: refTail(r.boeId),
+    });
 
     maxLen = Math.max(maxLen, url.length);
     if (url.length > TOTAL_URL_CEILING) overCeiling += 1;
@@ -169,7 +163,7 @@ function main() {
   console.log(`  distinct urls                      ${urls.size}`);
   console.log(`  DUPLICATE GROUPS                   ${dupGroups.length}`);
   for (const [u, ids] of dupGroups.slice(0, 10)) console.log(`    ${u} <- ${ids.join(', ')}`);
-  console.log(`  descriptors hitting the 80 cap     ${atCap}  (logged as a signal, not an error)`);
+  console.log(`  descriptors hitting the ${DESCRIPTOR_CAP} cap    ${atCap}  (logged as a signal, not an error)`);
   console.log(`  max url length                     ${maxLen}`);
   console.log(`  urls over the ${TOTAL_URL_CEILING}-char ceiling      ${overCeiling}`);
 
