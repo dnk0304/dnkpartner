@@ -3212,7 +3212,25 @@ class BOEScraper(BaseScraper):
         resume_at  — "Fecha de reanudación prevista: DD-MM-YYYY HH:MM:SS CET
                       (ISO: 2026-06-08T12:00:00+02:00)". PREFER the unambiguous
                       ISO form; fall back to DD-MM-YYYY HH:MM:SS. Honest-NULL
-                      when neither is present (an aware datetime otherwise).
+                      when neither is present.
+
+                      RETURNS A NAIVE datetime carrying MADRID WALL TIME — the
+                      same convention every other date on this row uses.
+                      `Auction.resumeAt` (like `endsAt` / `opensAt`) is
+                      `timestamp without time zone`, and `_extract_detail_date`
+                      stores wall time for both of its branches: the dd-mm form
+                      literally, and the ISO form via a strptime whose pattern
+                      stops at seconds and DISCARDS the offset.
+
+                      TZ DEFECT FIXED (2026-08-04, found while tracing the
+                      DATEFALLBACK second writer): this branch used to return
+                      `datetime.fromisoformat(...)` unchanged, which is
+                      tz-AWARE. Writing an aware value into a naive column
+                      normalises it to UTC, so BOE's "12:00:00 CET" landed as
+                      10:00:00 — every resume time stored and displayed TWO
+                      HOURS EARLY. 160 of 164 stored values sat at 10:00:00.
+                      The dd-mm fallback branch below was always correct, so the
+                      two branches of this one function disagreed by the offset.
         motive     — the parenthetical immediately after "temporalmente
                       suspendida (...)" — the text INSIDE the parens, NOT the
                       boilerplate. Honest-NULL for a bare suspension (no parens).
@@ -3231,7 +3249,12 @@ class BOEScraper(BaseScraper):
             body_text, re.IGNORECASE)
         if m:
             try:
-                resume_at = datetime.fromisoformat(m.group(1).strip())
+                parsed = datetime.fromisoformat(m.group(1).strip())
+                # Keep the wall time BOE printed, drop the offset. `parsed` is
+                # aware whenever the ISO string carries one; `.replace(tzinfo=
+                # None)` keeps 12:00 as 12:00 instead of normalising it to
+                # 10:00 UTC on write. No-op when the string had no offset.
+                resume_at = parsed.replace(tzinfo=None)
             except (ValueError, TypeError):
                 resume_at = None
         if resume_at is None:
