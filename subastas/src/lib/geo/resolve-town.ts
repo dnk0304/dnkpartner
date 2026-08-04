@@ -1,6 +1,18 @@
 import { resolveCpMunicipality } from '@/lib/geo/cp-municipality';
 import { lookupMunicipality } from '@/lib/geo/municipality-gazetteer';
 import { municipalityKey } from '@/lib/geo/municipality-key';
+import { PROVINCE_DB_KEY_TO_SLUG, slugify } from '@/lib/seo/slugs';
+
+/**
+ * Compare two province names through the canonical slug map so
+ * "Illes Balears"/"Baleares" and "A Coruña"/"a-coruna" compare equal.
+ */
+function sameProvince(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  const sa = PROVINCE_DB_KEY_TO_SLUG[a] ?? slugify(a);
+  const sb = PROVINCE_DB_KEY_TO_SLUG[b] ?? slugify(b);
+  return Boolean(sa) && sa === sb;
+}
 
 /**
  * TOWN RESOLUTION for the v3 permanent URL scheme — Ken's precedence ladder
@@ -38,6 +50,8 @@ export type TownDegradeReason =
   | 'conflict-cp-vs-stored'
   /** CP-MUNI silent, and the stored string is not a municipality (or ambiguous). */
   | 'stored-not-in-gazetteer'
+  /** Stored name IS a municipality, but one in a DIFFERENT province than the row. */
+  | 'province-mismatch-stored'
   /** CP-MUNI silent and there is no stored municipality at all. */
   | 'no-municipality'
   /** The row has no usable province either — it cannot be placed at all. */
@@ -112,6 +126,27 @@ export function resolveTown(input: TownInput): TownResolution {
 
   // ── Rung 2: CP-MUNI silent → stored municipality, gazetteer-validated. ────
   if (storedEntry) {
+    // ⭐ PROVINCE CROSS-CHECK — added 2026-08-04 after it was caught in the
+    // minted sample set. Gazetteer validation alone proves only that the string
+    // names *a* Spanish municipality, NOT that it names one in THIS row's
+    // province. Without this check, short or truncated corpus names silently
+    // resolve to a same-named municipality elsewhere:
+    //   "Oropesa"  (Castellón: Oropesa del Mar) -> matched Oropesa, TOLEDO
+    //   "Abanto"   (Bizkaia: Abanto y Ciérvana) -> matched Abanto, ZARAGOZA
+    //   "Aguadulce"(Almería, a locality)        -> matched Aguadulce, SEVILLA
+    //   "Madrid"   under province A Coruña      -> plainly wrong
+    // 630 of 113,453 rung-2 rows (0.56%) were affected in the first mint.
+    // This is exactly the Torrent->Girona failure class the INE gazetteer was
+    // adopted to eliminate; rung 1 was province-checked and rung 2 was not.
+    // Mismatch DEGRADES — same rule as a contradiction: never guess a province.
+    if (!sameProvince(storedEntry.province, input.province)) {
+      return {
+        status: 'degraded',
+        source: 'province',
+        reason: 'province-mismatch-stored',
+        storedMunicipality: storedRaw,
+      };
+    }
     return {
       status: 'resolved',
       // Emit the INE OFFICIAL denomination, not the corpus spelling, so two

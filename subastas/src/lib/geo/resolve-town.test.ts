@@ -88,6 +88,28 @@ section('rung 2 — stored municipality, gazetteer-validated');
     r.status === 'resolved' && r.source === 'stored-gazetteer', JSON.stringify(r));
 }
 
+section('⭐ rung 2 province cross-check (the 630-url mint defect)');
+{
+  // "Oropesa" is a real municipality in TOLEDO; the Castellon rows mean
+  // "Oropesa del Mar". Gazetteer validation alone would happily place a
+  // Castellon auction in Toledo.
+  const a = resolveTown({ postalCode: null, storedMunicipality: 'Oropesa', province: 'Castellón' });
+  ok('a real municipality in the WRONG province degrades',
+    a.status === 'degraded' && a.reason === 'province-mismatch-stored', JSON.stringify(a));
+
+  const b = resolveTown({ postalCode: null, storedMunicipality: 'Madrid', province: 'A Coruña' });
+  ok('plainly wrong province/town pair degrades',
+    b.status === 'degraded' && b.reason === 'province-mismatch-stored', JSON.stringify(b));
+
+  const c = resolveTown({ postalCode: null, storedMunicipality: 'Oropesa', province: 'Toledo' });
+  ok('the SAME name resolves when the province agrees',
+    c.status === 'resolved' && c.source === 'stored-gazetteer', JSON.stringify(c));
+
+  const d = resolveTown({ postalCode: null, storedMunicipality: 'Palma', province: 'Illes Balears' });
+  ok('province name variants compare equal (Illes Balears/Baleares)',
+    d.status === 'resolved', JSON.stringify(d));
+}
+
 section('rung 3 — degrade to the province page');
 {
   const a = resolveTown({ postalCode: null, storedMunicipality: 'Vitoria-Gaseiz', province: 'Álava' });
