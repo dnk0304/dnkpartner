@@ -49,7 +49,7 @@ export const StatusToggle: React.FC<StatusToggleProps> = ({
             currentStatus === null ? 'bg-[var(--color-surface)]' : countInactive
           }`}
         >
-          {totalCount.toLocaleString()}
+          {totalCount.toLocaleString('es-ES')}
         </span>
       </button>
 
@@ -68,7 +68,7 @@ export const StatusToggle: React.FC<StatusToggleProps> = ({
             currentStatus === 'active' ? 'bg-[var(--color-surface)]' : countInactive
           }`}
         >
-          {activeCount.toLocaleString()}
+          {activeCount.toLocaleString('es-ES')}
         </span>
       </button>
 
@@ -87,7 +87,7 @@ export const StatusToggle: React.FC<StatusToggleProps> = ({
             currentStatus === 'finished' ? 'bg-[var(--color-surface)]' : countInactive
           }`}
         >
-          {finishedCount.toLocaleString()}
+          {finishedCount.toLocaleString('es-ES')}
         </span>
       </button>
 
@@ -106,7 +106,7 @@ export const StatusToggle: React.FC<StatusToggleProps> = ({
             currentStatus === 'pre-auction' ? 'bg-[var(--color-surface)]' : countInactive
           }`}
         >
-          {preAuctionCount.toLocaleString()}
+          {preAuctionCount.toLocaleString('es-ES')}
         </span>
       </button>
     </div>

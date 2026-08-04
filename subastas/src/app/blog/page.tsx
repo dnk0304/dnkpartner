@@ -27,6 +27,7 @@ import {
 } from "@/components/blog/article-theme";
 import { ArticleCard } from "@/components/blog/ArticleCard";
 import { CategoryCarousel } from "@/components/blog/CategoryCarousel";
+import { APP_TIME_ZONE } from "@/components/observatory/format";
 
 // Rendered on-demand; revalidate every 5 min for cheap caching without
 // requiring a DB at build time.
@@ -56,14 +57,10 @@ export default async function BlogIndexPage() {
   const t = await getTranslations("blogPage");
   const articles = await listPublishedArticles({ take: 200 });
 
-  const fmtDate = (d: Date | null): string | undefined =>
-    d
-      ? d.toLocaleDateString(locale === "en" ? "en-US" : "es-ES", {
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-        })
-      : undefined;
+  // Hydration (#418), not style: an unpinned formatter uses the HOST zone (UTC in the
+  // container, Europe/Madrid in the browser) and renders a different day on each side.
+  const dateFmt = new Intl.DateTimeFormat(locale === "en" ? "en-US" : "es-ES", { day: "numeric", month: "long", year: "numeric", timeZone: APP_TIME_ZONE });
+  const fmtDate = (d: Date | null): string | undefined => (d ? dateFmt.format(d) : undefined);
 
   // Group by resolved theme key (stable, matches Vinci's 12 cover themes).
   const groups = new Map<ThemeKey, PublicArticleListItem[]>();

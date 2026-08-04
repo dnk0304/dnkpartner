@@ -15,6 +15,7 @@
  */
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { formatDateMed } from "@/components/observatory/format";
 
 type Status = "DRAFT" | "PUBLISHED";
 type StatusFilter = "ALL" | Status;
@@ -217,11 +218,7 @@ export function AdminBlogList() {
                       <StatusBadge status={a.status} />
                     </td>
                     <td className="px-4 py-3 text-xs text-[var(--color-ink-quiet)]">
-                      {new Date(a.updatedAt).toLocaleDateString("es-ES", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
+                      {formatDateMed(a.updatedAt)}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">

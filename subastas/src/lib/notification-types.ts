@@ -7,6 +7,8 @@
  * drift is loud (TS won't tolerate a renamed field).
  */
 
+import { APP_TIME_ZONE } from "@/components/observatory/format";
+
 export type NotifyChannel = "email" | "push" | "inapp";
 
 /**
@@ -179,11 +181,22 @@ export const PREF_FIELD_LABELS_ES: Record<
   },
 };
 
+// Only ever rendered from NotificationBell / NotificationInbox, whose rows arrive from a client
+// useEffect fetch — the list is empty during SSR, so this never lands in SSR HTML.
+// intl-gate-ok: client-fetched notification rows, never present in SSR HTML
 const RTF = typeof Intl !== "undefined" ? new Intl.RelativeTimeFormat("es-ES", { numeric: "auto" }) : null;
-const DTF =
+// Hydration (#418), not style: pinned zone, and the date+time string is COMPOSED from two
+// single-purpose formatters with a connector we own. Asking ICU for one compound date+time
+// pattern lets it pick the connector literal, and Node and Chromium disagree (", " vs ", a las ").
+const DTF_DATE =
   typeof Intl !== "undefined"
-    ? new Intl.DateTimeFormat("es-ES", { dateStyle: "medium", timeStyle: "short" })
+    ? new Intl.DateTimeFormat("es-ES", { dateStyle: "medium", timeZone: APP_TIME_ZONE })
     : null;
+const DTF_TIME =
+  typeof Intl !== "undefined"
+    ? new Intl.DateTimeFormat("es-ES", { timeStyle: "short", timeZone: APP_TIME_ZONE })
+    : null;
+const DTF_FALLBACK = typeof Intl !== "undefined" ? new Intl.DateTimeFormat("es-ES", { timeZone: APP_TIME_ZONE }) : null;
 
 export function formatRelativeEs(isoOrDate: string | Date): string {
   const d = typeof isoOrDate === "string" ? new Date(isoOrDate) : isoOrDate;
@@ -191,12 +204,16 @@ export function formatRelativeEs(isoOrDate: string | Date): string {
   const now = Date.now();
   const diffSec = Math.round((d.getTime() - now) / 1000);
   const absSec = Math.abs(diffSec);
-  if (!RTF) return d.toLocaleString("es-ES");
+  if (!RTF) return DTF_FALLBACK ? DTF_FALLBACK.format(d) : d.toISOString();
   if (absSec < 60) return RTF.format(diffSec, "second");
   if (absSec < 3600) return RTF.format(Math.round(diffSec / 60), "minute");
   if (absSec < 86_400) return RTF.format(Math.round(diffSec / 3600), "hour");
   if (absSec < 86_400 * 7) return RTF.format(Math.round(diffSec / 86_400), "day");
-  return DTF ? DTF.format(d) : d.toLocaleString("es-ES");
+  return DTF_DATE && DTF_TIME
+    ? `${DTF_DATE.format(d)}, ${DTF_TIME.format(d)}`
+    : DTF_FALLBACK
+      ? DTF_FALLBACK.format(d)
+      : d.toISOString();
 }
 
 export function formatBidEur(value: number | null | undefined): string {

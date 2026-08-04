@@ -10,7 +10,12 @@ import Image from 'next/image';
 import { capitalizeLocation } from '@/lib/utils';
 import { resolveCardImage, fallbackImageFor, isVariosLotesTitle } from '@/lib/resolve-card-image';
 import { statusDateLabel } from '@/lib/auction-status';
-import { formatM2, formatPricePerM2, titleCase } from '@/components/observatory/format';
+import { formatM2, formatPricePerM2, titleCase, APP_TIME_ZONE } from '@/components/observatory/format';
+
+// Hydration (#418), not style: unpinned toLocaleDateString used the HOST zone — UTC in the
+// container, Europe/Madrid in the browser — so the same auction date rendered two different days.
+const CARD_FMT_MED = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric', timeZone: APP_TIME_ZONE });
+const CARD_FMT_DAY_MONTH = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', timeZone: APP_TIME_ZONE });
 import { OccupancyBadge } from '@/components/observatory/PujaOccupancyBadges';
 import { RegionBenchmarkChip } from '@/components/observatory/RegionBenchmarkChip';
 import { auctionCardTitle } from '@/lib/seo/display-title';
@@ -538,7 +543,6 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
             <div className="flex items-center justify-between pt-3 border-t border-gray-100 text-sm mt-2">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-gray-500">
                 {(() => {
-                  const FMT_MED: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
                   const opens = item.opensAt ? new Date(item.opensAt) : null;
                   const opensValid = !!opens && !Number.isNaN(opens.getTime());
                   const resumeRaw = (item as { resumeAt?: string | null }).resumeAt;
@@ -551,7 +555,7 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
                         <span className="tnum">
                           <span className="text-gray-400">Próxima apertura </span>
                           {opensValid
-                            ? opens!.toLocaleDateString('es-ES', FMT_MED)
+                            ? CARD_FMT_MED.format(opens!)
                             : <span className="text-gray-400">· Fecha por confirmar</span>}
                         </span>
                       </span>
@@ -564,7 +568,7 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
                         <span className="tnum">
                           <span className="text-gray-400">Reanudación </span>
                           {resumeValid
-                            ? resume!.toLocaleDateString('es-ES', FMT_MED)
+                            ? CARD_FMT_MED.format(resume!)
                             : <span className="text-gray-400">· Fecha por confirmar</span>}
                         </span>
                       </span>
@@ -579,7 +583,7 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
                           <Calendar className="w-4 h-4" aria-hidden="true" />
                           <span className="tnum">
                             <span className="text-gray-400">Inicio </span>
-                            {opens!.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                            {CARD_FMT_DAY_MONTH.format(opens!)}
                           </span>
                         </span>
                       )}
@@ -589,7 +593,7 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
                           {dateLabel === 'Termina' && (
                             <span className="text-gray-400">Termina </span>
                           )}
-                          {item.endDate.toLocaleDateString('es-ES', FMT_MED)}
+                          {CARD_FMT_MED.format(item.endDate)}
                         </span>
                       </span>
                     </>

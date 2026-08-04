@@ -16,6 +16,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { formatDateLong, formatDateShort } from '@/components/observatory/format';
 import { apiFetch } from "@/lib/api-path";
 
 /**
@@ -215,7 +216,7 @@ function TrialCell({
 
   if (status === 'trial' && trialDaysLeft !== null && trialDaysLeft > 0) {
     const endLabel = trialEndDate
-      ? `Prueba finaliza el ${new Date(trialEndDate).toLocaleDateString()}`
+      ? `Prueba finaliza el ${formatDateShort(trialEndDate)}`
       : undefined;
     return (
       <span className="inline-flex items-center gap-1.5" title={endLabel}>
@@ -243,13 +244,13 @@ function TrialCell({
 function formatDate(value: string | null): string {
   if (!value) return '-';
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString();
+  return Number.isNaN(d.getTime()) ? '-' : formatDateShort(d);
 }
 
 function formatDateTime(value?: string): string {
   if (!value) return '';
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? '' : formatDateLong(d);
 }
 
 export default function AdminDashboard() {
@@ -384,7 +385,7 @@ export default function AdminDashboard() {
                   <CardTitle className="text-sm font-medium text-gray-600">Total Subastas</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-gray-900">{stats.total.toLocaleString()}</div>
+                  <div className="text-3xl font-bold text-gray-900">{stats.total.toLocaleString('es-ES')}</div>
                   <p className="text-xs text-gray-500 mt-1">En toda la base de datos</p>
                 </CardContent>
               </Card>
@@ -395,7 +396,7 @@ export default function AdminDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-green-600">
-                    {stats.withCoords.toLocaleString()}
+                    {stats.withCoords.toLocaleString('es-ES')}
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
                     {stats.coordsPct}% del total
@@ -409,7 +410,7 @@ export default function AdminDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-orange-600">
-                    {stats.withoutCoords.toLocaleString()}
+                    {stats.withoutCoords.toLocaleString('es-ES')}
                   </div>
                   <p className="text-xs text-gray-500 mt-1">Pendientes de geocodificación</p>
                 </CardContent>
@@ -440,7 +441,7 @@ export default function AdminDashboard() {
                   {stats.byCategory.slice(0, 10).map((cat) => (
                     <div key={cat.category} className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-700">{cat.category}</span>
-                      <Badge variant="secondary">{cat.count.toLocaleString()}</Badge>
+                      <Badge variant="secondary">{cat.count.toLocaleString('es-ES')}</Badge>
                     </div>
                   ))}
                 </div>
@@ -457,7 +458,7 @@ export default function AdminDashboard() {
                   {stats.byProvince.map((prov) => (
                     <div key={prov.province} className="flex items-center justify-between">
                       <span className="text-sm font-medium text-gray-700">{prov.province}</span>
-                      <Badge variant="secondary">{prov.count.toLocaleString()}</Badge>
+                      <Badge variant="secondary">{prov.count.toLocaleString('es-ES')}</Badge>
                     </div>
                   ))}
                 </div>
@@ -508,7 +509,7 @@ export default function AdminDashboard() {
                   <div className="grid grid-cols-3 gap-4 pt-4 border-t">
                     <div>
                       <p className="text-sm text-gray-600">Total Subastas</p>
-                      <p className="text-2xl font-bold text-gray-900">{backfill.totalAuctions.toLocaleString()}</p>
+                      <p className="text-2xl font-bold text-gray-900">{backfill.totalAuctions.toLocaleString('es-ES')}</p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-600">Lotes Completados</p>

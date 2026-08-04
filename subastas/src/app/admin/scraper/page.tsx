@@ -14,6 +14,7 @@ import {
   Filter, LayersIcon, Activity
 } from 'lucide-react';
 import { apiFetch } from "@/lib/api-path";
+import { formatDateLong } from "@/components/observatory/format";
 
 const CATEGORY_OPTIONS = [
   { value: 'properties', label: 'Properties (Houses, Land, Locals, Garages)', icon: '🏠' },
@@ -273,7 +274,8 @@ export default function EnhancedAdminScraperPage() {
       
       const data = await response.json();
       if (data.success) {
-        alert(`Parallel finished scraper started!\nBatches: ${data.config.totalBatches}\nCombinations per batch: ${data.config.combinationsPerBatch}\nTotal combinations: 30\nMax auctions per batch: ${data.config.maxAuctionsPerBatch.toLocaleString()}\nPIDs: ${data.pids.join(', ')}`);
+        // intl-gate-ok: browser alert() string, never rendered into HTML
+        alert(`Parallel finished scraper started!\nBatches: ${data.config.totalBatches}\nCombinations per batch: ${data.config.combinationsPerBatch}\nTotal combinations: 30\nMax auctions per batch: ${data.config.maxAuctionsPerBatch.toLocaleString('es-ES')}\nPIDs: ${data.pids.join(', ')}`);
         await fetchStatus();
       } else {
         alert('Failed: ' + data.error);
@@ -301,7 +303,8 @@ export default function EnhancedAdminScraperPage() {
       
       const data = await response.json();
       if (data.success) {
-        alert(`Comprehensive scraper started!\nBatches: ${data.config.totalBatches}\nTotal combinations: ${data.config.totalCombinations.toLocaleString()}\nCombinations per batch: ${data.config.combinationsPerBatch}\nPIDs: ${data.pids.join(', ')}`);
+        // intl-gate-ok: browser alert() string, never rendered into HTML
+        alert(`Comprehensive scraper started!\nBatches: ${data.config.totalBatches}\nTotal combinations: ${data.config.totalCombinations.toLocaleString('es-ES')}\nCombinations per batch: ${data.config.combinationsPerBatch}\nPIDs: ${data.pids.join(', ')}`);
         await fetchStatus();
       } else {
         alert('Failed: ' + data.error);
@@ -399,7 +402,7 @@ export default function EnhancedAdminScraperPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">
-              {dbStats?.total?.toLocaleString() || '521'}
+              {dbStats?.total?.toLocaleString('es-ES') || '521'}
             </div>
           </CardContent>
         </Card>
@@ -874,7 +877,7 @@ export default function EnhancedAdminScraperPage() {
                   <li>• Total combinations: <strong>90</strong></li>
                   <li>• Estimated time: <strong>{((90 * parseInt(categoryCooldown)) / 3600).toFixed(1)} hours</strong> (with cooldown)</li>
                   <li>• Max auctions per combo: <strong>~{parseInt(categoryMaxPages) * parseInt(categoryResultsPerPage)}</strong></li>
-                  <li>• Total potential: <strong>{(90 * parseInt(categoryMaxPages) * parseInt(categoryResultsPerPage)).toLocaleString()}+ auctions</strong></li>
+                  <li>• Total potential: <strong>{(90 * parseInt(categoryMaxPages) * parseInt(categoryResultsPerPage)).toLocaleString('es-ES')}+ auctions</strong></li>
                   <li>• HTTP requests saved vs 50/page: <strong>{Math.round((parseInt(categoryResultsPerPage) / 50 - 1) * 100)}%</strong></li>
                 </ul>
               </div>
@@ -1033,7 +1036,7 @@ export default function EnhancedAdminScraperPage() {
                     <TrendingUp className="h-5 w-5 text-gray-600 flex-shrink-0 mt-0.5" />
                     <div>
                       <strong>Deep Historical Scraping</strong> - {finishedMaxPages} pages per combination
-                      <p className="text-gray-600">Max {parseInt(finishedMaxPages) * 500} auctions per combination = up to {(Math.ceil(30 / parseInt(finishedParallelBatches)) * parseInt(finishedMaxPages) * 500).toLocaleString()} per batch</p>
+                      <p className="text-gray-600">Max {parseInt(finishedMaxPages) * 500} auctions per combination = up to {(Math.ceil(30 / parseInt(finishedParallelBatches)) * parseInt(finishedMaxPages) * 500).toLocaleString('es-ES')} per batch</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-2">
@@ -1085,19 +1088,19 @@ export default function EnhancedAdminScraperPage() {
                           <div className="flex justify-between">
                             <span className="text-gray-600">New:</span>
                             <span className="font-semibold text-green-600">
-                              {(batch.stats.total_new || 0).toLocaleString()}
+                              {(batch.stats.total_new || 0).toLocaleString('es-ES')}
                             </span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-gray-600">Updated:</span>
                             <span className="font-semibold text-blue-600">
-                              {(batch.stats.total_updated || 0).toLocaleString()}
+                              {(batch.stats.total_updated || 0).toLocaleString('es-ES')}
                             </span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-gray-600">Checked:</span>
                             <span className="text-gray-700">
-                              {(batch.stats.total_checked || 0).toLocaleString()}
+                              {(batch.stats.total_checked || 0).toLocaleString('es-ES')}
                             </span>
                           </div>
                           {batch.current_combination && (
@@ -1198,8 +1201,8 @@ export default function EnhancedAdminScraperPage() {
                 <h4 className="font-semibold mb-2">Expected Results:</h4>
                 <ul className="text-sm space-y-1">
                   <li>• {Math.floor(parseInt(aggressiveDuration) / 15)} cycles in {aggressiveDuration} minutes</li>
-                  <li>• ~{(parseInt(aggressivePages) * 50 * Math.floor(parseInt(aggressiveDuration) / 15 / 3)).toLocaleString()} auctions per mode</li>
-                  <li>• Total estimate: {(parseInt(aggressivePages) * 50 * Math.floor(parseInt(aggressiveDuration) / 15)).toLocaleString()}+ auctions</li>
+                  <li>• ~{(parseInt(aggressivePages) * 50 * Math.floor(parseInt(aggressiveDuration) / 15 / 3)).toLocaleString('es-ES')} auctions per mode</li>
+                  <li>• Total estimate: {(parseInt(aggressivePages) * 50 * Math.floor(parseInt(aggressiveDuration) / 15)).toLocaleString('es-ES')}+ auctions</li>
                 </ul>
               </div>
               
@@ -1380,16 +1383,16 @@ export default function EnhancedAdminScraperPage() {
                       <div key={idx} className="bg-gray-50 rounded p-3">
                         <p className="font-semibold text-sm">Batch {batch.batch_num}/{batch.total_batches}</p>
                         <p className="text-xs text-gray-600">
-                          Started: {new Date(batch.started_at).toLocaleString()}
+                          Started: {formatDateLong(batch.started_at)}
                         </p>
                         <p className="text-xs">
                           Completed: {batch.stats?.completed_combinations || 0} combinations
                         </p>
                         <div className="text-xs space-y-0.5 mt-1">
-                          <p>📊 Checked: {batch.stats?.total_checked?.toLocaleString() || 0}</p>
-                          <p>🆕 New: {batch.stats?.total_new?.toLocaleString() || 0}</p>
-                          <p>🔄 Updated: {batch.stats?.total_updated?.toLocaleString() || 0}</p>
-                          <p>⏭️ Skipped: {batch.stats?.total_skipped?.toLocaleString() || 0}</p>
+                          <p>📊 Checked: {batch.stats?.total_checked?.toLocaleString('es-ES') || 0}</p>
+                          <p>🆕 New: {batch.stats?.total_new?.toLocaleString('es-ES') || 0}</p>
+                          <p>🔄 Updated: {batch.stats?.total_updated?.toLocaleString('es-ES') || 0}</p>
+                          <p>⏭️ Skipped: {batch.stats?.total_skipped?.toLocaleString('es-ES') || 0}</p>
                         </div>
                         {batch.current_combination && (
                           <p className="text-xs text-gray-500 mt-1">
@@ -1404,10 +1407,10 @@ export default function EnhancedAdminScraperPage() {
                         Total completed: {status.progress.categoryBatches.reduce((sum: number, b: any) => sum + (b.stats?.completed_combinations || 0), 0)} combinations
                       </p>
                       <div className="text-sm space-y-0.5 mt-1">
-                        <p>📊 Checked: {status.progress.categoryBatches.reduce((sum: number, b: any) => sum + (b.stats?.total_checked || 0), 0).toLocaleString()}</p>
-                        <p>🆕 New: {status.progress.categoryBatches.reduce((sum: number, b: any) => sum + (b.stats?.total_new || 0), 0).toLocaleString()}</p>
-                        <p>🔄 Updated: {status.progress.categoryBatches.reduce((sum: number, b: any) => sum + (b.stats?.total_updated || 0), 0).toLocaleString()}</p>
-                        <p>⏭️ Skipped: {status.progress.categoryBatches.reduce((sum: number, b: any) => sum + (b.stats?.total_skipped || 0), 0).toLocaleString()}</p>
+                        <p>📊 Checked: {status.progress.categoryBatches.reduce((sum: number, b: any) => sum + (b.stats?.total_checked || 0), 0).toLocaleString('es-ES')}</p>
+                        <p>🆕 New: {status.progress.categoryBatches.reduce((sum: number, b: any) => sum + (b.stats?.total_new || 0), 0).toLocaleString('es-ES')}</p>
+                        <p>🔄 Updated: {status.progress.categoryBatches.reduce((sum: number, b: any) => sum + (b.stats?.total_updated || 0), 0).toLocaleString('es-ES')}</p>
+                        <p>⏭️ Skipped: {status.progress.categoryBatches.reduce((sum: number, b: any) => sum + (b.stats?.total_skipped || 0), 0).toLocaleString('es-ES')}</p>
                       </div>
                     </div>
                   </div>
@@ -1417,17 +1420,17 @@ export default function EnhancedAdminScraperPage() {
                 <div className="border-l-4 border-purple-500 pl-4">
                   <h4 className="font-semibold">Category-by-Category Scraper (Single)</h4>
                   <p className="text-sm text-gray-600">
-                    Started: {new Date(status.progress.category.started_at).toLocaleString()}
+                    Started: {formatDateLong(status.progress.category.started_at)}
                   </p>
                   <p className="text-sm">
                     Completed: {status.progress.category.stats?.completed_combinations || 0} / {status.progress.category.stats?.total_combinations || 90}
                   </p>
                   <div className="text-sm space-y-0.5 mt-1">
                     <p className="font-medium">Statistics:</p>
-                    <p>📊 Checked: {status.progress.category.stats?.total_checked?.toLocaleString() || 0}</p>
-                    <p>🆕 New: {status.progress.category.stats?.total_new?.toLocaleString() || 0}</p>
-                    <p>🔄 Updated: {status.progress.category.stats?.total_updated?.toLocaleString() || 0}</p>
-                    <p>⏭️ Skipped: {status.progress.category.stats?.total_skipped?.toLocaleString() || 0}</p>
+                    <p>📊 Checked: {status.progress.category.stats?.total_checked?.toLocaleString('es-ES') || 0}</p>
+                    <p>🆕 New: {status.progress.category.stats?.total_new?.toLocaleString('es-ES') || 0}</p>
+                    <p>🔄 Updated: {status.progress.category.stats?.total_updated?.toLocaleString('es-ES') || 0}</p>
+                    <p>⏭️ Skipped: {status.progress.category.stats?.total_skipped?.toLocaleString('es-ES') || 0}</p>
                   </div>
                   {status.progress.category.current_combination && (
                     <p className="text-xs text-gray-500 mt-1">
@@ -1440,7 +1443,7 @@ export default function EnhancedAdminScraperPage() {
                 <div className="border-l-4 border-yellow-500 pl-4">
                   <h4 className="font-semibold">Aggressive Scraper</h4>
                   <p className="text-sm text-gray-600">
-                    Started: {new Date(status.progress.aggressive.started_at).toLocaleString()}
+                    Started: {formatDateLong(status.progress.aggressive.started_at)}
                   </p>
                   <p className="text-sm">
                     Total scraped: {status.progress.aggressive.total_scraped || 0}

@@ -48,6 +48,10 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/api-path";
 import { cn } from "@/lib/utils";
+import { APP_TIME_ZONE } from "@/components/observatory/format";
+
+// Hydration (#418), not style: pinned locale + zone so SSR and client render the same day.
+const SAVED_ON_FMT = new Intl.DateTimeFormat("es-ES", { year: "numeric", month: "long", day: "numeric", timeZone: APP_TIME_ZONE });
 
 interface Favorite {
   id: string;
@@ -372,11 +376,7 @@ export default function FavoritesPage() {
 
                       <p className="mt-3 text-xs text-[var(--color-ink-tertiary)] tnum">
                         Guardado el{" "}
-                        {new Date(favorite.createdAt).toLocaleDateString("es-ES", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        })}
+                        {SAVED_ON_FMT.format(new Date(favorite.createdAt))}
                       </p>
                     </div>
                   </div>

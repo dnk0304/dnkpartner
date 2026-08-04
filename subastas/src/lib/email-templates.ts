@@ -7,6 +7,7 @@ import {
   statusHumanLabel,
 } from './auction-status';
 import { googleMapsSearchUrl } from './maps-link';
+import { APP_TIME_ZONE } from '@/components/observatory/format';
 
 export interface EmailTemplateProps {
   url: string;
@@ -662,10 +663,14 @@ function formatEndDate(value: string | Date | null | undefined): string | null {
   if (!value) return null;
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return null;
+  // Pinned zone: auction timestamps are zone-less Madrid wall time (see APP_TIME_ZONE),
+  // so the email must quote the BOE hour, not the container host zone.
+  // intl-gate-ok: timeZone is pinned to APP_TIME_ZONE below (guard is single-line)
   return new Intl.DateTimeFormat('es-ES', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
+    timeZone: APP_TIME_ZONE,
   }).format(d);
 }
 

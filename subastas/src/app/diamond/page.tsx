@@ -32,6 +32,11 @@ import {
   MapPin,
 } from 'lucide-react';
 import Link from 'next/link';
+import { APP_TIME_ZONE } from '@/components/observatory/format';
+
+// Hydration (#418), not style: same numeric d/m/yyyy shape as toLocaleDateString('es-ES'),
+// with the time zone pinned so SSR and the client agree on the day.
+const DIAMOND_DATE_FMT = new Intl.DateTimeFormat('es-ES', { timeZone: APP_TIME_ZONE });
 
 interface PreAuctionItem {
   id: string;
@@ -335,9 +340,7 @@ export default function DiamondDashboard() {
                       <DetailRow
                         icon={<Calendar className="w-4 h-4 text-[var(--color-ink-tertiary)] mt-1" />}
                         label="Fecha estimada BOE"
-                        value={new Date(item.estimatedDate).toLocaleDateString(
-                          'es-ES'
-                        )}
+                        value={DIAMOND_DATE_FMT.format(new Date(item.estimatedDate))}
                       />
                     </div>
 
@@ -451,7 +454,7 @@ export default function DiamondDashboard() {
                     <div>
                       <p className="text-[var(--color-ink-tertiary)]">Retirada</p>
                       <p className="text-[var(--color-ink-primary)] font-semibold tnum">
-                        {new Date(item.removedDate).toLocaleDateString('es-ES')}
+                        {DIAMOND_DATE_FMT.format(new Date(item.removedDate))}
                       </p>
                     </div>
                     <div>

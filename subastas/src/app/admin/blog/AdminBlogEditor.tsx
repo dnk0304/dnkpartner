@@ -14,6 +14,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArticleContent } from "@/components/blog/ArticleContent";
+import { formatDateLong } from "@/components/observatory/format";
 
 type Status = "DRAFT" | "PUBLISHED";
 
@@ -444,7 +445,7 @@ export function AdminBlogEditor({ slugParam }: { slugParam: string }) {
               </Field>
               {!isNew && publishedAt ? (
                 <p className="mt-2 text-xs text-[var(--color-ink-quiet)]">
-                  Publicado: {new Date(publishedAt).toLocaleString("es-ES")}
+                  Publicado: {formatDateLong(publishedAt)}
                 </p>
               ) : null}
               {!isNew && original ? (

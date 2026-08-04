@@ -50,3 +50,6 @@ next-env.d.ts
 # (Coolify deploy runs `prisma migrate deploy` from them).
 prisma/dev.db
 prisma/dev.db-journal
+
+# hydra-418 measurement artifacts (raw per-load JSONL + markup dumps) — outputs, not source
+subastas/scripts/audit/__snapshots__/

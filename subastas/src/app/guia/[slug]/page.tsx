@@ -24,6 +24,10 @@ import { resolveArticleCoverImage } from "@/lib/article-cover";
 import { ArticleContent } from "@/components/blog/ArticleContent";
 import { ArticleCover } from "@/components/blog/ArticleCover";
 import { resolveTheme, THEME_META } from "@/components/blog/article-theme";
+import { APP_TIME_ZONE } from "@/components/observatory/format";
+
+// Hydration (#418), not style: pinned locale + zone so SSR and client render the same day.
+const PUBLISHED_DATE_FMT = new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "long", year: "numeric", timeZone: APP_TIME_ZONE });
 
 const SITE = "https://subastasactivas.com";
 
@@ -174,11 +178,7 @@ export default async function ArticlePage(
                   <span aria-hidden>·</span>
                   <time dateTime={article.publishedAt.toISOString()}>
                     Publicado el{" "}
-                    {article.publishedAt.toLocaleDateString("es-ES", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    })}
+                    {PUBLISHED_DATE_FMT.format(article.publishedAt)}
                   </time>
                 </>
               ) : null}
