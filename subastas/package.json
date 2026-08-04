@@ -10,6 +10,7 @@
     "dev": "concurrently \"next dev -p 3005\" \"python scraper/scheduler.py\"",
     "build": "npm run guard:url-v3 && prisma generate && next build",
     "guard:url-v3": "tsx scripts/url-v3-reserved-guard.ts",
+    "guard:db-target": "tsx prisma/db-target-guard.test.ts",
     "guard:url-v3:data": "tsx scripts/url-v3-reserved-guard.ts --data",
     "guard:url-v3:selftest": "tsx scripts/url-v3-reserved-guard.ts --self-test",
     "lint": "eslint",
