@@ -145,6 +145,31 @@ const REDACTION_RULES: readonly RedactionRule[] = [
     name: 'phone-bare',
     re: /(?<![\dA-Za-zÁÉÍÓÚÜÑáéíóúüñ/-])(?:\+?34[ -]?)?[6789]\d{2}(?:[ -]?\d{3}[ -]?\d{3}|[ -]?\d{2}[ -]?\d{2}[ -]?\d{2}|\d{6})(?![\dA-Za-zÁÉÍÓÚÜÑáéíóúüñ/-])/g,
   },
+
+  // ⛔ THERE IS DELIBERATELY NO LICENCE-PLATE RULE HERE. Do not add one.
+  //
+  // Ken's ruling, 2026-08-04, recorded at the rule site so nobody "fixes" this
+  // later by pattern-matching it against the URL mint guard:
+  //
+  //   "In a URL a plate is a permanent identifier attached to a person; in a
+  //    vehicle listing body the plate IS the goods — URL ban unchanged."
+  //
+  // The two guards therefore diverge ON PURPOSE and are both correct:
+  //   - the slug/URL mint guard BANS plates, because a URL is a durable,
+  //     shareable, indexable identifier that would follow a named individual
+  //     around the web;
+  //   - this display redactor KEEPS them, because on a vehicle lot the plate
+  //     is the description of the item being auctioned. Stripping it would
+  //     delete the product, not protect a person.
+  //
+  // Consequence, and it is intended: `matrícula SE-62` (a social-housing
+  // registry code, not a plate) survives here, exactly as it survives Ghost's
+  // extractor — see `_is_movable_identity` in
+  // `subastas/scraper/scrapers/boe_scraper.py` (77566fb). VINs/bastidor
+  // numbers are kept for the same reason.
+  //
+  // If a future dispatch reverses this, it must reverse the RULING first, not
+  // just this file.
 ];
 
 /** Outcome of a redaction pass. `rules` lists the rule NAMES that fired. */
