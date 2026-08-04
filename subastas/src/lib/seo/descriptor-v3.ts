@@ -121,13 +121,41 @@ export function buildDescriptorV3(args: {
   return { descriptor, full, truncated: full.length > descriptor.length, signals: guarded.signals };
 }
 
+export type PathResult = {
+  url: string;
+  /** True when the TOTAL-URL ceiling (not the descriptor cap) forced a trim. */
+  ceilingTrimmed: boolean;
+  /**
+   * True when location + ref ALONE exceed the ceiling, so no descriptor fits.
+   * Structurally unreachable with today's corpus maxima, but reported rather
+   * than assumed — see the budget note below.
+   */
+  structuralOverflow: boolean;
+};
+
 /**
- * Assemble the full v3 path.
+ * Assemble the full v3 path, enforcing the 200-char ceiling **structurally**.
  *
  * Shape: `/subastas/{province}/{town}/{tipo}-{descriptor}-{ref}` — the
  * `/subastas/` prefix and two-segment location are what the LIVE indexed town
- * hubs already use (`/subastas/barcelona/barcelona` -> 200), verified against
- * production. The ref tail is inviolable and is never truncated.
+ * hubs already use (`/subastas/barcelona/barcelona` -> 200), verified in prod.
+ *
+ * ⭐ THE CEILING IS AN INVARIANT, NOT AN OBSERVATION (Ken, 2026-08-04).
+ * The descriptor cap alone cannot guarantee the total: a longer town slug or a
+ * longer ref would silently push the URL past 200 with nothing to catch it.
+ * So the body is sized against a BUDGET computed from the parts that are
+ * inviolable:
+ *
+ *     budget = 200 - len("/subastas/{prov}/{town}/{kw}-") - len("-{ref}")
+ *
+ * and the descriptor is trimmed to `min(descriptorCap, budget)` on a word
+ * boundary. **The ref and the location are never touched.** A new, longer town
+ * or ref cannot breach the ceiling — it simply buys a shorter descriptor.
+ *
+ * If the budget is <= 0 (location + ref alone at/over the ceiling) the body is
+ * dropped entirely and `structuralOverflow` is set, so the caller can refuse to
+ * mint rather than emit an over-length permanent URL. That is Ken's
+ * "fall back to type+ref" rule, made explicit and reported.
  */
 export function buildAuctionPathV3(args: {
   provinceSlug: string;
@@ -135,10 +163,60 @@ export function buildAuctionPathV3(args: {
   category: string | null;
   descriptor: string;
   ref: string;
-}): string {
+  /** Override only for tests / sweeps. */
+  ceiling?: number;
+}): PathResult {
+  const ceiling = args.ceiling ?? MAX_URL_LEN_V3;
   const kw = categoryKeyword(args.category);
-  const body = args.descriptor || args.townSlug; // keep it findable if empty
-  return `/subastas/${args.provinceSlug}/${args.townSlug}/${kw}-${body}-${args.ref}`;
+  const prefix = `/subastas/${args.provinceSlug}/${args.townSlug}/${kw}`;
+  const suffix = `-${args.ref}`;
+
+  // Everything that is inviolable, plus the hyphen that would join the body.
+  const budget = ceiling - prefix.length - suffix.length - 1;
+
+  if (budget <= 0) {
+    // No room for any body. Emit type + ref only — ref and location intact.
+    return { url: `${prefix}${suffix}`, ceilingTrimmed: true, structuralOverflow: true };
+  }
+
+  const wanted = args.descriptor || args.townSlug; // keep it findable if empty
+  const body = capDescriptorV3(wanted, Math.min(wanted.length, budget));
+
+  if (!body) {
+    return { url: `${prefix}${suffix}`, ceilingTrimmed: true, structuralOverflow: false };
+  }
+
+  return {
+    url: `${prefix}-${body}${suffix}`,
+    ceilingTrimmed: body.length < wanted.length,
+    structuralOverflow: false,
+  };
+}
+
+/**
+ * Does the truncated descriptor lose detail that DISTINGUISHES this door from
+ * its neighbours? Two ways it can:
+ *   (a) UNIT detail — floor / door / building / block / unit designator.
+ *   (b) STREET detail — a street-type marker or a house number. On rows whose
+ *       `address` is registry legalese the ACTUAL STREET sits at the END, so a
+ *       naive cap removes exactly the distinguishing part.
+ *
+ * Used to HOLD such rows back from the mint (Ken, 2026-08-04): they sit on the
+ * province page until the upstream `address` defect is fixed, then mint GOOD
+ * permanent URLs — rather than impoverished ones forever. There is no redirect
+ * machinery for detail URLs, so a URL minted poor stays poor.
+ */
+const UNIT_IDENT =
+  /(^|-)(pl\d+|planta|piso|puerta|pta|escalera|esc|bloque|blq|portal|edificio|edif|atico|izda|izq|dcha|dcho|local|nave|parcela|duplex|letra)(-|$)/;
+const STREET_IDENT =
+  /(^|-)(calle|c|avda|avenida|plaza|pza|paseo|camino|carrer|ronda|travesia|urbanizacion|urb|poligono|partida)(-|$)/;
+const HOUSE_NUM = /(^|-)n?-?\d{1,4}(-|$)/;
+
+export function losesIdentifyingDetail(full: string, kept: string): boolean {
+  if (full.length <= kept.length) return false;
+  const dropped = full.slice(kept.length).replace(/^-/, '');
+  if (!dropped) return false;
+  return UNIT_IDENT.test(dropped) || STREET_IDENT.test(dropped) || HOUSE_NUM.test(dropped);
 }
 
 /** The official BOE/portal ref tail, with lotes expanded. Never truncated. */

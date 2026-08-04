@@ -17,7 +17,7 @@ import { readFileSync } from 'node:fs';
 import { resolveTown, type TownResolution } from '@/lib/geo/resolve-town';
 import { type StripKind } from '@/lib/seo/descriptor-guard';
 import {
-  buildDescriptorV3, buildAuctionPathV3, refTail,
+  buildDescriptorV3, buildAuctionPathV3, refTail, losesIdentifyingDetail,
   MAX_DESCRIPTOR_LEN_V3, MAX_URL_LEN_V3,
 } from '@/lib/seo/descriptor-v3';
 import { PROVINCE_DB_KEY_TO_SLUG, slugify } from '@/lib/seo/slugs';
@@ -77,11 +77,14 @@ function main() {
   };
   const guardedRows: Array<{ boeId: string; category: string; kinds: string[]; matched: string[] }> = [];
   const conflicts: Array<{ boeId: string; cp: string; stored: string }> = [];
-  const urls = new Map<string, string[]>(); // url -> boeIds
+  const urls = new Map<string, string[]>();      // MINT NOW: url -> boeIds
+  const heldUrls = new Map<string, string[]>();  // HELD: url -> boeIds
   let noProvinceSlug = 0;
   let atCap = 0;
   let overCeiling = 0;
   let maxLen = 0;
+  let ceilingTrimmed = 0;
+  let structuralOverflow = 0;
 
   for (const r of rows) {
     const town: TownResolution = resolveTown({
@@ -117,20 +120,40 @@ function main() {
     }
     if (d.truncated) atCap += 1;
 
-    const url = buildAuctionPathV3({
+    const p = buildAuctionPathV3({
       provinceSlug: provSlug, townSlug, category: r.category,
       descriptor: d.descriptor, ref: refTail(r.boeId),
     });
+    const url = p.url;
+    if (p.ceilingTrimmed) ceilingTrimmed += 1;
+    if (p.structuralOverflow) structuralOverflow += 1;
 
     maxLen = Math.max(maxLen, url.length);
     if (url.length > TOTAL_URL_CEILING) overCeiling += 1;
 
-    if (!urls.has(url)) urls.set(url, []);
-    urls.get(url)!.push(r.boeId);
+    // ── HOLD RULE (Ken 2026-08-04) ────────────────────────────────────────
+    // A row whose truncation loses IDENTIFYING detail is held back from the
+    // mint. It sits on the province page until the upstream `address` defect
+    // is fixed, then mints a GOOD permanent url. There is no redirect
+    // machinery for detail urls, so a url minted poor stays poor forever.
+    // The ceiling trim counts too: it removes the same kind of detail.
+    const held = losesIdentifyingDetail(d.full, d.descriptor)
+      || (p.ceilingTrimmed && losesIdentifyingDetail(d.descriptor, d.descriptor.slice(0, Math.max(0, url.lastIndexOf('-')))));
+    const bucket = held ? heldUrls : urls;
+    if (!bucket.has(url)) bucket.set(url, []);
+    bucket.get(url)!.push(r.boeId);
   }
 
   const dupGroups = [...urls.entries()].filter(([, v]) => v.length > 1);
   const minted = [...urls.values()].reduce((a, v) => a + v.length, 0);
+  const heldRows = [...heldUrls.values()].reduce((a, v) => a + v.length, 0);
+  // Combined set = what the corpus looks like once the held rows mint later.
+  const combined = new Map<string, string[]>();
+  for (const [u, ids] of [...urls, ...heldUrls]) {
+    if (!combined.has(u)) combined.set(u, []);
+    combined.get(u)!.push(...ids);
+  }
+  const combinedDupGroups = [...combined.entries()].filter(([, v]) => v.length > 1);
 
   const pct = (n: number) => `${((100 * n) / rows.length).toFixed(2)}%`;
   console.log('='.repeat(72));
@@ -158,7 +181,10 @@ function main() {
   for (const g of guardedRows) {
     console.log(`    ${g.boeId} [${g.category}] ${g.kinds.join(',')} :: ${g.matched.join(' | ').slice(0, 90)}`);
   }
-  console.log('\n-- MINTED SET --');
+  console.log('\n-- CEILING (structural invariant, not observation) --');
+  console.log(`  urls trimmed BY THE CEILING        ${ceilingTrimmed}`);
+  console.log(`  structural overflow (refused)      ${structuralOverflow}`);
+  console.log('\n-- MINTED SET (mints on Dennis go) --');
   console.log(`  minted rows                        ${minted}`);
   console.log(`  distinct urls                      ${urls.size}`);
   console.log(`  DUPLICATE GROUPS                   ${dupGroups.length}`);
@@ -166,10 +192,21 @@ function main() {
   console.log(`  descriptors hitting the ${DESCRIPTOR_CAP} cap    ${atCap}  (logged as a signal, not an error)`);
   console.log(`  max url length                     ${maxLen}`);
   console.log(`  urls over the ${TOTAL_URL_CEILING}-char ceiling      ${overCeiling}`);
+  console.log('\n-- HELD SET (await the upstream address fix) --');
+  console.log(`  held rows                          ${heldRows}`);
+  console.log(`  held distinct urls                 ${heldUrls.size}`);
+  console.log(`  MINT + HELD total                  ${minted + heldRows}`);
+  console.log('\n-- COMBINED SET (mint + held, i.e. after the later mint) --');
+  console.log(`  combined rows                      ${minted + heldRows}`);
+  console.log(`  combined distinct urls             ${combined.size}`);
+  console.log(`  COMBINED DUPLICATE GROUPS          ${combinedDupGroups.length}`);
 
-  const pass = dupGroups.length === 0 && overCeiling === 0;
+  const pass = dupGroups.length === 0 && overCeiling === 0
+    && combinedDupGroups.length === 0 && structuralOverflow === 0;
   console.log('\n' + '='.repeat(72));
-  console.log(pass ? 'GATE PASS — 0 duplicates, 0 over ceiling' : 'GATE FAIL');
+  console.log(pass
+    ? 'GATE PASS — 0 dupes (mint AND combined), 0 over ceiling, 0 overflow'
+    : 'GATE FAIL');
   process.exit(pass ? 0 : 1);
 }
 
