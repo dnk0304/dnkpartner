@@ -16,7 +16,8 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "etl:sqlite-to-pg": "tsx scripts/etl-sqlite-to-pg.ts",
-    "worker:dispatcher": "tsx scripts/run-dispatcher.ts"
+    "worker:dispatcher": "tsx scripts/run-dispatcher.ts",
+    "build:cp-municipality": "tsx scripts/build-cp-municipality-table.ts"
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
