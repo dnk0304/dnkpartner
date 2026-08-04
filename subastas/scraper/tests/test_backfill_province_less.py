@@ -124,7 +124,15 @@ def test_subtoken_guard_no_hijack_in_compound_context():
 def test_legit_standalone_subtoken_still_fills():
     # A genuine standalone town that happens to be a compound component still
     # fills when it is NOT in a connector (compound) context.
-    assert derive_province_from_address("Calle Mayor 2, Vallbona") == ("Barcelona", "address-town")
+    #
+    # This used to assert on "Vallbona" -> Barcelona. That only passed because
+    # the old Wikidata-derived gazetteer carried a truncated row `08292,
+    # Vallbona,Barcelona`; the municipality's real name is "Vallbona d'Anoia"
+    # and a bare "Vallbona" is not a municipality at all, so the correct answer
+    # is now NULL. `Cristina` (Badajoz, INE 06042) is a real standalone
+    # municipality that is also a component of longer compounds, which is the
+    # property this test is actually about.
+    assert derive_province_from_address("Calle Mayor 2, Cristina") == ("Badajoz", "address-town")
 
 
 def test_no_regression_street_name_towns():

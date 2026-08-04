@@ -44,16 +44,29 @@ export const ACTIVE_CHUNKS = 2;
  * Concluded children published to the index (freshest-first). FULL EXPOSURE —
  * the phased ramp was overridden by Dennis on 2026-07-20 (manual GSC control).
  *
- * Sizing (measured live 2026-07-20 from the public /resultados registry):
- * adjudicadas 87,290 + desiertas 84,843 = 172,133 outcome-qualifying rows. This
- * is an UPPER BOUND on concludedIndexableWhere() — that predicate further filters
- * to the 12 property+vehicle categories + resultCheckedAt NOT NULL, so the true
- * count is ≤ 172,133. ceil(172,133 / 20,000) = 9 children covers the full set with
- * zero URLs dropped; the last child(ren) may be short/empty if the category filter
- * trims below a 20k boundary (an empty child is still a valid 200 <urlset>).
- * Growing cap only — bump if the concluded set ever exceeds 180k rows.
+ * ── RE-DERIVED 2026-08-03 (post recency-floor), was 9 ─────────────────────
+ * The old `9` came from a PRE-FLOOR measurement (172,133 outcome-qualifying rows
+ * off the public /resultados registry, ceil(172,133/20,000)=9). The 24-month
+ * recency floor added to `concludedIndexableWhere()` (concluded-indexable.ts,
+ * SEO_CONCLUDED_MAX_AGE_MONTHS) changes that number completely.
+ *
+ * MEASURED LIVE against prod on 2026-08-03, running the EXACT predicate:
+ *   without the floor : 171,483 rows
+ *   with  the floor   :  26,800 rows   (Δ −144,683, −84.4%)
+ * ceil(26,800 / 20,000) = 2. Publishing 9 would have served SEVEN empty
+ * <urlset> children into GSC — a self-inflicted "couldn't fetch / no URLs"
+ * signal on a sitemap index we are actively trying to get Google to trust.
+ *
+ * ⚠️ This is no longer a purely GROWING cap. The floor is a ROLLING 24-month
+ * window, so the concluded set is now steady-state, not monotonic: ~11–15k rows
+ * conclude per year and an equal volume ages out of the tail. Expect this to sit
+ * around 26–32k indefinitely. Headroom on 2 children = 40,000 URLs.
+ * BUMP TO 3 if the measured post-floor count ever exceeds ~38,000.
+ *
+ * Re-measure with the same query before changing this constant — do NOT
+ * eyeball it off the /resultados registry, which does not apply the floor.
  */
-export const PUBLISHED_CONCLUDED_CHILDREN = 9;
+export const PUBLISHED_CONCLUDED_CHILDREN = 2;
 
 /** Total published children = aggregation + active + published concluded. */
 export const TOTAL_CHILDREN = 1 + ACTIVE_CHUNKS + PUBLISHED_CONCLUDED_CHILDREN;

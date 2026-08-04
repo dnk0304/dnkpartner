@@ -37,7 +37,7 @@ import { SourceBadge } from '@/components/observatory/SourceBadge';
 import { effectiveStatus } from '@/components/observatory/status';
 import { pickTeaserSnippet } from '@/lib/teaser-snippet';
 import { resolveCardImage } from '@/lib/resolve-card-image';
-import { isConcludedIndexable } from '@/lib/seo/concluded-indexable';
+import { hasConcludedOutcome } from '@/lib/seo/concluded-indexable';
 
 export interface AuctionTeaserData {
   id: string;
@@ -77,9 +77,13 @@ export interface AuctionTeaserData {
   longitude?: number | null;
   /**
    * Concluded sale-outcome fields (wave142). Drive the public "Resultado de
-   * la subasta" block, rendered on EXACTLY the rows isConcludedIndexable marks
-   * indexable (concluded + property/vehicle + resultCheckedAt set + saleResult
-   * ∈ ADJUDICADA/DESIERTA). Aggregate financial fact only — NO PII (no bidder
+   * la subasta" block, rendered on EXACTLY the rows `hasConcludedOutcome()`
+   * accepts (concluded + property/vehicle + resultCheckedAt set + saleResult
+   * ∈ ADJUDICADA/DESIERTA). NOTE (wave-seoslug 2026-08-03): this is
+   * DELIBERATELY *not* `isConcludedIndexable()` any more — that predicate now
+   * also carries a 24-month recency floor, and a user who lands on an OLD (now
+   * noindex,follow) sold page must still see the outcome. Recency is a
+   * crawl-budget concern, not a content one. Aggregate financial fact only — NO PII (no bidder
    * identity). LABEL RULE (locked): the figure is the "puja máxima" / highest
    * recorded bid, NEVER "precio de venta confirmado" — BOE never publishes a
    * legal adjudication, we only know the highest bid.
@@ -173,11 +177,14 @@ export async function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
 
   const snippet = teaserSnippet(data, status);
 
-  // Concluded-outcome block. Render on EXACTLY the rows the shared predicate
-  // marks indexable (same gate as robots meta + sitemap membership) so an
-  // indexed concluded page carries real content and never looks thin. For
-  // everything else the block is omitted. Aggregate financial fact only.
-  const showResult = isConcludedIndexable({
+  // Concluded-outcome block. Gated on CONTENT PRESENCE (hasConcludedOutcome),
+  // NOT on indexability. It is a SUPERSET of isConcludedIndexable: every
+  // indexed concluded page renders the block (so it can never look thin), and
+  // old pages that fell below the 24-month recency floor still render it for
+  // the human even though they are noindex,follow. Do NOT "tidy" this back to
+  // isConcludedIndexable — that would silently blank the outcome on ~145k
+  // pages. Aggregate financial fact only.
+  const showResult = hasConcludedOutcome({
     status: data.status,
     category: data.category,
     saleResult: data.saleResult ?? null,
@@ -279,7 +286,9 @@ export async function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
 
           {/* Resultado de la subasta — the concluded page's reason to exist.
               SSR + public (NOT behind the wall) so Google crawls it; renders
-              only on isConcludedIndexable rows. A green top-rule + dot marks
+              only on hasConcludedOutcome rows — recency-FREE on purpose, so an
+              old noindexed sold page still shows its outcome to a human. A
+              green top-rule + dot marks
               it as the outcome, distinct from the neutral summary card below.
               HONEST LABEL: the figure is the highest recorded bid ("puja
               máxima"), never a confirmed sale price. */}

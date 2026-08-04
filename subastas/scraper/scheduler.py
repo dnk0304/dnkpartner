@@ -285,12 +285,26 @@ class ScraperScheduler:
                 freeze_failures_before = self.freeze_failures
                 self._freeze_sale_results(cursor, expired_ids, now)
 
+                # Prove the commit actually landed. A prior aborted statement
+                # turns COMMIT into a silent ROLLBACK: psycopg2 raises nothing
+                # and conn.status is STATUS_READY either way, so settlement has
+                # to be judged BEFORE the commit, on the transaction status.
+                # (The old check compared conn.status against 0 — but
+                # STATUS_READY == 1, so it alarmed after every healthy commit.)
+                from psycopg2 import extensions as _pg_ext
+
+                tx_status_pre_commit = getattr(conn.info, "transaction_status", None)
                 conn.commit()
-                # Prove the commit actually landed. A prior aborted transaction
-                # turns COMMIT into a silent ROLLBACK, and this line used to
-                # report success regardless.
-                if getattr(conn, "status", None) is not None and conn.status != 0:
-                    self.log("  SCHEDULER-ALARM CONCLUIDA_PORTAL commit did not settle")
+                if tx_status_pre_commit == _pg_ext.TRANSACTION_STATUS_INERROR:
+                    self.log(
+                        "  SCHEDULER-ALARM CONCLUIDA_PORTAL commit did not settle "
+                        "— transaction was aborted, COMMIT degraded to ROLLBACK"
+                    )
+                elif conn.status != _pg_ext.STATUS_READY:
+                    self.log(
+                        f"  SCHEDULER-ALARM CONCLUIDA_PORTAL connection not READY "
+                        f"after commit (status={conn.status})"
+                    )
                 if self.freeze_failures > freeze_failures_before:
                     self.log(
                         f"  Marked {len(expired)} auctions as CONCLUIDA_PORTAL "
@@ -1018,6 +1032,243 @@ class ScraperScheduler:
                 f"(run_failures={self.freeze_failures}, batch={len(expired_ids)} rows "
                 f"left unfrozen and exposed to portal wipe): {e}"
             )
+
+    # -----------------------------------------------------------------------
+    # Mechanism 1b — FREEZE RECONCILE BY STATE (the widening, 2026-08-04)
+    # -----------------------------------------------------------------------
+    # WHY THIS EXISTS. Mechanism 1 freezes `WHERE id = ANY(expired_ids)` — the
+    # batch monitor_status_changes itself just transitioned. But CONCLUIDA_PORTAL
+    # is written by at least five OTHER paths that never build a freeze batch:
+    # scrape_pulse's suspended->terminal branch (~L878), property_scraper's
+    # FINISHED mode, scraper/db.py, backfill_active_full's status sweep and
+    # backfill_auction_data's. A row concluded by any of them is invisible to the
+    # freeze FOREVER — the scheduler's expiry SELECT only reads
+    # ACTIVE/CELEBRANDOSE/SUSPENDIDA, so once a row is already CONCLUIDA_PORTAL
+    # it can never re-enter a batch. Measured cost: ~120 new NULL-saleResult rows
+    # per day, every one of them racing the portal's amount wipe.
+    #
+    # THE INVARIANT (Ken, 2026-08-04):
+    #   Every auction that reaches a concluded state gets its result frozen
+    #   exactly once.
+    #
+    # MECHANISM — freeze follows the STATE, not the batch. One reconciler behind
+    # N writers, rather than a freeze call bolted onto each writer: writer six
+    # would reintroduce the bug, whereas the reconciler covers writer six for
+    # free. It is a convergence job, not an event handler.
+    #
+    # EXACTLY-ONCE, LOAD-BEARING IN BOTH DIRECTIONS. Nothing is relaxed in order
+    # to widen the reach. The `saleResult IS NULL` guard is what makes the freeze
+    # idempotent and it is carried VERBATIM; so is the puja-signal guard. Only the
+    # row-selection predicate changed (`id = ANY(batch)` -> `status = concluded`).
+    # An already-frozen row cannot match, so re-running this can never overwrite a
+    # settled truth with a later, wipe-eroded re-scrape — which is precisely the
+    # failure class that produced the 21 contradicted rows repaired on 2026-08-04.
+    #
+    # COHERENCE GUARD (new, and load-bearing): `endsAt IS NOT NULL AND endsAt <=
+    # now`. soldDate is set to endsAt, so a CONCLUIDA_PORTAL row whose endsAt is
+    # in the FUTURE would be stamped with a future sale date. Such rows exist
+    # (1 as of 2026-08-04: SUB-RC-2026-0026I20250326, endsAt 2026-08-17). They are
+    # incoherent, not concluded: an auction whose end has not arrived has not
+    # "reached a concluded state" in any sense the invariant means. They are
+    # counted and logged on every run, never frozen, and become sweepable on their
+    # own the moment endsAt passes — no quarantine table, no manual step.
+    #
+    # CANCELADA is deliberately NOT swept, and is EXPLICITLY excluded below
+    # (FREEZE_TERMINAL_NO_RESULT) rather than merely left out of the witness
+    # allow-list. See the ruling on that constant.
+
+    # Sweep predicate. Kept in shape with check_freeze_health.RECONCILE_SQL.
+    FREEZE_RECONCILE_SQL = """
+        UPDATE "Auction"
+        SET "saleResult" = CASE
+                WHEN COALESCE("currentBidAmount",0) > 0
+                     OR "pujaStatus" = 'CON_PUJA' THEN 'ADJUDICADA'::"SaleResult"
+                WHEN "pujaStatus" = 'SIN_PUJA'     THEN 'DESIERTA'::"SaleResult"
+            END,
+            "soldPrice" = CASE
+                WHEN COALESCE("currentBidAmount",0) > 0
+                THEN "currentBidAmount" END,
+            "soldDate" = "endsAt",
+            "resultCheckedAt" = %s,
+            "resultCheckAttempts" = 0
+        WHERE status = 'CONCLUIDA_PORTAL'
+          AND "saleResult" IS NULL
+          AND ("pujaStatus" IS NOT NULL
+               OR COALESCE("currentBidAmount",0) > 0)
+          AND "endsAt" IS NOT NULL
+          AND "endsAt" <= %s
+    """
+
+    # WITNESS — deliberately BROADER than the sweep, and computed independently
+    # of it. This is the answer to "how would we know if this stopped working".
+    # A residual > 0 after a sweep means concluded rows exist that the sweep did
+    # not reach: predicate drift, a renamed enum label, or a NEW terminal status
+    # nobody told the freeze about. Because the family below is a strict superset
+    # of the swept status, this can fire even on a cycle where the sweep matched
+    # zero rows — which is exactly the silent-zero failure mode this dispatch
+    # exists to close. Making it identical to the sweep predicate would have made
+    # it a tautology that is structurally always 0.
+    FREEZE_WITNESS_FAMILY = ('CONCLUIDA_PORTAL', 'FINALIZADA_AUTORIDAD', 'FINISHED')
+
+    # TERMINAL-WITHOUT-A-RESULT (Ken ruling, 2026-08-04). Statuses that end an
+    # auction's life WITHOUT ever producing a sale result. They must never be
+    # swept — freezing a cancelled auction ADJUDICADA would fabricate a sale —
+    # and they must never sit in the witness, where ~139 permanently unfreezable
+    # rows would be indistinguishable from 139 rows the sweep is failing to
+    # reach. That is the distinction this constant exists to make:
+    #
+    #     residual  > 0  ->  nothing happened because something is BROKEN   (ALARM)
+    #     cancelled > 0  ->  nothing happened because the rows are TERMINAL  (info)
+    #
+    # This is an EXPLICIT, NAMED exclusion, not an implicit one. Before the
+    # ruling, CANCELADA was excluded only by being absent from
+    # FREEZE_WITNESS_FAMILY — an omission, which is exactly the kind of silent
+    # assumption that rots: anyone later widening the witness to "all terminal
+    # statuses" would have pulled 139 fabricated alarms in with it. The
+    # disjointness assertion in freeze_reconcile() makes that mistake LOUD
+    # instead of silent.
+    #
+    # Deliberately a code constant and NOT a schema/terminal-flag column: no
+    # migration is going into an armed deploy. If a downstream consumer needs
+    # this distinction in the DB later, that is its own dispatch.
+    FREEZE_TERMINAL_NO_RESULT = ('CANCELADA',)
+
+    freeze_reconcile_failures = 0
+
+    def freeze_reconcile(self):
+        """Convergence sweep: freeze EVERY concluded row carrying a live puja
+        signal, whichever code path concluded it. Idempotent; safe to run as
+        often as we like. Own connection + own transaction so it can neither be
+        suppressed by, nor take down, monitor_status_changes."""
+        self.log("Freeze reconcile (by state)...")
+
+        is_postgres = DATABASE_URL and ('postgresql://' in DATABASE_URL or 'postgres://' in DATABASE_URL)
+        if not is_postgres:
+            self.log("  Freeze reconcile skipped (SQLite dev mode)")
+            return
+
+        conn = None
+        try:
+            conn = self._get_pg_conn()
+            cursor = conn.cursor()
+            now = datetime.utcnow()
+
+            # Same migration guard as Mechanism 1 — a pre-migration DB is a
+            # silent no-op, never an alarm.
+            if self._sale_cols_checked is None:
+                cursor.execute(
+                    """SELECT count(*) FROM information_schema.columns
+                       WHERE table_name='Auction'
+                         AND column_name = ANY(%s)""",
+                    (['saleResult', 'soldPrice', 'soldDate',
+                      'resultCheckedAt', 'resultCheckAttempts'],),
+                )
+                self._sale_cols_checked = (cursor.fetchone()[0] == 5)
+            if not self._sale_cols_checked:
+                self.log("  Freeze reconcile skipped (sale-result columns not migrated yet)")
+                conn.rollback()
+                return
+
+            # The two families must stay disjoint. If a future edit widens the
+            # witness to cover a terminal-without-a-result status, the witness
+            # would alarm forever on rows that can never legitimately be frozen,
+            # and the alarm would be trained into noise. Fail loudly instead.
+            overlap = set(self.FREEZE_WITNESS_FAMILY) & set(self.FREEZE_TERMINAL_NO_RESULT)
+            if overlap:
+                self.freeze_reconcile_failures += 1
+                self.log(
+                    f"  SCHEDULER-ALARM Freeze reconcile misconfigured: {sorted(overlap)} "
+                    f"is both a witnessed and a terminal-without-result status — the "
+                    f"witness would alarm forever on rows that must never be frozen"
+                )
+                conn.rollback()
+                return
+
+            cursor.execute(self.FREEZE_RECONCILE_SQL, (now, now))
+            swept = cursor.rowcount
+
+            # ---- WITNESS: residual, measured AFTER the sweep, same transaction,
+            # over the broader concluded family. Expected 0. ----
+            cursor.execute(
+                """SELECT status::text, count(*) FROM "Auction"
+                   WHERE status::text = ANY(%s)
+                     AND "saleResult" IS NULL
+                     AND ("pujaStatus" IS NOT NULL
+                          OR COALESCE("currentBidAmount",0) > 0)
+                     AND "endsAt" IS NOT NULL
+                     AND "endsAt" <= %s
+                   GROUP BY 1 ORDER BY 2 DESC""",
+                (list(self.FREEZE_WITNESS_FAMILY), now),
+            )
+            residual_rows = cursor.fetchall()
+            residual = sum(r[1] for r in residual_rows)
+
+            # ---- INCOHERENT: concluded + freezable signal, but endsAt missing or
+            # in the future. Never frozen (would stamp a future soldDate).
+            # Reported every run so it can never become invisible. ----
+            cursor.execute(
+                """SELECT count(*) FROM "Auction"
+                   WHERE status = 'CONCLUIDA_PORTAL'
+                     AND "saleResult" IS NULL
+                     AND ("pujaStatus" IS NOT NULL
+                          OR COALESCE("currentBidAmount",0) > 0)
+                     AND ("endsAt" IS NULL OR "endsAt" > %s)""",
+                (now,),
+            )
+            incoherent = cursor.fetchone()[0]
+
+            # ---- TERMINAL-WITHOUT-A-RESULT: counted and LABELLED separately, so
+            # "nothing to do because these rows are terminal" can never be read as
+            # "nothing to do because the sweep is broken". Never an alarm. ----
+            cursor.execute(
+                """SELECT count(*) FROM "Auction"
+                   WHERE status::text = ANY(%s)
+                     AND "saleResult" IS NULL
+                     AND ("pujaStatus" IS NOT NULL
+                          OR COALESCE("currentBidAmount",0) > 0)""",
+                (list(self.FREEZE_TERMINAL_NO_RESULT),),
+            )
+            cancelled = cursor.fetchone()[0]
+
+            conn.commit()
+
+            # Unconditional heartbeat — logged even when swept == 0, so "the
+            # reconcile ran and found nothing" is distinguishable from "the
+            # reconcile did not run".
+            self.log(
+                f"  Freeze reconcile: swept={swept} residual={residual} "
+                f"incoherent={incoherent} cancelled={cancelled}"
+            )
+            if residual > 0:
+                self.freeze_reconcile_failures += 1
+                breakdown = ", ".join(f"{s}={n}" for s, n in residual_rows)
+                self.log(
+                    f"  SCHEDULER-ALARM Freeze reconcile left {residual} concluded "
+                    f"row(s) UNFROZEN after sweeping {swept} ({breakdown}) — the "
+                    f"sweep predicate no longer covers every concluded state"
+                )
+            if incoherent > 0:
+                self.log(
+                    f"  Freeze reconcile: {incoherent} incoherent row(s) held back "
+                    f"(CONCLUIDA_PORTAL with endsAt NULL or in the future) — not "
+                    f"frozen by design; they become sweepable when endsAt passes"
+                )
+        except Exception as e:
+            self.freeze_reconcile_failures += 1
+            if conn is not None:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            self.log(f"  SCHEDULER-ALARM Freeze reconcile FAILED: {e}")
+        finally:
+            # This job runs every 30 min forever; _get_pg_conn() opens a NEW
+            # connection each call, so not closing it leaks one per cycle.
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     # -----------------------------------------------------------------------
     # Mechanism 2 — DAILY POST-CLOSE RE-SCRAPE (catch freeze misses + history)
@@ -1895,6 +2146,12 @@ class ScraperScheduler:
         # Status monitor (expire + ending_soon) — every 30 min
         schedule.every(30).minutes.do(self.monitor_status_changes)
 
+        # Freeze reconcile (Mechanism 1b) — every 30 min, as its OWN job rather
+        # than a call inside monitor_status_changes: a failure in the monitor
+        # must not be able to suppress the reconcile, which is the thing that
+        # catches every non-scheduler path to CONCLUIDA_PORTAL.
+        schedule.every(30).minutes.do(self.freeze_reconcile)
+
         # Promotion (PROXIMA_APERTURA -> CELEBRANDOSE when opensAt arrives)
         # — every 30 min. The time-driven hinge the lifecycle was missing.
         schedule.every(30).minutes.do(self.promote_pending_auctions)
@@ -2004,6 +2261,7 @@ class ScraperScheduler:
         self.log("Schedule configured:")
         self.log("  Pulse (bid updates):  Every 35 min")
         self.log("  Status monitor:       Every 30 min")
+        self.log("  Freeze reconcile:     Every 30 min (by state, all concluded rows)")
         self.log("  Promotion (go-live):  Every 30 min (PROXIMA_APERTURA -> CELEBRANDOSE)")
         self.log(f"  Daily BOE + alerts:   08:00, 14:00, 20:00 (JUDICIAL)")
         self.log(f"  Notarial update:      06:30, 12:30, 18:30, 23:30 (4x/day)")
@@ -2025,6 +2283,10 @@ class ScraperScheduler:
         # Run initial checks immediately
         self.log("Running initial monitor check...")
         self.monitor_status_changes()
+        # Initial freeze reconcile so a deploy drains the concluded backlog now
+        # rather than up to 30 min later (the amounts are racing the portal wipe).
+        self.log("Running initial freeze reconcile...")
+        self.freeze_reconcile()
         # Initial promotion sweep so any already-due pre-auction goes live on boot.
         self.log("Running initial promotion check...")
         self.promote_pending_auctions()
