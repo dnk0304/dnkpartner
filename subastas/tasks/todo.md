@@ -146,3 +146,47 @@ what makes browser verification of the dark code possible at all.
 
 ## Open decisions
 None blocking. R2 is a recommendation for Ken, not a gate.
+
+---
+
+# REVIEW — all tasks complete (2026-08-04)
+
+Branch `forge/url-v3-applayer`, tip `7784231`, remote SHA
+`7784231dfa624d074b4e9261b7e2c65dfc4f9771`. **Pushed, NOT deployed.**
+
+| task | outcome |
+|---|---|
+| 001 switch + resolver | done — `url-v3-switch.ts`, `auction-url.ts` |
+| 002 shared detail view | done — `auction-detail-view.tsx`; both routes are shells |
+| 003 v3 route | done — `[slug]/[municipio]/[detalle]/page.tsx` |
+| 004 redirect layer | done — 308 via `permanentRedirect()`, fires before the slug canonicaliser |
+| 005 canonical + JSON-LD | done — `buildAuctionJsonLd(auction, canonicalPageUrl?)` |
+| 006 sitemap gen-not-pub | done — resolver in both bands + `url-v3-sitemap-generate.ts` |
+| 007 tests | done — 19/19 |
+| 008 browser + ledger | done |
+
+## Gate results (all exit 0)
+- `tsc --noEmit` **0**
+- `npm run build` **0**, reserved guard green, route table shows `[detalle]` and
+  `pagina/[page]` as siblings
+- app-layer proofs on isolated PG16 `subastas_applayer_forge`: **19/19**
+- pre-existing url-v3 suites: descriptor-guard, descriptor-v3, resolve-town all **0**
+- runtime gate switch **OFF: 10/10**; switch **ON: 11/11**
+- sitemap: **7** v3 urls generated to a file, **0** v3 urls in the served sitemap
+- browser (CDP, headless Chrome), 2 v3 samples behind the OFF switch: renders,
+  `canonical === JSON-LD @id`, canonical points at the LEGACY url, no redirect
+  fires, zero console errors/warnings
+
+## Two things worth Ken's attention
+1. **`auction_url_v3` is invisible to Prisma.** Safe today (`prisma migrate
+   deploy` never touches an unmanaged table) but a future `prisma db push`
+   would drop 192,589 rows without a warning. Recommend either adopting it into
+   the schema with a no-op baseline migration, or a documented ban on `db push`.
+2. **`deploy-guard.sh preflight-app` refuses until the branch is on the deploy
+   box** — the self-integrity gate added in `9f7617d` fails closed when it has
+   no committed counterpart at the box's HEAD. Working as designed; it just
+   means the guard runs at deploy time, not from a local worktree.
+
+## Correction to the runbook
+Base is `9f7617d`, not `ceb81a4` — `ca6e510` and `9f7617d` (deploy-guard
+self-integrity) landed after the brief was written. Verified with `ls-remote`.
