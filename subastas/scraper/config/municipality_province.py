@@ -795,6 +795,11 @@ _TOWN_WORD_AMBIG: dict[str, frozenset] = {}
 # co-official and Castilian compound forms still matches (multi-token only).
 _TOWN_CONTENT_UNAMBIG: dict[str, str] = {}
 _TOWN_CONTENT_AMBIG: dict[str, frozenset] = {}
+# Word/content key -> the canonical INE municipality NAME it matched. Lets the
+# address scan return the TOWN (for the `municipality` column), not just the
+# province. Only populated for keys that resolve to exactly one province, so a
+# name that exists in several provinces never yields a confident town.
+_TOWN_DISPLAY: dict[str, str] = {}
 # Single tokens that are a component of some MULTI-word municipality name — used
 # by the sub-token hijack guard (a bare "Vallbona"/"Cristina"/"Móra" must not
 # fill when it is a fragment of a longer compound town in the address).
@@ -816,6 +821,9 @@ def _load_ine_register() -> None:
     base: dict[str, set] = _defaultdict(set)
     word: dict[str, set] = _defaultdict(set)
     content: dict[str, set] = _defaultdict(set)
+    # key -> the distinct canonical INE names that produced it (for _TOWN_DISPLAY)
+    word_name: dict[str, set] = _defaultdict(set)
+    content_name: dict[str, set] = _defaultdict(set)
     here = _os.path.dirname(_os.path.abspath(__file__))
     loaded_any = False
     for fname in _GAZETTEER_FILES:
@@ -833,9 +841,11 @@ def _load_ine_register() -> None:
                 base[normalize_municipality(nom)].add(prov)
                 for k in _word_variants(nom):
                     word[k].add(prov)
+                    word_name[k].add(nom)
                 toks = [w for w in _address_words(nom) if w not in _CONNECTORS]
                 if len(toks) >= 2:
                     content[' '.join(toks)].add(prov)
+                    content_name[' '.join(toks)].add(nom)
                     for t in toks:
                         if len(t) >= 3:
                             _COMPONENT_TOKENS.add(t)
@@ -857,6 +867,16 @@ def _load_ine_register() -> None:
             _TOWN_CONTENT_UNAMBIG[k] = next(iter(provs))
         else:
             _TOWN_CONTENT_AMBIG[k] = frozenset(provs)
+    # Display names: only for keys that are province-unambiguous AND map to a
+    # single canonical INE spelling. A key produced by two different towns is
+    # left out entirely -> the scan returns a province but no town, which is the
+    # honest answer rather than an arbitrary pick.
+    for k, names in word_name.items():
+        if len(word.get(k, ())) == 1 and len(names) == 1:
+            _TOWN_DISPLAY[k] = next(iter(names))
+    for k, names in content_name.items():
+        if len(content.get(k, ())) == 1 and len(names) == 1:
+            _TOWN_DISPLAY.setdefault(k, next(iter(names)))
 
 
 _load_ine_register()
@@ -1210,7 +1230,10 @@ def _connector_neighbor(words, i):
 def _scan_address(address):
     """
     Whole-string town/province scan with false-positive guards. Returns
-    (province, method, candidates):
+    (province, method, candidates, town) where `town` is the canonical INE
+    municipality name of the winning match when that match was an unambiguous
+    TOWN with a single canonical spelling, else None (a province-name match or
+    an ambiguous/multi-spelling key yields no town). Otherwise:
       - (province, 'address-province'|'address-town', None) for a confident
         UNAMBIGUOUS match;
       - (None, None, frozenset) when the best match is an AMBIGUOUS town (its
@@ -1228,7 +1251,13 @@ def _scan_address(address):
     """
     words = _address_words(address)
     n = len(words)
-    best = None  # (L, i, method_or_None, province_or_None, candidates_or_None)
+    # (L, i, method_or_None, province_or_None, candidates_or_None, town_key_or_None)
+    best = None
+    # Best TOWN hit, tracked SEPARATELY from `best`. A trailing province name
+    # ("..., Getafe, Madrid") is rightmost and therefore wins `best`, which is
+    # correct for the province but would otherwise suppress the town. Province
+    # resolution is untouched; this only feeds the returned town.
+    best_town = None
     for i in range(n):
         if words[i].isdigit():
             continue
@@ -1244,11 +1273,12 @@ def _scan_address(address):
                 if len(w) < 4 or w in _STREET_WORDS:
                     continue
             key = ' '.join(seg)
-            method = province = candidates = None
+            method = province = candidates = town_key = None
             if key in _PROV_WORD:
                 method, province = 'address-province', _PROV_WORD[key]
             elif key in _TOWN_WORD_UNAMBIG:
                 method, province = 'address-town', _TOWN_WORD_UNAMBIG[key]
+                town_key = key
             elif key in _TOWN_WORD_AMBIG:
                 candidates = _TOWN_WORD_AMBIG[key]
             else:
@@ -1259,6 +1289,7 @@ def _scan_address(address):
                     ck = ' '.join(content)
                     if ck in _TOWN_CONTENT_UNAMBIG:
                         method, province = 'address-town', _TOWN_CONTENT_UNAMBIG[ck]
+                        town_key = ck
                     elif ck in _TOWN_CONTENT_AMBIG:
                         candidates = _TOWN_CONTENT_AMBIG[ck]
                     else:
@@ -1273,13 +1304,24 @@ def _scan_address(address):
             if (L == 1 and province is not None and method == 'address-town'
                     and seg[0] in _COMPONENT_TOKENS and _connector_neighbor(words, i)):
                 continue
-            hit = (L, i, method, province, candidates)
+            hit = (L, i, method, province, candidates, town_key)
             if best is None or hit[0] > best[0] or (hit[0] == best[0] and hit[1] > best[1]):
                 best = hit
+            if town_key is not None and (
+                    best_town is None or hit[0] > best_town[0]
+                    or (hit[0] == best_town[0] and hit[1] > best_town[1])):
+                best_town = hit
             break  # took the longest n-gram at this start
     if best is None:
-        return None, None, None
-    return best[3], best[2], best[4]
+        return None, None, None, None
+    town = None
+    # Only surface the town when it is consistent with the province we resolved
+    # (or when no province resolved). A town whose province contradicts the
+    # winning province match is a false positive — drop it rather than pick.
+    if best_town is not None:
+        if best[3] is None or _canon_prov(best_town[3]) == _canon_prov(best[3]):
+            town = _TOWN_DISPLAY.get(best_town[5])
+    return best[3], best[2], best[4], town
 
 
 def derive_province_from_address(address: Optional[str]):
@@ -1311,10 +1353,85 @@ def derive_province_from_address(address: Optional[str]):
             return p, 'address-postal'
 
     # 2. whole-string town/province scan.
-    province, method, _cands = _scan_address(raw)
+    province, method, _cands, _town = _scan_address(raw)
     if province:
         return province, method
     return None, None
+
+
+def derive_municipality_from_address(address: Optional[str]):
+    """
+    Parse the PROPERTY's town out of a free-form address string, conservatively.
+
+    Returns (town, province, method) where `town` is a canonical INE
+    municipality name and method is 'address-town', or (None, None, None) when
+    the address yields no unambiguous single-spelling town.
+
+    NEVER guesses. A postal code alone gives a province but NOT a town (many
+    municipalities share a postcode), so a postal-only hit returns no town —
+    this is the asymmetry that keeps municipality a strictly weaker signal than
+    province. An ambiguous name (exists in >1 province) is rejected outright
+    rather than resolved by proximity or by the court.
+
+    This REPLACES the 18-big-city substring scan that used to read the court's
+    city off the page chrome.
+    """
+    if not address:
+        return None, None, None
+    raw = str(address).strip()
+    if not raw:
+        return None, None, None
+    province, _method, _cands, town = _scan_address(raw)
+    if not town:
+        return None, None, None
+    # Prefer the postal-derived province when present (deterministic), else the
+    # scan's. _scan_address already guarantees the town does not contradict it.
+    prov = None
+    m = _POSTAL5_RE.search(raw)
+    if m:
+        prov = _prov_by_code(m.group(1))
+    prov = prov or province
+    town = canonical_municipality_name(town)
+    if not town:
+        return None, None, None
+    # Final consistency gate: a postal-derived province that disagrees with the
+    # town's own province means one of the two is wrong -> return neither.
+    tprov = municipality_to_province(normalize_municipality(town))
+    if prov and tprov and _canon_prov(prov) != _canon_prov(tprov):
+        return None, None, None
+    return town, prov, 'address-town'
+
+
+def geo_cross_check(province: Optional[str],
+                    municipality: Optional[str],
+                    address: Optional[str]):
+    """
+    Ken's permanent guard (RULING 2026-08-03 §1): the address string is a
+    CROSS-CHECK, never a silent override.
+
+    Given the geo we are about to persist and the row's address, return
+    (agrees, detail):
+      - (True,  None)      the address corroborates, or is silent / ambiguous
+                           (silence is not disagreement).
+      - (False, "...")     the address unambiguously resolves to a DIFFERENT
+                           province or town than what we are about to write.
+
+    A False result means FLAG THE ROW — do not silently pick a side. The caller
+    quarantines it rather than minting a confident wrong URL.
+    """
+    if not address:
+        return True, None
+    a_prov, a_method = derive_province_from_address(address)
+    if a_prov and province:
+        if _canon_prov(a_prov) != _canon_prov(province):
+            return False, (f"address->{a_prov} ({a_method}) "
+                           f"contradicts province={province}")
+    a_town, _tp, _tm = derive_municipality_from_address(address)
+    if a_town and municipality:
+        if normalize_municipality(a_town) != normalize_municipality(municipality):
+            return False, (f"address->town {a_town} "
+                           f"contradicts municipality={municipality}")
+    return True, None
 
 
 def court_province_hint(court_name: Optional[str]):
@@ -1527,7 +1644,7 @@ def _ambiguous_candidates(address: Optional[str], municipality: Optional[str]):
     # ambiguous name. Same scan derive_province_from_address uses, so the token
     # the tiebreaker disambiguates is exactly the one that blocked the fill.
     if address:
-        _p, _m, cands = _scan_address(str(address))
+        _p, _m, cands, _t = _scan_address(str(address))
         if cands:
             return cands
     return None
