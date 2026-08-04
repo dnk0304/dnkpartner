@@ -31,6 +31,8 @@
  * readability ("inmueble" not "INMUEBLE", "Vivienda" not "vivienda").
  */
 
+import { redactForDisplay } from '../sanitize-extracted-text';
+
 export interface DisplayTitleInput {
   address?: string | null;
   propertyType?: string | null;
@@ -60,10 +62,22 @@ const titleCase = (raw: string): string => {
   return t.replace(/(^|\s)(\p{L})/gu, (_m, sep: string, ch: string) => sep + ch.toUpperCase());
 };
 
+/**
+ * SANITIZE-DISPLAY (2026-08-04, Ken ruling). Every string that can reach the
+ * H1 / <title> / OpenGraph title enters this module through `cleanString`, so
+ * this is the single choke point for the title surface. Redaction runs here,
+ * BEFORE junk detection and street parsing, so:
+ *   - a `Código Seguro de Verificación …` stamp spliced mid-street (Ghost's
+ *     verified BOE source defect) can never reach the title, and
+ *   - the 1b "surface the stored address verbatim" branch — which bypasses the
+ *     street allowlist entirely — cannot publish a phone number or an e-mail.
+ * Redaction is a no-op on municipality / province / category inputs.
+ */
 const cleanString = (v: unknown): string | null => {
   if (typeof v !== 'string') return null;
   const t = v.trim();
-  return t.length > 0 ? t : null;
+  if (t.length === 0) return null;
+  return redactForDisplay(t);
 };
 
 /**

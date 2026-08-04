@@ -32,6 +32,7 @@ import {
   isFinishedStatus as sharedIsFinishedStatus,
 } from '@/lib/auction-status';
 import { normalizeText } from '@/lib/normalize';
+import { sanitizeExtractedText } from '@/lib/sanitize-extracted-text';
 import { OFFICIAL_CATEGORIES } from '@/lib/constants';
 import { isKnownSource } from '@/lib/source-labels';
 import { toCanonicalProvince } from '@/lib/spain-provinces';
@@ -336,17 +337,18 @@ const ACTIVE_FIRST_CASE_SQL = buildActiveFirstCaseSql();
 function buildGeneralInfo(item: AuctionFromDB): string | null {
   const parts: string[] = [];
 
-  if (item.boeAnnouncement) {
-    parts.push(item.boeAnnouncement.trim());
-  }
+  // SANITIZE-DISPLAY (2026-08-04): every scraper free-text blob folded into
+  // `generalInfo` goes through the display sanitizer first — page-dump
+  // rejection PLUS excision of e-justice CSV stamps, URLs, phone numbers and
+  // e-mail addresses. See src/lib/sanitize-extracted-text.ts.
+  const safeBoeAnnouncement = sanitizeExtractedText(item.boeAnnouncement);
+  if (safeBoeAnnouncement) parts.push(safeBoeAnnouncement);
 
-  if (item.propertyDescription) {
-    parts.push(item.propertyDescription.trim());
-  }
+  const safePropertyDescriptionForInfo = sanitizeExtractedText(item.propertyDescription);
+  if (safePropertyDescriptionForInfo) parts.push(safePropertyDescriptionForInfo);
 
-  if (item.lotDescription) {
-    parts.push(item.lotDescription.trim());
-  }
+  const safeLotDescriptionForInfo = sanitizeExtractedText(item.lotDescription);
+  if (safeLotDescriptionForInfo) parts.push(safeLotDescriptionForInfo);
 
   if (parts.length === 0) {
     if (item.auctionId) parts.push(`ID Subasta: ${item.auctionId}`);
@@ -357,7 +359,11 @@ function buildGeneralInfo(item: AuctionFromDB): string | null {
     if (item.possessionStatus) parts.push(`Posesión: ${item.possessionStatus}`);
     if (item.visitable !== null) parts.push(`Visitable: ${item.visitable ? 'Sí' : 'No'}`);
     if (item.cadastralRef) parts.push(`Referencia catastral: ${item.cadastralRef}`);
-    if (item.registryInfo) parts.push(`Registro: ${item.registryInfo}`);
+    const safeRegistryInfoForInfo = sanitizeExtractedText(item.registryInfo);
+    if (safeRegistryInfoForInfo) parts.push(`Registro: ${safeRegistryInfoForInfo}`);
+    // NOTE: `contactInfo` is the COURT's own official contact block (the
+    // gestora's public switchboard), not a private individual's number. It is
+    // deliberately NOT redacted — out of scope for this dispatch. Flagged to Ken.
     if (item.contactInfo) parts.push(`Contacto: ${item.contactInfo}`);
   }
 
@@ -366,12 +372,12 @@ function buildGeneralInfo(item: AuctionFromDB): string | null {
 }
 
 function extractWarning(item: AuctionFromDB): string | null {
-  if (item.chargesDetail && item.chargesDetail.trim()) {
-    return item.chargesDetail.trim();
-  }
+  const safeCharges = sanitizeExtractedText(item.chargesDetail);
+  if (safeCharges) return safeCharges;
 
-  if (item.boeAnnouncement) {
-    const match = item.boeAnnouncement.match(/Advertencia[s]?:\s*(.*)/i);
+  const safeAnnouncement = sanitizeExtractedText(item.boeAnnouncement);
+  if (safeAnnouncement) {
+    const match = safeAnnouncement.match(/Advertencia[s]?:\s*(.*)/i);
     if (match && match[1]) {
       return match[1].trim();
     }
@@ -613,7 +619,7 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
       // locked teaser so the card body has real text. The genuine leaks
       // (generalInfo aggregate: VIN/plate/cadastral/registry/contact) stay
       // walled above.
-      lotDescription: item.lotDescription,
+      lotDescription: sanitizeExtractedText(item.lotDescription),
       chargesDetail: null,
       cadastralRef: null,
       // #16 / #17 — pujaStatus + occupancy are low-info badges (kept public);
@@ -707,9 +713,11 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
     directionsUrl: item.directionsUrl,
     generalInfo,
     warning,
-    propertyDescription: item.propertyDescription,
-    lotDescription: item.lotDescription,
-    chargesDetail: item.chargesDetail,
+    // SANITIZE-DISPLAY (2026-08-04) — these three reach public list cards
+    // (AuctionResultRow excerpt), the detail modal and the SSR detail body.
+    propertyDescription: sanitizeExtractedText(item.propertyDescription),
+    lotDescription: sanitizeExtractedText(item.lotDescription),
+    chargesDetail: sanitizeExtractedText(item.chargesDetail),
     // Catastro RC — projected so the detail modal/page can render the
     // "Ver en Catastro" external link when populated (~2.5% of active rows).
     cadastralRef: item.cadastralRef,
