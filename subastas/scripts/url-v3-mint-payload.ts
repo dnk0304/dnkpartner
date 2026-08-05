@@ -19,51 +19,22 @@
  * Usage: npx tsx scripts/url-v3-mint-payload.ts <fresh.csv> <out-mint.tsv> <out-held.tsv>
  */
 import { readFileSync, writeFileSync } from 'node:fs';
-import { resolveTown } from '@/lib/geo/resolve-town';
-import {
-  buildDescriptorV3, buildAuctionPathV3, refTail, losesIdentifyingDetail, MAX_URL_LEN_V3,
-} from '@/lib/seo/descriptor-v3';
-import { PROVINCE_ALIAS_TO_CANONICAL, PROVINCE_DB_KEY_TO_SLUG, slugify } from '@/lib/seo/slugs';
-import municipalityAliases from '@/data/municipality-aliases.json';
+import { mintAuctionUrlV3, MintGateError } from '@/lib/seo/mint-url-v3';
 
 /**
- * canonical "{prov}/{town}" -> every OTHER official spelling of that town, plus
- * every alias spelling of the province. The address text almost always writes
- * the locality in a different spelling than the canonical slug ("ELCHE" where
- * the slug is `elx`), so these are what make the duplicate strippable.
+ * ⭐ THE PER-ROW RULES NOW LIVE IN `@/lib/seo/mint-url-v3`, NOT HERE.
+ *
+ * They were lifted out on 2026-08-05 so that MINT-ON-INGEST could reuse them
+ * verbatim instead of re-deriving them. This script is now one of two callers of
+ * `mintAuctionUrlV3`; the sweep behind `POST /api/mint/url-v3/run` is the other.
+ * Keeping a private copy here would have re-created the exact defect that
+ * dispatch was raised to prevent: a batch slug and an ingest slug for the same
+ * row, both permanent, silently disagreeing.
+ *
+ * What stays here is what is genuinely BATCH-only: CSV parsing, TSV emission,
+ * and the CORPUS-WIDE gates (cross-row duplicate detection) that a single-row
+ * caller cannot perform and delegates to the DB's UNIQUE index instead.
  */
-const ALIASES_BY_CANONICAL = (() => {
-  const m = new Map<string, string[]>();
-  const entries = (municipalityAliases as {
-    entries: Record<string, { canonical: string; ine: string; province: string }>;
-  }).entries;
-  for (const [key, v] of Object.entries(entries)) {
-    const [prov, aliasTown] = key.split('/');
-    const ck = `${prov}/${v.canonical}`;
-    if (!m.has(ck)) m.set(ck, []);
-    m.get(ck)!.push(aliasTown);
-  }
-  return m;
-})();
-
-const PROVINCE_ALIASES_BY_CANONICAL = (() => {
-  const m = new Map<string, string[]>();
-  for (const [alias, canon] of Object.entries(PROVINCE_ALIAS_TO_CANONICAL)) {
-    if (alias === canon) continue;
-    if (!m.has(canon)) m.set(canon, []);
-    m.get(canon)!.push(alias);
-  }
-  return m;
-})();
-
-/**
- * Route segments that already exist under /subastas. A province slug equal to
- * one of these would shadow a real route; a town slug equal to a second-level
- * one would shadow the town-hub's own children. Derived from the live app
- * router (src/app/subastas/*) plus the verified live sitemap.
- */
-const RESERVED_UNDER_SUBASTAS = new Set(['subasta', 'tipo', 'pagina', 'page', 'api']);
-const RESERVED_UNDER_PROVINCE = new Set(['pagina', 'page']);
 
 type Row = { id: string; boeId: string; category: string; province: string;
              municipality: string; postalCode: string; address: string };
@@ -104,46 +75,39 @@ function main() {
   const reservedHits = new Set<string>();
 
   for (const r of rows) {
-    const town = resolveTown({
-      postalCode: r.postalCode, storedMunicipality: r.municipality, province: r.province,
-    });
-    if (town.status !== 'resolved') { degraded += 1; continue; }
-    const provinceSlug = PROVINCE_DB_KEY_TO_SLUG[r.province];
-    if (!provinceSlug) { degraded += 1; continue; }
-    const townSlug = slugify(town.municipality);
-    if (!townSlug) { degraded += 1; continue; }
+    let outcome;
+    try {
+      outcome = mintAuctionUrlV3(r);
+    } catch (err) {
+      // The shared mint THROWS where this script used to accumulate. Translate
+      // back into this script's gate counters so the run still reports every
+      // problem and exits non-zero at the end, rather than dying on row 1.
+      if (!(err instanceof MintGateError)) throw err;
+      if (err.code === 'structural-overflow') { overflow += 1; problems.push(`overflow ${r.boeId}`); }
+      else if (err.code === 'over-ceiling') { overCeiling += 1; problems.push(err.message); }
+      else if (err.code === 'reserved-shadow') { reservedHits.add(err.message); }
+      else problems.push(err.message);
+      continue;
+    }
 
-    // Reserved-segment guard, asserted against REAL slugs rather than assumed.
-    if (RESERVED_UNDER_SUBASTAS.has(provinceSlug)) reservedHits.add(`province:${provinceSlug}`);
-    if (RESERVED_UNDER_PROVINCE.has(townSlug)) reservedHits.add(`town:${townSlug}`);
+    if (outcome.status === 'degraded') { degraded += 1; continue; }
 
-    const localityAliases = [
-      ...(ALIASES_BY_CANONICAL.get(`${provinceSlug}/${townSlug}`) ?? []),
-      ...(PROVINCE_ALIASES_BY_CANONICAL.get(provinceSlug) ?? []),
-    ];
-    const d = buildDescriptorV3({
-      address: r.address, townSlug, provinceSlug, postalCode: r.postalCode, localityAliases,
-    });
-    if (d.signals.length) guarded += 1;
+    const row = outcome.row;
+    if (row.guardSignals) guarded += 1;
+    maxLen = Math.max(maxLen, row.url.length);
 
-    const p = buildAuctionPathV3({
-      provinceSlug, townSlug, category: r.category, descriptor: d.descriptor, ref: refTail(r.boeId),
-    });
-    if (p.structuralOverflow) { overflow += 1; problems.push(`overflow ${r.boeId}`); continue; }
-    if (p.url.length > MAX_URL_LEN_V3) { overCeiling += 1; problems.push(`over-ceiling ${r.boeId} ${p.url.length}`); }
-    maxLen = Math.max(maxLen, p.url.length);
+    // CORPUS-WIDE gate — the one check a single-row caller cannot do. At ingest
+    // this same guarantee comes from `UNIQUE(auction_url_v3.url)`.
+    const prev = seen.get(row.url);
+    if (prev) { dupes += 1; problems.push(`DUPLICATE ${row.url} <- ${prev} + ${r.boeId}`); }
+    seen.set(row.url, r.boeId);
 
-    const prev = seen.get(p.url);
-    if (prev) { dupes += 1; problems.push(`DUPLICATE ${p.url} <- ${prev} + ${r.boeId}`); }
-    seen.set(p.url, r.boeId);
-
-    const isHeld = losesIdentifyingDetail(d.full, d.descriptor) || p.ceilingTrimmed;
     const line = tsv(
-      r.id, r.boeId, p.url, provinceSlug, townSlug, town.source, town.ine ?? '',
-      refTail(r.boeId), d.descriptor, d.full, d.truncated,
-      d.signals.length ? JSON.stringify(d.signals) : '',
+      row.auctionId, row.boeId, row.url, row.provinceSlug, row.townSlug, row.townSource,
+      row.ine ?? '', row.refTail, row.descriptor, row.descriptorFull, row.truncated,
+      row.guardSignals ?? '',
     );
-    (isHeld ? held : mint).push(line);
+    (outcome.status === 'held' ? held : mint).push(line);
   }
 
   // ── GATES ────────────────────────────────────────────────────────────────

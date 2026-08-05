@@ -406,6 +406,12 @@ model User {
   prefNewsletter    Boolean            @default(true) // boletín de novedades
   prefWeeklyNoNew   Boolean            @default(true) // aviso semanal sin nuevas subastas
   prefRadar         Boolean            @default(true) // radar de subastas
+  /// Set the moment the welcome email is CLAIMED for this user (before the send
+  /// is attempted). Non-null means "welcome already handled" — it is the
+  /// idempotency key that stops a re-verification or a repeat click from
+  /// re-sending. Nullable and additive: every existing row is NULL, and existing
+  /// users are deliberately NOT back-filled a welcome email.
+  welcomeSentAt     DateTime?
   alerts            Alert[]
   favorites         Favorite[]
   notifications     Notification[]

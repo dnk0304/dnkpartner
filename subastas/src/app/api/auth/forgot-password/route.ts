@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryOne, execute } from '@/lib/db';
 import crypto from 'crypto';
+import { infoFromEmail } from '@/lib/email-from';
 
 export async function POST(request: NextRequest) {
   try {
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
         const resend = new Resend(process.env.RESEND_API_KEY);
         
         await resend.emails.send({
-          from: process.env.EMAIL_FROM || 'SubastasActivas <noreply@subastasactivas.com>',
+          from: infoFromEmail(),
           to: email,
           subject: 'Reset your SubastasActivas password',
           html: `

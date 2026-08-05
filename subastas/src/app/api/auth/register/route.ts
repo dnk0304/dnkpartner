@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { queryOne, execute } from '@/lib/db';
 import bcrypt from 'bcryptjs';
+import { sendWelcomeEmailOnce } from '@/lib/email/send-welcome';
 
 export async function POST(request: NextRequest) {
   try {
@@ -63,6 +64,12 @@ export async function POST(request: NextRequest) {
       trialEnd.toISOString(), // 15 days from now
       false, // hasUsedTrial = false
     ]);
+
+    // Welcome email — the account is verified the moment it is created here
+    // ("auto-verify since they set a password" above), so this IS the
+    // verification-complete point. Awaited but never allowed to fail the
+    // registration; `sendWelcomeEmailOnce` swallows its own errors.
+    await sendWelcomeEmailOnce(userId);
 
     return NextResponse.json(
       {
