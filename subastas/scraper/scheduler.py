@@ -71,6 +71,27 @@ DISPATCH_ENDPOINT = os.getenv(
 CRON_SECRET = os.getenv("CRON_SECRET", "")
 DISPATCH_INTERVAL_MIN = int(os.getenv("DISPATCH_INTERVAL_MIN", "1"))
 
+# MINT-ON-INGEST (2026-08-05) — POST to /api/mint/url-v3/run on a short
+# interval so every newly ingested auction gets its PERMANENT v3 url minted.
+#
+# ⭐ WHY THE SCHEDULER PINGS THE APP INSTEAD OF MINTING HERE. The v3 slug rules
+# live in ONE place, `src/lib/seo/mint-url-v3.ts` (TypeScript), shared with the
+# original 192,589-row batch mint. Re-implementing them in Python — inside
+# database/adapter.py where the Auction row is actually written — would create a
+# second, drifting definition of a url that can NEVER be changed once minted.
+# So the mint stays in the app and the scheduler triggers it, exactly as
+# dispatch_outbox does for the event outbox.
+#
+# The sweep is idempotent and convergent: it mints whatever has no v3 row yet,
+# so a missed tick self-heals on the next one and a failure is retried rather
+# than lost. An unminted auction is SAFE — it serves its legacy url.
+MINT_URL_V3_ENDPOINT = os.getenv(
+    "MINT_URL_V3_ENDPOINT",
+    f"{APP_BASE_URL}/api/mint/url-v3/run",
+)
+MINT_URL_V3_INTERVAL_MIN = int(os.getenv("MINT_URL_V3_INTERVAL_MIN", "5"))
+MINT_URL_V3_BATCH = int(os.getenv("MINT_URL_V3_BATCH", "500"))
+
 
 class ScraperScheduler:
     def __init__(self):
@@ -2132,6 +2153,34 @@ class ScraperScheduler:
         except Exception as e:
             self.log(f"  dispatch_outbox: error {type(e).__name__}: {e}")
 
+    # MINT-ON-INGEST (2026-08-05): mint the permanent v3 url for every auction
+    # ingested since the last pass. See MINT_URL_V3_ENDPOINT above for why this
+    # is an app call rather than Python-side minting.
+    #
+    # The response body is logged VERBATIM (truncated) because it carries
+    # `stats.failed` / `stats.failures` — a mint we refused to perform must be
+    # visible in the scheduler log, not swallowed. Refusing is safe; minting a
+    # wrong permanent url is not.
+    def mint_url_v3(self):
+        if not CRON_SECRET:
+            self.log("  mint_url_v3: skipped (CRON_SECRET not set)")
+            return
+        try:
+            req = urllib.request.Request(
+                f"{MINT_URL_V3_ENDPOINT}?limit={MINT_URL_V3_BATCH}",
+                method="POST",
+                headers={
+                    "Authorization": f"Bearer {CRON_SECRET}",
+                    "Content-Type": "application/json",
+                },
+                data=b"{}",
+            )
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                body = resp.read().decode("utf-8", errors="replace")[:600]
+                self.log(f"  mint_url_v3: {resp.status} {body}")
+        except Exception as e:
+            self.log(f"  mint_url_v3: error {type(e).__name__}: {e}")
+
     def setup_schedule(self):
         self.log("=" * 70)
         self.log("DNKSUBASTAS SCHEDULER STARTED")
@@ -2246,6 +2295,13 @@ class ScraperScheduler:
         # Wave 2b: dispatcher drain — every DISPATCH_INTERVAL_MIN minutes
         schedule.every(DISPATCH_INTERVAL_MIN).minutes.do(self.dispatch_outbox)
 
+        # MINT-ON-INGEST — every MINT_URL_V3_INTERVAL_MIN minutes (default 5).
+        # Deliberately an INTERVAL rather than a hook appended to each of the 8
+        # ingest jobs: the interval also covers the older standalone scrapers
+        # that bypass the adapter entirely, and it self-heals a missed tick.
+        # Worst-case lag from ingest to minted url is one interval.
+        schedule.every(MINT_URL_V3_INTERVAL_MIN).minutes.do(self.mint_url_v3)
+
         # Geocode drain (fast) — every GEOCODE_INTERVAL_MIN minutes (default 10).
         # ACTIVE rows only: new live rows get coords promptly.
         geocode_interval = int(os.getenv("GEOCODE_INTERVAL_MIN", "10"))
@@ -2274,6 +2330,7 @@ class ScraperScheduler:
         self.log(f"  Benchmark recompute:  06:00 daily (region EUR/m2 value-signal, atomic full replace)")
         self.log(f"  Pre-auction (PA):     Every 6h (PROXIMA_APERTURA discovery, ORIGEN=J)")
         self.log(f"  Dispatch outbox:      Every {DISPATCH_INTERVAL_MIN} min")
+        self.log(f"  Mint url-v3:          Every {MINT_URL_V3_INTERVAL_MIN} min (batch {MINT_URL_V3_BATCH})")
         self.log(f"  Geocode drain (fast): Every {geocode_interval} min (active rows only)")
         self.log(f"  Geocode drain (all):  Every {geocode_finished_interval} min (ALL statuses incl. finished)")
         self.log(f"  ending_soon window:   {ENDING_SOON_HOURS}h before endsAt")
@@ -2294,6 +2351,10 @@ class ScraperScheduler:
         # gets picked up on boot.
         self.log("Running initial dispatcher drain...")
         self.dispatch_outbox()
+        # Initial mint pass so auctions ingested while the scheduler was down
+        # get their permanent url now rather than up to one interval later.
+        self.log("Running initial url-v3 mint pass...")
+        self.mint_url_v3()
 
     def run(self):
         self.setup_schedule()
