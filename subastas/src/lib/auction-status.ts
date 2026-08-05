@@ -132,6 +132,142 @@ export const ALERTABLE_DB_STATUSES = [
 /** Default map status set: active + pre-auction (buyers want upcoming pins). */
 export const MAP_DEFAULT_DB_STATUSES = ACTIVE_OR_UPCOMING_DB_STATUSES;
 
+// ─── The "¿Cuándo?" tab buckets — ONE predicate per tab ───────────────────
+
+/**
+ * ⭐ THE SHARED WHEN-BUCKET PREDICATE (Forge 2026-08-05).
+ *
+ * A province hub renders three numbers and one set of cards, and before this
+ * they were produced by three DIFFERENT status sets:
+ *
+ *   - the SEO intro / <title> count  → a LOCAL `ACTIVE_STATUSES` in
+ *     `lib/seo/page-data.ts` = [ACTIVE, CELEBRANDOSE, PRE_AUCTION,
+ *     PROXIMA_APERTURA] — included próximas, EXCLUDED suspendidas
+ *   - the H1 subtitle count + the cards under the Activas tab → the API's
+ *     `?status=active` = ACTIVE_DB_STATUSES = [ACTIVE, CELEBRANDOSE,
+ *     SUSPENDED, SUSPENDIDA] — excluded próximas, INCLUDED suspendidas
+ *   - the client tab mapping in `components/observatory/filters.ts` → a THIRD
+ *     hand-written CSV of folded frontend statuses per tab
+ *
+ * The two sets are disjoint in both directions, so the intro and the tab could
+ * not agree even in principle: Zaragoza advertised 42 and its Activas tab
+ * rendered 0 (all 42 were próximas); Albacete said 22 vs 1; Madrid 107 vs 26.
+ *
+ * THE INVARIANT, stated once and tested:
+ *
+ *   For every tab T, the set of auctions rendered as cards under T and the
+ *   number displayed for T are computed from `WHEN_BUCKET_DB_STATUSES[T]` and
+ *   nothing else. `activas` and `proximas` contain NO terminal status.
+ *
+ * Every surface derives from this map. Adding a status to a bucket moves the
+ * cards and the counts together, by construction.
+ */
+export const WHEN_BUCKET_DB_STATUSES = {
+  /** "Activas ahora" — live + suspended. Always paired with the clock guard. */
+  activas: ACTIVE_DB_STATUSES,
+  /** "Próximas" — published, not yet open. */
+  proximas: PRE_AUCTION_DB_STATUSES,
+  /** "Todas" — every user-facing state, including terminal ones. */
+  todas: [
+    ...ACTIVE_DB_STATUSES,
+    ...PRE_AUCTION_DB_STATUSES,
+    ...FINISHED_DB_STATUSES,
+  ],
+  /** "Finalizadas" — terminal only. */
+  finalizadas: FINISHED_DB_STATUSES,
+} as const satisfies Record<string, readonly string[]>;
+
+export type WhenBucket = keyof typeof WHEN_BUCKET_DB_STATUSES;
+
+/** All bucket ids, in lifecycle order (the order the tabs render in). */
+export const WHEN_BUCKETS: readonly WhenBucket[] = [
+  'activas',
+  'proximas',
+  'todas',
+  'finalizadas',
+] as const;
+
+/**
+ * Does bucket `b` apply the active clock guard?
+ *
+ * Only `activas` does. A PROXIMA_APERTURA row has no meaningful `endsAt`, and
+ * a finished row's `endsAt` is in the past BY DEFINITION — guarding those
+ * buckets would empty them.
+ */
+export function whenBucketUsesClockGuard(b: WhenBucket): boolean {
+  return b === 'activas';
+}
+
+/**
+ * The full Prisma `where` for a bucket, INCLUDING the scope soft-hide gate and
+ * (for `activas`) the clock guard. Spread scope filters (province, category, …)
+ * on top; never re-declare the status/scope/clock parts at a call site.
+ */
+export function whenBucketWherePrisma(
+  bucket: WhenBucket,
+  now: Date = new Date(),
+): {
+  status: { in: string[] };
+  inScope: true;
+  OR?: Array<{ endsAt: null } | { endsAt: { gt: Date } }>;
+} {
+  const base = {
+    status: { in: [...WHEN_BUCKET_DB_STATUSES[bucket]] },
+    inScope: true as const,
+  };
+  return whenBucketUsesClockGuard(bucket)
+    ? { ...base, ...activeClockGuardPrisma(now) }
+    : base;
+}
+
+/**
+ * A bucket's DB statuses folded to the FRONTEND status vocabulary that the
+ * `?statuses=` API param and the card layer speak, de-duplicated, order-stable.
+ *
+ * Lives here (not in the client filter module) so the fold and the map it folds
+ * are one file apart from nothing — and so the equality test can import both
+ * without pulling a React module into a plain-tsx test run.
+ */
+export function whenBucketFrontendStatuses(b: WhenBucket): string[] {
+  const out: string[] = [];
+  for (const db of WHEN_BUCKET_DB_STATUSES[b]) {
+    const folded = mapStatus(db);
+    if (!out.includes(folded)) out.push(folded);
+  }
+  return out;
+}
+
+/**
+ * True iff `status` belongs to bucket `b`. The in-memory twin of the SQL/Prisma
+ * predicates above — used by the regression tests to assert all three surfaces
+ * agree, and by any client-side re-check.
+ *
+ * NOTE: the clock dimension is deliberately NOT folded in here; callers that
+ * need it pass `endsAt` to `whenBucketMatches`.
+ */
+export function isInWhenBucket(
+  b: WhenBucket,
+  dbStatus: string | null | undefined,
+): boolean {
+  if (dbStatus == null) return false;
+  return (WHEN_BUCKET_DB_STATUSES[b] as readonly string[]).includes(dbStatus);
+}
+
+/** Full membership test: status set AND (for `activas`) the null-safe clock. */
+export function whenBucketMatches(
+  b: WhenBucket,
+  dbStatus: string | null | undefined,
+  endsAt: Date | string | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (!isInWhenBucket(b, dbStatus)) return false;
+  if (!whenBucketUsesClockGuard(b)) return true;
+  if (endsAt == null) return true; // null-safe — matches ACTIVE_CLOCK_GUARD_SQL
+  const ms = endsAt instanceof Date ? endsAt.getTime() : new Date(endsAt).getTime();
+  if (!Number.isFinite(ms)) return true;
+  return ms > now.getTime();
+}
+
 // ─── Legacy → canonical fold ──────────────────────────────────────────────
 
 /**

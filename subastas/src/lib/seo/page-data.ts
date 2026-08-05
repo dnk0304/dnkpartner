@@ -12,7 +12,12 @@ import { prisma } from '@/lib/prisma';
 // The canonical status predicates. `buildActiveFirstCaseSql` (used by
 // /api/auctions) builds its ORDER BY CASE from these SAME two functions, which
 // is what keeps the hub's SSR order and the client list's order from drifting.
-import { isActiveStatus, isPreAuctionStatus } from '@/lib/auction-status';
+import {
+  isActiveStatus,
+  isPreAuctionStatus,
+  WHEN_BUCKET_DB_STATUSES,
+  whenBucketWherePrisma,
+} from '@/lib/auction-status';
 import {
   TIPO_SLUG_TO_DB_KEYS,
   type TipoSlug,
@@ -20,8 +25,32 @@ import {
   slugify,
 } from './slugs';
 
-/** "Active" auctions for the count-in-title — celebrandose + pre-auction. */
-const ACTIVE_STATUSES: AuctionStatus[] = [
+/**
+ * "Active" auctions for the count-in-title.
+ *
+ * ⭐ NOW DERIVED FROM THE CANONICAL BUCKET (Forge 2026-08-05). This was a LOCAL
+ * array = [ACTIVE, CELEBRANDOSE, PRE_AUCTION, PROXIMA_APERTURA] — it counted
+ * PRÓXIMAS as active and dropped SUSPENDIDAS, while the Activas tab (which the
+ * same page renders directly underneath) used the API's ACTIVE_DB_STATUSES =
+ * [ACTIVE, CELEBRANDOSE, SUSPENDED, SUSPENDIDA]. The two sets disagreed in
+ * BOTH directions, so the intro sentence and the tab could never match:
+ * Zaragoza advertised 42 with an empty Activas tab, Albacete 22 vs 1,
+ * Madrid 107 vs 26.
+ *
+ * There is now exactly one definition, in @/lib/auction-status, shared by the
+ * intro count, the SSR card block, the H1 subtitle and the API tab query.
+ */
+const ACTIVE_STATUSES = [...WHEN_BUCKET_DB_STATUSES.activas] as AuctionStatus[];
+
+/**
+ * The set the SITEMAP / indexability helpers below use. Deliberately LEFT AT
+ * ITS PRE-2026-08-05 VALUE (active + upcoming, no suspendidas) so this commit
+ * changes what the hub DISPLAYS without silently re-gating which URLs ship in
+ * the sitemap — that is a separate, SEO-visible decision. Named explicitly so
+ * the divergence from `ACTIVE_STATUSES` is a stated choice, not a leftover
+ * copy of a predicate someone forgot to update.
+ */
+const SITEMAP_INVENTORY_STATUSES: AuctionStatus[] = [
   AuctionStatus.ACTIVE,
   AuctionStatus.CELEBRANDOSE,
   AuctionStatus.PRE_AUCTION,
@@ -170,17 +199,20 @@ export type ScopedAuctionPage = {
  * other direction — Postgres sorts NULLs last under ASC, so 48 active rows,
  * including CELEBRANDOSE auctions being held *right now*, sank to the bottom.
  * Ordering by status tier instead of by `endsAt` dissolves that entirely.
+ *
+ * 2026-08-05: this local twin is GONE. It now lives once, in
+ * `activeClockGuardPrisma` (@/lib/auction-status), and reaches this file via
+ * `whenBucketWherePrisma('activas')` — a hand-copied predicate is exactly the
+ * thing that drifts, and this file already had one such copy (`ACTIVE_STATUSES`)
+ * that had drifted from the API's set in both directions.
  */
-function activeClockGuard(): Prisma.AuctionWhereInput {
-  return { OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }] };
-}
 
 function scopedWhere({ province, auctionTypeKeys, category, municipality }: CountInput): Prisma.AuctionWhereInput {
+  // Status set + scope gate + clock guard all come from ONE place. Scope
+  // filters are spread on top; nothing here re-declares the predicate.
   const where: Prisma.AuctionWhereInput = {
-    status: { in: ACTIVE_STATUSES },
-    inScope: true,
-    ...activeClockGuard(),
-  };
+    ...whenBucketWherePrisma('activas'),
+  } as Prisma.AuctionWhereInput;
   if (province) where.province = province;
   if (auctionTypeKeys && auctionTypeKeys.length > 0) where.auctionType = { in: auctionTypeKeys };
   if (category) where.category = category;
@@ -263,9 +295,17 @@ export function tipoSlugToDbKeys(slug: TipoSlug): string[] {
 
 /** Minimum starting price across active auctions for a given filter (Euros). */
 async function _minStartingPrice({ province, auctionTypeKeys, category, municipality }: CountInput): Promise<number | null> {
+  // Same predicate as `countActiveAuctions` — the "desde X €" line and the
+  // count sit in the SAME intro sentence, so they must be computed over the
+  // same rows. This previously omitted `inScope` AND the clock guard, so the
+  // advertised floor price could come from a row the count did not include.
+  // `AND`-ed rather than spread so the bucket's own `OR` (the clock guard) is
+  // not clobbered by the price `OR`.
   const where: Prisma.AuctionWhereInput = {
-    status: { in: ACTIVE_STATUSES },
-    OR: [{ minimumBid: { gt: 0 } }, { currentBid: { gt: 0 } }],
+    AND: [
+      whenBucketWherePrisma('activas') as Prisma.AuctionWhereInput,
+      { OR: [{ minimumBid: { gt: 0 } }, { currentBid: { gt: 0 } }] },
+    ],
   };
   if (province) where.province = province;
   if (auctionTypeKeys && auctionTypeKeys.length > 0) where.auctionType = { in: auctionTypeKeys };
@@ -308,7 +348,10 @@ async function _municipalitiesInProvince(
     }),
     prisma.auction.groupBy({
       by: ['municipality'],
-      where: { status: { in: ACTIVE_STATUSES }, province },
+      // The per-town chip counts link straight at the town hubs, so they must
+      // count what those hubs will show: the SAME activas bucket (status set +
+      // inScope + clock guard) the province count and cards use.
+      where: { ...(whenBucketWherePrisma('activas') as Prisma.AuctionWhereInput), province },
       _count: { _all: true },
     }),
   ]);
@@ -361,7 +404,7 @@ export const municipalitiesInProvince = unstable_cache(
 /** Slugs of the indexable provinces that actually have inventory (for sitemap). */
 export async function provincesWithInventory(): Promise<Set<string>> {
   const rows = await prisma.auction.findMany({
-    where: { status: { in: ACTIVE_STATUSES } },
+    where: { status: { in: SITEMAP_INVENTORY_STATUSES } },
     select: { province: true },
     distinct: ['province'],
   });
@@ -472,7 +515,7 @@ async function _municipalityPairs(where: Prisma.AuctionWhereInput): Promise<
  * call sites that want the live-inventory subset).
  */
 export const activeMunicipalityPairs = unstable_cache(
-  () => _municipalityPairs({ status: { in: ACTIVE_STATUSES } }),
+  () => _municipalityPairs({ status: { in: SITEMAP_INVENTORY_STATUSES } }),
   ['seo-active-municipality-pairs'],
   { revalidate: 300, tags: ['seo-counts'] },
 );
@@ -493,7 +536,7 @@ export const allMunicipalityPairs = unstable_cache(
 export async function categoryActiveCounts(): Promise<Map<string, number>> {
   const rows = await prisma.auction.groupBy({
     by: ['category'],
-    where: { status: { in: ACTIVE_STATUSES } },
+    where: { status: { in: SITEMAP_INVENTORY_STATUSES } },
     _count: { _all: true },
   });
   const m = new Map<string, number>();

@@ -128,7 +128,20 @@ export interface AuctionItem {
   // with the document-archive bien fields lower in this interface (see
   // "Document-archive wave" block) so the full doc-UI contract lives in one
   // place. Kept as a single source of truth — no duplicates here.
-  endDate: Date; // For urgency calculation
+  /**
+   * The auction's real end timestamp, or `null` when the source has not
+   * published one (common on PROXIMA_APERTURA and on judicial rows the BOE
+   * has not dated yet).
+   *
+   * NULLABLE ON PURPOSE (Forge 2026-08-05). It was `Date`, which forced every
+   * producer to invent a value — `/api/auctions` used `publishedAt + 30d`, the
+   * list client used `new Date()`. Both inventions land in the PAST, and the
+   * clock-wins badge rule (`effectiveStatus`) reads this field, so a genuinely
+   * active auction was rendered "Concluida". A non-nullable type on a field the
+   * data does not always have is how the lie got in; the type now tells the
+   * truth and every consumer is null-gated.
+   */
+  endDate: Date | null; // For urgency calculation
   source: string; // Changed to string to support all AuctionSource values
   imageUrl: string;
   isLocked?: boolean; // For tiered access control

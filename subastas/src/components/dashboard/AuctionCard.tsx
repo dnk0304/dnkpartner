@@ -39,6 +39,9 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
     // Only active rows can be "urgent" — a pre-auction has no real end date,
     // and a suspended row's end is the reanudación, which isn't a deadline.
     if (!isActiveLabel) return false;
+    // endDate is honest-null (Forge 2026-08-05) — no end published means no
+    // deadline, so it can never be urgent.
+    if (!item.endDate) return false;
     const diff = item.endDate.getTime() - new Date().getTime();
     return diff > 0 && diff < 48 * 60 * 60 * 1000;
   };
@@ -593,7 +596,7 @@ export const AuctionCard: React.FC<AuctionCardProps> = ({ item, userTier, onClic
                           {dateLabel === 'Termina' && (
                             <span className="text-gray-400">Termina </span>
                           )}
-                          {CARD_FMT_MED.format(item.endDate)}
+                          {item.endDate ? CARD_FMT_MED.format(item.endDate) : 'Fecha por confirmar'}
                         </span>
                       </span>
                     </>
