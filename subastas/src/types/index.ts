@@ -142,6 +142,16 @@ export interface AuctionItem {
    * truth and every consumer is null-gated.
    */
   endDate: Date | null; // For urgency calculation
+  /**
+   * Resolved detail path for this card's link — the minted v3 url, or the
+   * legacy `/subastas/subasta/{slug}` path when the auction has no minted row
+   * or URL_V3_SWITCH is off.
+   *
+   * ADDITIVE + OPTIONAL (Forge 2026-08-05). Projected by /api/auctions
+   * (`enrichWithDetailPath`); a card falls back to the legacy id route when
+   * absent, so nothing breaks if a producer has not been updated.
+   */
+  detailPath?: string | null;
   source: string; // Changed to string to support all AuctionSource values
   imageUrl: string;
   isLocked?: boolean; // For tiered access control

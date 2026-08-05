@@ -73,6 +73,12 @@ export function AuctionResultRow({ item, nowMs, className }: AuctionResultRowPro
   const tDomain = useTranslations("domain");
   const locale = useLocale() as "es" | "en";
   const effective = effectiveStatus(item.status, item.endDate) as AuctionStatus;
+  // v3 when minted, legacy id route otherwise. Resolved SERVER-side by
+  // /api/auctions (`enrichWithDetailPath`) because the mint table is not
+  // reachable from a client component. The `/auction/${id}` fallback is the
+  // pre-2026-08-05 behaviour: it 301s to the legacy detail slug, which still
+  // 200s — correct for an unminted row and safe if the field is ever absent.
+  const detailHref = item.detailPath ?? `/auction/${encodeURIComponent(item.id)}`;
 
   // Town==Province dedupe (2026-06-19): show the town ONCE when municipality
   // and province are the same place — never "Valencia · Valencia".
@@ -225,7 +231,7 @@ export function AuctionResultRow({ item, nowMs, className }: AuctionResultRowPro
           the detail page. Pin marker sits at the centre because the static
           map is panned to put lat/lng under the centre point. */}
       <Link
-        href={`/auction/${encodeURIComponent(item.id)}`}
+        href={detailHref}
         aria-label={t("verDetalleDe", { title })}
         className={cn(
           "relative shrink-0 overflow-hidden rounded-md bg-[var(--color-surface-muted)]",
@@ -290,7 +296,7 @@ export function AuctionResultRow({ item, nowMs, className }: AuctionResultRowPro
             targets stay disjoint (no nested interactives). */}
         <div className="flex items-start gap-2">
           <Link
-            href={`/auction/${encodeURIComponent(item.id)}`}
+            href={detailHref}
             className="block min-w-0 flex-1 focus-visible:outline-none"
           >
             <h3 className="font-serif text-base md:text-lg leading-snug text-[var(--color-ink-primary)] line-clamp-2 hover:underline">
