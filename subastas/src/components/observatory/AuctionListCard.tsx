@@ -55,6 +55,12 @@ export function AuctionListCard({ item, nowMs, className }: AuctionListCardProps
   // Clock-wins: stale celebrandose row with past endDate renders as concluded
   // so badge + countdown agree.
   const effective = effectiveStatus(item.status, item.endDate) as AuctionStatus;
+  // v3 when minted, legacy id route otherwise. Resolved SERVER-side by
+  // /api/auctions (`enrichWithDetailPath`) because the mint table is not
+  // reachable from a client component. The `/auction/${id}` fallback is the
+  // pre-2026-08-05 behaviour: it 301s to the legacy detail slug, which still
+  // 200s — correct for an unminted row and safe if the field is ever absent.
+  const detailHref = item.detailPath ?? `/auction/${encodeURIComponent(item.id)}`;
   // Town==Province dedupe (2026-06-19): show the town ONCE when municipality
   // and province are the same place — never "Valencia · Valencia".
   const where = (() => {
@@ -202,7 +208,7 @@ export function AuctionListCard({ item, nowMs, className }: AuctionListCardProps
       {/* Imagery hero — 16:9 box that always shows SOMETHING (3-rung ladder).
           The ladder guarantees no blank tile and no layout shift. */}
       <Link
-        href={`/auction/${encodeURIComponent(item.id)}`}
+        href={detailHref}
         aria-label={t("verDetalleDe", { title: item.title })}
         className="relative block aspect-[16/9] w-full bg-[var(--color-surface-muted)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40"
       >
@@ -312,7 +318,7 @@ export function AuctionListCard({ item, nowMs, className }: AuctionListCardProps
           rather than a tall column. */}
       <div className="flex flex-col gap-1.5 px-3 py-2">
         <Link
-          href={`/auction/${encodeURIComponent(item.id)}`}
+          href={detailHref}
           className="block focus-visible:outline-none"
         >
           <h3 className="font-serif text-[15px] leading-tight text-[var(--color-ink-primary)] line-clamp-2 hover:underline">

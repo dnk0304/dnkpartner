@@ -9,6 +9,7 @@
 import { unstable_cache } from 'next/cache';
 import { AuctionStatus, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { fetchV3UrlsBatch, resolveAuctionPath } from '@/lib/seo/auction-url';
 // The canonical status predicates. `buildActiveFirstCaseSql` (used by
 // /api/auctions) builds its ORDER BY CASE from these SAME two functions, which
 // is what keeps the hub's SSR order and the client list's order from drifting.
@@ -166,7 +167,28 @@ const SEO_CARD_SELECT = {
   address: true,
 } satisfies Prisma.AuctionSelect;
 
-export type ScopedAuctionCard = Prisma.AuctionGetPayload<{ select: typeof SEO_CARD_SELECT }>;
+/**
+ * One SSR card row, PLUS the detail path it should link at.
+ *
+ * ⭐ `detailPath` is ADDITIVE (Forge 2026-08-05). Nothing was removed from the
+ * select; the field is appended after the DB read and every consumer that does
+ * not know about it is unaffected.
+ *
+ * WHY IT IS ON THE ROW. The v3 url lives in the unmanaged `auction_url_v3`
+ * table, so only a server context can resolve it. The SSR grid used to build
+ * `/subastas/subasta/${buildAuctionSlug(a)}` itself — a hardcoded LEGACY path
+ * that never consulted the mint table, so with URL_V3_SWITCH=1 every internal
+ * link on every hub still pointed at the pre-flip URL while the detail page it
+ * landed on canonicalised to v3. Google re-crawling post-flip would read those
+ * as the site's own vote for the legacy URLs.
+ */
+/** The raw DB payload, BEFORE the detail path is resolved onto it. */
+export type ScopedAuctionRow = Prisma.AuctionGetPayload<{ select: typeof SEO_CARD_SELECT }>;
+
+export type ScopedAuctionCard = ScopedAuctionRow & {
+  /** Resolved detail path — the minted v3 url, or the legacy path when unminted. */
+  detailPath: string;
+};
 
 export type ScopedAuctionPage = {
   rows: ScopedAuctionCard[];
@@ -261,7 +283,7 @@ async function _findScopedAuctionsPage(
     if (isPreAuctionStatus(status as string)) return 1;
     return 2;
   };
-  const publishedMs = (r: ScopedAuctionCard): number =>
+  const publishedMs = (r: ScopedAuctionRow): number =>
     r.publishedAt instanceof Date ? r.publishedAt.getTime() : Number.NEGATIVE_INFINITY;
 
   const sorted = [...matching].sort((a, b) => {
@@ -272,7 +294,25 @@ async function _findScopedAuctionsPage(
     return a.id < b.id ? 1 : a.id > b.id ? -1 : 0; // id DESC — the same tiebreak
   });
 
-  const rows = sorted.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
+  const slice = sorted.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
+
+  // ⭐ ONE batched probe per page — never per row (Forge 2026-08-05).
+  //
+  // `fetchV3UrlsBatch` is a single `= ANY(...)` against the `auction_url_v3`
+  // primary key for the <=24 ids actually being rendered, AFTER the slice, so a
+  // 103-row province still costs exactly one extra query. It returns an empty
+  // map when the switch is off, so this adds zero query load pre-flip.
+  //
+  // Rows missing from the map fall back to the legacy path via
+  // `resolveAuctionPath` — the correct answer for a held / degraded /
+  // quarantined / hex-legacy auction, which must keep linking somewhere that
+  // 200s rather than 404.
+  const v3 = await fetchV3UrlsBatch(slice.map((r) => r.id));
+  const rows: ScopedAuctionCard[] = slice.map((r) => ({
+    ...r,
+    detailPath: resolveAuctionPath(r, v3.get(r.id) ?? null),
+  }));
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   return { rows, total, totalPages, page, pageSize };
 }

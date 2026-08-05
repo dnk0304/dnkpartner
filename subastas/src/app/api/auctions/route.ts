@@ -31,6 +31,7 @@ import {
   isPreAuctionStatus as sharedIsPreAuctionStatus,
   isFinishedStatus as sharedIsFinishedStatus,
 } from '@/lib/auction-status';
+import { fetchV3UrlsBatch, resolveAuctionPath } from '@/lib/seo/auction-url';
 import { normalizeText } from '@/lib/normalize';
 import { sanitizeExtractedText } from '@/lib/sanitize-extracted-text';
 import { OFFICIAL_CATEGORIES } from '@/lib/constants';
@@ -834,6 +835,50 @@ function applyTierMasking(auctions: AuctionFromDB[], userTier: UserTier | 'GUEST
  * no €/m² or no qualifying bucket). Failure is swallowed — the benchmark is a
  * value-add signal and must never break the list.
  */
+/**
+ * Attach the resolved detail path to each masked card IN PLACE.
+ *
+ * ⭐ ADDITIVE (Forge 2026-08-05, Ken's post-flip link audit). `detailPath` is
+ * appended; nothing else in the payload moves. Consumers that do not read it
+ * are unaffected.
+ *
+ * WHY THE API HAS TO DO THIS. The hydrated cards are client components and the
+ * v3 url lives in the unmanaged `auction_url_v3` table — a card physically
+ * cannot resolve its own link. Before this, the list hardcoded
+ * `/auction/${id}`, which 301s to the LEGACY `/subastas/subasta/<slug>` route.
+ * With URL_V3_SWITCH=1 that meant every internal link on every hub pointed at
+ * a pre-flip URL while the page it landed on canonicalised to v3 — the site
+ * voting against its own migration while Google re-crawls.
+ *
+ * ONE BATCHED PROBE per response: a single `= ANY(...)` on the
+ * `auction_url_v3` primary key for the <=100 ids in THIS page. Never per row.
+ * Returns an empty map when the switch is off, so pre-flip this costs nothing.
+ *
+ * Rows with no minted url fall back to `legacyAuctionPath` via
+ * `resolveAuctionPath` — the correct answer for held / degraded / quarantined
+ * / hex-legacy auctions, which must keep linking somewhere that 200s.
+ *
+ * Non-fatal: if the lookup throws, every card keeps the legacy path. A link
+ * that is merely old is survivable; a 500 on the listing is not.
+ */
+async function enrichWithDetailPath(
+  dbRows: AuctionFromDB[],
+  masked: any[],
+): Promise<void> {
+  if (dbRows.length === 0) return;
+  let v3 = new Map<string, string>();
+  try {
+    v3 = await fetchV3UrlsBatch(dbRows.map((r) => r.id));
+  } catch (error) {
+    console.error('detailPath v3 lookup failed; falling back to legacy paths', error);
+  }
+  for (let i = 0; i < dbRows.length; i++) {
+    const row = dbRows[i];
+    if (!masked[i]) continue;
+    masked[i].detailPath = resolveAuctionPath(row, v3.get(row.id) ?? null);
+  }
+}
+
 async function enrichWithRegionBenchmark(
   dbRows: AuctionFromDB[],
   masked: Array<{ regionBenchmark: RegionBenchmarkSignal | null }>,
@@ -1972,6 +2017,9 @@ export async function GET(request: NextRequest) {
     // Region €/m² benchmark signal (Phase 3) — attach "vs area average" to each
     // card in place (1:1 with `results`). Non-fatal on error.
     await enrichWithRegionBenchmark(results, maskedAuctions);
+    // Resolved detail path (v3 when minted, legacy otherwise) — one batched
+    // probe for this page's rows. Same in-place, 1:1 posture as above.
+    await enrichWithDetailPath(results, maskedAuctions);
     const maskTime = Date.now() - maskStart;
     
     // Get teaser counts for guests.

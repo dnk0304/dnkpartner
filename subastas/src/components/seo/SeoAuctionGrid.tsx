@@ -13,6 +13,15 @@ import { buildAuctionSlug, type AuctionForSlug } from '@/lib/seo/auction-slug';
 import { ParticiparButton } from '@/components/auction/ParticiparButton';
 
 type Row = AuctionForSlug & {
+  /**
+   * The detail path this card must link at — the minted v3 url, or the legacy
+   * path when the auction has no minted row / the switch is off.
+   *
+   * ADDITIVE + OPTIONAL (Forge 2026-08-05) so pre-projection call sites still
+   * compile; absent falls back to the legacy builder below, which is exactly
+   * what this component did unconditionally before.
+   */
+  detailPath?: string | null;
   title: string | null;
   category: string;
   status: string;
@@ -81,7 +90,9 @@ export function SeoAuctionGrid({ auctions, emptyMessage }: { auctions: Row[]; em
     itemListElement: auctions.map((a, i) => ({
       '@type': 'ListItem',
       position: i + 1,
-      url: `https://subastasactivas.com/subastas/subasta/${buildAuctionSlug(a)}`,
+      // Same resolved path as the anchor below — the ItemList and the <a> must
+      // not disagree about where an item lives.
+      url: `https://subastasactivas.com${a.detailPath ?? `/subastas/subasta/${buildAuctionSlug(a)}`}`,
       name: a.title || `Subasta ${a.category}`,
     })),
   };
@@ -90,7 +101,11 @@ export function SeoAuctionGrid({ auctions, emptyMessage }: { auctions: Row[]; em
     <>
       <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {auctions.map((a) => {
+          // v3 when minted, legacy otherwise. Resolved server-side in
+          // `findScopedAuctionsPage` (one batched probe per page); the fallback
+          // here keeps any caller that has not projected the field working.
           const slug = buildAuctionSlug(a);
+          const href = a.detailPath ?? `/subastas/subasta/${slug}`;
           // Full public location line: prefer the real street address (ungated
           // 2026-07-31), append the town/province for context; fall back to
           // town + province when no address is stored.
@@ -106,7 +121,7 @@ export function SeoAuctionGrid({ auctions, emptyMessage }: { auctions: Row[]; em
               : null;
           return (
             <li key={a.id} className="rounded-md border border-[var(--color-border)] p-4 hover:shadow-md transition-shadow">
-              <Link href={`/subastas/subasta/${slug}`} className="block">
+              <Link href={href} className="block">
                 <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">{a.category}</div>
                 <h3 className="text-sm font-semibold mt-1 line-clamp-2">
                   {a.title || `${a.category} en ${a.province ?? 'España'}`}
