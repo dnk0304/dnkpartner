@@ -7,6 +7,7 @@ import { mintFollowToken } from '@/lib/follow-token';
 import { requireAdminOrCron } from '@/lib/auth-helpers';
 import { ALERTABLE_DB_STATUSES_SQL, LIVE_NOW_DB_STATUSES_SQL } from '@/lib/auction-status';
 import { resolveFreeAndPersist, type ResolverRow } from '@/lib/auction-images/resolver';
+import { alertsFromEmail } from '@/lib/email-from';
 
 /**
  * API endpoint to check for new auctions matching user alerts
@@ -339,7 +340,7 @@ async function sendNotifications(matchesByAlert: Record<string, { alert: any; au
   }
 
   const resend = new Resend(resendKey);
-  const from = process.env.RESEND_FROM_EMAIL || 'SubastasActivas <alertas@subastasactivas.com>';
+  const from = alertsFromEmail();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_URL || 'http://localhost:3005';
 
   // One-click "Seguir esta subasta" (2026-07-25): mint a signed, expiring HMAC

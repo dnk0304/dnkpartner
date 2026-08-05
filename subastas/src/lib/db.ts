@@ -181,6 +181,8 @@ const PG_IDENTIFIERS = [
   'prefNewsletter',
   'prefWeeklyNoNew',
   'prefRadar',
+  // Welcome-email idempotency claim (2026-08-05)
+  'welcomeSentAt',
   'stripeCustomerId',
   'stripeSubscriptionId',
   'stripePriceId',

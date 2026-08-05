@@ -4,6 +4,7 @@ import Google from "next-auth/providers/google";
 import Apple from "next-auth/providers/apple";
 import { execute, queryOne } from "@/lib/db";
 import bcrypt from "bcryptjs";
+import { sendWelcomeEmailOnce } from "@/lib/email/send-welcome";
 
 const oauthProviders = [];
 
@@ -42,6 +43,10 @@ async function ensureUserForOAuth(email: string, name?: string | null, image?: s
       `,
       [name || null, image || null, new Date().toISOString(), existingUser.id]
     );
+    // An existing row whose emailVerified was NULL has just become verified by
+    // this OAuth sign-in. sendWelcomeEmailOnce is idempotent, so calling it on
+    // every sign-in is safe: only the first one for this user ever sends.
+    await sendWelcomeEmailOnce(existingUser.id);
     return existingUser.id;
   }
 
@@ -74,6 +79,10 @@ async function ensureUserForOAuth(email: string, name?: string | null, image?: s
       false,
     ]
   );
+
+  // Brand-new OAuth account — created already-verified (the provider verified
+  // the address), so this is its verification-complete moment.
+  await sendWelcomeEmailOnce(userId);
 
   return userId;
 }

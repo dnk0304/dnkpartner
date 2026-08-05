@@ -996,3 +996,160 @@ export function createAuctionAlertEmail({ alertName, auctions, manageUrl }: Auct
 
   return { subject, html, text };
 }
+
+/**
+ * WELCOME EMAIL (Dennis, 2026-08-05) — sent ONCE, when an account becomes
+ * verified. Spanish, because Spanish is the site's language.
+ *
+ * Purpose per Dennis: confirm the account exists, then SHOW what the site is
+ * for — search by province/type, save searches, create alerts, follow specific
+ * auctions. It is an onboarding email, not a receipt, so every feature block
+ * carries its own link: the point is to get the reader back onto the site doing
+ * one of these four things.
+ *
+ * Sent from the INFO address (see `@/lib/email-from`), never the alerts one —
+ * this is account mail.
+ */
+export interface WelcomeEmailProps {
+  email: string;
+  /** Absolute site origin, e.g. https://subastasactivas.com — no trailing slash. */
+  appUrl: string;
+  /** Optional display name; the greeting degrades cleanly without it. */
+  name?: string | null;
+}
+
+export function createWelcomeEmail({ email, appUrl, name }: WelcomeEmailProps): {
+  subject: string;
+  html: string;
+  text: string;
+} {
+  const brandName = 'SubastasActivas';
+  const esc = (s: string) => s.replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string
+  ));
+
+  const base = appUrl.replace(/\/+$/, '');
+  const safeEmail = esc(email);
+  const greetingName = name && name.trim() ? esc(name.trim()) : null;
+  const greeting = greetingName ? `Hola ${greetingName},` : 'Hola,';
+
+  // Verified against the live route tree (src/app/*) — a welcome email whose
+  // links 404 is worse than no welcome email.
+  const links = {
+    buscar: `${base}/subastas`,
+    alertas: `${base}/alerts`,
+    seguidas: `${base}/favoritos`,
+    cuenta: `${base}/notifications`,
+  };
+
+  const features: Array<{ title: string; body: string; cta: string; href: string }> = [
+    {
+      title: 'Busca subastas por provincia y tipo',
+      body: 'Filtra entre miles de subastas judiciales y administrativas por provincia, '
+        + 'municipio y tipo de bien: viviendas, garajes, locales, fincas, vehículos y más.',
+      cta: 'Explorar subastas',
+      href: links.buscar,
+    },
+    {
+      title: 'Guarda tus búsquedas',
+      body: 'Cuando encuentres una combinación de filtros que te interesa, guárdala y '
+        + 'vuelve a ella con un clic. Sin repetir el trabajo cada vez.',
+      cta: 'Guardar una búsqueda',
+      href: links.buscar,
+    },
+    {
+      title: 'Crea alertas por email',
+      body: 'Te avisamos por email en cuanto se publique una subasta nueva que encaje '
+        + 'con tus criterios. Tú eliges qué provincias y qué tipos de bien te importan.',
+      cta: 'Crear una alerta',
+      href: links.alertas,
+    },
+    {
+      title: 'Sigue subastas concretas',
+      body: 'Marca una subasta como seguida y recibirás aviso de los cambios que le '
+        + 'afecten: cambios de estado, fechas y resultado final.',
+      cta: 'Ver mis subastas seguidas',
+      href: links.seguidas,
+    },
+  ];
+
+  const subject = `Bienvenido a ${brandName}`;
+
+  const text = `${greeting}\n\n`
+    + `Tu cuenta en ${brandName} ya está creada y verificada (${email}).\n\n`
+    + `Esto es lo que puedes hacer:\n\n`
+    + features.map((f) => `• ${f.title}\n  ${f.body}\n  ${f.href}`).join('\n\n')
+    + `\n\nEmpieza aquí: ${links.buscar}\n\n`
+    + `Gestiona tu cuenta y tus preferencias de email en ${links.cuenta}.\n\n`
+    + `${brandName}`;
+
+  const featureHtml = features.map((f) => `
+      <tr>
+        <td style="padding: 0 0 24px 0;">
+          <div style="border:1px solid #e5e7eb; border-radius:8px; padding:20px;">
+            <h3 style="margin:0 0 8px 0; font-size:16px; font-weight:600; color:#111827;">
+              ${esc(f.title)}
+            </h3>
+            <p style="margin:0 0 12px 0; font-size:14px; line-height:1.6; color:#4b5563;">
+              ${esc(f.body)}
+            </p>
+            <a href="${esc(f.href)}" style="font-size:14px; font-weight:600; color:#111827; text-decoration:underline;">
+              ${esc(f.cta)} &rarr;
+            </a>
+          </div>
+        </td>
+      </tr>`).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${esc(subject)}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f9fafb; color:#111827; line-height:1.5; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;">
+  <div style="max-width:600px; margin:0 auto; padding:40px 20px;">
+
+    <div style="text-align:center; padding-bottom:32px;">
+      <span style="font-size:22px; font-weight:700; letter-spacing:-0.02em; color:#000000;">${brandName}</span>
+    </div>
+
+    <div style="background:#ffffff; border:1px solid #e5e7eb; border-radius:12px; padding:32px;">
+
+      <h1 style="margin:0 0 16px 0; font-size:24px; font-weight:700; color:#111827;">
+        Tu cuenta ya está lista
+      </h1>
+
+      <p style="margin:0 0 8px 0; font-size:15px; color:#374151;">${greeting}</p>
+      <p style="margin:0 0 28px 0; font-size:15px; line-height:1.6; color:#374151;">
+        Hemos creado y verificado tu cuenta de ${brandName} con el correo
+        <strong>${safeEmail}</strong>. Ya puedes usar todas las herramientas de la plataforma.
+      </p>
+
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+        ${featureHtml}
+      </table>
+
+      <div style="text-align:center; padding:8px 0 4px 0;">
+        <a href="${esc(links.buscar)}" style="display:inline-block; background:#000000; color:#ffffff; font-size:15px; font-weight:600; text-decoration:none; padding:14px 32px; border-radius:8px;">
+          Empezar a buscar subastas
+        </a>
+      </div>
+
+    </div>
+
+    <div style="text-align:center; padding-top:24px;">
+      <p style="margin:0 0 6px 0; font-size:12px; color:#6b7280;">
+        Recibes este correo porque acabas de crear una cuenta en ${brandName}.
+      </p>
+      <p style="margin:0; font-size:12px; color:#6b7280;">
+        <a href="${esc(links.cuenta)}" style="color:#6b7280; text-decoration:underline;">Gestionar mi cuenta y mis avisos</a>
+      </p>
+    </div>
+
+  </div>
+</body>
+</html>`;
+
+  return { subject, html, text };
+}

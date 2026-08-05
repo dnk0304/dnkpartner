@@ -32,6 +32,7 @@ import {
 } from '@/lib/dispatcher/templates';
 import { sendPush, isVapidConfigured } from '@/lib/dispatcher/webpush';
 import type { NotificationChannel } from '@prisma/client';
+import { alertsFromEmail } from '@/lib/email-from';
 
 type FavoriteWithUser = {
   id: string;
@@ -99,10 +100,9 @@ function getResend(): Resend | null {
 }
 
 function fromEmail(): string {
-  return (
-    process.env.RESEND_FROM_EMAIL ??
-    'SubastasActivas <notifications@subastasactivas.com>'
-  );
+  // Outbox events are auction notifications (followed-auction updates,
+  // saved-search matches) — the ALERTS sender, never the account sender.
+  return alertsFromEmail();
 }
 
 /**
