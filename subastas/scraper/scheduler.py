@@ -85,9 +85,18 @@ DISPATCH_INTERVAL_MIN = int(os.getenv("DISPATCH_INTERVAL_MIN", "1"))
 # The sweep is idempotent and convergent: it mints whatever has no v3 row yet,
 # so a missed tick self-heals on the next one and a failure is retried rather
 # than lost. An unminted auction is SAFE — it serves its legacy url.
+#
+# ⭐ THE DEFAULT IS THE INTERNAL DOCKER SERVICE URL, NOT APP_BASE_URL.
+# APP_BASE_URL is the PUBLIC origin, so defaulting to it sends a container-to-
+# container call out through Cloudflare — which 403s the box's own egress IP.
+# Ken had to override this in compose on the wave185 deploy; making it the
+# default means the next deployer does not have to rediscover it.
+# Local dev (where `dnksubastas-app` does not resolve): set
+# INTERNAL_APP_URL=http://localhost:3005.
+INTERNAL_APP_URL = os.getenv("INTERNAL_APP_URL", "http://dnksubastas-app:3005").rstrip("/")
 MINT_URL_V3_ENDPOINT = os.getenv(
     "MINT_URL_V3_ENDPOINT",
-    f"{APP_BASE_URL}/api/mint/url-v3/run",
+    f"{INTERNAL_APP_URL}/api/mint/url-v3/run",
 )
 MINT_URL_V3_INTERVAL_MIN = int(os.getenv("MINT_URL_V3_INTERVAL_MIN", "5"))
 MINT_URL_V3_BATCH = int(os.getenv("MINT_URL_V3_BATCH", "500"))

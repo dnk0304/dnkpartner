@@ -37,5 +37,21 @@ COPY --from=build /app/tsconfig.json ./tsconfig.json
 # /noticias markdown content — read at request time by src/lib/noticias.ts
 # (module-scope cached). Must ship in the runtime image.
 COPY --from=build /app/content ./content
+# INE gazetteer — read at REQUEST time by src/lib/geo/municipality-gazetteer.ts
+# (the v3 mint validates every stored municipality against the official register
+# before it may enter a PERMANENT url). Same files, same relative path as the
+# repo checkout, so the in-container mint and the batch mint stay byte-identical.
+COPY --from=build /app/scraper/config/ine_municipalities.csv \
+     /app/scraper/config/ine_municipalities_coofficial.csv \
+     ./scraper/config/
+
+# ⭐ BUILD-TIME GATE. Asserts the runtime assets are actually present in THIS
+# stage and that the gazetteer really resolves a known municipality. wave185
+# shipped a green build whose mint could not work; a passing `next build` says
+# nothing about what survived into the runner stage. Now the image cannot be
+# built without the resolver working in the image's own layout.
+COPY --from=build /app/scripts/runtime-assets-guard.ts ./scripts/runtime-assets-guard.ts
+RUN node node_modules/tsx/dist/cli.mjs scripts/runtime-assets-guard.ts
+
 EXPOSE 3005
 CMD ["sh","-c","npx prisma migrate deploy && exec node node_modules/next/dist/bin/next start -p 3005 -H 0.0.0.0"]

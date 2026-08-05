@@ -56,6 +56,16 @@ const QUARANTINE_TABLE = 'geo_quarantine_20260803';
  */
 const SKIP_TABLE = 'auction_url_v3_skip';
 
+/**
+ * ⚠️ FIELD ORDER IS DELIBERATE — the summary comes FIRST and `failures` LAST.
+ *
+ * JSON.stringify preserves insertion order, and the catch-up runbook's stop
+ * condition is `remaining === 0`. In wave185 `remaining` was emitted AFTER a
+ * 20-element `failures` array, so every truncated log line and console paste cut
+ * it off and the operator could not see the done-signal that the runbook told
+ * them to wait for. A number the runbook depends on must be readable in the
+ * first line of output.
+ */
 export type SweepStats = {
   scanned: number;
   minted: number;
@@ -63,11 +73,21 @@ export type SweepStats = {
   degraded: number;
   /** Gate refusals + DB errors. Non-zero is LOUD: these are reported, never hidden. */
   failed: number;
-  /** Up to 20 failure reasons, for the scheduler log and the route response. */
-  failures: string[];
-  /** Auctions still lacking a v3 row AND not skip-listed, after this pass. */
+  /**
+   * Auctions still lacking a v3 row AND not skip-listed, after this pass.
+   *
+   * This is the CANDIDATE POOL, not "unminted rows". Total rows without an
+   * `auction_url_v3` row is far larger (~48k) because it includes the
+   * deliberately-excluded classes — quarantined, hex-legacy, and everything
+   * already skip-listed as held/degraded. Those are never candidates, so they
+   * must not appear here or the loop would never terminate.
+   */
   remaining: number;
+  /** The runbook's stop condition, stated outright so nobody has to derive it. */
+  done: boolean;
   dryRun: boolean;
+  /** Up to 20 failure reasons. LAST, because it is the only unbounded field. */
+  failures: string[];
 };
 
 async function tableExists(name: string): Promise<boolean> {
@@ -187,7 +207,8 @@ export async function sweepMintUrlV3(
 
   const stats: SweepStats = {
     scanned: candidates.length,
-    minted: 0, held: 0, degraded: 0, failed: 0, failures: [], remaining: 0, dryRun,
+    minted: 0, held: 0, degraded: 0, failed: 0,
+    remaining: 0, done: false, dryRun, failures: [],
   };
 
   for (const c of candidates) {
@@ -219,6 +240,10 @@ export async function sweepMintUrlV3(
   }
 
   stats.remaining = await countRemaining();
+  // `done` is deliberately NOT `remaining === 0` alone: a pass that refused
+  // every row leaves remaining > 0 forever, and a pass that scanned nothing is
+  // also done. Stating it explicitly stops the runbook looping on a stuck pool.
+  stats.done = stats.remaining === 0;
   return stats;
 }
 
