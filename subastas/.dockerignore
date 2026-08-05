@@ -16,7 +16,18 @@ data
 scripts/_*.json
 scripts/_*.log
 scripts/_*.py
-scraper
+# ⚠️ `scraper/**` (not a bare `scraper`) so the two INE gazetteer CSVs below can
+# be re-included. A bare `scraper` excludes the DIRECTORY itself, and Docker
+# cannot re-include a child of an excluded directory — which is exactly how the
+# gazetteer went missing from the app image (wave185): the mint sweep runs
+# INSIDE the app container and read `scraper/config/ine_municipalities.csv`
+# relative to cwd, so every row failed ENOENT and nothing could be minted.
+#
+# Only the two CSVs ship — NOT the rest of scraper/config/, which is Python
+# settings/config that the Next app has no business carrying.
+scraper/**
+!scraper/config/ine_municipalities.csv
+!scraper/config/ine_municipalities_coofficial.csv
 docs
 *.md
 !FORGE_PLAN.md
