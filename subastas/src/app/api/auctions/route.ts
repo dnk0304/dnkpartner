@@ -464,7 +464,10 @@ function normalizeOccupancy(
 }
 
 function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isLocked: boolean = false) {
-  const publishedAt = new Date(item.publishedAt);
+  // `publishedAt` used to be parsed here solely to fabricate an `endDate` for
+  // rows with a NULL `endsAt` (see the honest-null note below). With the
+  // fabrication gone it has no consumer in this transform — the ordering that
+  // uses publishedAt does so in SQL, not here.
   const endsAt = item.endsAt ? new Date(item.endsAt) : null;
   const transitionedAt = item.transitionedAt ? new Date(item.transitionedAt) : null;
   const frontendStatus = mapStatus(item.status);
@@ -579,7 +582,24 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
       // because the suspension date is public information from the courts.
       resumeAt: item.resumeAt,
       propertyType: item.propertyType,
-      endDate: endsAt || new Date(publishedAt.getTime() + 30 * 24 * 60 * 60 * 1000),
+      // ⭐ HONEST-NULL (Forge 2026-08-05 — the "Activas shows CONCLUIDA" blocker).
+      //
+      // This used to fabricate `publishedAt + 30d` when `endsAt` was NULL. The
+      // card layer then ran `effectiveStatus(status, endDate)` — a clock-wins
+      // rule that rewrites any row whose end time has passed to
+      // `concluida-portal` — against that INVENTED timestamp, which for any row
+      // published more than 30 days ago is always in the past. Result: a row
+      // the server correctly selected as ACTIVE (the SQL clock guard is
+      // null-safe: `endsAt IS NULL OR endsAt > NOW()`) was painted "Concluida".
+      // Bizkaia's Activas tab rendered 15 cards, all 15 genuinely
+      // CELEBRANDOSE/SUSPENDIDA with `endsAt = NULL`, all 15 badged CONCLUIDA.
+      //
+      // The invariant: there is ONE notion of "when this auction ends" and it
+      // is the `endsAt` column. Absent means absent. Every consumer below is
+      // already null-tolerant (LiveCountdown takes `null`, the days badge is
+      // gated on `hasEndDate`), so the fallback bought nothing and cost
+      // correctness.
+      endDate: endsAt,
       // Source is a free string in the DB so any new scraper source (SEGSOCIAL,
       // future ayuntamiento sources, etc.) self-flows through to the UI. The
       // type field on AuctionItem is already `string` — keep the cast off so
@@ -693,7 +713,10 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
     // de reanudación". Null on every non-SUSPENDIDA row.
     resumeAt: item.resumeAt,
     propertyType: item.propertyType,
-    endDate: endsAt || publishedAt,
+    // HONEST-NULL — twin of the locked-teaser branch above. `publishedAt` is a
+    // publication date, never an end date; using it as one made every
+    // NULL-`endsAt` row look finished to the clock-wins badge rule.
+    endDate: endsAt,
     // See note on the locked-teaser branch above — source is a free string;
     // SEGSOCIAL and future sources flow through without a type widen.
     source: item.source || 'BOE',

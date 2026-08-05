@@ -7,6 +7,27 @@
  */
 
 import { AuctionCategory, AuctionStatus, AuctionType } from "@/types";
+import {
+  WHEN_BUCKETS,
+  whenBucketFrontendStatuses,
+  type WhenBucket,
+} from "@/lib/auction-status";
+
+/**
+ * The FOLDED frontend statuses for a tab, as the `?statuses=` API param wants
+ * them.
+ *
+ * ⭐ DERIVED, NOT HAND-WRITTEN (Forge 2026-08-05). Every bucket CSV below used
+ * to be typed out by hand next to a DB-side set that was maintained
+ * separately, so a status added to one never reached the other — which is how
+ * a hub came to advertise 42 auctions above an empty Activas tab. Now the tabs,
+ * the counts, the SSR cards and the API predicate all read the SAME map in
+ * `@/lib/auction-status`; see the invariant documented on
+ * `WHEN_BUCKET_DB_STATUSES`.
+ */
+function foldedStatusesFor(bucket: WhenBucket): AuctionStatus[] {
+  return whenBucketFrontendStatuses(bucket) as AuctionStatus[];
+}
 
 /** Broad category → list of underlying AuctionCategory values. */
 export const SIMPLE_KIND_OPTIONS: Array<{
@@ -54,32 +75,22 @@ export const SIMPLE_KIND_OPTIONS: Array<{
  * wants "Todas" to surface every state. With the "Publicadas recientes"
  * default sort the active/recent rows still surface on top and finished fall
  * below, which is the intended ordering. */
+const WHEN_LABELS: Record<WhenBucket, string> = {
+  activas: "Activas ahora",
+  proximas: "Próximas",
+  todas: "Todas",
+  finalizadas: "Finalizadas",
+};
+
 export const SIMPLE_WHEN_OPTIONS: Array<{
-  id: "activas" | "proximas" | "todas" | "finalizadas";
+  id: WhenBucket;
   label: string;
   statuses: AuctionStatus[];
-}> = [
-  { id: "activas", label: "Activas ahora", statuses: ["celebrandose"] },
-  { id: "proximas", label: "Próximas", statuses: ["proxima-apertura"] },
-  {
-    id: "todas",
-    label: "Todas",
-    // Wave89 — ALL user-facing states (active + upcoming + suspended + finished).
-    statuses: [
-      "celebrandose",
-      "proxima-apertura",
-      "suspendida",
-      "concluida-portal",
-      "finalizada-autoridad",
-      "cancelada",
-    ],
-  },
-  {
-    id: "finalizadas",
-    label: "Finalizadas",
-    statuses: ["concluida-portal", "finalizada-autoridad", "cancelada"],
-  },
-];
+}> = WHEN_BUCKETS.map((id) => ({
+  id,
+  label: WHEN_LABELS[id],
+  statuses: foldedStatusesFor(id),
+}));
 
 /** The full 6 BOE statuses for the advanced sheet. */
 export const ALL_STATUSES: Array<{ id: AuctionStatus; label: string }> = [
@@ -495,17 +506,8 @@ export function filtersToApiParams(f: ObservatoryFilters): URLSearchParams {
     // server's `?statuses=` whitelist unions them. With the "Publicadas
     // recientes" default sort the active/recent rows surface on top and the
     // finished ones fall below — Dennis's intended ordering.
-    p.set(
-      "statuses",
-      [
-        "celebrandose",
-        "proxima-apertura",
-        "suspendida",
-        "concluida-portal",
-        "finalizada-autoridad",
-        "cancelada",
-      ].join(","),
-    );
+    // 2026-08-05: derived from the canonical bucket map, not re-typed here.
+    p.set("statuses", foldedStatusesFor("todas").join(","));
   } else {
     const bucket = SIMPLE_WHEN_OPTIONS.find((b) => b.id === f.when);
     if (bucket) p.set("statuses", bucket.statuses.join(","));

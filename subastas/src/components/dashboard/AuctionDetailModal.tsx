@@ -176,6 +176,8 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
 
   const daysRemaining = () => {
     if (!isModalActive) return null;
+    // Honest-null endDate (Forge 2026-08-05): no published end, no countdown.
+    if (!auction.endDate) return null;
     const diff = auction.endDate.getTime() - new Date().getTime();
     const days = Math.ceil(diff / (24 * 60 * 60 * 1000));
 
@@ -644,7 +646,7 @@ export const AuctionDetailModal: React.FC<AuctionDetailModalProps> = ({
                       ? (modalOpensDate ? formatDate(modalOpensDate) : 'Fecha por confirmar')
                       : modalDateLabel === 'Fecha prevista de reanudación'
                         ? (modalResumeDate ? formatDate(modalResumeDate) : 'Fecha por confirmar')
-                        : formatDate(auction.endDate)}
+                        : (auction.endDate ? formatDate(auction.endDate) : 'Fecha por confirmar')}
                   </p>
                 </div>
 

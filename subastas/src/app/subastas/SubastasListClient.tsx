@@ -344,7 +344,12 @@ export default function SubastasListClient({
         }
         const data: AuctionItem[] = (body.data || []).map((it: any) => ({
           ...it,
-          endDate: it.endDate ? new Date(it.endDate) : new Date(),
+          // HONEST-NULL (Forge 2026-08-05). `new Date()` here was the second
+          // half of the "Activas shows CONCLUIDA" bug: a null endDate became
+          // NOW, and NOW is in the past by the time `effectiveStatus` compares
+          // it, so the clock-wins rule flipped the card to "Concluida" on the
+          // very next tick. Absent stays absent.
+          endDate: it.endDate ? new Date(it.endDate) : null,
         }));
         if (cancelled) return;
         setItems(data);
@@ -374,7 +379,8 @@ export default function SubastasListClient({
       if (!body.success) return;
       const more: AuctionItem[] = (body.data || []).map((it: any) => ({
         ...it,
-        endDate: it.endDate ? new Date(it.endDate) : new Date(),
+        // HONEST-NULL — twin of the initial-load mapper above.
+        endDate: it.endDate ? new Date(it.endDate) : null,
       }));
       setItems((prev) => [...prev, ...more]);
       setHasMore(Boolean(body.pagination?.hasMore));
