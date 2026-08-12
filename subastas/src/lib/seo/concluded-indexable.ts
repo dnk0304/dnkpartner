@@ -99,10 +99,57 @@ const STATUS_SET = new Set<string>(SEO_CONCLUDED_STATUSES);
  * holds — one predicate, both places). 24 months keeps genuinely-useful recent
  * comps; tune via this single constant.
  */
-export const SEO_CONCLUDED_MAX_AGE_MONTHS = 24;
+const SEO_CONCLUDED_MAX_AGE_MONTHS_DEFAULT = 24;
 
-/** The `endsAt >=` cutoff Date for the recency floor. Computed per call. */
+/**
+ * ⭐ THE FLOOR IS NOW OPERATOR-CONTROLLED (Forge, 2026-08-12).
+ *
+ * Dennis ruled "index the WHOLE site, ancient auctions included" on 2026-08-03;
+ * the hardcoded 24 has been doing the opposite ever since. Ken's ruling is that
+ * closing that gap is a PHASED ROLLOUT he owns, not a code change shipped blind:
+ * once a URL is in a sitemap, pulling it back out is a de-index signal, so the
+ * widening goes 24mo → 60mo → off, measuring GSC between steps.
+ *
+ * This constant is therefore now read from the environment, so the ramp is a
+ * config change on a running container rather than a rebuild per step:
+ *
+ *   SEO_CONCLUDED_MAX_AGE_MONTHS unset  → 24 (TODAY'S BEHAVIOUR — no-op default)
+ *   SEO_CONCLUDED_MAX_AGE_MONTHS=60     → step 2 of the ramp
+ *   SEO_CONCLUDED_MAX_AGE_MONTHS=0      → floor DISABLED, whole corpus eligible
+ *
+ * ⚠️ THE FLOOR AND THE CHILD COUNT MUST MOVE TOGETHER. Widening the floor
+ * without also raising `PUBLISHED_CONCLUDED_CHILDREN` (sitemap-config.ts) does
+ * almost nothing: the extra rows qualify, but only the freshest
+ * `CHILD_SITEMAP_SIZE * PUBLISHED_CONCLUDED_CHILDREN` of them are actually
+ * published. Measured 2026-08-03: floor off = 171,483 rows = 9 children.
+ * Raising the floor alone is safe-but-inert; raising children alone publishes
+ * EMPTY children, which is actively harmful (see sitemap-config.ts). Set both.
+ *
+ * Invalid / negative / non-numeric values fall back to the default rather than
+ * throwing — a malformed env var must not take the sitemap down, and the
+ * conservative default is the safe direction to fail in.
+ */
+export const SEO_CONCLUDED_MAX_AGE_MONTHS = ((): number => {
+  const raw = process.env.SEO_CONCLUDED_MAX_AGE_MONTHS;
+  if (raw == null || raw.trim() === '') return SEO_CONCLUDED_MAX_AGE_MONTHS_DEFAULT;
+  const n = Number.parseInt(raw.trim(), 10);
+  if (!Number.isFinite(n) || n < 0) return SEO_CONCLUDED_MAX_AGE_MONTHS_DEFAULT;
+  return n;
+})();
+
+/** True when the recency floor is switched off entirely (whole corpus eligible). */
+export const SEO_CONCLUDED_FLOOR_DISABLED = SEO_CONCLUDED_MAX_AGE_MONTHS === 0;
+
+/**
+ * The `endsAt >=` cutoff Date for the recency floor. Computed per call.
+ *
+ * Returns the UNIX epoch when the floor is disabled, so callers keep a single
+ * always-Date contract and `endsAt >= cutoff` degrades to "any real endsAt"
+ * rather than needing every call site to branch. Rows with a NULL `endsAt` stay
+ * excluded either way — that is deliberate and unchanged.
+ */
 export function concludedRecencyCutoff(now: Date = new Date()): Date {
+  if (SEO_CONCLUDED_FLOOR_DISABLED) return new Date(0);
   const d = new Date(now);
   d.setMonth(d.getMonth() - SEO_CONCLUDED_MAX_AGE_MONTHS);
   return d;
