@@ -8,6 +8,7 @@
  */
 
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { getLocale } from 'next-intl/server';
 import type { Locale as AppLocale } from '@/i18n/routing';
@@ -18,6 +19,11 @@ import { readSummary, readList, concludedMunicipioRegions, concludedProvinceRegi
 import { resolveResultadosSeg } from '@/lib/registro/resultados-routing';
 import { SeoPagination } from '@/components/seo/SeoPagination';
 import { ARCHIVE_PAGE_SIZE } from '../_shared/archive-page';
+// HUB_MUNI_PREVIEW is the SAME constant `/municipios` uses to decide whether it
+// renders or redirects here, so the hub can never link a redirect nor orphan a
+// live index page. MUNI_INDEX_PAGE_SIZE is the SAME constant that route pages
+// by, so the "jump to index page N" row below can never advertise a 404.
+import { MUNI_INDEX_PAGE_SIZE, HUB_MUNI_PREVIEW } from '@/lib/registro/archive-paging';
 import {
   getResultadosCopy,
   pickArchiveCopy,
@@ -170,11 +176,20 @@ export default async function ResultadosSegPage({ params }: PageProps) {
   const count = summary.headline.registryTotal;
   const nf = (n: number) => n.toLocaleString(locale === 'en' ? 'en-US' : 'es-ES');
 
-  const municipioLinks = munis.slice(0, 60).map((m) => ({
+  // The hub shows the highest-inventory towns inline (they earn a depth-3 link),
+  // and hands the REST to the paginated municipality index. Before this, the
+  // slice was the whole story and everything past rank 60 was link-orphaned:
+  // 8,673 of 11,677 town archives, 50 of 52 provinces (measured on prod
+  // 2026-08-12). Every index page is linked directly below, so no town is more
+  // than one hop past this hub.
+  const municipioLinks = munis.slice(0, HUB_MUNI_PREVIEW).map((m) => ({
     href: `/resultados/${r.slug}/${m.municipioSlug}`,
     label: capitalizeLocation(m.municipalityName),
     count: m.total,
   }));
+  const muniIndexPages = Math.max(1, Math.ceil(munis.length / MUNI_INDEX_PAGE_SIZE));
+  // Only worth a separate surface when the hub does not already show them all.
+  const showMuniIndex = munis.length > HUB_MUNI_PREVIEW;
   const otherProvinceLinks = provinces
     .filter((p) => p.provinceDbKey !== r.dbKey)
     .slice(0, 24)
@@ -250,6 +265,36 @@ export default async function ResultadosSegPage({ params }: PageProps) {
         <section className="mb-8">
           <h2 className="mb-3 text-lg font-semibold text-[var(--color-ink-primary)]">{copy.townsHeading(r.label)}</h2>
           <ChipLinks items={municipioLinks} locale={locale} />
+
+          {/* The de-orphaning link. Page 1 gets a prose affordance; every FURTHER
+              index page is linked too, so the deepest town archive sits at click
+              depth 4 (/ → /resultados → hub → index page N → town) instead of
+              being buried behind a prev/next chain. At MUNI_INDEX_PAGE_SIZE=200
+              this is at most 5 anchors (Barcelona, 839 municipios). */}
+          {showMuniIndex ? (
+            <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+              <Link
+                href={`/resultados/${r.slug}/municipios`}
+                className="font-medium text-[var(--color-action)] hover:underline"
+              >
+                {copy.muniIndexLink(nf(munis.length))} →
+              </Link>
+              {muniIndexPages > 1 ? (
+                <nav aria-label={copy.muniIndexPagesLabel} className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[var(--color-ink-quiet)]">{copy.page}</span>
+                  {Array.from({ length: muniIndexPages }, (_, i) => i + 1).map((n) => (
+                    <Link
+                      key={n}
+                      href={n === 1 ? `/resultados/${r.slug}/municipios` : `/resultados/${r.slug}/municipios/pagina/${n}`}
+                      className="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-[var(--color-hairline)] px-2 text-xs hover:bg-[var(--color-surface-muted)]"
+                    >
+                      {n}
+                    </Link>
+                  ))}
+                </nav>
+              ) : null}
+            </div>
+          ) : null}
         </section>
       ) : null}
 

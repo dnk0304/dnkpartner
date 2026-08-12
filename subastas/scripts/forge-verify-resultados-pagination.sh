@@ -2,7 +2,7 @@
 # Proofs for the /resultados archive pagination. Fixture: madrid/madrid=61 rows
 # (3 pages), madrid/alcobendas=24 (1 page), madrid/getafe=25 (2 pages),
 # valencia/valencia=30 (2 pages). Province madrid = 110 rows (5 pages).
-B=http://localhost:3987
+B=${B:-http://localhost:3987}
 pass=0; fail=0
 chk() { # name expected actual
   if [ "$2" = "$3" ]; then pass=$((pass+1)); echo "  PASS  $1 = $3";
