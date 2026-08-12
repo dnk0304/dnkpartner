@@ -22,6 +22,8 @@ const prisma = new PrismaClient({
 
 const MADRID = PROVINCE_SLUG_TO_DB_KEY['madrid'];
 const VALENCIA = PROVINCE_SLUG_TO_DB_KEY['valencia'];
+const BARCELONA = PROVINCE_SLUG_TO_DB_KEY['barcelona'];
+const TARRAGONA = PROVINCE_SLUG_TO_DB_KEY['tarragona'];
 
 /** (municipality, province, rows) — sized to straddle ARCHIVE_PAGE_SIZE = 24. */
 const TOWNS: Array<[string, string, number]> = [
@@ -29,6 +31,26 @@ const TOWNS: Array<[string, string, number]> = [
   ['ALCOBENDAS', MADRID, 24], // exactly 1 page — pagina/2 must 404
   ['GETAFE', MADRID, 25], // 2 pages, second page holds 1 row
   ['VALENCIA', VALENCIA, 30], // 2 pages, different province
+];
+
+/**
+ * Municipality-INDEX fixture (Forge 2026-08-12) — sized to straddle
+ * HUB_MUNI_PREVIEW = 60 and MUNI_INDEX_PAGE_SIZE = 200, the two constants that
+ * decide whether a town archive has an inbound internal link at all.
+ *
+ *   madrid    →   3 munis  — at/below the 60 preview: hub shows them ALL, so
+ *                            the index affordance must NOT render.
+ *   tarragona →  70 munis  — above 60, ONE index page: link renders, page-number
+ *                            row must not (nothing to jump to).
+ *   barcelona → 205 munis  — above 60, TWO index pages: exercises the slice
+ *                            boundary (200 + 5) and the out-of-range 404.
+ *
+ * These carry ONE auction each — the point under test is the LINK GRAPH, not the
+ * archive body, and 275 single-row towns keep the seed fast.
+ */
+const INDEX_PROVINCES: Array<[string, number]> = [
+  [TARRAGONA, 70],
+  [BARCELONA, 205],
 ];
 
 async function run() {
@@ -72,6 +94,42 @@ async function run() {
         stats.set(key, (stats.get(key) ?? 0) + 1);
       }
     }
+  }
+
+  // ---- municipality-index corpus -----------------------------------------
+  // Counts are strictly descending (n, n-1, … 1) because
+  // `concludedMunicipioRegions` sorts by total DESC: distinct totals make the
+  // page-1 / page-2 split deterministic, so the verify script can assert
+  // EXACTLY which town lands on which index page instead of just counting.
+  for (const [province, n] of INDEX_PROVINCES) {
+    const auctions: Array<Record<string, unknown>> = [];
+    for (let t = 1; t <= n; t++) {
+      i++;
+      const municipality = `${province.slice(0, 3).toUpperCase()}TOWN${String(t).padStart(3, '0')}`;
+      auctions.push({
+        boeId: `FIXTURE-${i}`,
+        title: `Vivienda en ${municipality}`,
+        category: 'Vivienda',
+        province,
+        municipality,
+        status: AuctionStatus.FINALIZADA,
+        inScope: true,
+        saleResult: SaleResult.ADJUDICADA,
+        soldPrice: BigInt(100_000_00),
+        appraisalValue: 150_000,
+        soldDate: new Date(Date.UTC(2025, 0, 15)),
+        endsAt: new Date(Date.UTC(2025, 0, 15)),
+        publishedAt: new Date(Date.UTC(2024, 10, 1)),
+        auctionType: 'JUDICIAL',
+      });
+      const total = n - t + 1; // strictly descending → deterministic rank
+      stats.set(`${province}||${municipality}||VENDIDA`, total);
+      stats.set(
+        `${province}||||VENDIDA`,
+        (stats.get(`${province}||||VENDIDA`) ?? 0) + total,
+      );
+    }
+    await prisma.auction.createMany({ data: auctions as never });
   }
 
   for (const [key, count] of stats) {

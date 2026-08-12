@@ -239,6 +239,14 @@ export interface ResultadosCopy {
   outcomeRegionH1: (outcome: string, region: string) => string;
   outcomeNationalH1: (outcome: string) => string;
   townsHeading: (province: string) => string;
+  /** Municipality index (/resultados/{prov}/municipios) — the de-orphaning surface. */
+  muniIndexH1: (province: string) => string;
+  muniIndexLead: (n: string, province: string) => string;
+  /** Hub affordance into the full index; `n` is the TOTAL municipality count. */
+  muniIndexLink: (n: string) => string;
+  /** Label for the hub's "jump to index page N" row. */
+  muniIndexPagesLabel: string;
+  crumbMunicipios: string;
   otherProvincesHeading: string;
   backToRegistry: string;
   viewProvinceResults: (province: string) => string;
@@ -296,6 +304,12 @@ const ES: ResultadosCopy = {
   outcomeRegionH1: (outcome, region) => `Subastas ${outcome} en ${region}`,
   outcomeNationalH1: (outcome) => `Subastas ${outcome} en España`,
   townsHeading: (province) => `Por municipio en ${province}`,
+  muniIndexH1: (province) => `Municipios con resultados en ${province}`,
+  muniIndexLead: (n, province) =>
+    `Los ${n} municipios de ${province} con subastas concluidas en el registro del BOE. Cada municipio enlaza con su archivo de resultados.`,
+  muniIndexLink: (n) => `Ver los ${n} municipios`,
+  muniIndexPagesLabel: 'Páginas del índice de municipios',
+  crumbMunicipios: 'Municipios',
   otherProvincesHeading: 'Otras provincias',
   backToRegistry: 'Ver todo el registro de resultados',
   viewProvinceResults: (province) => `Ver resultados en ${province}`,
@@ -353,6 +367,12 @@ const EN: ResultadosCopy = {
   outcomeRegionH1: (outcome, region) => `${outcome} auctions in ${region}`,
   outcomeNationalH1: (outcome) => `${outcome} auctions in Spain`,
   townsHeading: (province) => `By municipality in ${province}`,
+  muniIndexH1: (province) => `Municipalities with results in ${province}`,
+  muniIndexLead: (n, province) =>
+    `The ${n} municipalities in ${province} with concluded auctions in the BOE registry. Each municipality links to its own results archive.`,
+  muniIndexLink: (n) => `View all ${n} municipalities`,
+  muniIndexPagesLabel: 'Municipality index pages',
+  crumbMunicipios: 'Municipalities',
   otherProvincesHeading: 'Other provinces',
   backToRegistry: 'View the full results registry',
   viewProvinceResults: (province) => `View results in ${province}`,
