@@ -227,6 +227,12 @@ export interface ResultadosCopy {
   errorLoading: string;
   resultsCount: (n: string) => string;
   page: string;
+  /** Path-based archive pagination (/resultados/…/pagina/N). */
+  pagLabel: string;
+  pagPrev: string;
+  pagNext: string;
+  /** Title/H1 suffix for page N>=2. */
+  pageSuffix: (page: number) => string;
   // region pages
   regionH1: (region: string) => string;
   regionLead: (n: string, region: string) => string;
@@ -280,6 +286,10 @@ const ES: ResultadosCopy = {
   errorLoading: 'No se pudieron cargar los resultados. Inténtalo de nuevo.',
   resultsCount: (n) => `${n} resultados`,
   page: 'Página',
+  pagLabel: 'Paginación',
+  pagPrev: 'Anterior',
+  pagNext: 'Siguiente',
+  pageSuffix: (page) => ` — Página ${page}`,
   regionH1: (region) => `Resultados de subastas en ${region}`,
   regionLead: (n, region) =>
     `${n} subastas concluidas en ${region}, clasificadas por resultado. Cada resultado enlaza con el detalle de la subasta.`,
@@ -333,6 +343,10 @@ const EN: ResultadosCopy = {
   errorLoading: 'Could not load results. Please try again.',
   resultsCount: (n) => `${n} results`,
   page: 'Page',
+  pagLabel: 'Pagination',
+  pagPrev: 'Previous',
+  pagNext: 'Next',
+  pageSuffix: (page) => ` — Page ${page}`,
   regionH1: (region) => `Auction results in ${region}`,
   regionLead: (n, region) =>
     `${n} concluded auctions in ${region}, classified by outcome. Each result links to the auction detail page.`,

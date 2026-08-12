@@ -15,21 +15,12 @@ import Link from 'next/link';
 import { getLocale } from 'next-intl/server';
 import type { Locale as AppLocale } from '@/i18n/routing';
 import { buildAlternates, ogLocale, SITE_ORIGIN } from '@/lib/seo/alternates';
-import {
-  PROVINCE_SLUG_TO_DB_KEY,
-  PROVINCE_ALIAS_TO_CANONICAL,
-  provinceLabelForSlug,
-  slugify,
-} from '@/lib/seo/slugs';
-import { municipalitySlugToDbName } from '@/lib/seo/page-data';
+import { slugify } from '@/lib/seo/slugs';
 import { capitalizeLocation } from '@/lib/utils';
-import {
-  readSummary,
-  readList,
-  readRegions,
-  registroMunicipioSlugToDbName,
-} from '@/lib/registro/registro-read';
-import { resolveResultadosSeg } from '@/lib/registro/resultados-routing';
+import { readSummary, readList, readRegions } from '@/lib/registro/registro-read';
+import { resolveResultadosChild } from '../../_shared/resolve-child';
+import { ARCHIVE_PAGE_SIZE } from '../../_shared/archive-page';
+import { SeoPagination } from '@/components/seo/SeoPagination';
 import {
   getResultadosCopy,
   pickArchiveCopy,
@@ -54,68 +45,9 @@ function toLocale(v: string): Locale {
   return v === 'en' ? 'en' : 'es';
 }
 
-type Shape =
-  | { kind: 'outcome-province'; outcome: RegistryOutcome; outcomeSlug: string; provDbKey: string; provSlug: string; provLabel: string }
-  | { kind: 'province-muni'; provDbKey: string; provSlug: string; provLabel: string; muniName: string; muniSlug: string; total: number }
-  | { kind: 'redirect'; to: string }
-  | { kind: 'notfound' };
-
-async function resolveShape(seg1: string, seg2: string): Promise<Shape> {
-  const r1 = resolveResultadosSeg(seg1);
-  if (r1.kind === 'redirect') return { kind: 'redirect', to: `${r1.to}/${seg2}` };
-  if (r1.kind === 'invalid') return { kind: 'notfound' };
-
-  if (r1.kind === 'outcome') {
-    // seg2 must be a province (canonical or alias)
-    const dbKey = PROVINCE_SLUG_TO_DB_KEY[seg2];
-    if (dbKey) {
-      return {
-        kind: 'outcome-province',
-        outcome: r1.outcome,
-        outcomeSlug: r1.slug,
-        provDbKey: dbKey,
-        provSlug: seg2,
-        provLabel: provinceLabelForSlug(seg2) ?? dbKey,
-      };
-    }
-    const canon = PROVINCE_ALIAS_TO_CANONICAL[seg2];
-    if (canon) return { kind: 'redirect', to: `/resultados/${r1.slug}/${canon}` };
-    return { kind: 'notfound' };
-  }
-
-  // r1 = province → seg2 = municipio
-  const provDbKey = r1.dbKey;
-  const inRegistry = await registroMunicipioSlugToDbName(provDbKey, seg2);
-  if (inRegistry) {
-    return {
-      kind: 'province-muni',
-      provDbKey,
-      provSlug: r1.slug,
-      provLabel: r1.label,
-      muniName: inRegistry.municipalityName,
-      muniSlug: inRegistry.municipioSlug,
-      total: inRegistry.total,
-    };
-  }
-  // Resolvable-but-empty town (any-status): still render, noindex.
-  const fallback = await municipalitySlugToDbName(provDbKey, seg2);
-  if (fallback) {
-    return {
-      kind: 'province-muni',
-      provDbKey,
-      provSlug: r1.slug,
-      provLabel: r1.label,
-      muniName: fallback,
-      muniSlug: seg2,
-      total: 0,
-    };
-  }
-  return { kind: 'notfound' };
-}
-
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { seg1, seg2 } = await params;
-  const shape = await resolveShape(seg1, seg2);
+  const shape = await resolveResultadosChild(seg1, seg2);
   const locale = toLocale((await getLocale()) as AppLocale);
   const copy = getResultadosCopy(locale);
   const nf = (n: number) => n.toLocaleString(locale === 'en' ? 'en-US' : 'es-ES');
@@ -148,7 +80,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function ResultadosChildPage({ params }: PageProps) {
   const { seg1, seg2 } = await params;
-  const shape = await resolveShape(seg1, seg2);
+  const shape = await resolveResultadosChild(seg1, seg2);
   if (shape.kind === 'notfound') notFound();
   if (shape.kind === 'redirect') redirect(shape.to);
 
@@ -160,7 +92,7 @@ export default async function ResultadosChildPage({ params }: PageProps) {
   if (shape.kind === 'outcome-province') {
     const [summary, list] = await Promise.all([
       readSummary({ province: shape.provDbKey }),
-      readList({ outcome: shape.outcome, province: shape.provDbKey, page: 1, pageSize: 24 }),
+      readList({ outcome: shape.outcome, province: shape.provDbKey, page: 1, pageSize: ARCHIVE_PAGE_SIZE }),
     ]);
     const label = locale === 'en' ? OUTCOME_META[shape.outcome].en : OUTCOME_META[shape.outcome].es;
     const blurb = locale === 'en' ? OUTCOME_META[shape.outcome].blurbEn : OUTCOME_META[shape.outcome].blurbEs;
@@ -206,6 +138,17 @@ export default async function ResultadosChildPage({ params }: PageProps) {
             lockedOutcome={shape.outcome}
             lockedProvince={shape.provDbKey}
           />
+          {/* Path-based crawl path into page 2+. The island's "load more"
+              fetches a querystring URL that robots.txt disallows, so without
+              this every row past 24 is link-orphaned. */}
+          <SeoPagination
+            basePath={`/resultados/${shape.outcomeSlug}/${shape.provSlug}`}
+            page={list.page}
+            totalPages={list.totalPages}
+            ariaLabel={copy.pagLabel}
+            prevLabel={copy.pagPrev}
+            nextLabel={copy.pagNext}
+          />
         </section>
 
         <section className="mb-8">
@@ -228,7 +171,7 @@ export default async function ResultadosChildPage({ params }: PageProps) {
   // -------- province × municipio --------
   const [{ regions }, list] = await Promise.all([
     readRegions({ province: shape.provDbKey }),
-    readList({ province: shape.provDbKey, municipio: shape.muniName, page: 1, pageSize: 24 }),
+    readList({ province: shape.provDbKey, municipio: shape.muniName, page: 1, pageSize: ARCHIVE_PAGE_SIZE }),
   ]);
   const muniLabel = capitalizeLocation(shape.muniName);
   const region = `${muniLabel} (${shape.provLabel})`;
@@ -298,6 +241,14 @@ export default async function ResultadosChildPage({ params }: PageProps) {
           categoryOptions={buildCategoryOptions()}
           provinceOptions={[]}
           lockedProvince={shape.provDbKey}
+        />
+        <SeoPagination
+          basePath={`/resultados/${shape.provSlug}/${shape.muniSlug}`}
+          page={list.page}
+          totalPages={list.totalPages}
+          ariaLabel={copy.pagLabel}
+          prevLabel={copy.pagPrev}
+          nextLabel={copy.pagNext}
         />
       </section>
 

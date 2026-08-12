@@ -62,6 +62,7 @@ import { buildAuctionSlug } from '@/lib/seo/auction-slug';
 import { fetchV3UrlsBatch, resolveAuctionPath } from '@/lib/seo/auction-url';
 import { listNoticias } from '@/lib/noticias';
 import { CHILD_SITEMAP_SIZE, classifyChunk } from '@/lib/seo/sitemap-config';
+import { ARCHIVE_PAGE_SIZE } from '@/lib/registro/archive-paging';
 import { concludedIndexableWhere } from '@/lib/seo/concluded-indexable';
 import { readSummary, concludedMunicipioPairsAll } from '@/lib/registro/registro-read';
 import { OUTCOME_TO_SLUG } from '@/lib/registro/registro-ui';
@@ -337,6 +338,51 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
         changeFrequency: 'weekly',
         priority: 0.5,
       });
+    }
+
+    // ── /resultados/{provincia}/{municipio}/pagina/{n} — the archive's deep
+    // pages (Forge, 2026-08-12). A crawl path Google is not TOLD about is found
+    // slowly, and these pages are the mechanism that de-orphans the concluded
+    // corpus, so they are advertised rather than left to link discovery.
+    //
+    // TOWN LEVEL ONLY — a deliberate scoping, measured on prod 2026-08-12:
+    //   town archives (11,677 towns)      → 5,086 pages at n>=2   ← emitted
+    //   province archives (52)            → 7,333 pages at n>=2   ← NOT emitted
+    //   outcome x province (104)          → 7,171 pages at n>=2   ← NOT emitted
+    // Child 0 measured 11,447 URLs. +5,086 = ~16,533, inside CHILD_SITEMAP_SIZE
+    // (20,000) with ~3,400 headroom. Emitting all three bands would be ~31,000
+    // and the aggregation band has NO chunking, so it would silently truncate or
+    // overflow. The two omitted bands are also pure duplicate coverage: they
+    // page over the SAME concluded details the town archives already expose, one
+    // level shallower. They exist as routes and are crawlable by link; they are
+    // simply not submitted.
+    //
+    // The cap below is a STRUCTURAL guard, not a comment: the archive grows, and
+    // the day this band would cross the cap it must stop and be visible in the
+    // logs, never quietly emit a 20,001st URL into an unchunked child.
+    let emitted = entries.length;
+    let paginaSkipped = 0;
+    for (const p of muniPairs) {
+      const pages = Math.ceil(p.total / ARCHIVE_PAGE_SIZE);
+      for (let n = 2; n <= pages; n++) {
+        if (emitted >= CHILD_SITEMAP_SIZE) {
+          paginaSkipped++;
+          continue;
+        }
+        entries.push({
+          url: `${SITE}/resultados/${p.provinceSlug}/${p.municipioSlug}/pagina/${n}`,
+          changeFrequency: 'weekly',
+          priority: 0.4,
+        });
+        emitted++;
+      }
+    }
+    if (paginaSkipped > 0) {
+      console.warn(
+        `[sitemap] aggregation child hit CHILD_SITEMAP_SIZE (${CHILD_SITEMAP_SIZE}); ` +
+          `${paginaSkipped} /resultados pagina URLs omitted. The aggregation band needs ` +
+          `chunking before the archive grows further.`,
+      );
     }
   } catch {
     // Non-fatal — the rest of the sitemap is still valid if the rollup read trips.

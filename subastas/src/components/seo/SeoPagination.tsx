@@ -12,10 +12,23 @@
  * anchors (the crawlable, semantically-correct signal; Google reads href from
  * the initial HTML regardless of JS).
  *
+ * HEAD `<link rel="prev|next">` (Forge 2026-08-12): the anchors carried `rel`
+ * but the document head did not — Ken checked a live paginated
+ * /subastas hub and found only robots + canonical. Emitted HERE, not in each
+ * route own
+ * `generateMetadata` because (a) Next's Metadata API has no field for
+ * prev/next, and (b) one emission point means every consumer — the /subastas
+ * hubs, their /pagina/N siblings, and the /resultados archive — gets it and
+ * they cannot drift. React 19 hoists a `<link>` rendered anywhere in the tree
+ * into <head>, so this lands in the head of the SSR HTML. Absolute hrefs
+ * (SITE_ORIGIN) because a sequence signal spanning documents should not depend
+ * on base-URL resolution.
+ *
  * Server component — no client JS. Renders nothing when there is only one page.
  */
 
 import Link from 'next/link';
+import { SITE_ORIGIN } from '@/lib/seo/alternates';
 
 export type SeoPaginationProps = {
   /** Base URL of the hub WITHOUT a trailing slash, e.g. `/subastas/valencia`. */
@@ -76,6 +89,10 @@ export function SeoPagination({
 
   return (
     <nav aria-label={ariaLabel} className="mt-10 flex flex-wrap items-center justify-center gap-2">
+      {/* Hoisted into <head> by React 19. */}
+      {hasPrev ? <link rel="prev" href={`${SITE_ORIGIN}${hrefFor(basePath, page - 1)}`} /> : null}
+      {hasNext ? <link rel="next" href={`${SITE_ORIGIN}${hrefFor(basePath, page + 1)}`} /> : null}
+
       {hasPrev ? (
         <Link rel="prev" href={hrefFor(basePath, page - 1)} className={linkCls}>
           {prevLabel}
