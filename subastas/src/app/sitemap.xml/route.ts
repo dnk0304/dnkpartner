@@ -18,28 +18,102 @@
  * enumerates the fixed child id set.
  */
 
-import { sitemapChildUrls } from '@/lib/seo/sitemap-config';
+import { AuctionStatus } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
+import {
+  sitemapChildIds,
+  sitemapChildUrls,
+  classifyChunk,
+  CHILD_SITEMAP_SIZE,
+} from '@/lib/seo/sitemap-config';
+import { concludedIndexableWhere } from '@/lib/seo/concluded-indexable';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const SITE = 'https://subastasactivas.com';
 
+const ACTIVE_STATUSES: AuctionStatus[] = [
+  AuctionStatus.ACTIVE,
+  AuctionStatus.CELEBRANDOSE,
+  AuctionStatus.PRE_AUCTION,
+  AuctionStatus.PROXIMA_APERTURA,
+];
+
+/**
+ * ⭐ REAL per-child <lastmod> (D5, Forge 2026-08-12).
+ *
+ * This used to be `new Date().toISOString()` for EVERY child, recomputed per
+ * request — verified live 2026-08-12, all five children reported the identical
+ * timestamp and it changed on every fetch. The former comment argued this was
+ * "honest, not fake" because the children do change often. It is not: a lastmod
+ * that is never once observed to hold still tells Google the entire index churns
+ * continuously, and the documented response is that Google stops trusting
+ * `lastmod` for the domain. During a URL migration, when we are specifically
+ * asking for a re-crawl, that is the most expensive signal we could send.
+ *
+ * Each child's real lastmod is the MAX lastmod of the entries it contains:
+ *
+ *  - aggregation (id 0) / active band — the hub and active-detail entries are
+ *    all keyed on `updatedAt` over the ACTIVE row set (1,154 rows corpus-wide),
+ *    so one indexed `_max` aggregate answers both. Cheap.
+ *
+ *  - concluded band — each child is `orderBy soldDate DESC` over a fixed skip
+ *    window, so the FIRST row of the window IS the window's max. One `findFirst`
+ *    with the band's own skip: exact, and no aggregate over 20k rows.
+ *
+ * Anything we cannot resolve OMITS <lastmod> rather than substituting `now`.
+ * `<lastmod>` is optional in a sitemapindex; absent is a neutral signal, and a
+ * neutral signal beats a false one. The whole block is wrapped so a DB hiccup
+ * degrades to a valid, lastmod-free index instead of 500ing the one URL Dennis
+ * submits to GSC.
+ */
+async function childLastmods(): Promise<Map<number, Date>> {
+  const out = new Map<number, Date>();
+  try {
+    const activeMax = await prisma.auction.aggregate({
+      where: { status: { in: ACTIVE_STATUSES }, inScope: true },
+      _max: { updatedAt: true },
+    });
+    const activeUpdatedAt = activeMax._max.updatedAt ?? null;
+
+    for (const id of sitemapChildIds()) {
+      const chunk = classifyChunk(id);
+      if (chunk.kind === 'aggregation' || chunk.kind === 'active') {
+        if (activeUpdatedAt) out.set(id, activeUpdatedAt);
+        continue;
+      }
+      // Concluded: first row of this child's window == the window's max.
+      const head = await prisma.auction.findFirst({
+        where: { ...concludedIndexableWhere(), inScope: true },
+        orderBy: [{ soldDate: 'desc' }, { id: 'asc' }],
+        skip: chunk.skip,
+        take: 1,
+        select: { soldDate: true, updatedAt: true },
+      });
+      const d = head?.soldDate ?? head?.updatedAt ?? null;
+      if (d) out.set(id, d);
+    }
+  } catch {
+    // Degrade to a lastmod-free index. Never fall back to `now`.
+  }
+  return out;
+}
+
 export async function GET(): Promise<Response> {
-  // The child sitemaps change frequently (the scraper refreshes active daily and
-  // appends concluded rows), so a fresh index lastmod is honest, not fake — it
-  // signals "re-check the children". Child ids are a fixed set: no DB call here.
-  const lastmod = new Date().toISOString();
   const children = sitemapChildUrls(SITE);
+  const ids = sitemapChildIds();
+  const lastmods = await childLastmods();
 
   const body =
     `<?xml version="1.0" encoding="UTF-8"?>\n` +
     `<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
     children
-      .map(
-        (loc) =>
-          `  <sitemap>\n    <loc>${loc}</loc>\n    <lastmod>${lastmod}</lastmod>\n  </sitemap>`,
-      )
+      .map((loc, i) => {
+        const d = lastmods.get(ids[i]);
+        const lm = d ? `\n    <lastmod>${d.toISOString()}</lastmod>` : '';
+        return `  <sitemap>\n    <loc>${loc}</loc>${lm}\n  </sitemap>`;
+      })
       .join('\n') +
     `\n</sitemapindex>\n`;
 
