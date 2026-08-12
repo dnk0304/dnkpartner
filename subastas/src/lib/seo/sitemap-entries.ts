@@ -42,6 +42,7 @@ import {
   CATEGORY_INDEX_THRESHOLD,
   isOfficialCategory,
   PROVINCE_DB_KEY_TO_SLUG,
+  slugify,
   type CategorySlug,
 } from '@/lib/seo/slugs';
 import { categoryActiveCounts, activeMunicipalityPairs } from '@/lib/seo/page-data';
@@ -85,7 +86,14 @@ export type ChangeFrequency =
 
 export interface SitemapUrlEntry {
   url: string;
-  lastModified: Date;
+  /**
+   * OMITTED when no real modification time is known (D5, Forge 2026-08-12).
+   * An ABSENT <lastmod> is a neutral signal; a <lastmod> that always equals
+   * "now" is a documented Google trust-negative -- it makes the whole sitemap
+   * look like it churns daily and Google starts ignoring lastmod for the
+   * domain. Never fill this with `new Date()`.
+   */
+  lastModified?: Date;
   changeFrequency?: ChangeFrequency;
   priority?: number;
 }
@@ -99,7 +107,6 @@ export interface SitemapUrlEntry {
 export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]> {
   const chunkId = Number.isFinite(id) ? id : 0;
   const chunk = classifyChunk(chunkId);
-  const now = new Date();
 
   // --- ACTIVE auction-detail children ---
   if (chunk.kind === 'active') {
@@ -121,7 +128,7 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
       for (const a of activeAuctions) {
         entries.push({
           url: `${SITE}${resolveAuctionPath(a, v3.get(a.id))}`,
-          lastModified: a.updatedAt ?? now,
+          lastModified: a.updatedAt ?? undefined,
           changeFrequency: 'daily',
           priority: 0.6,
         });
@@ -162,7 +169,7 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
       for (const a of rows) {
         entries.push({
           url: `${SITE}${resolveAuctionPath(a, v3.get(a.id))}`,
-          lastModified: a.soldDate ?? a.updatedAt ?? now,
+          lastModified: a.soldDate ?? a.updatedAt ?? undefined,
           changeFrequency: 'monthly', // concluded outcomes don't change
           priority: 0.5,
         });
@@ -176,10 +183,53 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
   // --- Chunk 0: core + provinces + towns + tipos + categories + guides ---
   const entries: SitemapUrlEntry[] = [];
 
+  // ⭐ REAL hub lastmods (D5, Forge 2026-08-12). Every entry in this child used
+  // to carry `lastModified: new Date()`, so all ~11,447 aggregation URLs claimed
+  // to have changed on every single fetch. That is the documented way to get
+  // Google to stop trusting `lastmod` for the whole domain — the opposite of
+  // what we need mid-URL-migration.
+  //
+  // A province/town hub renders the ACTIVE auctions in its scope (the hub query
+  // is active-gated), so the honest "last modified" for a hub is the newest
+  // `updatedAt` among the active rows it actually shows. That set is 1,154 rows
+  // corpus-wide, so this is ONE tiny indexed read, not a 241k aggregate — it
+  // costs less than the town-pair query already running below it.
+  //
+  // Anything with no real timestamp (core pages, tipos, categories, /resultados)
+  // now OMITS <lastmod> entirely rather than faking it: absent is neutral, fake
+  // is negative.
+  const hubLastmod = new Map<string, Date>();
+  try {
+    const activeRows = await prisma.auction.findMany({
+      where: { status: { in: ACTIVE_STATUSES }, inScope: true },
+      select: { province: true, municipality: true, updatedAt: true },
+    });
+    const bump = (key: string, d: Date | null) => {
+      if (!d) return;
+      const cur = hubLastmod.get(key);
+      if (!cur || d > cur) hubLastmod.set(key, d);
+    };
+    // Keyed by SLUG, not DB key, so the lookup lines up 1:1 with the URLs
+    // emitted below and cannot drift from them. `slugify` is the same function
+    // `_municipalityPairs` folds its (provinceSlug, municipioSlug) pairs with,
+    // so a slug collision folds to the MAX updatedAt of the folded group --
+    // which is the correct lastmod for the single page that group renders as.
+    for (const r of activeRows) {
+      const provinceSlug = r.province ? PROVINCE_DB_KEY_TO_SLUG[r.province] : undefined;
+      if (!provinceSlug) continue;
+      bump(`p:${provinceSlug}`, r.updatedAt);
+      const municipioSlug = r.municipality ? slugify(r.municipality) : '';
+      if (municipioSlug) bump(`m:${provinceSlug}|${municipioSlug}`, r.updatedAt);
+    }
+  } catch {
+    // Non-fatal — hubs simply ship with no <lastmod>, which is the neutral,
+    // safe outcome. Never fall back to `now`.
+  }
+
   // --- Core ---
   entries.push(
-    { url: `${SITE}/`, lastModified: now, changeFrequency: 'daily', priority: 1.0 },
-    { url: `${SITE}/subastas`, lastModified: now, changeFrequency: 'hourly', priority: 0.9 },
+    { url: `${SITE}/`, changeFrequency: 'daily', priority: 1.0 },
+    { url: `${SITE}/subastas`, changeFrequency: 'hourly', priority: 0.9 },
   );
 
   // --- 52 provinces (always indexable per 07 §6.1) ---
@@ -188,7 +238,7 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
   for (const slug of PROVINCE_SLUGS) {
     entries.push({
       url: `${SITE}/subastas/${slug}`,
-      lastModified: now,
+      lastModified: hubLastmod.get(`p:${slug}`),
       changeFrequency: 'daily',
       priority: 0.8,
     });
@@ -205,7 +255,7 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
     for (const p of pairs) {
       entries.push({
         url: `${SITE}/subastas/${p.provinceSlug}/${p.municipioSlug}`,
-        lastModified: now,
+        lastModified: hubLastmod.get(`m:${p.provinceSlug}|${p.municipioSlug}`),
         changeFrequency: 'daily',
         priority: 0.7,
       });
@@ -218,7 +268,6 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
   for (const slug of TIPO_SLUGS) {
     entries.push({
       url: `${SITE}/subastas/tipo/${slug}`,
-      lastModified: now,
       changeFrequency: 'daily',
       priority: 0.8,
     });
@@ -235,7 +284,6 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
       if (isOfficialCategory(dbLabel) && c >= CATEGORY_INDEX_THRESHOLD) {
         entries.push({
           url: `${SITE}/subastas/${slug}`,
-          lastModified: now,
           changeFrequency: 'daily',
           priority: 0.7,
         });
@@ -251,7 +299,7 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
   // so a sitemap URL is never noindex. These interlink the concluded detail
   // pages (the orphan fix), which live in the concluded detail children above.
   try {
-    entries.push({ url: `${SITE}/resultados`, lastModified: now, changeFrequency: 'daily', priority: 0.8 });
+    entries.push({ url: `${SITE}/resultados`, changeFrequency: 'daily', priority: 0.8 });
 
     const summary = await readSummary({});
     for (const region of summary.regions) {
@@ -260,7 +308,6 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
       // /resultados/{provincia}
       entries.push({
         url: `${SITE}/resultados/${provinceSlug}`,
-        lastModified: now,
         changeFrequency: 'weekly',
         priority: 0.6,
       });
@@ -269,7 +316,6 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
       if (region.counts.VENDIDA > 0) {
         entries.push({
           url: `${SITE}/resultados/${OUTCOME_TO_SLUG.VENDIDA}/${provinceSlug}`,
-          lastModified: now,
           changeFrequency: 'weekly',
           priority: 0.5,
         });
@@ -277,7 +323,6 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
       if (region.counts.DESIERTA > 0) {
         entries.push({
           url: `${SITE}/resultados/${OUTCOME_TO_SLUG.DESIERTA}/${provinceSlug}`,
-          lastModified: now,
           changeFrequency: 'weekly',
           priority: 0.5,
         });
@@ -289,7 +334,6 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
     for (const p of muniPairs) {
       entries.push({
         url: `${SITE}/resultados/${p.provinceSlug}/${p.municipioSlug}`,
-        lastModified: now,
         changeFrequency: 'weekly',
         priority: 0.5,
       });
@@ -307,7 +351,7 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
     for (const g of guides) {
       entries.push({
         url: `${SITE}/guia/${g.slug}`,
-        lastModified: g.updatedAt ?? g.publishedAt ?? now,
+        lastModified: g.updatedAt ?? g.publishedAt ?? undefined,
         changeFrequency: 'weekly',
         priority: 0.5,
       });
@@ -322,8 +366,8 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
   const noticias = listNoticias('es');
   if (noticias.length > 0) {
     entries.push(
-      { url: `${SITE}/noticias`, lastModified: now, changeFrequency: 'weekly', priority: 0.6 },
-      { url: `${SITE}/en/noticias`, lastModified: now, changeFrequency: 'weekly', priority: 0.5 },
+      { url: `${SITE}/noticias`, changeFrequency: 'weekly', priority: 0.6 },
+      { url: `${SITE}/en/noticias`, changeFrequency: 'weekly', priority: 0.5 },
     );
   }
   for (const n of noticias) {
@@ -361,14 +405,14 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
       if (!seenProvince.has(r.province)) {
         seenProvince.add(r.province);
         entries.push(
-          { url: `${SITE}/noticias/${r.province}`, lastModified: r.generatedAt ?? now, changeFrequency: 'monthly', priority: 0.5 },
-          { url: `${SITE}/en/noticias/${r.province}`, lastModified: r.generatedAt ?? now, changeFrequency: 'monthly', priority: 0.4 },
+          { url: `${SITE}/noticias/${r.province}`, lastModified: r.generatedAt ?? undefined, changeFrequency: 'monthly', priority: 0.5 },
+          { url: `${SITE}/en/noticias/${r.province}`, lastModified: r.generatedAt ?? undefined, changeFrequency: 'monthly', priority: 0.4 },
         );
       }
       // The monthly article (es + en).
       entries.push(
-        { url: `${SITE}/noticias/${r.province}/${r.period}`, lastModified: r.generatedAt ?? now, changeFrequency: 'monthly', priority: 0.5 },
-        { url: `${SITE}/en/noticias/${r.province}/${r.period}`, lastModified: r.generatedAt ?? now, changeFrequency: 'monthly', priority: 0.4 },
+        { url: `${SITE}/noticias/${r.province}/${r.period}`, lastModified: r.generatedAt ?? undefined, changeFrequency: 'monthly', priority: 0.5 },
+        { url: `${SITE}/en/noticias/${r.province}/${r.period}`, lastModified: r.generatedAt ?? undefined, changeFrequency: 'monthly', priority: 0.4 },
       );
     }
   } catch {

@@ -25,6 +25,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { buildAuctionSlug } from '@/lib/seo/auction-slug';
+import { fetchV3UrlsBatch, resolveAuctionPath } from '@/lib/seo/auction-url';
 import { auctionOutcome, outcomeFromSlug, type AuctionOutcome } from '@/lib/seo/auction-outcome';
 import { outcomeWhere, registryBaseWhere } from '@/lib/registro/outcome-query';
 import type { Prisma } from '@prisma/client';
@@ -143,22 +144,33 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
+    // ONE `= ANY(...)` probe for this page of rows (never per-row). Non-fatal:
+    // on failure the map stays empty and every row falls back to its legacy
+    // path, which still 200s — a link lookup must not 500 the list.
+    let v3 = new Map<string, string>();
+    try {
+      v3 = await fetchV3UrlsBatch(rows.map((r) => r.id));
+    } catch (error) {
+      console.error('registro detailPath v3 lookup failed; falling back to legacy paths', error);
+    }
+
     const items = rows.map((r) => {
       const classified = auctionOutcome(
         { status: r.status, saleResult: r.saleResult, resumeAt: r.resumeAt, updatedAt: r.updatedAt },
         now,
       );
-      const slug = buildAuctionSlug({
+      const forSlug = {
         id: r.id,
         auctionType: r.auctionType,
         province: r.province,
         municipality: r.municipality,
-      });
+      };
+      const slug = buildAuctionSlug(forSlug);
       return {
         id: r.id,
         boeId: r.boeId,
         slug,
-        detailPath: `/subastas/subasta/${slug}`,
+        detailPath: resolveAuctionPath(forSlug, v3.get(r.id) ?? null),
         title: r.title,
         category: r.category,
         province: r.province,

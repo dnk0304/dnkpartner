@@ -28,7 +28,7 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { boeLinkFor } from '@/lib/boe-link';
 import { officialAuctionUrl } from '@/lib/official-url';
-import { buildAuctionSlug } from '@/lib/seo/auction-slug';
+import { fetchV3Url, resolveAuctionPath } from '@/lib/seo/auction-url';
 
 // Force per-request evaluation — the route reads the session and must never be
 // statically cached.
@@ -104,12 +104,22 @@ export async function GET(
     return new NextResponse('Not found', { status: 404 });
   }
 
-  const detailPath = `/subastas/subasta/${buildAuctionSlug({
-    id: row.id,
-    auctionType: row.auctionType,
-    province: row.province,
-    municipality: row.municipality,
-  })}`;
+  // Canonical detail path via the resolver, NOT a hardcoded legacy path: this
+  // string becomes the anonymous `?next=`/`callbackUrl` and the no-official-url
+  // fallback redirect, so a legacy value would cost the user an extra 308 hop
+  // on arrival. Exactly ONE auction is in scope here, so the single-row
+  // primary-key probe is correct — nothing to batch. A failed probe degrades to
+  // the legacy path (still 200s) rather than failing the gate.
+  const v3Url = await fetchV3Url(row.id).catch(() => null);
+  const detailPath = resolveAuctionPath(
+    {
+      id: row.id,
+      auctionType: row.auctionType,
+      province: row.province,
+      municipality: row.municipality,
+    },
+    v3Url,
+  );
 
   // ── THE GATE ──────────────────────────────────────────────────────────────
   const allowed = await isParticipationAllowed();

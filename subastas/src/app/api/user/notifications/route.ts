@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { query, queryOne } from '@/lib/db';
 import { mapNotificationRow, type NotificationHistoryRow } from '@/lib/notifications/history';
+import { fetchV3UrlsBatch } from '@/lib/seo/auction-url';
 
 /**
  * GET /api/user/notifications  (auth-gated, current user only)
@@ -61,7 +62,16 @@ export async function GET(request: NextRequest) {
       [userId, limit, offset],
     );
 
-    const history = rows.map(mapNotificationRow);
+    // ONE `= ANY(...)` probe for the whole page (never per-row). Non-fatal: a
+    // failed lookup leaves the map empty and every item falls back to its
+    // legacy path, which still 200s — the feed must not 500 over a link.
+    let v3 = new Map<string, string>();
+    try {
+      v3 = await fetchV3UrlsBatch(rows.map((r) => r.auctionId));
+    } catch (error) {
+      console.error('notification url v3 lookup failed; falling back to legacy paths', error);
+    }
+    const history = rows.map((r) => mapNotificationRow(r, v3.get(r.auctionId) ?? null));
 
     return NextResponse.json({
       success: true,

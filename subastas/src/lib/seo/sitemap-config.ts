@@ -35,10 +35,45 @@
 export const CHILD_SITEMAP_SIZE = 20_000;
 
 /**
- * Fixed number of ACTIVE-detail children (20k each). Active set is ~5k today;
- * 2 chunks = 40k headroom. Bump if active inventory ever approaches 40k.
+ * Fixed number of ACTIVE-detail children (20k each).
+ *
+ * ── WAS 2. CORRECTED TO 1, 2026-08-12 (Forge). ────────────────────────────
+ * The old value was set against a "~5k active" estimate that was never true.
+ * MEASURED LIVE on prod 2026-08-12, running the EXACT child-query predicate
+ * (`status IN ('PROXIMA_APERTURA','CELEBRANDOSE') AND inScope = true`):
+ *
+ *     active rows = 1,154   →   ceil(1,154 / 20,000) = 1
+ *
+ * With ACTIVE_CHUNKS = 2, child id 2 took `skip = 20_000` against a 1,154-row
+ * set and therefore served an **empty `<urlset>`** to Google — confirmed live:
+ * `/sitemap/2.xml` returned `200` with zero `<loc>`.
+ *
+ * This is the exact failure mode the comment block below already condemns for
+ * the CONCLUDED band ("a self-inflicted 'couldn't fetch / no URLs' signal on a
+ * sitemap index we are actively trying to get Google to trust"). The fix was
+ * applied to concluded on 2026-08-03 and never to active. It is applied here now.
+ *
+ * ── NO `<loc>` IS LOST BY THE RENUMBER (proof, not assertion) ─────────────
+ * Dropping to 1 shifts the concluded children's ids down by one. The URL SET is
+ * nevertheless bit-identical, because `classifyChunk` derives a child's content
+ * purely from its `skip` offset, and every offset is preserved:
+ *
+ *   band       before (ACTIVE_CHUNKS=2)      after (ACTIVE_CHUNKS=1)
+ *   active     id 1 → skip 0     (1,154)     id 1 → skip 0     (1,154)
+ *              id 2 → skip 20000 (0 — EMPTY) (child no longer published)
+ *   concluded  id 3 → skip 0                 id 2 → skip 0
+ *              id 4 → skip 20000             id 3 → skip 20000
+ *
+ * Every non-empty (kind, skip) pair still has exactly one published child. The
+ * only child that disappears is the one that contained nothing. Union of `<loc>`
+ * before == union after; the delta is 0 URLs.
+ *
+ * Bump this ONLY against a re-run of the measurement above, and only if active
+ * inventory actually approaches 20,000. Do not raise it for "headroom" — an
+ * over-provisioned band publishes empty children, which is strictly worse than
+ * being one deploy late.
  */
-export const ACTIVE_CHUNKS = 2;
+export const ACTIVE_CHUNKS = 1;
 
 /**
  * Concluded children published to the index (freshest-first). FULL EXPOSURE —
@@ -65,8 +100,33 @@ export const ACTIVE_CHUNKS = 2;
  *
  * Re-measure with the same query before changing this constant — do NOT
  * eyeball it off the /resultados registry, which does not apply the floor.
+ *
+ * ── OPERATOR-CONTROLLED FROM 2026-08-12 (Forge) ───────────────────────────
+ * Paired with `SEO_CONCLUDED_MAX_AGE_MONTHS` (concluded-indexable.ts), which is
+ * now also env-driven so Ken can run the sitemap widening as a phased rollout
+ * without a rebuild per step. THE TWO MUST MOVE TOGETHER:
+ *
+ *   floor 24mo (default) → ~26,800 rows → 2 children   ← today, unchanged
+ *   floor 60mo           → re-measure   → set to ceil(measured / 20,000)
+ *   floor off (=0)       → ~171,483     → 9 children
+ *
+ * Raising the floor WITHOUT raising this is inert (extra rows qualify but are
+ * never published). Raising this WITHOUT the measurement publishes EMPTY
+ * children — the exact defect fixed in ACTIVE_CHUNKS above. Always re-run the
+ * count query with the live predicate before setting it.
+ *
+ *   PUBLISHED_CONCLUDED_CHILDREN unset → 2 (no-op default)
+ *
+ * Clamped to >= 1: a 0 or garbage value must not silently unpublish the entire
+ * concluded band, which would de-index every concluded page already submitted.
  */
-export const PUBLISHED_CONCLUDED_CHILDREN = 2;
+export const PUBLISHED_CONCLUDED_CHILDREN = ((): number => {
+  const raw = process.env.PUBLISHED_CONCLUDED_CHILDREN;
+  if (raw == null || raw.trim() === '') return 2;
+  const n = Number.parseInt(raw.trim(), 10);
+  if (!Number.isFinite(n) || n < 1) return 2;
+  return n;
+})();
 
 /** Total published children = aggregation + active + published concluded. */
 export const TOTAL_CHILDREN = 1 + ACTIVE_CHUNKS + PUBLISHED_CONCLUDED_CHILDREN;

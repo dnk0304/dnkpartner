@@ -49,6 +49,14 @@ type SimilarAuction = {
   imageUrl: string | null;
   address?: string | null;
   hasImage?: boolean | null;
+  /**
+   * ⭐ Canonical detail path, resolved SERVER-side by `resolveAuctionPath` and
+   * already projected by `/api/auctions` (the endpoint this strip reads). This
+   * is a client component and cannot reach the `auction_url_v3` mint table, so
+   * the path has to arrive with the row. Optional + nullable to match the
+   * endpoint's additive contract; absent → the legacy path, which still 200s.
+   */
+  detailPath?: string | null;
 };
 
 export type SimilarAuctionsCarouselProps = {
@@ -199,19 +207,23 @@ function SimilarCard({
   });
   const showImage = !imgFailed && resolved.src;
 
-  // Build the canonical slug for navigation.
+  // Canonical detail href. Prefer the server-resolved `detailPath` so a minted
+  // row is linked at its v3 url directly rather than at the legacy path that
+  // 308s to it; fall back to the legacy slug path for unminted rows and for
+  // any cached payload that predates the projection.
   const slug = buildAuctionSlug({
     id: auction.id,
     auctionType: auction.auctionType,
     province: auction.province,
     municipality: auction.municipality,
   });
+  const detailHref = auction.detailPath ?? `/subastas/subasta/${slug}`;
 
   const headlinePrice = auction.currentBid ?? auction.appraisalValue;
 
   return (
     <Link
-      href={`/subastas/subasta/${slug}`}
+      href={detailHref}
       className={cn(
         "group relative flex w-56 shrink-0 snap-start flex-col overflow-hidden rounded-lg border border-[var(--color-hairline)] bg-[var(--color-surface)] transition-colors",
         "hover:border-[var(--color-brand)]/40 hover:shadow-sm",

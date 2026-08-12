@@ -62,6 +62,7 @@ import {
 } from "@/lib/auction-image-projection";
 import { OFFICIAL_CATEGORIES } from "@/lib/constants";
 import { auctionDisplayTitle } from "@/lib/seo/display-title";
+import { fetchV3UrlsBatch, resolveAuctionPath } from "@/lib/seo/auction-url";
 
 export const dynamic = "force-dynamic";
 
@@ -148,6 +149,16 @@ type FeedAuctionProjection = {
   // Ghost's prose extraction; €/m² derived at read time. Honest-NULL.
   surfaceM2: number | null;
   pricePerM2: number | null;
+  /**
+   * ⭐ ADDITIVE (Forge, url-v3 internal-link audit). The canonical detail path,
+   * resolved server-side by `resolveAuctionPath`. A carousel card is a CLIENT
+   * component: it cannot reach the `auction_url_v3` mint table, so before this
+   * field every card hardcoded `/subastas/subasta/{slug}` and every click paid
+   * a 308 hop to the v3 url. The path therefore has to travel WITH the row.
+   * Never blank — an unminted / held / degraded / quarantined row resolves to
+   * its legacy path, which still 200s.
+   */
+  detailPath: string;
 };
 
 type FeedItem = {
@@ -293,7 +304,7 @@ type AuctionRow = {
   _count?: { documents: number } | null;
 };
 
-function projectAuction(a: AuctionRow): FeedAuctionProjection {
+function projectAuction(a: AuctionRow, detailPath: string): FeedAuctionProjection {
   // Wave B0 (2026-06-07). Run the row through the SHARED image-projection
   // ladder so the carousel card receives a usable URL (rung-1 real photo
   // when present, rung-2 static-map pin or rung-3 category placeholder
@@ -317,6 +328,7 @@ function projectAuction(a: AuctionRow): FeedAuctionProjection {
   return {
     id: a.id,
     boeId: a.boeId,
+    detailPath,
     title: synthTitle(a.title, a.municipality, a.province),
     // Wave C1a (2026-06-07). Address-led title computed server-side via the
     // same helper the detail page H1 uses, so a vehicle card reads "Turismos
@@ -696,6 +708,17 @@ export async function GET(req: NextRequest) {
     // Weighted interleave so the marquee reads as a real mix, not 3 blocks.
     const merged = weightedInterleave(activeRows, proximaRows, suspRows);
 
+    // ONE `= ANY(...)` probe for the whole composed mix — never per card. Runs
+    // AFTER the interleave so it covers exactly the rows we are about to emit.
+    // Non-fatal: on failure the map stays empty and every card falls back to
+    // its legacy path (still 200s) rather than the carousel 500ing over a link.
+    let v3 = new Map<string, string>();
+    try {
+      v3 = await fetchV3UrlsBatch(merged.map((a) => a.id));
+    } catch (error) {
+      console.error("carousel detailPath v3 lookup failed; falling back to legacy paths", error);
+    }
+
     const items: FeedItem[] = merged.map((a) => {
       const at = (a.createdAt ?? a.transitionedAt ?? a.updatedAt)?.toISOString() ?? "";
       return {
@@ -703,7 +726,7 @@ export async function GET(req: NextRequest) {
         kind: "auction",
         at,
         auctionId: a.id,
-        auction: projectAuction(a),
+        auction: projectAuction(a, resolveAuctionPath(a, v3.get(a.id) ?? null)),
         payload: { type: "auction", reason: "carousel_mix" },
       };
     });

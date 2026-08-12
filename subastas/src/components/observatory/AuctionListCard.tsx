@@ -598,7 +598,7 @@ export function AuctionListCard({ item, nowMs, className }: AuctionListCardProps
             there is no nested-interactive issue and clicking Participar never
             triggers card navigation. */}
         <div className="hairline-t pt-2 mt-0.5">
-          <ParticiparButton auctionId={item.id} size="sm" />
+          <ParticiparButton auctionId={item.id} detailPath={item.detailPath} size="sm" />
         </div>
       </div>
     </article>

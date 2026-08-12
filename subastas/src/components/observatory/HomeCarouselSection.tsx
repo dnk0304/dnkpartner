@@ -88,13 +88,20 @@ export function HomeCarouselSection({
   const shouldGate = access.loading || access.state === "logged-out";
 
   const handleCardClick = React.useCallback((auction: FeedAuction) => {
+    // The post-auth `next` must be the CANONICAL detail path, not the legacy
+    // one — otherwise every gated card click lands the freshly-registered user
+    // on a 308 hop. `detailPath` is resolved server-side by
+    // `resolveAuctionPath` and projected by /api/auctions/carousel-mix (this is
+    // a client component; the `auction_url_v3` mint table is unreachable from
+    // here). Legacy slug path is the fallback for an unminted row or an older
+    // cached payload — it still 200s.
     const slug = buildAuctionSlug({
       id: auction.id,
       auctionType: auction.auctionType,
       province: auction.province,
       municipality: auction.municipality,
     });
-    setNextHref(`/subastas/subasta/${slug}`);
+    setNextHref(auction.detailPath ?? `/subastas/subasta/${slug}`);
     setPopupOpen(true);
   }, []);
 
