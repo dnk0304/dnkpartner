@@ -16,6 +16,8 @@ import { PROVINCE_DB_KEY_TO_SLUG } from '@/lib/seo/slugs';
 import { capitalizeLocation } from '@/lib/utils';
 import { readSummary, readList, concludedMunicipioRegions, concludedProvinceRegions } from '@/lib/registro/registro-read';
 import { resolveResultadosSeg } from '@/lib/registro/resultados-routing';
+import { SeoPagination } from '@/components/seo/SeoPagination';
+import { ARCHIVE_PAGE_SIZE } from '../_shared/archive-page';
 import {
   getResultadosCopy,
   pickArchiveCopy,
@@ -89,7 +91,7 @@ export default async function ResultadosSegPage({ params }: PageProps) {
   if (r.kind === 'outcome') {
     const [summary, list] = await Promise.all([
       readSummary({}),
-      readList({ outcome: r.outcome, page: 1, pageSize: 24 }),
+      readList({ outcome: r.outcome, page: 1, pageSize: ARCHIVE_PAGE_SIZE }),
     ]);
     const label = locale === 'en' ? OUTCOME_META[r.outcome].en : OUTCOME_META[r.outcome].es;
     const blurb = locale === 'en' ? OUTCOME_META[r.outcome].blurbEn : OUTCOME_META[r.outcome].blurbEs;
@@ -128,6 +130,16 @@ export default async function ResultadosSegPage({ params }: PageProps) {
               .map((x) => ({ value: x.province, label: capitalizeLocation(x.province) }))}
             lockedOutcome={r.outcome}
           />
+          {/* Path-based crawl path into page 2+. The island's "load more"
+              fetches a querystring URL that robots.txt disallows. */}
+          <SeoPagination
+            basePath={`/resultados/${r.slug}`}
+            page={list.page}
+            totalPages={list.totalPages}
+            ariaLabel={copy.pagLabel}
+            prevLabel={copy.pagPrev}
+            nextLabel={copy.pagNext}
+          />
         </section>
 
         <section className="mb-8">
@@ -151,7 +163,7 @@ export default async function ResultadosSegPage({ params }: PageProps) {
   // -------- Province archive --------
   const [summary, list, munis, provinces] = await Promise.all([
     readSummary({ province: r.dbKey }),
-    readList({ province: r.dbKey, page: 1, pageSize: 24 }),
+    readList({ province: r.dbKey, page: 1, pageSize: ARCHIVE_PAGE_SIZE }),
     concludedMunicipioRegions(r.dbKey),
     concludedProvinceRegions(),
   ]);
@@ -223,6 +235,14 @@ export default async function ResultadosSegPage({ params }: PageProps) {
           categoryOptions={buildCategoryOptions()}
           provinceOptions={[]}
           lockedProvince={r.dbKey}
+        />
+        <SeoPagination
+          basePath={`/resultados/${r.slug}`}
+          page={list.page}
+          totalPages={list.totalPages}
+          ariaLabel={copy.pagLabel}
+          prevLabel={copy.pagPrev}
+          nextLabel={copy.pagNext}
         />
       </section>
 
