@@ -37,8 +37,21 @@ import { cn } from "@/lib/utils";
 
 export type ParticiparButtonProps = {
   auctionId: string;
-  /** Detail-page slug for the logged-out post-register `next`. Optional. */
+  /** Detail-page slug for the logged-out post-register `next`. Optional.
+   *  Legacy fallback only — prefer `detailPath` when the server resolved one. */
   slug?: string | null;
+  /**
+   * ⭐ The CANONICAL detail path, already resolved server-side by
+   * `resolveAuctionPath` (a minted `auction_url_v3.url`, or the legacy path for
+   * an unminted / held / degraded / quarantined row). Preferred over `slug`.
+   *
+   * This is a client component: it cannot reach the mint table, so building
+   * `/subastas/subasta/{slug}` here would send every logged-out user's
+   * post-register `next` at the legacy path and cost them a 308 hop on arrival.
+   * When a caller has a server-resolved path it passes it here; the `slug` →
+   * legacy-path → `pathname` ladder below is unchanged for callers that don't.
+   */
+  detailPath?: string | null;
   /** Visual variant. "primary" = solid CTA; "soft" = bordered secondary. */
   variant?: "primary" | "soft";
   /**
@@ -63,6 +76,7 @@ export type ParticiparButtonProps = {
 export function ParticiparButton({
   auctionId,
   slug,
+  detailPath,
   variant = "primary",
   size = "md",
   label = "Participar",
@@ -78,7 +92,10 @@ export function ParticiparButton({
   const handleClick = React.useCallback(() => {
     if (status === "unauthenticated") {
       setNavigating(true);
-      const dest = slug ? `/subastas/subasta/${slug}` : pathname || "/";
+      // Canonical first (server-resolved), legacy slug path second, current
+      // pathname last. Only the first rung avoids a redirect hop for a minted
+      // row — the others still land on a 200, via a 308 when minted.
+      const dest = detailPath ?? (slug ? `/subastas/subasta/${slug}` : pathname || "/");
       const enc = encodeURIComponent(dest);
       router.push(`/register?callbackUrl=${enc}&next=${enc}`);
       return;
@@ -87,7 +104,7 @@ export function ParticiparButton({
     // open the gated redirect in a new tab. The official URL is resolved
     // server-side and never appears in this document.
     window.open(`/api/participar/${auctionId}`, "_blank", "noopener");
-  }, [status, slug, pathname, auctionId, router]);
+  }, [status, slug, detailPath, pathname, auctionId, router]);
 
   const isPrimary = variant === "primary";
   const isSm = size === "sm";

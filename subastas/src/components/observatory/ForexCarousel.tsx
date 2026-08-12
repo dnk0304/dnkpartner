@@ -177,6 +177,16 @@ export type FeedAuction = {
   vehicleMake?: string | null;
   vehicleModel?: string | null;
   vehicleYear?: number | null;
+  /**
+   * ⭐ Canonical detail path, resolved SERVER-side by `resolveAuctionPath`
+   * (projected by /api/auctions/carousel-mix). This component is a client
+   * component and cannot reach the `auction_url_v3` mint table, so the only
+   * honest way to link at the canonical url is to be handed it. Optional +
+   * nullable because an older cached payload may predate the field; when it is
+   * absent the card falls back to the legacy `/subastas/subasta/{slug}` path,
+   * which still 200s (via a 308 to v3 for a minted row).
+   */
+  detailPath?: string | null;
 };
 
 type FeedItem = {
@@ -977,6 +987,12 @@ function ExpandedCard({
     province: auction.province,
     municipality: auction.municipality,
   });
+  // ⭐ THE canonical detail path for this card — used by BOTH the card <Link>
+  // and the Participar footer's logged-out `next`, so the two can never
+  // disagree. Server-resolved (`resolveAuctionPath` → `auction.detailPath`);
+  // the legacy path is the explicit fallback for an unminted row or an older
+  // cached payload that predates the projection.
+  const detailHref = auction.detailPath ?? `/subastas/subasta/${detailSlug}`;
 
   const innerBody = (
     <>
@@ -1249,6 +1265,7 @@ function ExpandedCard({
       <ParticiparButton
         auctionId={auction.id}
         slug={detailSlug}
+        detailPath={detailHref}
         size="sm"
         tabIndex={duplicate ? -1 : undefined}
         className={compact ? "!py-1.5 !text-[12px]" : undefined}
@@ -1277,13 +1294,10 @@ function ExpandedCard({
     );
   }
 
-  // Canonical detail URL — the auction-detail page lives at
-  // /subastas/subasta/{slug}. buildAuctionSlug composes
-  // `{tipo}-{provincia}-{municipio}-{id}`. We always route here from the
-  // home carousel (Dennis 2026-06-07): the popup modal path is OFF, cards
-  // become plain links so clicks land on the SEO + funnel destination.
-  const detailHref = `/subastas/subasta/${detailSlug}`;
-
+  // We always route to the detail page from the home carousel (Dennis
+  // 2026-06-07): the popup modal path is OFF, cards become plain links so
+  // clicks land on the SEO + funnel destination. `detailHref` is resolved
+  // once above and shared with the Participar footer.
   return (
     <div className={shellClass} aria-hidden={duplicate || undefined}>
       <Link

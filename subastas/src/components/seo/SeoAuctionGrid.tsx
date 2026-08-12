@@ -166,7 +166,7 @@ export function SeoAuctionGrid({ auctions, emptyMessage }: { auctions: Row[]; em
                   Carries only the auction id + slug; the official URL is
                   resolved server-side by /api/participar/[id]. */}
               <div className="mt-3">
-                <ParticiparButton auctionId={a.id} slug={slug} size="sm" />
+                <ParticiparButton auctionId={a.id} slug={slug} detailPath={href} size="sm" />
               </div>
             </li>
           );

@@ -35,7 +35,7 @@ import { queryOne, execute } from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { verifyFollowToken, peekAuctionId } from '@/lib/follow-token';
 import { decideFollowConfirm } from '@/lib/follow-confirm-decision';
-import { buildAuctionSlug } from '@/lib/seo/auction-slug';
+import { fetchV3Url, resolveAuctionPath } from '@/lib/seo/auction-url';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,6 +67,22 @@ async function loadSlugRow(auctionId: string): Promise<AuctionSlugRow | undefine
   );
 }
 
+/**
+ * The canonical detail path for this row + a `?follow=…` outcome flag.
+ *
+ * Goes through `resolveAuctionPath` rather than hardcoding the legacy detail
+ * path so the email's one-click follow lands on the SAME url the detail page
+ * canonicalises to — a hardcoded legacy path would make every confirmed
+ * follow eat an extra 308 hop. ONE auction per request here,
+ * so the single-row `fetchV3Url` (a primary-key probe) is the right helper —
+ * there is nothing to batch. A failed probe degrades to the legacy path, which
+ * still 200s; the redirect must never fail over a url lookup.
+ */
+async function detailPathWithFlag(row: AuctionSlugRow, flag: string): Promise<string> {
+  const v3Url = await fetchV3Url(row.id).catch(() => null);
+  return `${resolveAuctionPath(row, v3Url)}?follow=${flag}`;
+}
+
 export async function GET(request: NextRequest) {
   const origin = appOrigin(request);
   const token = request.nextUrl.searchParams.get('token');
@@ -80,7 +96,7 @@ export async function GET(request: NextRequest) {
     const authenticAuctionId = peekAuctionId(token);
     if (authenticAuctionId) {
       const row = await loadSlugRow(authenticAuctionId).catch(() => undefined);
-      if (row) return redirectTo(origin, `/subastas/subasta/${buildAuctionSlug(row)}?follow=expired`);
+      if (row) return redirectTo(origin, await detailPathWithFlag(row, 'expired'));
     }
     return redirectTo(origin, `/subastas?follow=expired`);
   }
@@ -113,7 +129,7 @@ export async function GET(request: NextRequest) {
     // Logged in as a DIFFERENT account than the token was minted for. Do NOT
     // follow under the wrong account — deny with an explicit mismatch state.
     const row = await loadSlugRow(auctionId).catch(() => undefined);
-    if (row) return redirectTo(origin, `/subastas/subasta/${buildAuctionSlug(row)}?follow=mismatch`);
+    if (row) return redirectTo(origin, await detailPathWithFlag(row, 'mismatch'));
     return redirectTo(origin, `/subastas?follow=mismatch`);
   }
 
@@ -146,16 +162,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return redirectTo(
-      origin,
-      `/subastas/subasta/${buildAuctionSlug(row)}?follow=${created ? 'ok' : 'exists'}`,
-    );
+    return redirectTo(origin, await detailPathWithFlag(row, created ? 'ok' : 'exists'));
   } catch (error) {
     console.error('[follow/confirm] failed to create favorite:', error);
     // Best-effort fallback to the auction page (login-gated "Seguir" still works).
     try {
       const row = await loadSlugRow(auctionId);
-      if (row) return redirectTo(origin, `/subastas/subasta/${buildAuctionSlug(row)}?follow=error`);
+      if (row) return redirectTo(origin, await detailPathWithFlag(row, 'error'));
     } catch {
       /* fall through */
     }

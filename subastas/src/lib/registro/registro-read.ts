@@ -16,6 +16,7 @@
 import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { buildAuctionSlug } from '@/lib/seo/auction-slug';
+import { fetchV3UrlsBatch, resolveAuctionPath } from '@/lib/seo/auction-url';
 import {
   auctionOutcome,
   AUCTION_OUTCOMES,
@@ -359,22 +360,29 @@ async function _readList(params: ReadListParams): Promise<ReadListResult> {
     }),
   ]);
 
+  // ONE `= ANY(...)` probe for this page of rows — never a per-row lookup.
+  // Batched AFTER the `take: pageSize` slice so the probe is page-sized.
+  // Missing ids fall back to the legacy path inside `resolveAuctionPath`,
+  // which is the right answer for a held / degraded / quarantined row.
+  const v3 = await fetchV3UrlsBatch(rows.map((r) => r.id));
+
   const items: RegistroListItem[] = rows.map((r) => {
     const classified = auctionOutcome(
       { status: r.status, saleResult: r.saleResult, resumeAt: r.resumeAt, updatedAt: r.updatedAt },
       now,
     );
-    const slug = buildAuctionSlug({
+    const forSlug = {
       id: r.id,
       auctionType: r.auctionType,
       province: r.province,
       municipality: r.municipality,
-    });
+    };
+    const slug = buildAuctionSlug(forSlug);
     return {
       id: r.id,
       boeId: r.boeId,
       slug,
-      detailPath: `/subastas/subasta/${slug}`,
+      detailPath: resolveAuctionPath(forSlug, v3.get(r.id) ?? null),
       title: r.title,
       category: r.category,
       province: r.province,
