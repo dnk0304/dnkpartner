@@ -86,7 +86,13 @@ function crumbsFor(node: ArchiveNode, provLabel?: string, muniLabel?: string) {
   }
   if (node.tipo) {
     Object.assign(acc, { tipo: node.tipo });
-    trail.push({ label: TIPO_LABEL_PLURAL[node.tipo], href: archiveNodePath({ ...acc }) });
+    // `TIPO_LABEL_PLURAL` is lowercase because its other caller drops it into
+    // mid-sentence ("Subastas judiciales en Madrid"). A crumb is a standalone
+    // label, so it takes a capital — "Madrid › judiciales › 2025" reads like a
+    // typo. Capitalised HERE rather than in the shared table, which the H1 and
+    // the <title> also read.
+    const t = TIPO_LABEL_PLURAL[node.tipo];
+    trail.push({ label: t.charAt(0).toUpperCase() + t.slice(1), href: archiveNodePath({ ...acc }) });
   }
   if (node.anio !== undefined) {
     Object.assign(acc, { anio: node.anio });
@@ -245,20 +251,27 @@ export async function ArchiveNodeView({ segs, page = 1 }: { segs: string[]; page
         basePath={basePath}
         locale={locale}
         copy={copy}
-        heading={copy.archiveHeading}
+        heading={copy.archiveListHeading}
         pageHrefs={pageHrefs}
       />
 
       {childLinks.length > 0 ? (
-        <section className="mt-10 mb-8">
-          <h2 className="mb-3 text-lg font-semibold text-[var(--color-ink-primary)]">
+        <section className="mt-10 mb-8" aria-labelledby="archive-children">
+          <h2
+            id="archive-children"
+            className="mb-3 text-lg font-semibold text-[var(--color-ink-primary)]"
+          >
             {copy.archiveHeading}
           </h2>
           <ChipLinks items={childLinks} locale={locale} />
         </section>
       ) : null}
 
-      {node.prov ? (
+      {/* Only offered when this node is BELOW the province root — on the root
+          itself the href equals the current page, and a breadcrumb-shaped
+          self-link at the bottom of a 5-level tree is exactly the affordance a
+          lost user wastes a click on. */}
+      {node.prov && (node.muni || node.tipo || node.anio !== undefined) ? (
         <div className="mt-8">
           <Link
             href={archiveNodePath({ prov: node.prov })}
