@@ -20,6 +20,24 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { mintAuctionUrlV3, MintGateError } from '@/lib/seo/mint-url-v3';
+/**
+ * T1 (Ken, 2026-08-13): this script referenced `MAX_URL_LEN_V3` without importing
+ * it. Worth being precise about what that was and was not:
+ *
+ *   • It was NOT an unenforced ceiling. The gate lives in `mintAuctionUrlV3`
+ *     (`mint-url-v3.ts` — `if (p.url.length > MAX_URL_LEN_V3) throw`), and it is
+ *     backstopped a second time by the DB's own `CHECK (length(url) <= 200)`.
+ *     Both were live for every one of the 192,870 minted rows.
+ *   • It WAS a latent `ReferenceError` on line 115 — the summary string built
+ *     only when `overCeiling > 0`. So the failure it would cause is: a run that
+ *     correctly detected over-ceiling rows crashes while REPORTING them, instead
+ *     of printing the gate table and exiting 1. Never reached, because
+ *     overCeiling has always been 0.
+ *
+ * Imported from the same module the gate reads it from, so the number in the
+ * message and the number in the check cannot differ.
+ */
+import { MAX_URL_LEN_V3 } from '@/lib/seo/descriptor-v3';
 
 /**
  * ⭐ THE PER-ROW RULES NOW LIVE IN `@/lib/seo/mint-url-v3`, NOT HERE.

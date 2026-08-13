@@ -53,3 +53,7 @@ prisma/dev.db-journal
 
 # hydra-418 measurement artifacts (raw per-load JSONL + markup dumps) — outputs, not source
 subastas/scripts/audit/__snapshots__/
+
+# v4 verify-suite scratch (scripts/verify-v4-suite.sh)
+subastas/.v4-suite-*.txt
+subastas/.v4-suite-*.log

@@ -4,25 +4,19 @@
  *
  * Run:  npx tsx scripts/archive-partition-report.ts <rollup.csv>
  *
- * The CSV is a prod rollup produced read-only by:
+ * The CSV is a prod rollup produced read-only by the query in
+ * `scripts/archive-rollup-sql.ts`:
  *
- *   COPY (
- *     WITH base AS (
- *       SELECT COALESCE(a.province,'')     AS province,
- *              COALESCE(a."municipality",'') AS municipality,
- *              COALESCE(a."auctionType",'')  AS auction_type,
- *              COALESCE(EXTRACT(YEAR    FROM COALESCE(a."endsAt", a."publishedAt"))::int, 0) AS yr,
- *              COALESCE(EXTRACT(QUARTER FROM COALESCE(a."endsAt", a."publishedAt"))::int, 0) AS qtr,
- *              CASE ... END AS outcome            -- SQL projection of outcomeWhere()
- *       FROM "Auction" a )
- *     SELECT province, municipality, auction_type, yr, qtr, outcome, count(*)
- *     FROM base WHERE outcome <> 'INDETERMINADO' GROUP BY 1,2,3,4,5,6
- *   ) TO STDOUT WITH CSV HEADER;
+ *   npx tsx scripts/archive-rollup-sql.ts            # print it
+ *   npx tsx scripts/archive-rollup-sql.ts --verify   # prove its outcome CASE
+ *                                                    # agrees with auctionOutcome()
  *
- * NOTE the COALESCEs are `''`/0, NOT defaults: an absent province or auctionType
- * must stay absent so the location-free shelf and the excluded-row census can
- * see it. An earlier version defaulted auctionType to 'JUDICIAL' and silently
- * hid exactly the residue this report is asked to count.
+ * ⚠️ It used to be documented HERE, as `CASE ... END  -- SQL projection of
+ * outcomeWhere()`. An ellipsis. The six P0 numbers that sized this wave came out
+ * of a query that existed in no repo — the same failure class as P1's vanished
+ * corpus, and Ken's T2 ticket. The query is now committed, the staleness window
+ * is interpolated from the taxonomy constant rather than typed, and `--verify`
+ * fails on a single row where the SQL and the app disagree.
  *
  * See `archive-partitions.ts` (`anio` rung) for why the year coalesces onto
  * `publishedAt` and what that means for the meaning of "año".
