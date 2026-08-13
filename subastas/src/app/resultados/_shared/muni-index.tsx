@@ -139,7 +139,15 @@ export async function resolveMuniIndex(
  * scannable by a human, which is the difference between a useful index and a
  * link farm.
  */
-function MuniAZList({ provSlug, munis }: { provSlug: string; munis: MunicipioRegionEntry[] }) {
+function MuniAZList({
+  provSlug,
+  munis,
+  jumpLabel,
+}: {
+  provSlug: string;
+  munis: MunicipioRegionEntry[];
+  jumpLabel: string;
+}) {
   const groups = new Map<string, MunicipioRegionEntry[]>();
   for (const m of [...munis].sort((a, b) =>
     capitalizeLocation(a.municipalityName).localeCompare(capitalizeLocation(b.municipalityName), 'es'),
@@ -152,14 +160,47 @@ function MuniAZList({ provSlug, munis }: { provSlug: string; munis: MunicipioReg
     if (g) g.push(m);
     else groups.set(key, [m]);
   }
+  // '#' (digits, Ll-, punctuation-initial names) sorts last, not wherever it
+  // happened to be first encountered.
+  const letters = [...groups.keys()].sort((a, b) =>
+    a === '#' ? 1 : b === '#' ? -1 : a.localeCompare(b, 'es'),
+  );
 
   return (
     <div className="flex flex-col gap-6">
-      {[...groups].map(([letter, items]) => (
-        <section key={letter} aria-label={letter}>
-          <h3 className="mb-2 text-sm font-semibold text-[var(--color-ink-tertiary)]">{letter}</h3>
-          <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-3 lg:grid-cols-4 [&_a]:text-[var(--color-action)] [&_a:hover]:underline">
-            {items.map((m) => (
+      {/* LETTER JUMP-NAV (Pixel, P4). At 839 towns (Barcelona) the grouped list
+          is ~14 screens on mobile; without this the only way to reach "T" is to
+          scroll past everything. ~27 anchors is a fixed ~1 KB, which the
+          de-paginated page's ~70 KB headroom absorbs — unlike anything priced
+          PER TOWN, which is the line this page must not cross. */}
+      <nav
+        aria-label={jumpLabel}
+        className="-mx-1 flex flex-wrap gap-1 border-b border-[var(--color-hairline)] pb-4 [&_a]:inline-flex [&_a]:h-8 [&_a]:min-w-8 [&_a]:items-center [&_a]:justify-center [&_a]:rounded-md [&_a]:text-sm [&_a]:font-semibold [&_a]:text-[var(--color-action)] [&_a:hover]:bg-[var(--color-surface-muted)] [&_a:focus-visible]:outline-2 [&_a:focus-visible]:outline-offset-2 [&_a:focus-visible]:outline-[var(--color-action)]"
+      >
+        {letters.map((l) => (
+          <a key={l} href={`#L-${l === '#' ? 'num' : l}`}>
+            {l}
+          </a>
+        ))}
+      </nav>
+
+      {letters.map((letter) => (
+        <section
+          key={letter}
+          id={`L-${letter === '#' ? 'num' : letter}`}
+          aria-label={letter}
+          // Sticky site header would otherwise eat the letter heading the jump
+          // link just targeted.
+          className="scroll-mt-24"
+        >
+          <h2 className="mb-2 text-sm font-semibold text-[var(--color-ink-tertiary)]">{letter}</h2>
+          {/* PER-LINK MARKUP CARRIES NO ATTRIBUTES BY DESIGN — every byte here
+              is multiplied by up to 839. Colour, hover, focus ring and the
+              WCAG 2.5.8 24px target (leading-5 + py-0.5 = 24px) all hang off
+              this one container via `[&_a]`, costing nothing per town. Do not
+              move any of it onto the anchor. */}
+          <ul className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-sm sm:grid-cols-3 lg:grid-cols-4 [&_a]:inline-block [&_a]:rounded-sm [&_a]:py-0.5 [&_a]:leading-5 [&_a]:text-[var(--color-action)] [&_a:hover]:underline [&_a:focus-visible]:outline-2 [&_a:focus-visible]:outline-offset-2 [&_a:focus-visible]:outline-[var(--color-action)]">
+            {groups.get(letter)!.map((m) => (
               <li key={m.municipioSlug}>
                 <Link href={`/resultados/${provSlug}/${m.municipioSlug}`}>
                   {capitalizeLocation(m.municipalityName)}
@@ -236,7 +277,7 @@ export function MuniIndexBody({
             {copy.empty}
           </div>
         ) : (
-          <MuniAZList provSlug={provSlug} munis={munis} />
+          <MuniAZList provSlug={provSlug} munis={munis} jumpLabel={copy.azJumpLabel} />
         )}
         {/* De-paginated: totalPages is always 1, so this renders nothing. Kept
             so a future re-pagination has one place to turn back on. */}

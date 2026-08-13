@@ -193,6 +193,15 @@ export interface ResultadosCopy {
   landingLead: (n: string) => string;
   overviewHeading: string;
   archiveHeading: string;
+  /**
+   * Heading for the LIST OF AUCTIONS on a v4 archive node. Distinct from
+   * `archiveHeading`, which labels the "keep browsing" child-link cluster on the
+   * same page — before this split both sections rendered the identical `<h2>`,
+   * so the page announced two different things under one name.
+   */
+  archiveListHeading: string;
+  /** A–Z index: label for the letter jump-nav. */
+  azJumpLabel: string;
   byProvinceHeading: string;
   byOutcomeHeading: string;
   // stat tiles
@@ -264,6 +273,8 @@ const ES: ResultadosCopy = {
     `Registro de ${n} subastas ya concluidas, clasificadas por resultado: adjudicadas (con su puja máxima), desiertas, canceladas y finalizadas sin resultado. Datos del Boletín Oficial del Estado.`,
   overviewHeading: 'Panorama general',
   archiveHeading: 'Explorar el registro',
+  archiveListHeading: 'Subastas concluidas',
+  azJumpLabel: 'Saltar a la letra',
   byProvinceHeading: 'Resultados por provincia',
   byOutcomeHeading: 'Explorar por resultado',
   statTotal: 'Subastas concluidas',
@@ -327,6 +338,8 @@ const EN: ResultadosCopy = {
     `A registry of ${n} concluded auctions, classified by outcome: awarded (with the highest bid), no-bids, cancelled and finalised without a result. Data from Spain's Official State Gazette (BOE).`,
   overviewHeading: 'Overview',
   archiveHeading: 'Browse the registry',
+  archiveListHeading: 'Concluded auctions',
+  azJumpLabel: 'Jump to letter',
   byProvinceHeading: 'Results by province',
   byOutcomeHeading: 'Browse by outcome',
   statTotal: 'Concluded auctions',

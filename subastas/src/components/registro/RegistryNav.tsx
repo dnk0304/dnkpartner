@@ -33,31 +33,45 @@ export function RegistryBreadcrumb({
   registryLabel: string;
   trail: Array<{ label: string; href?: string }>;
 }) {
+  // v4 (Pixel, P4): the archive tree is now up to five rungs deep
+  // (Inicio › Provincia › Municipio › Tipo › Año), which changes what this
+  // component IS. At two levels a breadcrumb is orientation garnish; at five it
+  // is the only control that walks a user back up, because nothing else on the
+  // page links the intermediate rungs. So it gets real tap targets (`py-1` +
+  // `-mx-1 px-1` keeps the row visually flush while each crumb clears the
+  // WCAG 2.5.8 24px minimum), 13px instead of 12px, and `whitespace-nowrap` so
+  // a long municipality name breaks BETWEEN crumbs rather than mid-name.
+  //
+  // Styling lives on the `<ol>` via `[&_a]` selectors rather than on each
+  // anchor: this component renders on every archive page including the A–Z
+  // index, and per-element class strings are the cost model that de-paginating
+  // that page had to fight for.
+  const crumbCls = 'whitespace-nowrap py-1';
   return (
-    <nav aria-label="Breadcrumb" className="mb-3 text-xs text-[var(--color-ink-tertiary)]">
-      <ol className="flex flex-wrap items-center gap-1">
-        <li>
-          <Link href="/" className="hover:underline">
-            {homeLabel}
-          </Link>
+    <nav
+      aria-label="Breadcrumb"
+      className="mb-3 text-[13px] leading-5 text-[var(--color-ink-tertiary)]"
+    >
+      <ol className="-mx-1 flex flex-wrap items-center gap-x-1 [&_a]:rounded-sm [&_a]:px-1 [&_a:hover]:underline [&_a:focus-visible]:outline-2 [&_a:focus-visible]:outline-offset-2 [&_a:focus-visible]:outline-[var(--color-action)]">
+        <li className={crumbCls}>
+          <Link href="/">{homeLabel}</Link>
         </li>
         <li aria-hidden>›</li>
-        <li>
-          <Link href="/resultados" className="hover:underline">
-            {registryLabel}
-          </Link>
+        <li className={crumbCls}>
+          <Link href="/resultados">{registryLabel}</Link>
         </li>
         {trail.map((t, i) => (
           <Fragment key={i}>
             <li aria-hidden>›</li>
             {t.href ? (
-              <li>
-                <Link href={t.href} className="hover:underline">
-                  {t.label}
-                </Link>
+              <li className={crumbCls}>
+                <Link href={t.href}>{t.label}</Link>
               </li>
             ) : (
-              <li aria-current="page" className="text-[var(--color-ink-primary)]">
+              <li
+                aria-current="page"
+                className={`${crumbCls} px-1 font-medium text-[var(--color-ink-primary)]`}
+              >
                 {t.label}
               </li>
             )}
