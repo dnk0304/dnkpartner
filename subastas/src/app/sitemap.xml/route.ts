@@ -20,12 +20,8 @@
 
 import { AuctionStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import {
-  sitemapChildIds,
-  sitemapChildUrls,
-  classifyChunk,
-  CHILD_SITEMAP_SIZE,
-} from '@/lib/seo/sitemap-config';
+import { CHILD_SITEMAP_SIZE, buildSitemapLayout, type SitemapLayout } from '@/lib/seo/sitemap-config';
+import { buildAggregationEntries, type SitemapUrlEntry } from '@/lib/seo/sitemap-entries';
 import { concludedIndexableWhere } from '@/lib/seo/concluded-indexable';
 
 export const dynamic = 'force-dynamic';
@@ -54,9 +50,12 @@ const ACTIVE_STATUSES: AuctionStatus[] = [
  *
  * Each child's real lastmod is the MAX lastmod of the entries it contains:
  *
- *  - aggregation (id 0) / active band — the hub and active-detail entries are
- *    all keyed on `updatedAt` over the ACTIVE row set (1,154 rows corpus-wide),
- *    so one indexed `_max` aggregate answers both. Cheap.
+ *  - aggregation band — the MAX of the entries in that specific child's slice.
+ *    The band is chunked as of P3, so a single figure shared across its children
+ *    would be wrong for all but one of them.
+ *
+ *  - active band — keyed on `updatedAt` over the ACTIVE row set (1,154 rows
+ *    corpus-wide), so one indexed `_max` aggregate answers it. Cheap.
  *
  *  - concluded band — each child is `orderBy soldDate DESC` over a fixed skip
  *    window, so the FIRST row of the window IS the window's max. One `findFirst`
@@ -68,7 +67,10 @@ const ACTIVE_STATUSES: AuctionStatus[] = [
  * degrades to a valid, lastmod-free index instead of 500ing the one URL Dennis
  * submits to GSC.
  */
-async function childLastmods(): Promise<Map<number, Date>> {
+async function childLastmods(
+  layout: SitemapLayout,
+  aggregation: readonly SitemapUrlEntry[],
+): Promise<Map<number, Date>> {
   const out = new Map<number, Date>();
   try {
     const activeMax = await prisma.auction.aggregate({
@@ -77,9 +79,25 @@ async function childLastmods(): Promise<Map<number, Date>> {
     });
     const activeUpdatedAt = activeMax._max.updatedAt ?? null;
 
-    for (const id of sitemapChildIds()) {
-      const chunk = classifyChunk(id);
-      if (chunk.kind === 'aggregation' || chunk.kind === 'active') {
+    for (const id of layout.ids()) {
+      const chunk = layout.classify(id);
+      if (chunk.kind === 'aggregation') {
+        // ⭐ THE ACTUAL MAX OF THIS CHILD'S OWN ENTRIES (D5, and P3 brief §3).
+        // Not `new Date()`, and — now that the band is chunked — not the band's
+        // global max either: with two aggregation children, one figure for both
+        // would be wrong for at least one of them. Most aggregation entries
+        // legitimately have NO lastmod (a tipo or category hub has no single
+        // modification time), and if a slice has none at all the child OMITS
+        // <lastmod> rather than inventing one. Absent is neutral; fake is a
+        // trust negative, and earning crawl trust is the whole point of the wave.
+        let max: Date | null = null;
+        for (const e of aggregation.slice(chunk.skip, chunk.skip + CHILD_SITEMAP_SIZE)) {
+          if (e.lastModified && (!max || e.lastModified > max)) max = e.lastModified;
+        }
+        if (max) out.set(id, max);
+        continue;
+      }
+      if (chunk.kind === 'active') {
         if (activeUpdatedAt) out.set(id, activeUpdatedAt);
         continue;
       }
@@ -101,9 +119,15 @@ async function childLastmods(): Promise<Map<number, Date>> {
 }
 
 export async function GET(): Promise<Response> {
-  const children = sitemapChildUrls(SITE);
-  const ids = sitemapChildIds();
-  const lastmods = await childLastmods();
+  // The aggregation band's width is derived from its own URL count, so the
+  // index has to know that count before it can list the children. One cached
+  // read (`readArchiveCensus` is `unstable_cache`d hourly) on a route that
+  // already queries the DB — and it is what makes an empty child impossible.
+  const aggregation = await buildAggregationEntries();
+  const layout = buildSitemapLayout(aggregation.length);
+  const children = layout.urls(SITE);
+  const ids = layout.ids();
+  const lastmods = await childLastmods(layout, aggregation);
 
   const body =
     `<?xml version="1.0" encoding="UTF-8"?>\n` +

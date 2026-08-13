@@ -78,13 +78,17 @@ stop_server(){
   echo "WARNING: something is still listening on $PORT"
 }
 
-start_server(){ # $1 = "dark" | "lit"
+start_server(){ # $1 = "dark" | "lit" | "ramp"
   stop_server
   # Purge the data cache BETWEEN states too: page output cached under the dark
   # switch would otherwise be replayed as if it were the lit render.
   rm -rf .next/cache
   : > "$LOG"
-  if [ "$1" = "lit" ]; then
+  if [ "$1" = "ramp" ]; then
+    # Same BUILD, different ENV. That is the whole claim being tested: the ramp
+    # knob is turnable without a rebuild or a redeploy.
+    URL_V4_SWITCH=1 SITEMAP_ARCHIVE_MAX_URLS="${RAMP_CAP:-10}"       npx next start -p "$PORT" >>"$LOG" 2>&1 &
+  elif [ "$1" = "lit" ]; then
     URL_V4_SWITCH=1 npx next start -p "$PORT" >>"$LOG" 2>&1 &
   else
     npx next start -p "$PORT" >>"$LOG" 2>&1 &
@@ -102,6 +106,19 @@ start_server(){ # $1 = "dark" | "lit"
 }
 
 trap 'stop_server' EXIT
+
+# --- 0. the offline band gate (no DB, no server) ----------------------------
+# Sizes the aggregation band and proves the <loc> diff from the COMMITTED prod
+# rollup. It exits non-zero if any removed URL does not match a superseded shape
+# that P2 301s — i.e. if a URL would silently vanish. Run first because it needs
+# nothing to be up, and a failure here makes the rest moot.
+say "0/4  layout unit tests + aggregation band + <loc> diff (committed rollup)"
+# The chunk-slicing boundary is never crossed at fixture scale (the fixture's
+# archive is a few hundred URLs), so the renumbering proof is asserted at the
+# layout level where 20,001 URLs are free.
+npx tsx src/lib/seo/sitemap-config.test.ts || { echo "FAIL: sitemap layout tests"; exit 1; }
+npx tsx src/lib/seo/archive-partitions.test.ts >/dev/null || { echo "FAIL: archive-partitions tests"; exit 1; }
+npx tsx scripts/v4-sitemap-band-report.ts scripts/archive-rollup-2026-08-13.csv   --v3-nonarchive 1102 || { echo "FAIL: band report gate"; exit 1; }
 
 # --- 1. fixture -------------------------------------------------------------
 say "1/4  seeding the fixture into $DATABASE_URL"
@@ -136,6 +153,9 @@ start_server dark
 dark_fail=0
 B="$B" MODE=dark bash scripts/verify-v4-archive.sh || dark_fail=1
 B="$B" MODE=dark STATE_FILE="$STATE_FILE" bash scripts/verify-v4-redirects.sh || dark_fail=1
+# P3: the sitemap is the surface a premature URL reaches Google from fastest,
+# so the dark run asserts the served sitemap is still the v3 set.
+B="$B" MODE=dark bash scripts/verify-v4-sitemap.sh || dark_fail=1
 
 # --- 4. lit -----------------------------------------------------------------
 say "4/4  LIT  (URL_V4_SWITCH=1)"
@@ -143,10 +163,32 @@ start_server lit
 lit_fail=0
 B="$B" MODE=lit bash scripts/verify-v4-archive.sh || lit_fail=1
 B="$B" MODE=lit STATE_FILE="$STATE_FILE" bash scripts/verify-v4-redirects.sh || lit_fail=1
+B="$B" MODE=lit bash scripts/verify-v4-sitemap.sh || lit_fail=1
+
+# --- 5. the ramp knob ------------------------------------------------------
+# ⭐ §5b.2: "the ramp knob must be a config value I can turn without a rebuild."
+# Asserted against the SAME .next produced above — only the environment differs.
+say "5/5  RAMP  (URL_V4_SWITCH=1, SITEMAP_ARCHIVE_MAX_URLS=10)"
+start_server ramp
+ramp_fail=0
+RAMP_ARCH=$(curl -sf --max-time 300 "$B/sitemap/0.xml" | grep -o '<loc>[^<]*/resultados[^<]*</loc>' | wc -l | tr -d ' ')
+if [ "${RAMP_ARCH:-0}" -eq 10 ]; then
+  echo "  PASS  ramp cap honoured without a rebuild (archive urls = $RAMP_ARCH, cap = 10)"
+else
+  echo "  FAIL  ramp cap ignored — archive urls = ${RAMP_ARCH:-?}, expected 10"
+  ramp_fail=1
+fi
+# Paired with a NON-capped reading so the check cannot pass because the archive
+# happens to be empty: the lit run above measured the uncapped set.
+if [ "${RAMP_ARCH:-0}" -lt 1 ]; then
+  echo "  FAIL  ramp reading is zero — the assertion above would be vacuous"
+  ramp_fail=1
+fi
 
 stop_server
 say "RESULT"
 echo "  dark: $([ $dark_fail -eq 0 ] && echo PASS || echo FAIL)"
 echo "  lit:  $([ $lit_fail -eq 0 ] && echo PASS || echo FAIL)"
-[ $dark_fail -eq 0 ] && [ $lit_fail -eq 0 ] || exit 1
-echo "  v4 archive suite GREEN in both switch states."
+echo "  ramp: $([ $ramp_fail -eq 0 ] && echo PASS || echo FAIL)"
+[ $dark_fail -eq 0 ] && [ $lit_fail -eq 0 ] && [ $ramp_fail -eq 0 ] || exit 1
+echo "  v4 archive suite GREEN in both switch states, and the ramp knob turns."

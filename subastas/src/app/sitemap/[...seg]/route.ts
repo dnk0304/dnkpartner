@@ -1,6 +1,6 @@
 /**
  * src/app/sitemap/[...seg]/route.ts — the CHILD sitemaps, served as plain Route
- * Handlers at /sitemap/{id}.xml (ids 0 .. TOTAL_CHILDREN-1).
+ * Handlers at /sitemap/{id}.xml (ids 0 .. layout.totalChildren-1).
  *
  * WHY A ROUTE HANDLER (not Next's metadata `generateSitemaps()`): the metadata
  * convention (an `app/sitemap.ts` with generateSitemaps) compiles to the dynamic
@@ -19,8 +19,12 @@
  * (`dynamic='force-dynamic'`, `revalidate=0`) — never a build-time DB dependency.
  */
 
-import { buildSitemapEntries, type SitemapUrlEntry } from '@/lib/seo/sitemap-entries';
-import { TOTAL_CHILDREN } from '@/lib/seo/sitemap-config';
+import {
+  buildAggregationEntries,
+  buildSitemapEntries,
+  type SitemapUrlEntry,
+} from '@/lib/seo/sitemap-entries';
+import { CHILD_SITEMAP_SIZE, buildSitemapLayout } from '@/lib/seo/sitemap-config';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -75,11 +79,25 @@ export async function GET(
   if (!/^\d+$/.test(idStr)) return notFound();
   const id = Number.parseInt(idStr, 10);
 
-  // Only serve the advertised range 0 .. TOTAL_CHILDREN-1. Ids past the published
-  // set 404 so the public count can't be probed past what robots/the index list.
-  if (id < 0 || id >= TOTAL_CHILDREN) return notFound();
+  // Only serve the advertised range 0 .. totalChildren-1. Ids past the published
+  // set 404 so the public count can't be probed past what the index lists — and,
+  // since the aggregation band's width is DERIVED from its own URL count, an id
+  // inside that range is guaranteed to have at least one URL. "404 outside the
+  // published range" and "never publish an empty child" are the same rule read
+  // from two directions (P3 brief §1).
+  //
+  // The aggregation list is built first because the LAYOUT depends on its
+  // length; it is then handed to the body builder, so the two cannot disagree
+  // about how many children there are.
+  const aggregation = await buildAggregationEntries();
+  const layout = buildSitemapLayout(aggregation.length);
+  if (id < 0 || id >= layout.totalChildren) return notFound();
 
-  const entries = await buildSitemapEntries(id);
+  const chunk = layout.classify(id);
+  const entries =
+    chunk.kind === 'aggregation'
+      ? aggregation.slice(chunk.skip, chunk.skip + CHILD_SITEMAP_SIZE)
+      : await buildSitemapEntries(id, layout.aggregationChunks);
   const body = renderUrlset(entries);
 
   return new Response(body, {
