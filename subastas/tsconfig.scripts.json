@@ -1,0 +1,20 @@
+{
+  // Typecheck the SCRIPTS the main tsconfig deliberately excludes.
+  //
+  // WHY THIS FILE EXISTS (Forge, 2026-08-13). `tsconfig.json` carries
+  // `"exclude": ["node_modules", "scripts"]`, and fixtures run under `tsx`,
+  // which does not typecheck either. So `scripts/**` was never typechecked by
+  // anything — which is how `AuctionStatus.FINALIZADA` (a member that does not
+  // exist) survived in THREE committed fixtures, silently seeding every
+  // "concluded" row as the column default. `npx tsc -p tsconfig.scripts.json`
+  // reports it in one line.
+  //
+  // Kept SEPARATE from the main gate on purpose: `scripts/` still carries
+  // pre-existing errors in other, unrelated files (reported to Ken), so folding
+  // it into `tsc --noEmit` would break the build gate for reasons nothing to do
+  // with the change being gated. Run it as its own check; drive the count to
+  // zero, then merge the two.
+  "extends": "./tsconfig.json",
+  "include": ["scripts/**/*.ts", "src/**/*.ts", "src/**/*.tsx", "next-env.d.ts"],
+  "exclude": ["node_modules"]
+}

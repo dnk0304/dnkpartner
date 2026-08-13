@@ -10,7 +10,11 @@
  */
 
 import type { Metadata } from 'next';
-import { notFound, redirect } from 'next/navigation';
+import { notFound, redirect, permanentRedirect } from 'next/navigation';
+import { isUrlV4SwitchOn } from '@/lib/seo/url-v4-switch';
+import { archivePageLinks } from '@/lib/seo/archive-partitions';
+import { readArchivePlan } from '@/lib/registro/archive-node-read';
+import { legacyArchiveNodeTarget } from '@/lib/registro/archive-legacy-target';
 import Link from 'next/link';
 import { getLocale } from 'next-intl/server';
 import type { Locale as AppLocale } from '@/i18n/routing';
@@ -38,7 +42,7 @@ import {
   RegistryBreadcrumb,
   RegistryBackLink,
 } from '@/components/registro/RegistryNav';
-import { ArchiveNodeView, archiveNodeMetadata } from '../../_shared/archive-node-view';
+import { ArchiveNodeView, archiveNodeMetadata, archiveChildLinks } from '../../_shared/archive-node-view';
 
 type PageProps = { params: Promise<{ seg1: string; seg2: string }> };
 
@@ -54,6 +58,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const nf = (n: number) => n.toLocaleString(locale === 'en' ? 'en-US' : 'es-ES');
   if (shape.kind === 'notfound') return archiveNodeMetadata([seg1, seg2]);
   if (shape.kind === 'redirect') return { title: copy.brandSuffix };
+  // v4 (P2): this URL 301s to `/resultados/{prov}/{outcome}` — no metadata is
+  // ever served from it, and generating it would cost a summary query per hop.
+  if (isUrlV4SwitchOn() && shape.kind === 'outcome-province') return { title: copy.brandSuffix };
 
   if (shape.kind === 'outcome-province') {
     const summary = await readSummary({ province: shape.provDbKey });
@@ -91,6 +98,22 @@ export default async function ResultadosChildPage({ params }: PageProps) {
   // change of behaviour, which is exactly the bar Ken set for the dark switch.
   if (shape.kind === 'notfound') return <ArchiveNodeView segs={[seg1, seg2]} />;
   if (shape.kind === 'redirect') redirect(shape.to);
+
+  // ---- v4 (P2) — the outcome facet reverses ------------------------------
+  // `/resultados/{outcome}/{prov}` → `/resultados/{prov}/{outcome}`, permanent,
+  // ONE hop. §2 of the brief: the old shape must not answer 200 with a canonical
+  // pointing elsewhere — that was defect D3 last round — so this is a redirect,
+  // not a canonical tag. The target is built by `archiveNodePath`, the same
+  // function the sitemap and the link helper use, so the three cannot disagree.
+  //
+  // A province with ZERO rows for this outcome renders an empty noindex 200
+  // today; its v4 facet would be a 404, so `legacyArchiveNodeTarget` falls back
+  // to the province hub instead. Still one hop, still never a 404.
+  if (isUrlV4SwitchOn() && shape.kind === 'outcome-province') {
+    permanentRedirect(
+      await legacyArchiveNodeTarget({ prov: shape.provSlug, outcome: shape.outcomeSlug }),
+    );
+  }
 
   const locale = toLocale((await getLocale()) as AppLocale);
   const copy = getResultadosCopy(locale);
@@ -177,10 +200,33 @@ export default async function ResultadosChildPage({ params }: PageProps) {
   }
 
   // -------- province × municipio --------
+  //
+  // ⭐ v4 (P2): this URL does not move, but its PAGINATION does. The node caps at
+  // 10 pages and may page at 48/84 instead of 24, so page 1 must be read at the
+  // node's own page size — otherwise page 1 ends at row 24 while page 2 starts at
+  // row 49 and the rows between them are reachable from nothing. The full page
+  // fan and the ladder-child anchors come from the planner for the same reason:
+  // capping the pagination without linking the children would orphan the very
+  // overflow the ladder exists to carry.
+  const v4 = isUrlV4SwitchOn()
+    ? await readArchivePlan({
+        prov: shape.provSlug,
+        muni: shape.muniSlug,
+        muniDbName: shape.muniName,
+      })
+    : null;
+  const hubPageSize = v4?.plan.pageSize ?? ARCHIVE_PAGE_SIZE;
   const [{ regions }, list] = await Promise.all([
     readRegions({ province: shape.provDbKey }),
-    readList({ province: shape.provDbKey, municipio: shape.muniName, page: 1, pageSize: ARCHIVE_PAGE_SIZE }),
+    readList({ province: shape.provDbKey, municipio: shape.muniName, page: 1, pageSize: hubPageSize }),
   ]);
+  const hubTotalPages = v4 ? v4.plan.pages : list.totalPages;
+  const hubPageHrefs = v4
+    ? archivePageLinks(v4.plan.node, v4.plan.pages)
+    : undefined;
+  const ladderLinks = v4
+    ? archiveChildLinks(v4.plan.node, v4.plan.children, v4.childTotals)
+    : [];
   const muniLabel = capitalizeLocation(shape.muniName);
   const region = `${muniLabel} (${shape.provLabel})`;
   const counts: OutcomeCounts =
@@ -253,12 +299,20 @@ export default async function ResultadosChildPage({ params }: PageProps) {
         <SeoPagination
           basePath={`/resultados/${shape.provSlug}/${shape.muniSlug}`}
           page={list.page}
-          totalPages={list.totalPages}
+          totalPages={hubTotalPages}
           ariaLabel={copy.pagLabel}
           prevLabel={copy.pagPrev}
           nextLabel={copy.pagNext}
+          pageHrefs={hubPageHrefs}
         />
       </section>
+
+      {ladderLinks.length > 0 ? (
+        <section className="mb-8">
+          <h2 className="mb-3 text-lg font-semibold text-[var(--color-ink-primary)]">{copy.archiveHeading}</h2>
+          <ChipLinks items={ladderLinks} locale={locale} />
+        </section>
+      ) : null}
 
       <div className="mb-8">
         <Link

@@ -15,6 +15,7 @@ loadEnv();
 import { PROVINCE_SLUG_TO_DB_KEY } from '../src/lib/seo/slugs';
 import { PrismaClient, SaleResult, AuctionStatus } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { assertNoUndefinedFields, assertDistribution } from './_fixture-guard';
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
@@ -75,7 +76,7 @@ async function run() {
           category: 'Vivienda',
           province,
           municipality,
-          status: AuctionStatus.FINALIZADA,
+          status: AuctionStatus.CONCLUIDA_PORTAL, // ⚠️ was AuctionStatus.FINALIZADA — a member that does NOT exist; under tsx it was undefined, so every row seeded as the column DEFAULT (CELEBRANDOSE/active). See scripts/_fixture-guard.ts.
           inScope: true,
           saleResult: sold ? SaleResult.ADJUDICADA : SaleResult.DESIERTA,
           soldPrice: sold ? BigInt(100_000_00 + k * 1000) : null,
@@ -112,7 +113,7 @@ async function run() {
         category: 'Vivienda',
         province,
         municipality,
-        status: AuctionStatus.FINALIZADA,
+        status: AuctionStatus.CONCLUIDA_PORTAL, // ⚠️ was AuctionStatus.FINALIZADA — a member that does NOT exist; under tsx it was undefined, so every row seeded as the column DEFAULT (CELEBRANDOSE/active). See scripts/_fixture-guard.ts.
         inScope: true,
         saleResult: SaleResult.ADJUDICADA,
         soldPrice: BigInt(100_000_00),
@@ -129,6 +130,7 @@ async function run() {
         (stats.get(`${province}||||VENDIDA`) ?? 0) + total,
       );
     }
+    assertNoUndefinedFields(auctions, 'forge-pagination-fixture');
     await prisma.auction.createMany({ data: auctions as never });
   }
 
@@ -146,6 +148,16 @@ async function run() {
       },
     });
   }
+
+  // Every seeded row is concluded — this fixture has no active corpus. Before
+  // the enum fix this assertion would have failed with 100% CELEBRANDOSE, which
+  // is exactly the alarm that was missing.
+  const dist = await prisma.auction.groupBy({ by: ['status'], _count: { _all: true } });
+  assertDistribution(
+    dist.map((d) => ({ value: d.status as string, count: d._count._all })),
+    { CONCLUIDA_PORTAL: i },
+    'status',
+  );
 
   console.log(`seeded ${i} auctions, ${stats.size} rollup rows`);
   await prisma.$disconnect();

@@ -53,7 +53,11 @@ ck "year out of range"       "$(code /resultados/madrid/madrid/judicial/9999)" 4
 ck "empty year in range"     "$(code /resultados/madrid/madrid/judicial/2001)" 404
 ck "quarter t5"              "$(code /resultados/madrid/madrid/judicial/2026/t5)" 404
 ck "6th segment"             "$(code /resultados/madrid/madrid/judicial/2026/t1/x)" 404
-ck "muni pagina/2 no longer live" "$(code /resultados/barcelona/municipios/pagina/2)" 404
+# ⛔ CORRECTED in P2. P1 asserted 404 here — but this script runs with the switch
+# DARK, and while dark that URL must serve exactly as it does on prod today. The
+# assertion was locking in the regression rather than catching it. The retirement
+# is a 308 with the switch LIT, proved in `verify-v4-redirects.sh`.
+ck "muni pagina/2 still live while dark" "$(code /resultados/barcelona/municipios/pagina/2)" 200
 
 echo "--- tipo alias 301/307 ---"
 ck "alias aeat redirects"    "$(code /resultados/madrid/aeat)" 307

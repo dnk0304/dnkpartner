@@ -28,6 +28,7 @@ loadEnv();
 import { PROVINCE_SLUG_TO_DB_KEY } from '../src/lib/seo/slugs';
 import { PrismaClient, SaleResult, AuctionStatus } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { assertNoUndefinedFields, assertDistribution } from './_fixture-guard';
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
@@ -86,7 +87,7 @@ async function run() {
       category: 'Vivienda',
       province: BARCELONA,
       municipality: townName(t),
-      status: AuctionStatus.FINALIZADA,
+      status: AuctionStatus.CONCLUIDA_PORTAL, // ⚠️ was AuctionStatus.FINALIZADA — a member that does NOT exist; under tsx it was undefined, so every row seeded as the column DEFAULT (CELEBRANDOSE/active). See scripts/_fixture-guard.ts.
       inScope: true,
       saleResult: SaleResult.ADJUDICADA,
       soldPrice: BigInt(10_000_000),
@@ -108,7 +109,7 @@ async function run() {
       category: 'Vivienda',
       province: MADRID,
       municipality: 'MADRID',
-      status: AuctionStatus.FINALIZADA,
+      status: AuctionStatus.CONCLUIDA_PORTAL, // ⚠️ was AuctionStatus.FINALIZADA — a member that does NOT exist; under tsx it was undefined, so every row seeded as the column DEFAULT (CELEBRANDOSE/active). See scripts/_fixture-guard.ts.
       inScope: true,
       saleResult: sold ? SaleResult.ADJUDICADA : SaleResult.DESIERTA,
       soldPrice: sold ? BigInt(100_000_00 + k * 1000) : null,
@@ -120,6 +121,8 @@ async function run() {
     });
   }
 
+  // Guard the silent path this fixture just fell into (see _fixture-guard.ts).
+  assertNoUndefinedFields(rows, 'pixel-az-weight-fixture');
   await prisma.auction.createMany({ data: rows as never });
 
   // ---- rollup table --------------------------------------------------------
@@ -159,6 +162,15 @@ async function run() {
   console.log(
     `seeded ${rows.length} rows (${AZ_TOWNS} barcelona munis, ${LEAF_ROWS} madrid leaf), ${stats.size} rollup rows`,
   );
+  // Read the seeded states back OUT: the whole point is that a wrong status
+  // used to be invisible. AZ_TOWNS + LEAF_ROWS rows, all concluded.
+  const dist = await prisma.auction.groupBy({ by: ['status'], _count: { _all: true } });
+  assertDistribution(
+    dist.map((d) => ({ value: d.status as string, count: d._count._all })),
+    { CONCLUIDA_PORTAL: rows.length },
+    'status',
+  );
+
   await prisma.$disconnect();
 }
 

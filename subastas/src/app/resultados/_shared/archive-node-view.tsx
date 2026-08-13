@@ -44,7 +44,12 @@ import { isUrlV4SwitchOn } from '@/lib/seo/url-v4-switch';
 import { parseArchivePage } from '@/lib/registro/archive-paging';
 import { resolveArchiveSegments } from './resolve-child';
 import { ArchivePageBody } from './archive-page';
-import { getResultadosCopy, type Locale } from '@/lib/registro/registro-ui';
+import {
+  getResultadosCopy,
+  registryOutcomeFromSlug,
+  OUTCOME_META,
+  type Locale,
+} from '@/lib/registro/registro-ui';
 import { RegistryBreadcrumb, RegistryBackLink, ChipLinks } from '@/components/registro/RegistryNav';
 import { TIPO_LABEL_PLURAL } from '@/lib/seo/slugs';
 
@@ -55,7 +60,16 @@ function toLocale(v: string): Locale {
 /** Human label for a node, used in the H1, the title and the last crumb. */
 function nodeLabel(node: ArchiveNode, provLabel?: string, muniLabel?: string): string {
   const bits: string[] = [];
-  if (node.tipo) bits.push(`Subastas ${TIPO_LABEL_PLURAL[node.tipo]}`);
+  // ⭐ THE OUTCOME FACET HAS ITS OWN NOUN (Ken blocker, 2026-08-13). Without this
+  // branch `/resultados/madrid/adjudicadas` rendered "Subastas en Madrid" — the
+  // UNFILTERED province title on a filtered page. The list underneath was
+  // already correct (`archiveNodeWhere` applies `outcomeWhere`, proven in
+  // `scripts/verify-v4-outcome-parity.ts`), so this was a LABEL defect, not a
+  // filtering one — but an outcome page that calls itself the province page is
+  // a duplicate-title signal against the very page it replaces.
+  const outcome = node.outcome ? registryOutcomeFromSlug(node.outcome) : null;
+  if (outcome) bits.push(`Subastas ${OUTCOME_META[outcome].es.toLowerCase()}`);
+  else if (node.tipo) bits.push(`Subastas ${TIPO_LABEL_PLURAL[node.tipo]}`);
   else bits.push('Subastas');
   if (muniLabel) bits.push(`en ${capitalizeLocation(muniLabel)}`);
   else if (provLabel) bits.push(`en ${provLabel}`);
@@ -101,9 +115,49 @@ function crumbsFor(node: ArchiveNode, provLabel?: string, muniLabel?: string) {
   if (node.trimestre !== undefined) {
     trail.push({ label: `T${node.trimestre}` });
   }
+  // The facet hangs directly off the province — it is not a ladder rung, so it
+  // gets its own crumb rather than falling through as an unlabelled leaf.
+  const outcome = node.outcome ? registryOutcomeFromSlug(node.outcome) : null;
+  if (outcome) trail.push({ label: OUTCOME_META[outcome].es });
   // The LAST crumb is the current page: drop its href so it is not self-linking.
   if (trail.length > 0) delete trail[trail.length - 1].href;
   return trail;
+}
+
+/**
+ * The ladder-child anchors for a node — THE crawl path for every row past a
+ * capped node's 10 pages.
+ *
+ * Exported (P2) because the province and town hubs are ladder nodes too, but
+ * they are rendered by the LEGACY hub routes rather than by `ArchiveNodeView`
+ * (they carry stat tiles, charts and the filter island, which v4 does not
+ * change). Without these anchors on those two hubs, flipping the switch caps
+ * their pagination and orphans the overflow in the same move — so the two must
+ * come from one function, not two.
+ */
+export function archiveChildLinks(
+  node: ArchiveNode,
+  children: readonly ArchiveNode[],
+  childTotals: ReadonlyMap<string, number>,
+): Array<{ href: string; label: string; count: number }> {
+  return children.map((c) => {
+    // The ladder KEY is the last segment the planner added — the same key the
+    // child census counted under, so the count and the link cannot disagree.
+    const key =
+      c.trimestre !== undefined && node.trimestre === undefined ? String(c.trimestre)
+        : c.anio !== undefined && node.anio === undefined ? String(c.anio)
+        : c.tipo !== undefined && node.tipo === undefined ? c.tipo
+        : (c.muni ?? '');
+    return {
+      href: archiveNodePath(c),
+      label:
+        c.trimestre !== undefined && node.trimestre === undefined ? `T${c.trimestre}`
+          : c.anio !== undefined && node.anio === undefined ? String(c.anio)
+          : c.tipo !== undefined && node.tipo === undefined ? TIPO_LABEL_PLURAL[c.tipo]
+          : capitalizeLocation(c.muni ?? ''),
+      count: childTotals.get(key) ?? 0,
+    };
+  });
 }
 
 type Resolved = {
@@ -193,24 +247,7 @@ export async function ArchiveNodeView({ segs, page = 1 }: { segs: string[]; page
   // Without these anchors a capped node's overflow is unreachable, which is the
   // exact defect this wave exists to close — so they are rendered even when the
   // node also paginates.
-  const childLinks = children.map((c) => {
-    // The ladder KEY is the last segment the planner added — the same key the
-    // child census counted under, so the count and the link cannot disagree.
-    const key =
-      c.trimestre !== undefined && node.trimestre === undefined ? String(c.trimestre)
-        : c.anio !== undefined && node.anio === undefined ? String(c.anio)
-        : c.tipo !== undefined && node.tipo === undefined ? c.tipo
-        : (c.muni ?? '');
-    return {
-      href: archiveNodePath(c),
-      label:
-        c.trimestre !== undefined && node.trimestre === undefined ? `T${c.trimestre}`
-          : c.anio !== undefined && node.anio === undefined ? String(c.anio)
-          : c.tipo !== undefined && node.tipo === undefined ? TIPO_LABEL_PLURAL[c.tipo]
-          : capitalizeLocation(c.muni ?? ''),
-      count: childTotals.get(key) ?? 0,
-    };
-  });
+  const childLinks = archiveChildLinks(node, children, childTotals);
 
   const breadcrumbLd = {
     '@context': 'https://schema.org',
