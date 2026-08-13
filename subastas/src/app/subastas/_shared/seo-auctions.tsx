@@ -17,7 +17,8 @@ import { SeoAuctionSection } from '@/components/seo/SeoAuctionSection';
 /** The dimension a hub locks. Mirrors page-data's CountInput (subset). */
 export type HubFilter = {
   province?: string | null;
-  municipality?: string | null;
+  /** MUNI-A: an array = the raw DB spellings that fold onto one INE town. */
+  municipality?: string | string[] | null;
   category?: string | null;
   auctionTypeKeys?: string[] | null;
 };

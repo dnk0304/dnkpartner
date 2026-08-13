@@ -251,6 +251,19 @@ export type ArchiveNode = {
    * than as "no municipality filter".
    */
   readonly muniDbName?: string;
+  /**
+   * EVERY raw `Auction.municipality` spelling that folds onto this town.
+   *
+   * Since Ken's MUNI-A ruling the archive names towns by their INE OFFICIAL
+   * denomination (see `registro/archive-municipality.ts`), which is frequently
+   * NOT the string stored on the rows ("Alcalá de Henares" vs a corpus that also
+   * holds "Alcala de Henares"), and several corpus spellings legitimately fold
+   * onto one town. A single-name equality would therefore select a subset of the
+   * node's own rows — the hub would count 7,353 and the page render 6,900.
+   * `archiveNodeWhere` prefers this list when present and falls back to
+   * `muniDbName` for callers that still resolve a single name.
+   */
+  readonly muniDbNames?: readonly string[];
   readonly tipo?: TipoSlug;
   readonly anio?: number;
   /** 1..4. Only ever set on a node that already has `anio`. */

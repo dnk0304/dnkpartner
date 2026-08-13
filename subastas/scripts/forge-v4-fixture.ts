@@ -77,6 +77,8 @@
  * Do not run this file by hand against a DB you care about: it TRUNCATES.
  */
 
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { config as loadEnv } from 'dotenv';
 loadEnv();
 
@@ -104,6 +106,36 @@ const VALENCIA = PROVINCE_SLUG_TO_DB_KEY['valencia'];
 const SEVILLA = PROVINCE_SLUG_TO_DB_KEY['sevilla'];
 const MALAGA = PROVINCE_SLUG_TO_DB_KEY['malaga'];
 const ZARAGOZA = PROVINCE_SLUG_TO_DB_KEY['zaragoza'];
+
+/**
+ * `count` real municipalities of Barcelona province, taken from the INE
+ * register in a stable order and EXCLUDING Barcelona city (which the fixture
+ * seeds separately with a different row count).
+ *
+ * Reads the same two CSVs `municipality-gazetteer` reads, so any name returned
+ * here is guaranteed to resolve — if it did not, the fixture would be seeding
+ * towns the archive discards and the suite would be asserting against a tree
+ * that cannot exist.
+ */
+function barcelonaMunicipalities(count: number): string[] {
+  const text = readFileSync(
+    path.join(process.cwd(), 'scraper/config/ine_municipalities.csv'),
+    'utf8',
+  ).replace(/^﻿/, '');
+  const names: string[] = [];
+  const lines = text.split(/\r?\n/).filter((l) => l.trim() && !l.startsWith('#'));
+  lines.shift(); // header
+  for (const line of lines) {
+    const [ine, municipio, provincia] = line.split(',').map((s) => s.trim().replace(/^"|"$/g, ''));
+    if (!ine || !municipio) continue;
+    if (!/^[0-9]{5}$/.test(ine.padStart(5, '0'))) continue;
+    if (provincia !== 'Barcelona') continue;
+    if (municipio === 'Barcelona') continue;
+    names.push(municipio);
+    if (names.length >= count) break;
+  }
+  return names;
+}
 
 /** Zaragoza's two suspended towns — split by which side of the staleness window they sit on. */
 const STALE_TOWN = 'ZARAGOZA';
@@ -269,15 +301,50 @@ async function run() {
   });
   // 205 one-row towns → 206 total, over HUB_MUNI_PREVIEW (60) and over one
   // MUNI_INDEX_PAGE_SIZE (200) page. The link graph is what is under test.
-  for (let t = 1; t <= 205; t++) {
+  //
+  // ⭐ THESE ARE REAL BARCELONA MUNICIPALITIES, drawn from the INE register at
+  // seed time (MUNI-A). They used to be synthetic — `BCNTOWN000`…`BCNTOWN204` —
+  // and under Ken's gazetteer whitelist every one of them correctly ceased to
+  // exist, taking the 206-town pagination case with it and failing six
+  // assertions. A fixture that seeds towns the product refuses to publish tests
+  // nothing, so the names now come from the same register the archive resolves
+  // against. Derived, never hardcoded, for the same reason the fixture year is
+  // derived: a hardcoded list rots the next time INE renames a municipality.
+  const bcnTowns = barcelonaMunicipalities(205);
+  if (bcnTowns.length < 205) {
+    throw new Error(
+      `fixture: need 205 real Barcelona municipalities, register yielded ${bcnTowns.length}`,
+    );
+  }
+  bcnTowns.forEach((town, i) => {
+    const t = i + 1;
     add({
       province: BARCELONA,
-      municipality: `BCNTOWN${String(t).padStart(3, '0')}`,
+      municipality: town,
       bucket: t % 2 === 0 ? 'VENDIDA' : 'DESIERTA',
       tipo: 'JUDICIAL',
       year: Y,
       quarter: 1,
       k: t,
+    });
+  });
+
+  // ---- MUNI-A: the three junk classes the whitelist must strip -------------
+  // These are the defect Ken's ruling exists for, seeded verbatim so the suite
+  // proves the gate rather than assuming it. Each carries real rows, because
+  // the whole point is that row COUNT never buys a URL — only the INE register
+  // does. All three must vanish from every list and 301 to the province hub.
+  //
+  //   MSDRID            a scraper typo (nine of these exist in prod)
+  //   Carabanchel Alto  a Madrid DISTRICT posing as a municipality
+  //   Valencia          another province's capital, misfiled under Madrid
+  //
+  // `Valencia` is the sharpest of the three: it IS a real municipality, so a
+  // bare gazetteer check passes it and only the province cross-check catches it.
+  for (const junk of ['MSDRID', 'Carabanchel Alto', 'Valencia']) {
+    fill({
+      province: MADRID, municipality: junk, tipo: 'JUDICIAL',
+      year: Y, quarter: 2, count: 8,
     });
   }
 

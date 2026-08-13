@@ -46,12 +46,14 @@ import {
   TIPO_SLUG_TO_DB_KEYS,
   DB_AUCTIONTYPE_TO_TIPO_SLUG,
   PROVINCE_SLUG_TO_DB_KEY,
-  slugify,
   type TipoSlug,
 } from '@/lib/seo/slugs';
 import {
+  foldArchiveMunicipalities,
+  resolveArchiveMunicipality,
+} from '@/lib/registro/archive-municipality';
+import {
   planArchiveNode,
-  safeMunicipioSegment,
   type ArchiveCountSource,
   type ArchiveDimension,
   type ArchiveNode,
@@ -128,11 +130,25 @@ export function archiveNodeWhere(node: ArchiveNode, now: Date = new Date()): Pri
   }
 
   if (node.muni !== undefined) {
-    // `muni` is the URL slug; the query needs the DB name the route resolved.
+    // `muni` is the URL slug; the query needs the DB name(s) the route resolved.
+    //
+    // ⚠️ MUNI-A: the town's NAME is now the INE official denomination (see
+    // `archive-municipality.ts`), which need not equal any single stored
+    // spelling, and several stored spellings fold onto one town. So the filter
+    // is a SET membership over every raw corpus name that folds here; equality
+    // on one name would select a strict subset and make the hub's count and its
+    // own pages disagree. `muniDbName` remains the single-name fallback.
+    //
     // An unresolved (or unresolvable) town selects NOTHING — falling back to
     // "no municipality filter" would quietly render the whole province under a
     // town URL, which reads as a working page and is the harder bug to see.
-    and.push(node.muniDbName ? { municipality: node.muniDbName } : { id: '__never__' });
+    const names =
+      node.muniDbNames && node.muniDbNames.length > 0
+        ? [...node.muniDbNames]
+        : node.muniDbName
+          ? [node.muniDbName]
+          : [];
+    and.push(names.length > 0 ? { municipality: { in: names } } : { id: '__never__' });
   }
 
   if (node.tipo !== undefined) {
@@ -152,6 +168,46 @@ export function archiveNodeWhere(node: ArchiveNode, now: Date = new Date()): Pri
 
   return { AND: and };
 }
+
+/**
+ * The province NAME a node sits in, in the form the gazetteer compares against
+ * (`resolveTownName` slugs both sides, so the DB key and the slug both work; the
+ * DB key is preferred because it is what the rows carry).
+ *
+ * `undefined` on the location-free shelf — and a row with no province can never
+ * resolve a town, which is the correct answer there.
+ */
+function archiveProvinceName(node: ArchiveNode): string | undefined {
+  if (node.prov === undefined) return undefined;
+  return PROVINCE_SLUG_TO_DB_KEY[node.prov] ?? node.prov;
+}
+
+/**
+ * Every raw `Auction.municipality` spelling in `prov` that folds onto `muniSlug`
+ * — i.e. the `muniDbNames` a town node needs to select ALL of its own rows.
+ *
+ * Needed because MUNI-A canonicalises names to the INE denomination, which may
+ * match no stored spelling exactly (see `ArchiveNode.muniDbNames`). One grouped
+ * scan per province, cached for an hour like every other census here.
+ */
+async function _readArchiveMuniDbNames(prov: string, muniSlug: string): Promise<string[]> {
+  const dbKey = PROVINCE_SLUG_TO_DB_KEY[prov];
+  if (!dbKey) return [];
+  const rows = await prisma.auction.groupBy({ by: ['municipality'], where: { province: dbKey } });
+  const out: string[] = [];
+  for (const r of rows) {
+    const name = r.municipality;
+    if (!name) continue;
+    if (resolveArchiveMunicipality(dbKey, name)?.slug === muniSlug) out.push(name);
+  }
+  return out;
+}
+
+export const readArchiveMuniDbNames = unstable_cache(
+  _readArchiveMuniDbNames,
+  ['archive-muni-db-names'],
+  { revalidate: 3600, tags: ['registro'] },
+);
 
 /**
  * A node's row count. The ONE number that decides its page count, its page size
@@ -220,23 +276,17 @@ async function _readArchiveChildren(
       where: archiveNodeWhere(node),
       _count: { _all: true },
     });
-    // Fold slug collisions the SAME way `registro-read` does (highest total
-    // wins), so "this town has a page" and "this link points at it" agree.
-    const best = new Map<string, { key: string; total: number }>();
-    for (const r of rows) {
-      const name = (r.municipality ?? '').trim();
-      if (!name) continue;
-      const lc = name.toLowerCase();
-      if (lc === 'null' || lc === 'undefined' || lc === 'desconocida') continue;
-      const raw = slugify(name);
-      if (!raw) continue;
-      const key = safeMunicipioSegment(raw);
-      const n = r._count._all;
-      const prev = best.get(key);
-      if (!prev) best.set(key, { key, total: n });
-      else prev.total += n;
-    }
-    return [...best.values()];
+    // ⭐ MUNI-A: the INE register is the only source of towns. The fold — the
+    // junk gate, the canonical name, the slug escape and the collision SUM —
+    // lives in `archive-municipality.ts` so this census, the planner's child
+    // keys and the route resolver cannot disagree about which towns exist.
+    // Names that do not resolve are NOT children; their rows stay reachable
+    // through the province's own pagination.
+    const { resolved } = foldArchiveMunicipalities(
+      archiveProvinceName(node),
+      rows.map((r) => ({ name: r.municipality, total: r._count._all })),
+    );
+    return resolved.map((m) => ({ key: m.slug, total: m.total }));
   }
 
   // tipo

@@ -246,6 +246,40 @@ EOF
   hasnt /resultados/barcelona "/municipios/pagina/2" "hub no longer links the retired index pages"
 fi
 
+# ---------------------------------------------------------------------------
+# MUNI-A — the gazetteer whitelist (Ken's ruling, 2026-08-13)
+#
+# Asserted in BOTH switch states on purpose: the whitelist is NOT behind
+# URL_V4_SWITCH. A municipality the INE register does not know must never mint a
+# URL, in either state, because a junk town page is junk in v3 too.
+#
+# The fixture seeds one row of each defect class under Madrid with real auctions
+# attached, so a pass here means row count did not buy a URL — only the register
+# did. `MSDRID` is a typo, `carabanchel-alto` a district, and `valencia` another
+# province's capital misfiled (that last one passes a bare gazetteer check and is
+# caught ONLY by the province cross-check).
+# ---------------------------------------------------------------------------
+echo "--- MUNI-A: junk towns are not URLs, and 301 rather than 404 ---"
+for u in /resultados/madrid/msdrid /resultados/madrid/carabanchel-alto /resultados/madrid/valencia; do
+  c="$(code "$u")"
+  ck "$u is a redirect, not a page" "$([ "$c" = 200 ] && echo page || echo redirect)" redirect
+  ck "$u does not 404"              "$([ "$c" = 404 ] && echo 404 || echo ok)" ok
+  ck "$u targets the province hub"  "$(loc "$u")" /resultados/madrid
+  read -r n final <<EOF
+$(hops "$u")
+EOF
+  # The province hub always exists, so this is also the no-301-lands-on-a-404 proof.
+  ck "$u settles at 200 in $n hop(s)" "$final" 200
+  ck "$u chain length"                "$n" 1
+done
+
+echo "--- MUNI-A: junk towns appear in no list ---"
+hasnt /resultados/madrid/municipios 'msdrid'           "municipios index omits the typo town"
+hasnt /resultados/madrid/municipios 'carabanchel-alto' "municipios index omits the district"
+hasnt /resultados/madrid/municipios '/madrid/valencia' "municipios index omits the misfiled capital"
+hasnt /resultados/madrid          'msdrid'             "province hub links no typo town"
+has   /resultados/madrid/municipios '/madrid/madrid'   "the real town is still listed"
+
 echo ""
 echo "PASS=$pass FAIL=$fail"
 [ "$fail" -eq 0 ] || exit 1

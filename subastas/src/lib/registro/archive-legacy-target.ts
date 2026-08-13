@@ -49,16 +49,17 @@ import {
   archiveYearOf,
   archiveQuarterOf,
   readArchivePlan,
+  readArchiveMuniDbNames,
 } from '@/lib/registro/archive-node-read';
+import { resolveArchiveMunicipality } from '@/lib/registro/archive-municipality';
 import {
   archiveNodePath,
   archivePagePath,
-  safeMunicipioSegment,
   type ArchiveDimension,
   type ArchiveNode,
 } from '@/lib/seo/archive-partitions';
 import { mapLegacyArchivePage, archiveParentNode } from '@/lib/seo/archive-legacy-redirects';
-import { DB_AUCTIONTYPE_TO_TIPO_SLUG, slugify } from '@/lib/seo/slugs';
+import { DB_AUCTIONTYPE_TO_TIPO_SLUG } from '@/lib/seo/slugs';
 
 /**
  * ⚠️ MUST equal `registro-read.ts`'s default (`sort: 'recent'`) ordering. The
@@ -67,6 +68,8 @@ import { DB_AUCTIONTYPE_TO_TIPO_SLUG, slugify } from '@/lib/seo/slugs';
 const PROBE_ORDER_BY = [{ endsAt: 'desc' as const }, { id: 'desc' as const }];
 
 type ProbeRow = {
+  /** Needed to resolve the row's town: a name is only a municipality OF a province. */
+  province: string | null;
   municipality: string | null;
   auctionType: string | null;
   endsAt: Date | null;
@@ -90,14 +93,13 @@ function childKey(child: ArchiveNode, dim: ArchiveDimension): string | null {
 /** The ladder key the PROBE ROW belongs under for `dim`, in the same grammar. */
 function probeKey(row: ProbeRow, dim: ArchiveDimension): string | null {
   switch (dim) {
-    case 'municipio': {
-      const name = (row.municipality ?? '').trim();
-      if (!name) return null;
-      const raw = slugify(name);
-      // Same escape the census applies, or a town whose slug collides with a
-      // facet would never match its own child node.
-      return raw ? safeMunicipioSegment(raw) : null;
-    }
+    case 'municipio':
+      // Same gate the census applies (`archive-municipality.ts`), or a probe row
+      // carrying a junk municipality would name a town node that does not exist
+      // and the 301 would land on a 404. `null` here means "this row has no
+      // valid town": the descent stops and the node ITSELF is the target, which
+      // is the province-level fallback the ladder already implements.
+      return resolveArchiveMunicipality(row.province, row.municipality)?.slug ?? null;
     case 'tipo': {
       const db = row.auctionType ?? '';
       return db ? (DB_AUCTIONTYPE_TO_TIPO_SLUG[db] ?? null) : null;
@@ -125,7 +127,13 @@ export async function archiveOverflowNode(
     where: archiveNodeWhere(root),
     orderBy: PROBE_ORDER_BY,
     skip: Math.max(0, rowOffset),
-    select: { municipality: true, auctionType: true, endsAt: true, publishedAt: true },
+    select: {
+      province: true,
+      municipality: true,
+      auctionType: true,
+      endsAt: true,
+      publishedAt: true,
+    },
   })) as ProbeRow | null;
   // No such row — the old page was already past the end of the node even at the
   // legacy page size. The node itself is the honest destination.
@@ -141,13 +149,24 @@ export async function archiveOverflowNode(
     if (want === null) break;
     const next = plan.children.find((c) => childKey(c, plan.splitDimension!) === want);
     if (!next) break;
-    // The planner does no I/O and therefore cannot fill `muniDbName`; the query
-    // side needs it (an absent one selects nothing, by design), so the probe row
-    // supplies the DB name it was just read from.
-    cur =
-      plan.splitDimension === 'municipio'
-        ? { ...next, muniDbName: (row.municipality ?? '').trim() || undefined }
-        : next;
+    // The planner does no I/O and therefore cannot fill the town's DB names; the
+    // query side needs them (an absent set selects nothing, by design). Under
+    // MUNI-A one town can hold several raw spellings, so the probe row's own
+    // name is not enough — the full fold is read here, and the probe's name is
+    // only the fallback if that census comes back empty.
+    if (plan.splitDimension === 'municipio' && next.muni !== undefined) {
+      const probeName = (row.municipality ?? '').trim() || undefined;
+      const dbNames = cur.prov !== undefined
+        ? await readArchiveMuniDbNames(cur.prov, next.muni)
+        : [];
+      cur = {
+        ...next,
+        muniDbName: probeName,
+        muniDbNames: dbNames.length > 0 ? dbNames : probeName ? [probeName] : [],
+      };
+    } else {
+      cur = next;
+    }
   }
   return cur;
 }

@@ -1,5 +1,9 @@
 import { resolveCpMunicipality } from '@/lib/geo/cp-municipality';
-import { lookupMunicipality } from '@/lib/geo/municipality-gazetteer';
+import {
+  lookupMunicipality,
+  lookupMunicipalityCandidates,
+  type GazetteerEntry,
+} from '@/lib/geo/municipality-gazetteer';
 import { municipalityKey } from '@/lib/geo/municipality-key';
 import { PROVINCE_DB_KEY_TO_SLUG, slugify } from '@/lib/seo/slugs';
 
@@ -82,6 +86,91 @@ export type TownInput = {
   province: string | null | undefined;
 };
 
+export type TownNameResolution =
+  | { status: 'resolved'; municipality: string; ine: string; province: string }
+  | {
+      status: 'degraded';
+      reason: Extract<
+        TownDegradeReason,
+        'stored-not-in-gazetteer' | 'province-mismatch-stored' | 'no-municipality' | 'no-province'
+      >;
+    };
+
+/**
+ * ⭐ THE ONE PLACE a raw corpus municipality string becomes a canonical town.
+ *
+ * This is rung 2 of the ladder above, lifted out so it has exactly one
+ * definition and two callers:
+ *
+ *   • `resolveTown` (below) — the v3 detail-URL mint, which reaches here only
+ *     after the postcode table has stayed silent;
+ *   • the v4 ARCHIVE layer, via `resolveArchiveMunicipality`, which has no
+ *     postcode to consult because it works over (province, municipality)
+ *     AGGREGATES, not rows.
+ *
+ * Before MUNI-A the archive had no resolution at all: it took
+ * `DISTINCT(municipality)` straight off the corpus, so `Msdrid`, `Madrdi` and
+ * seven more misspellings each minted their own permanent town URL, districts
+ * posed as municipalities, and `Valencia` filed under Madrid. The register is
+ * now the only source of towns, and this function is the gate.
+ *
+ * Two things it does that a bare `lookupMunicipality` cannot:
+ *
+ *  1. PROVINCE CROSS-CHECK. A gazetteer hit proves the string names *a* Spanish
+ *     municipality, never that it names one in THIS row's province. `Oropesa`
+ *     under Castellón is Oropesa del Mar; the register's `Oropesa` is in Toledo.
+ *     Mismatch DEGRADES.
+ *  2. PROVINCE-SCOPED DISAMBIGUATION. Conversely, the 17 names two provinces
+ *     share (`Torrent`, `Cieza`, `Mieres`, `Sada`…) are unresolvable nationally
+ *     but perfectly determined once the province is known. Nationally-ambiguous
+ *     names were costing 863 auctions and 26 real municipalities their town hub.
+ *     Choosing among candidates BY THE REGISTER'S OWN PROVINCE COLUMN is not
+ *     guessing, and it cannot invent a cross-province match — the province is
+ *     part of the test, not an afterthought.
+ *
+ * Still no fuzzy matching, deliberately. A typo matches no candidate and
+ * degrades to the province, exactly as `municipality-gazetteer` promises.
+ * Dirty data costs us COVERAGE, which Ghost's normalisation pass recovers; it
+ * must never cost us a wrong permanent URL, which nothing recovers.
+ */
+export function resolveTownName(input: {
+  province: string | null | undefined;
+  storedMunicipality: string | null | undefined;
+}): TownNameResolution {
+  if (typeof input.province !== 'string' || input.province.trim() === '') {
+    return { status: 'degraded', reason: 'no-province' };
+  }
+  const storedRaw = (input.storedMunicipality ?? '').trim();
+  if (!storedRaw) return { status: 'degraded', reason: 'no-municipality' };
+
+  const candidates = lookupMunicipalityCandidates(storedRaw);
+  if (candidates.length === 0) {
+    return { status: 'degraded', reason: 'stored-not-in-gazetteer' };
+  }
+
+  const inProvince = candidates.filter((c) => sameProvince(c.province, input.province));
+  // Zero survivors means the name is real but belongs somewhere else.
+  if (inProvince.length === 0) {
+    return { status: 'degraded', reason: 'province-mismatch-stored' };
+  }
+  // Two survivors would mean one province lists two distinct municipalities under
+  // one name. INE contains no such case (measured: zero). If the register ever
+  // gains one, DEGRADE — the whole point is that we never pick between equals.
+  if (inProvince.length > 1) {
+    return { status: 'degraded', reason: 'stored-not-in-gazetteer' };
+  }
+
+  const hit: GazetteerEntry = inProvince[0];
+  return {
+    status: 'resolved',
+    // The INE OFFICIAL denomination, never the corpus spelling — this is what
+    // collapses nine spellings of Madrid onto one town hub.
+    municipality: hit.official,
+    ine: hit.ine,
+    province: hit.province,
+  };
+}
+
 export function resolveTown(input: TownInput): TownResolution {
   const hasProvince = typeof input.province === 'string' && input.province.trim() !== '';
   if (!hasProvince) {
@@ -125,21 +214,22 @@ export function resolveTown(input: TownInput): TownResolution {
   }
 
   // ── Rung 2: CP-MUNI silent → stored municipality, gazetteer-validated. ────
-  if (storedEntry) {
-    // ⭐ PROVINCE CROSS-CHECK — added 2026-08-04 after it was caught in the
-    // minted sample set. Gazetteer validation alone proves only that the string
-    // names *a* Spanish municipality, NOT that it names one in THIS row's
-    // province. Without this check, short or truncated corpus names silently
-    // resolve to a same-named municipality elsewhere:
-    //   "Oropesa"  (Castellón: Oropesa del Mar) -> matched Oropesa, TOLEDO
-    //   "Abanto"   (Bizkaia: Abanto y Ciérvana) -> matched Abanto, ZARAGOZA
-    //   "Aguadulce"(Almería, a locality)        -> matched Aguadulce, SEVILLA
-    //   "Madrid"   under province A Coruña      -> plainly wrong
-    // 630 of 113,453 rung-2 rows (0.56%) were affected in the first mint.
-    // This is exactly the Torrent->Girona failure class the INE gazetteer was
-    // adopted to eliminate; rung 1 was province-checked and rung 2 was not.
-    // Mismatch DEGRADES — same rule as a contradiction: never guess a province.
-    if (!sameProvince(storedEntry.province, input.province)) {
+  // Delegated to `resolveTownName` so the archive layer and the mint cannot
+  // drift apart; the commentary on the province cross-check lives there now.
+  {
+    const byName = resolveTownName({
+      province: input.province,
+      storedMunicipality: storedRaw,
+    });
+    if (byName.status === 'resolved') {
+      return {
+        status: 'resolved',
+        municipality: byName.municipality,
+        ine: byName.ine,
+        source: 'stored-gazetteer',
+      };
+    }
+    if (byName.reason === 'province-mismatch-stored') {
       return {
         status: 'degraded',
         source: 'province',
@@ -147,14 +237,6 @@ export function resolveTown(input: TownInput): TownResolution {
         storedMunicipality: storedRaw,
       };
     }
-    return {
-      status: 'resolved',
-      // Emit the INE OFFICIAL denomination, not the corpus spelling, so two
-      // rows spelling the same town differently cannot mint two town segments.
-      municipality: storedEntry.official,
-      ine: storedEntry.ine,
-      source: 'stored-gazetteer',
-    };
   }
 
   // ── Rung 3: degrade. ──────────────────────────────────────────────────────

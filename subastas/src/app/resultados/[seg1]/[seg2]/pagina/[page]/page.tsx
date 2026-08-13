@@ -60,7 +60,8 @@ function readFor(shape: ResultadosChildShape, page: number) {
   if (shape.kind === 'province-muni') {
     return readList({
       province: shape.provDbKey,
-      municipio: shape.muniName,
+      // MUNI-A: raw corpus spellings, not the INE display name.
+      municipio: shape.muniDbNames,
       page,
       pageSize: ARCHIVE_PAGE_SIZE,
     });
@@ -162,6 +163,8 @@ export default async function ResultadosChildPaginaPage({ params }: PageProps) {
       prov: shape.provSlug,
       muni: shape.muniSlug,
       muniDbName: shape.muniName,
+      // See the note in ../page.tsx: display name vs queryable spellings.
+      muniDbNames: shape.muniDbNames,
     };
     const target = await legacyArchivePageTarget(node, n);
     if (target !== archivePagePath(node, n)) permanentRedirect(target);

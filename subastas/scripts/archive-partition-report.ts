@@ -32,7 +32,6 @@ import {
   municipioIndexPath,
   pageCountFor,
   planArchiveTree,
-  safeMunicipioSegment,
   type ArchiveCountSource,
   type ArchiveDimension,
   type ArchiveNode,
@@ -40,6 +39,10 @@ import {
 } from '../src/lib/seo/archive-partitions';
 import { ARCHIVE_PAGE_SIZE, HUB_MUNI_PREVIEW, MUNI_INDEX_PAGE_SIZE } from '../src/lib/registro/archive-paging';
 import { PROVINCE_DB_KEY_TO_SLUG, slugify } from '../src/lib/seo/slugs';
+import {
+  foldArchiveMunicipalities,
+  resolveArchiveMunicipality,
+} from '../src/lib/registro/archive-municipality';
 import { DB_AUCTIONTYPE_TO_TIPO_SLUG, type TipoSlug } from '../src/lib/seo/slugs';
 import { OUTCOME_TO_SLUG, REGISTRY_OUTCOME_ORDER } from '../src/lib/registro/registro-ui';
 
@@ -65,6 +68,8 @@ function parseCsvLine(l: string): string[] {
 
 type Cell = {
   prov: string; muni: string; tipo: string; anio: number; qtr: number; outcome: string; n: number;
+  /** raw CSV columns kept so the municipality fold can run per province, after the parse */
+  provDb: string; muniRaw: string;
 };
 
 const csvPath = process.argv[2];
@@ -74,9 +79,23 @@ const cells: Cell[] = [];
 let locationFreeRows = 0;
 let excludedRows = 0;       // no province AND no tipo AND no usable date -> no page, no sitemap
 let unplaceableRows = 0;    // no province, no tipo, but a date -> no shelf exists; reported
-let skippedNoMuni = 0;
-/** province slug -> muni slug -> canonical DB name (largest wins, mirrors registro-read) */
+let skippedNoMuni = 0;          // rows with no municipality string at all
+let unresolvedMuniRows = 0;     // rows whose municipality is NOT in the INE register
+const unresolvedMuniNames = new Set<string>();
+/**
+ * province slug -> muni slug -> INE official name + row count.
+ *
+ * MUNI-A (Ken, 2026-08-13): built by `foldArchiveMunicipalities`, i.e. from the
+ * INE register, NOT from DISTINCT(municipality). See
+ * `src/lib/registro/archive-municipality.ts` — a town absent from the gazetteer
+ * mints no URL here either, or this report would keep sizing a tree the runtime
+ * refuses to build.
+ */
 const muniNameBySlug = new Map<string, Map<string, { name: string; n: number }>>();
+/** provinceDbKey -> raw corpus municipality -> row count, for that fold. */
+const rawMuniTotals = new Map<string, Map<string, number>>();
+/** provinceDbKey -> raw corpus municipality -> resolved URL slug ('' = unresolved). */
+const muniSlugByRaw = new Map<string, Map<string, string>>();
 const locationFreeTipos = new Set<TipoSlug>();
 
 for (const line of readFileSync(csvPath, 'utf8').trim().split('\n').slice(1)) {
@@ -97,20 +116,51 @@ for (const line of readFileSync(csvPath, 'utf8').trim().split('\n').slice(1)) {
     if (!tipo) { unplaceableRows += n; continue; }
     locationFreeRows += n;
     locationFreeTipos.add(tipo);
-    cells.push({ prov: '', muni: '', tipo, anio, qtr, outcome, n });
+    cells.push({ prov: '', muni: '', tipo, anio, qtr, outcome, n, provDb, muniRaw: '' });
     continue;
   }
 
-  const rawMuniSlug = muniDb ? slugify(muniDb) : '';
-  if (!rawMuniSlug) skippedNoMuni += n;
-  const muni = rawMuniSlug ? safeMunicipioSegment(rawMuniSlug) : 'sin-municipio';
-  if (rawMuniSlug) {
-    let m = muniNameBySlug.get(prov);
-    if (!m) { m = new Map(); muniNameBySlug.set(prov, m); }
-    const prev = m.get(rawMuniSlug);
-    if (!prev || n > prev.n) m.set(rawMuniSlug, { name: muniDb, n });
+  const muniRaw = (muniDb ?? '').trim();
+  if (!muniRaw) skippedNoMuni += n;
+  else {
+    let m = rawMuniTotals.get(provDb);
+    if (!m) { m = new Map(); rawMuniTotals.set(provDb, m); }
+    m.set(muniRaw, (m.get(muniRaw) ?? 0) + n);
   }
-  cells.push({ prov, muni, tipo: tipo ?? 'judicial', anio, qtr, outcome, n });
+  // `muni` is filled in after the fold below; a row whose municipality does not
+  // resolve keeps '' and is therefore counted at PROVINCE level.
+  cells.push({ prov, muni: '', tipo: tipo ?? 'judicial', anio, qtr, outcome, n, provDb, muniRaw });
+}
+
+// ---------------------------------------------------------------------------
+// municipality fold — the INE register, once, per province (MUNI-A)
+// ---------------------------------------------------------------------------
+for (const [provDb, raws] of rawMuniTotals) {
+  const provSlug = PROVINCE_DB_KEY_TO_SLUG[provDb] ?? '';
+  if (!provSlug) continue;
+  const { resolved, unresolvedTotal, unresolvedNames } = foldArchiveMunicipalities(
+    provDb,
+    [...raws].map(([name, total]) => ({ name, total })),
+  );
+  unresolvedMuniRows += unresolvedTotal;
+  for (const nm of unresolvedNames) unresolvedMuniNames.add(`${provSlug}/${nm}`);
+
+  const bySlug = new Map<string, { name: string; n: number }>();
+  for (const m of resolved) bySlug.set(m.slug, { name: m.name, n: m.total });
+  muniNameBySlug.set(provSlug, bySlug);
+
+  // raw name -> slug, so each cell can be placed without re-resolving per row.
+  // Same gate as the fold (it is the fold's own resolver), so the two cannot
+  // disagree about whether a name is a town.
+  const rawMap = new Map<string, string>();
+  for (const [name] of raws) {
+    rawMap.set(name, resolveArchiveMunicipality(provDb, name)?.slug ?? '');
+  }
+  muniSlugByRaw.set(provDb, rawMap);
+}
+for (const c of cells) {
+  if (!c.prov || !c.muniRaw) continue;
+  c.muni = muniSlugByRaw.get(c.provDb)?.get(c.muniRaw) ?? '';
 }
 
 // ---------------------------------------------------------------------------
@@ -155,6 +205,11 @@ for (const c of cells) {
     for (let i = 0; i < DIMS.length; i++) {
       if (has[i]) continue;
       if (DIMS[i] === 'trimestre' && !has[2]) continue;   // not offered before a year
+      // MUNI-A: a row with no RESOLVED town (`muni === ''`) is not a municipio
+      // child of anything — it stays counted at the province level, which the
+      // `has[0] === false` shapes above already do. Offering it as a child would
+      // mint the very junk node the ruling removed.
+      if (DIMS[i] === 'municipio' && !val.municipio) continue;
       bumpChild(k, DIMS[i], val[DIMS[i]], c.n);
     }
   }
@@ -250,8 +305,9 @@ for (const prov of provinces) depth.set(`/resultados/${prov}`, RESULTADOS + 1);
 // the top-HUB_MUNI_PREVIEW town preview, and its own ladder children.
 const provPreview = new Map<string, Set<string>>();
 for (const prov of provinces) {
-  const munis = [...(muniNameBySlug.get(prov) ?? new Map())]
-    .map(([slug, v]) => ({ slug: safeMunicipioSegment(slug), n: v.n }))
+  const munis = [...(muniNameBySlug.get(prov) ?? new Map<string, { name: string; n: number }>())]
+    // slugs already carry `safeMunicipioSegment` — the fold applies it.
+    .map(([slug, v]) => ({ slug, n: v.n }))
     .sort((a, b) => b.n - a.n).slice(0, HUB_MUNI_PREVIEW);
   provPreview.set(prov, new Set(munis.map((m) => m.slug)));
 }
@@ -273,12 +329,15 @@ while (queue.length) {
   if (!plan) continue;
   const d = depth.get(path) as number;
   const kids: string[] = plan.children.map(archiveNodePath);
-  if (level(plan) === 'provincia') {
-    for (const s of OUTCOME_SLUGS) kids.push(`/resultados/${plan.node.prov}/${s}`);
+  const prov = plan.node.prov;
+  // `prov` is always set at province level, but the location-free shelf types it
+  // optional — narrow rather than assert, so the shelf can never index the map.
+  if (level(plan) === 'provincia' && prov) {
+    for (const s of OUTCOME_SLUGS) kids.push(`/resultados/${prov}/${s}`);
     // town preview links straight from the hub (depth d+1); the /municipios
     // index carries the rest at d+2 (hub -> index page -> town).
-    for (const slug of provPreview.get(plan.node.prov) ?? []) {
-      kids.push(`/resultados/${plan.node.prov}/${slug}`);
+    for (const slug of provPreview.get(prov) ?? []) {
+      kids.push(`/resultados/${prov}/${slug}`);
     }
   }
   for (const k of kids) {
@@ -363,8 +422,10 @@ const v4Urls = totalNodes + totalPageUrls + muniIndexUrls + 1 + OUTCOME_SLUGS.le
 let collisions = 0;
 const collisionExamples: string[] = [];
 for (const [prov, m] of muniNameBySlug) {
-  for (const slug of m.keys()) {
-    if (safeMunicipioSegment(slug) !== slug) {
+  for (const [slug, v] of m) {
+    // The stored slug is already escaped, so the collision is detected by
+    // re-deriving the BARE slug from the INE name and seeing if it moved.
+    if (slugify(v.name) !== slug) {
       collisions++;
       if (collisionExamples.length < 10) collisionExamples.push(`${prov}/${slug}`);
     }
@@ -382,7 +443,12 @@ L(`corpus rows in archive scope : ${corpus.toLocaleString()}`);
 L(`  province-less -> location-free shelf /resultados/{tipo}/{ano} : ${locationFreeRows.toLocaleString()}`);
 L(`  EXCLUDED (no province, no tipo, no date; no page, no sitemap) : ${excludedRows.toLocaleString()}`);
 L(`  no province + no tipo but dated (no shelf exists; reported)   : ${unplaceableRows.toLocaleString()}`);
-L(`  rows with no municipality  : ${skippedNoMuni.toLocaleString()} -> muni segment 'sin-municipio'`);
+L(`  rows with NO municipality at all            : ${skippedNoMuni.toLocaleString()} -> counted at PROVINCE level`);
+L(`  rows whose municipality FAILED TO RESOLVE   : ${unresolvedMuniRows.toLocaleString()} -> counted at PROVINCE level (MUNI-A coverage cost)`);
+L(`    distinct unresolved names: ${unresolvedMuniNames.size}${
+  unresolvedMuniNames.size ? ' -> e.g. ' + [...unresolvedMuniNames].slice(0, 10).join(', ') : ''
+}`);
+L(`  towns minted from the INE register          : ${[...muniNameBySlug.values()].reduce((a, m) => a + m.size, 0).toLocaleString()}`);
 L(`page size ${ARCHIVE_PAGE_SIZE} x ${ARCHIVE_MAX_PAGES} = ${ARCHIVE_NODE_CAPACITY} rows/node; dense ${ARCHIVE_PAGE_SIZE_DENSE} x ${ARCHIVE_MAX_PAGES} = ${ARCHIVE_NODE_CAPACITY_DENSE}`);
 L('');
 L('--- 1. URL COUNT BY LEVEL ---');
