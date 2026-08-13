@@ -42,6 +42,7 @@ import {
   RegistryBreadcrumb,
   RegistryBackLink,
 } from '@/components/registro/RegistryNav';
+import { ArchiveNodeView, archiveNodeMetadata } from '../_shared/archive-node-view';
 
 type PageProps = { params: Promise<{ seg1: string }> };
 
@@ -56,7 +57,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const copy = getResultadosCopy(locale);
   const nf = (n: number) => n.toLocaleString(locale === 'en' ? 'en-US' : 'es-ES');
 
-  if (r.kind === 'invalid' || r.kind === 'redirect') return { title: copy.brandSuffix };
+  // Not an outcome and not a province → the LOCATION-FREE shelf root
+  // /resultados/{tipo}. Ken's release gate: /resultados must link all of these,
+  // because the province-less rows have no other parent in the tree.
+  if (r.kind === 'invalid') return archiveNodeMetadata([seg1]);
+  if (r.kind === 'redirect') return { title: copy.brandSuffix };
 
   if (r.kind === 'outcome') {
     const summary = await readSummary({});
@@ -87,7 +92,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function ResultadosSegPage({ params }: PageProps) {
   const { seg1 } = await params;
   const r = resolveResultadosSeg(seg1);
-  if (r.kind === 'invalid') notFound();
+  if (r.kind === 'invalid') return <ArchiveNodeView segs={[seg1]} />;
   if (r.kind === 'redirect') redirect(r.to);
 
   const locale = toLocale((await getLocale()) as AppLocale);

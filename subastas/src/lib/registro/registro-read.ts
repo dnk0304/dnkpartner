@@ -24,6 +24,8 @@ import {
   type AuctionOutcome,
 } from '@/lib/seo/auction-outcome';
 import { outcomeWhere, registryBaseWhere } from '@/lib/registro/outcome-query';
+import { archiveNodeWhere } from '@/lib/registro/archive-node-read';
+import type { ArchiveNode } from '@/lib/seo/archive-partitions';
 import { PERIOD_ALL, ROLLUP_ALL } from '@/lib/registro/outcome-stats';
 import { OUTCOME_SLUG } from '@/lib/seo/auction-outcome';
 import { PROVINCE_DB_KEY_TO_SLUG, slugify } from '@/lib/seo/slugs';
@@ -267,6 +269,17 @@ export const readRegions = unstable_cache(_readRegions, ['registro-regions'], {
 // ---------------------------------------------------------------------------
 
 export interface ReadListParams {
+  /**
+   * v4: render exactly the rows of an archive node (`/resultados/{prov}/{muni}/
+   * {tipo}/{año}/t{n}`, or the location-free shelf when `prov` is absent).
+   *
+   * When present this REPLACES the outcome/province/municipio composition below
+   * — it is not merged with it. Two independently-built predicates for the same
+   * page is how a hub and its own child page end up disagreeing about which rows
+   * exist, so a node page uses the planner's predicate and nothing else. The
+   * remaining params (sort, page, pageSize) still apply.
+   */
+  node?: ArchiveNode | null;
   outcome?: RegistryOutcome | null;
   category?: string;
   province?: string;
@@ -300,10 +313,14 @@ async function _readList(params: ReadListParams): Promise<ReadListResult> {
   const page = Math.max(1, Math.floor(params.page ?? 1));
   const pageSize = Math.min(100, Math.max(1, Math.floor(params.pageSize ?? 24)));
 
-  const and: Prisma.AuctionWhereInput[] = [outcome ? outcomeWhere(outcome, now) : registryBaseWhere(now)];
-  if (category) and.push({ category });
-  if (province) and.push({ province });
-  if (municipio) and.push({ municipality: municipio });
+  const and: Prisma.AuctionWhereInput[] = params.node
+    ? [archiveNodeWhere(params.node, now)]
+    : [outcome ? outcomeWhere(outcome, now) : registryBaseWhere(now)];
+  if (!params.node) {
+    if (category) and.push({ category });
+    if (province) and.push({ province });
+    if (municipio) and.push({ municipality: municipio });
+  }
 
   const priceWhere: { gte?: bigint; lte?: bigint } = {};
   if (params.priceMin != null && Number.isFinite(params.priceMin)) priceWhere.gte = BigInt(Math.round(params.priceMin * 100));

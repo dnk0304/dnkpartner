@@ -41,6 +41,29 @@ export type SeoPaginationProps = {
   ariaLabel?: string;
   prevLabel?: string;
   nextLabel?: string;
+  /**
+   * FULL PAGE FAN — one href per page, page 1 first, supplied by the caller.
+   *
+   * When present it REPLACES the windowed page list: every page of the list
+   * links every other page, with no ellipsis. Mandatory on v4 archive nodes
+   * (Ken ruling, 2026-08-13): *"every page of a capped list links to all pages…
+   * without it the depth number is fiction"*. With the first+last+current±2
+   * window, reaching the middle of a 10-page node costs 3 hops and the deepest
+   * detail page sits at depth 9; with the fan it costs 1 and the same page sits
+   * at 7. Measured, not assumed — see the two depth models in
+   * `scripts/archive-partition-report.ts`.
+   *
+   * ⚠️ Comes from `archivePageLinks()` (via `resolveArchivePageLinks`), never
+   * hand-built: the depth guarantee is a property of the LINK GRAPH, so it lives
+   * in the same module that proves the ≤10-page cap rather than in a component
+   * anyone can quietly rewindow. This prop is ONLY safe because that cap exists
+   * — fanning an uncapped 307-page hub would emit 307 anchors per page.
+   *
+   * Ignored when its length disagrees with `totalPages`, so a caller that
+   * derives the two from different sources degrades to the window rather than
+   * rendering links to pages that do not exist.
+   */
+  pageHrefs?: readonly string[];
 };
 
 /** URL for a given page: page 1 → base, page N → base/pagina/N. */
@@ -75,12 +98,19 @@ export function SeoPagination({
   ariaLabel = 'Paginación',
   prevLabel = 'Anterior',
   nextLabel = 'Siguiente',
+  pageHrefs,
 }: SeoPaginationProps) {
   if (totalPages <= 1) return null;
 
+  const fan = pageHrefs && pageHrefs.length === totalPages ? pageHrefs : null;
+  // With a fan, page N's href is authoritative; without one, derive from base.
+  const href = (n: number) => (fan ? fan[n - 1] : hrefFor(basePath, n));
+
   const hasPrev = page > 1;
   const hasNext = page < totalPages;
-  const items = pageWindow(page, totalPages);
+  const items: Array<number | null> = fan
+    ? Array.from({ length: totalPages }, (_, i) => i + 1)
+    : pageWindow(page, totalPages);
 
   const linkCls =
     'inline-flex items-center justify-center min-w-9 h-9 px-3 rounded-md border border-[var(--color-border)] text-sm hover:bg-[var(--color-surface-muted)]';
@@ -90,11 +120,11 @@ export function SeoPagination({
   return (
     <nav aria-label={ariaLabel} className="mt-10 flex flex-wrap items-center justify-center gap-2">
       {/* Hoisted into <head> by React 19. */}
-      {hasPrev ? <link rel="prev" href={`${SITE_ORIGIN}${hrefFor(basePath, page - 1)}`} /> : null}
-      {hasNext ? <link rel="next" href={`${SITE_ORIGIN}${hrefFor(basePath, page + 1)}`} /> : null}
+      {hasPrev ? <link rel="prev" href={`${SITE_ORIGIN}${href(page - 1)}`} /> : null}
+      {hasNext ? <link rel="next" href={`${SITE_ORIGIN}${href(page + 1)}`} /> : null}
 
       {hasPrev ? (
-        <Link rel="prev" href={hrefFor(basePath, page - 1)} className={linkCls}>
+        <Link rel="prev" href={href(page - 1)} className={linkCls}>
           {prevLabel}
         </Link>
       ) : (
@@ -113,14 +143,14 @@ export function SeoPagination({
             {n}
           </span>
         ) : (
-          <Link key={n} href={hrefFor(basePath, n)} className={linkCls}>
+          <Link key={n} href={href(n)} className={linkCls}>
             {n}
           </Link>
         ),
       )}
 
       {hasNext ? (
-        <Link rel="next" href={hrefFor(basePath, page + 1)} className={linkCls}>
+        <Link rel="next" href={href(page + 1)} className={linkCls}>
           {nextLabel}
         </Link>
       ) : (

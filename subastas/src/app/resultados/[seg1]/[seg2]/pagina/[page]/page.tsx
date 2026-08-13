@@ -29,6 +29,7 @@ import {
 import { RegistryBreadcrumb, RegistryBackLink } from '@/components/registro/RegistryNav';
 import { resolveResultadosChild, type ResultadosChildShape } from '../../../../_shared/resolve-child';
 import { ArchivePageBody, ARCHIVE_PAGE_SIZE, parseArchivePage } from '../../../../_shared/archive-page';
+import { ArchiveNodeView, archiveNodeMetadata, archivePageParam } from '../../../../_shared/archive-node-view';
 
 type PageProps = { params: Promise<{ seg1: string; seg2: string; page: string }> };
 
@@ -69,7 +70,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const locale = toLocale((await getLocale()) as AppLocale);
   const copy = getResultadosCopy(locale);
   const shape = await resolveResultadosChild(seg1, seg2);
-  if (shape.kind === 'notfound' || shape.kind === 'redirect') return { title: copy.brandSuffix };
+  if (shape.kind === 'notfound') {
+    const n = Number.parseInt(page, 10);
+    return archiveNodeMetadata([seg1, seg2], Number.isFinite(n) ? n : 1);
+  }
+  if (shape.kind === 'redirect') return { title: copy.brandSuffix };
 
   const n = parseArchivePage(page);
   const nf = (x: number) => x.toLocaleString(locale === 'en' ? 'en-US' : 'es-ES');
@@ -108,7 +113,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function ResultadosChildPaginaPage({ params }: PageProps) {
   const { seg1, seg2, page } = await params;
   const shape = await resolveResultadosChild(seg1, seg2);
-  if (shape.kind === 'notfound') notFound();
+  // v4 fallback — see the sibling hub route. Only ex-404 URLs reach here.
+  if (shape.kind === 'notfound') {
+    const segs = [seg1, seg2];
+    return <ArchiveNodeView segs={segs} page={archivePageParam(segs, page)} />;
+  }
   if (shape.kind === 'redirect') redirect(`${shape.to}/pagina/${page}`);
 
   const n = parseArchivePage(page);

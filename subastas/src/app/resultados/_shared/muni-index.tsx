@@ -42,7 +42,8 @@ import { resolveResultadosSeg } from '@/lib/registro/resultados-routing';
 import { MUNI_INDEX_PAGE_SIZE, HUB_MUNI_PREVIEW } from '@/lib/registro/archive-paging';
 import { getResultadosCopy, type Locale, type ResultadosCopy } from '@/lib/registro/registro-ui';
 import { SeoPagination } from '@/components/seo/SeoPagination';
-import { ChipLinks, RegistryBreadcrumb, RegistryBackLink } from '@/components/registro/RegistryNav';
+import Link from 'next/link';
+import { RegistryBreadcrumb, RegistryBackLink } from '@/components/registro/RegistryNav';
 import { SITE_ORIGIN, buildAlternates, ogLocale } from '@/lib/seo/alternates';
 
 export { MUNI_INDEX_PAGE_SIZE, parseArchivePage } from '@/lib/registro/archive-paging';
@@ -88,17 +89,88 @@ export async function resolveMuniIndex(
   // same predicate says it renders.
   if (total <= HUB_MUNI_PREVIEW) redirect(`/resultados/${r.slug}`);
 
-  const totalPages = Math.max(1, Math.ceil(total / MUNI_INDEX_PAGE_SIZE));
-  if (page > totalPages) return null;
+  // ---------------------------------------------------------------------
+  // v4: DE-PAGINATED. One A–Z page holds every municipality of the province.
+  //
+  // The 200-per-page split existed because the list was rendered as CHIPS, and
+  // chips are expensive: inlining Barcelona's 839 towns as chips on the province
+  // hub measured +397 KB of raw markup (~473 B per anchor), which is why the
+  // index was paginated in the first place. v4 renders the index as PLAIN
+  // ANCHORS grouped by initial letter instead (`MuniAZList` below). Ken's brief
+  // states the constraint as "text links only, no cards"; this is that
+  // constraint, and it is the ONLY reason `totalPages` may safely become 1.
+  //
+  // MEASURED, not assumed (fixture, 2026-08-13, 900 towns — above prod's
+  // worst province at 839): 337,211 B = 329 KB, i.e. 374 B per link. That is
+  // under the 400 KB ceiling and well under the 455 KB worst case already
+  // shipping, but note the saving over chips is ~21%, NOT the order of
+  // magnitude the raw-markup difference suggests — most of the residual cost is
+  // the RSC flight payload, which repeats every href regardless of how lean the
+  // DOM markup is. So the headroom here is ~70 KB, not vast.
+  //
+  // ⚠️ If the town count or the name lengths grow materially, RE-MEASURE before
+  // assuming this still fits — and if anyone re-chips this list, re-paginate it.
+  //
+  // `/municipios/pagina/{n}` stops being a live route and becomes a P2 redirect
+  // target. Nothing here forecloses that: the path still resolves to this
+  // province, so P2 can 301 it onto the bare index.
+  // ---------------------------------------------------------------------
+  if (page > 1) return null;
 
-  const start = (page - 1) * MUNI_INDEX_PAGE_SIZE;
   return {
     provSlug: r.slug,
     provLabel: r.label,
-    munis: all.slice(start, start + MUNI_INDEX_PAGE_SIZE),
+    munis: all,
     total,
-    totalPages,
+    totalPages: 1,
   };
+}
+
+/**
+ * A–Z municipality list — plain anchors, grouped by initial letter.
+ *
+ * DELIBERATELY UNSTYLED PER LINK. Every byte here is multiplied by up to 839
+ * (Barcelona), so the per-anchor markup carries no class attribute at all and
+ * the styling hangs off the container via `[&_a]` selectors. Measured at 900
+ * towns: 374 B/link, 329 KB total — see the budget note in `resolveMuniIndex`
+ * for why that is only ~21% better than chips and where the rest of the cost is.
+ *
+ * The letter grouping is not decoration — it is what keeps a 839-link page
+ * scannable by a human, which is the difference between a useful index and a
+ * link farm.
+ */
+function MuniAZList({ provSlug, munis }: { provSlug: string; munis: MunicipioRegionEntry[] }) {
+  const groups = new Map<string, MunicipioRegionEntry[]>();
+  for (const m of [...munis].sort((a, b) =>
+    capitalizeLocation(a.municipalityName).localeCompare(capitalizeLocation(b.municipalityName), 'es'),
+  )) {
+    const label = capitalizeLocation(m.municipalityName);
+    // Fold accents so "Ávila" files under A, not into its own bucket.
+    const initial = label.normalize('NFD').replace(/[̀-ͯ]/g, '').charAt(0).toUpperCase();
+    const key = /^[A-Z]$/.test(initial) ? initial : '#';
+    const g = groups.get(key);
+    if (g) g.push(m);
+    else groups.set(key, [m]);
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {[...groups].map(([letter, items]) => (
+        <section key={letter} aria-label={letter}>
+          <h3 className="mb-2 text-sm font-semibold text-[var(--color-ink-tertiary)]">{letter}</h3>
+          <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-3 lg:grid-cols-4 [&_a]:text-[var(--color-action)] [&_a:hover]:underline">
+            {items.map((m) => (
+              <li key={m.municipioSlug}>
+                <Link href={`/resultados/${provSlug}/${m.municipioSlug}`}>
+                  {capitalizeLocation(m.municipalityName)}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+  );
 }
 
 /** Canonical path for index page N (page 1 = bare, matching SeoPagination). */
@@ -126,14 +198,9 @@ export function MuniIndexBody({
   const { provSlug, provLabel, munis, total, totalPages } = resolved;
   const nf = (n: number) => n.toLocaleString(locale === 'en' ? 'en-US' : 'es-ES');
   const basePath = `/resultados/${provSlug}/municipios`;
+  void locale;
 
-  const items = munis.map((m) => ({
-    href: `/resultados/${provSlug}/${m.municipioSlug}`,
-    label: capitalizeLocation(m.municipalityName),
-    count: m.total,
-  }));
-
-  const h1 = `${copy.muniIndexH1(provLabel)}${page > 1 ? copy.pageSuffix(page) : ''}`;
+  const h1 = copy.muniIndexH1(provLabel);
 
   const breadcrumbLd = {
     '@context': 'https://schema.org',
@@ -164,13 +231,15 @@ export function MuniIndexBody({
       </header>
 
       <section aria-label={copy.muniIndexH1(provLabel)}>
-        {items.length === 0 ? (
+        {munis.length === 0 ? (
           <div className="rounded-[var(--radius-lg)] border border-[var(--color-hairline)] bg-[var(--color-surface-muted)] p-8 text-center text-sm text-[var(--color-ink-tertiary)]">
             {copy.empty}
           </div>
         ) : (
-          <ChipLinks items={items} locale={locale} />
+          <MuniAZList provSlug={provSlug} munis={munis} />
         )}
+        {/* De-paginated: totalPages is always 1, so this renders nothing. Kept
+            so a future re-pagination has one place to turn back on. */}
         <SeoPagination
           basePath={basePath}
           page={page}

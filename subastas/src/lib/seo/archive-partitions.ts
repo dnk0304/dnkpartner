@@ -100,6 +100,89 @@ export function archiveCapacityFor(total: number): number {
 }
 
 /**
+ * ⚠️ ADAPTIVE PAGE SIZE AT LADDER-EXHAUSTED LEAVES — a workaround with a known
+ * expiry (Ken ruling addendum, 2026-08-13). Read the whole comment before
+ * touching this number.
+ *
+ * P0 measured, against prod, that two leaves still overflow after the full
+ * ladder (`madrid/madrid/judicial/2026/t1` = 840 rows,
+ * `barcelona/barcelona/judicial/2026/t1` = 490) and that this is a DATA defect,
+ * not a ladder defect: 753 of Madrid's 840 have a NULL `endsAt`, are dated by
+ * the `publishedAt` fallback, are all `canceladas`, and 475+278 of them land on
+ * exactly two days from one bulk BOE import. No date-shaped rung splits a
+ * same-day clump, so a 6th rung would buy nothing.
+ *
+ * Ken's ruling was: do NOT add a rung; instead let the page size at those leaves
+ * rise until the node clears inside ARCHIVE_MAX_PAGES, under a hard rendered-
+ * weight ceiling. So 840 rows / 10 pages = 84 per page.
+ *
+ * THE CEILING IS THE POINT. `ARCHIVE_PAGE_SIZE_MAX` is not a round number
+ * somebody liked; it is the largest page size whose projected rendered weight
+ * stays under 400 KB, using the per-row cost P0 measured on prod
+ * (2,672 B/row marginal, 171,569 B for a 24-row page-1 including the header and
+ * stat blocks):
+ *
+ *     84 rows → 171,569 + (84-24) x 2,672 = 331,889 B ≈ 324 KB   ✅ under 400 KB
+ *     96 rows → 171,569 + (96-24) x 2,672 = 363,953 B ≈ 355 KB   ✅ but no margin
+ *    112 rows → 171,569 + (112-24) x 2,672 = 406,705 B ≈ 397 KB  ⛔ at the ceiling
+ *
+ * 84 is therefore the last size with real headroom, and it is exactly what the
+ * worst node needs. RE-MEASURE before raising it — the 400 KB ceiling is the
+ * constraint, not this constant.
+ *
+ * ⚠️ EXPIRY: this holds only while the worst exhausted leaf stays ≤ 840 rows. The
+ * durable fix is the Ghost `endsAt` backfill on those 753 canceladas (ticketed
+ * separately; scraper tables are Ghost-owned and fenced out of this wave). When
+ * that lands, those rows redistribute across real end dates and this whole
+ * branch goes quiet on its own.
+ */
+export const ARCHIVE_PAGE_SIZE_MAX = 84;
+
+/**
+ * Page size for a node that KNOWS ITS OWN SHAPE, not just its row count.
+ *
+ * The plain `archivePageSizeFor` cannot express the adaptive rule, because
+ * "should this node be allowed a bigger page?" is not a function of the row
+ * count alone — a 100k-row PROVINCE also overflows, and giving it a
+ * 10,000-row page would silently delete the entire ladder this wave exists to
+ * build. The distinguishing fact is whether the ladder can still split the node:
+ *
+ *   • rungs remain  → keep the normal size; the CHILDREN carry the overflow.
+ *     This is the ordinary case and covers every node above a leaf.
+ *   • no rungs left → the node is structurally terminal. Pagination is the only
+ *     instrument left, so it grows, bounded by ARCHIVE_PAGE_SIZE_MAX.
+ *
+ * Note the honest limit: a node can also be reported `capped` because every
+ * remaining rung was DEGENERATE (thin-partition guard), and such a node is not
+ * structurally terminal, so it does NOT get the bigger page here. That is
+ * deliberate — it keeps this function pure and DB-free so a route can call it
+ * per request — and the planner still reports those nodes as `capped` with
+ * their unreachable rows, which is the gate. Measured against prod 2026-08-13:
+ * zero such nodes exist; both exhausted leaves are fully-specified
+ * (muni, tipo, año, trimestre) and therefore structurally terminal.
+ */
+export function archivePageSizeForNode(node: ArchiveNode, total: number): number {
+  const base = archivePageSizeFor(total);
+  if (total <= base * ARCHIVE_MAX_PAGES) return base;
+  // ⛔ An OUTCOME FACET also has no rungs left, but for the opposite reason: it
+  // is a filtered VIEW whose rows are already fully covered by the location
+  // ladder, which is why its overflow is explicitly NOT counted as unreachable.
+  // Growing its page size would buy zero crawl reach and cost real bytes —
+  // measured on the fixture, `/resultados/madrid/canceladas` jumped to 84 rows
+  // and 288 KB before this guard. The adaptive size is for nodes whose rows have
+  // nowhere else to be.
+  if (isTerminalFacet(node)) return base;
+  if (remainingDimensions(node).length > 0) return base;
+  return Math.min(Math.ceil(total / ARCHIVE_MAX_PAGES), ARCHIVE_PAGE_SIZE_MAX);
+}
+
+/** Pages a node renders at its shape-aware page size. Always ≤ ARCHIVE_MAX_PAGES. */
+export function pageCountForNode(node: ArchiveNode, total: number): number {
+  if (total <= 0) return 0;
+  return Math.min(Math.ceil(total / archivePageSizeForNode(node, total)), ARCHIVE_MAX_PAGES);
+}
+
+/**
  * Ladder rungs BELOW the province root, in the order Dennis confirmed, with
  * `trimestre` appended by Ken's 2026-08-13 ruling.
  *
@@ -153,7 +236,21 @@ export type ArchiveDimension = (typeof ARCHIVE_LADDER)[number];
  */
 export type ArchiveNode = {
   readonly prov?: string;
+  /** URL SLUG of the municipality (already `safeMunicipioSegment`-escaped). */
   readonly muni?: string;
+  /**
+   * DB name of the municipality — the OTHER identity of the same town.
+   *
+   * `muni` is what goes in the URL; this is what goes in the `where`. They are
+   * not interchangeable: slugging is lossy and collision-folded ("A Coruña" and
+   * "A CORUÑA" share one slug), so a query built from the slug would select the
+   * wrong rows or none. The planner never reads this — it does no I/O — and
+   * planner-produced child nodes therefore omit it; a ROUTE resolves slug→name
+   * and fills it in before querying. Absent on a node with a `muni` means "not
+   * resolved yet", which `archiveNodeWhere` treats as selecting nothing rather
+   * than as "no municipality filter".
+   */
+  readonly muniDbName?: string;
   readonly tipo?: TipoSlug;
   readonly anio?: number;
   /** 1..4. Only ever set on a node that already has `anio`. */
@@ -185,6 +282,14 @@ export type ArchivePlan = {
   readonly node: ArchiveNode;
   readonly path: string;
   readonly total: number;
+  /**
+   * Rows per page for THIS node — normally 24/48, but up to
+   * ARCHIVE_PAGE_SIZE_MAX on a structurally terminal leaf. Carried on the plan
+   * so the route, the sitemap and the link fan read one answer instead of three
+   * re-derivations. Equal to `archivePageSizeForNode(node, total)` by
+   * construction; the route calls that directly (it has no plan in hand).
+   */
+  readonly pageSize: number;
   /** 0 when the node has no rows (and is therefore not emitted at all). */
   readonly pages: number;
   /** `/pagina/2..pages` URLs. Empty when `pages <= 1`. */
@@ -316,7 +421,8 @@ export function pageCountFor(total: number): number {
 export function planArchiveNode(node: ArchiveNode, counts: ArchiveCountSource): ArchivePlan {
   const total = counts.total(node);
   const path = archiveNodePath(node);
-  const pages = pageCountFor(total);
+  const pageSize = archivePageSizeForNode(node, total);
+  const pages = pageCountForNode(node, total);
   const pagePaths: string[] = [];
   for (let p = 2; p <= pages; p++) pagePaths.push(archivePagePath(node, p));
 
@@ -324,6 +430,7 @@ export function planArchiveNode(node: ArchiveNode, counts: ArchiveCountSource): 
     node,
     path,
     total,
+    pageSize,
     pages,
     pagePaths,
     splitDimension: null,
@@ -337,7 +444,10 @@ export function planArchiveNode(node: ArchiveNode, counts: ArchiveCountSource): 
   if (total === 0) return base;
   // Fits inside the capped pagination (at this node's own page size) — no split
   // needed. This is what makes the ladder "as needed": most towns stop here.
-  if (total <= archiveCapacityFor(total)) return base;
+  // A structurally terminal leaf also lands here once the adaptive page size has
+  // grown to clear it, which is precisely how the last two exhausted nodes reach
+  // 0 unreachable rows without a 6th rung.
+  if (total <= pageSize * ARCHIVE_MAX_PAGES) return base;
 
   const skipped: ArchiveDimension[] = [];
   for (const dim of remainingDimensions(node)) {
@@ -358,8 +468,9 @@ export function planArchiveNode(node: ArchiveNode, counts: ArchiveCountSource): 
     };
   }
 
-  // Ladder exhausted (or terminal facet) and still overflowing.
-  const overflow = total - archiveCapacityFor(total);
+  // Ladder exhausted (or terminal facet) and still overflowing — even after the
+  // adaptive page size, which is already baked into `pageSize`.
+  const overflow = total - pageSize * ARCHIVE_MAX_PAGES;
   return {
     ...base,
     skippedDimensions: skipped,
