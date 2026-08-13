@@ -13,14 +13,16 @@
  *
  * ── Layout (fixed IDs — NO DB call to enumerate, so the route stays fully
  *    request-time, never build-time; 07 §4) ─────────────────────────────────
- *   id 0                              → aggregation (home, /subastas, 52
+ *   id 0 .. PUBLISHED_AGGREGATION_CHILDREN-1
+ *                                     → AGGREGATION (home, /subastas, 52
  *                                       provinces, active towns, tipos, dense
- *                                       categories, guides, noticias) — ~3-5k.
- *   id 1 .. ACTIVE_CHUNKS             → ACTIVE auction details, 20k/file
+ *                                       categories, the /resultados archive
+ *                                       tree, guides, noticias), 20k/file.
+ *   next ACTIVE_CHUNKS ids            → ACTIVE auction details, 20k/file
  *                                       (skip/take, orderBy id asc).
- *   id ACTIVE_CHUNKS+1 .. +N          → SCOPED CONCLUDED details, 20k/file,
+ *   next PUBLISHED_CONCLUDED_CHILDREN → SCOPED CONCLUDED details, 20k/file,
  *                                       orderBy soldDate DESC (freshest 20k in
- *                                       child #1), where N = PUBLISHED_CONCLUDED_CHILDREN.
+ *                                       the band's first child).
  *
  * ── Concluded exposure (FULL — phased ramp overridden 2026-07-20) ──────────
  * Dennis took manual GSC control and overrode the phased ramp: expose the ENTIRE
@@ -33,6 +35,98 @@
 
 /** URLs per child sitemap file. FIRM (Dennis). Under the 50k spec cap. */
 export const CHILD_SITEMAP_SIZE = 20_000;
+
+// ===========================================================================
+// THE AGGREGATION BAND — chunked as of 2026-08-13 (Ken's ruling, v4 P3)
+// ===========================================================================
+
+/**
+ * ⭐ THE ONE KNOB. If you turn nothing else in this file, turn this.
+ *
+ * ── WHAT IT DOES ──────────────────────────────────────────────────────────
+ * The maximum number of `/resultados` ARCHIVE URLs the sitemap advertises. The
+ * archive tree currently contains 19,193 URLs; this caps how many of them we
+ * submit to Google, so we ask for the re-crawl in controlled weekly steps
+ * instead of dropping the whole tree on Googlebot at once.
+ *
+ * ── HOW TO TURN IT ────────────────────────────────────────────────────────
+ * It is an ENVIRONMENT VARIABLE on the `dnksubastas` compose service. Set it,
+ * restart the service, done. NO REBUILD, NO REDEPLOY, and it is reversible in
+ * the same 30 seconds it took to set.
+ *
+ *     SITEMAP_ARCHIVE_MAX_URLS=35405
+ *
+ * ── THE SCHEDULE (Ken, 2026-08-13) ────────────────────────────────────────
+ * The ramp starts ONE WEEK AFTER the `URL_V4_SWITCH` flip, not on flip day.
+ * Flip week is a SHAPE change, not a volume change: the default below is the
+ * archive URL count Google is already being served today, so on flip day the
+ * sitemap swaps the superseded shapes for their v4 replacements at unchanged
+ * volume. Then, and only then, the volume ramp begins.
+ *
+ *   flip day       leave this UNSET      → 15,405 archive URLs (today's volume)
+ *   flip + 1 week  set to 35405          → the whole 19,193-URL tree
+ *   thereafter     +20000 per week       → no-op; the tree is fully submitted
+ *
+ * ⭐ NEXT VALUE TO SET: **35405** (= 15405 + 20000). That single step completes
+ * the tree, because the tree is smaller than one weekly increment. If GSC looks
+ * unhappy after the flip, do not raise it — leave it, or lower it; lowering is
+ * safe in the sense that nothing 404s, but see the warning below first.
+ *
+ * ── WHY THE DEFAULT IS 15,405 AND NOT A ROUND NUMBER ──────────────────────
+ * MEASURED, not estimated. `https://subastasactivas.com/sitemap/0.xml` on
+ * 2026-08-13 served 16,507 `<loc>`s, of which 15,405 were `/resultados` and
+ * 1,102 were not. Holding the archive volume at exactly what Google already has
+ * is what makes flip day a pure shape change — the property we actually want to
+ * be able to state, rather than a round number that happens to be near it.
+ *
+ * ── ⚠️ RAISE, DON'T LOWER ─────────────────────────────────────────────────
+ * The archive list is in a STABLE order (`compareArchiveUrls`), so raising this
+ * only ever APPENDS: nothing already submitted moves or disappears. That is the
+ * same "growing cap, never a rotating window" property the concluded band has,
+ * and it is the reason an already-indexed page can never churn out of the
+ * sitemap. LOWERING it un-advertises pages Google has already been told about —
+ * not fatal (they still serve, and they are still reachable by link), but it is
+ * a retraction, so do it deliberately.
+ *
+ * Clamped to >= 1: a 0 or a garbage value must not silently unpublish the whole
+ * archive band.
+ */
+export const SITEMAP_ARCHIVE_MAX_URLS = ((): number => {
+  const raw = process.env.SITEMAP_ARCHIVE_MAX_URLS;
+  if (raw == null || raw.trim() === '') return 15_405;
+  const n = Number.parseInt(raw.trim(), 10);
+  if (!Number.isFinite(n) || n < 1) return 15_405;
+  return n;
+})();
+
+/**
+ * Aggregation children, DERIVED FROM THE URLS THAT ACTUALLY EXIST.
+ *
+ * ⛔ NEVER PUBLISH AN EMPTY CHILD. That is the D2 defect — `/sitemap/2.xml`
+ * served an empty `<urlset>` to Google, a self-inflicted "couldn't fetch / no
+ * URLs" signal on the one index we are trying to get Google to trust — and the
+ * ACTIVE_CHUNKS block below condemns it at length for the same reason.
+ *
+ * ⭐ WHICH IS WHY THIS TAKES AN ARGUMENT INSTEAD OF BEING A CONSTANT. Every
+ * previous empty child in this file came from a band whose SIZE was set by hand
+ * against an estimate while its CONTENT came from a query — ACTIVE_CHUNKS was 2
+ * against 1,154 rows, PUBLISHED_CONCLUDED_CHILDREN was 9 against 26,800. Both
+ * were fixed by re-measuring, which fixes the instance and leaves the mechanism.
+ *
+ * Here the count is computed from `aggregationUrls.length` — the very list that
+ * fills the children. `ceil(n/20000)` children each hold at least one URL for
+ * any n >= 1, so an empty aggregation child is not a thing an operator can cause
+ * by turning a knob wrong, including by setting SITEMAP_ARCHIVE_MAX_URLS far
+ * past the tree's real size. That is the difference between a guard and a
+ * property.
+ *
+ * The cost is that the sitemap INDEX has to know the list length, so the layout
+ * became async — see `sitemap.xml/route.ts`. That is one cached read for a route
+ * that already does DB work, and it buys a defect class.
+ */
+export function aggregationChildCount(aggregationUrlCount: number): number {
+  return Math.max(1, Math.ceil(aggregationUrlCount / CHILD_SITEMAP_SIZE));
+}
 
 /**
  * Fixed number of ACTIVE-detail children (20k each).
@@ -128,17 +222,48 @@ export const PUBLISHED_CONCLUDED_CHILDREN = ((): number => {
   return n;
 })();
 
-/** Total published children = aggregation + active + published concluded. */
-export const TOTAL_CHILDREN = 1 + ACTIVE_CHUNKS + PUBLISHED_CONCLUDED_CHILDREN;
-
-/** Ordered id list for generateSitemaps() AND robots.txt. */
-export function sitemapChildIds(): number[] {
-  return Array.from({ length: TOTAL_CHILDREN }, (_, i) => i);
+/**
+ * The published child layout, for a given aggregation-band size.
+ *
+ * ⭐ BAND ORDER IS FIXED AND THE AGGREGATION BAND IS FIRST. Adding a chunked
+ * aggregation band shifts the active and concluded ids again — the third time
+ * this has happened — so the same proof ACTIVE_CHUNKS carries is required, and
+ * it is the same proof: `classify()` derives a child's content purely from its
+ * `(kind, skip)` pair, and every non-empty pair still maps to exactly one
+ * published child. Ids move; the union of `<loc>` does not.
+ *
+ *   band         before (1 aggregation child)   after (2 aggregation children)
+ *   aggregation  id 0 → skip 0                  id 0 → skip 0
+ *                                               id 1 → skip 20000   ← NEW
+ *   active       id 1 → skip 0                  id 2 → skip 0
+ *   concluded    id 2 → skip 0                  id 3 → skip 0
+ *                id 3 → skip 20000              id 4 → skip 20000
+ *
+ * No `(kind, skip)` pair is lost and none is duplicated, so the delta is exactly
+ * the URLs the new aggregation child adds — nothing is dropped by the renumber.
+ */
+export interface SitemapLayout {
+  readonly aggregationChunks: number;
+  readonly totalChildren: number;
+  /** Ordered id list for the index AND the child route's range check. */
+  ids(): number[];
+  /** Absolute child sitemap URLs for the sitemap index. */
+  urls(site: string): string[];
+  /** id → what it contains + its skip offset. Pure. */
+  classify(id: number): ChunkKind;
 }
 
-/** Absolute child sitemap URLs for robots.txt / the sitemap index. */
-export function sitemapChildUrls(site: string): string[] {
-  return sitemapChildIds().map((id) => `${site}/sitemap/${id}.xml`);
+export function buildSitemapLayout(aggregationUrlCount: number): SitemapLayout {
+  const aggregationChunks = aggregationChildCount(aggregationUrlCount);
+  const totalChildren = aggregationChunks + ACTIVE_CHUNKS + PUBLISHED_CONCLUDED_CHILDREN;
+  const ids = () => Array.from({ length: totalChildren }, (_, i) => i);
+  return {
+    aggregationChunks,
+    totalChildren,
+    ids,
+    urls: (site: string) => ids().map((id) => `${site}/sitemap/${id}.xml`),
+    classify: (id: number) => classifyChunkIn(id, aggregationChunks),
+  };
 }
 
 /**
@@ -157,7 +282,7 @@ export function sitemapIndexUrl(site: string): string {
 }
 
 export type ChunkKind =
-  | { kind: 'aggregation' }
+  | { kind: 'aggregation'; skip: number }
   | { kind: 'active'; skip: number }
   | { kind: 'concluded'; skip: number };
 
@@ -167,12 +292,18 @@ export type ChunkKind =
  * active band are treated as concluded with the corresponding offset, so a
  * direct hit on an un-advertised concluded child still returns valid data
  * rather than erroring — it's simply not linked from robots/index.
+ *
+ * `aggregationChunks` is passed in rather than read from a constant, because
+ * the aggregation band's width is derived from its own content — see
+ * `aggregationChildCount`. Prefer `buildSitemapLayout(n).classify(id)`.
  */
-export function classifyChunk(id: number): ChunkKind {
-  if (id <= 0) return { kind: 'aggregation' };
-  if (id <= ACTIVE_CHUNKS) {
-    return { kind: 'active', skip: (id - 1) * CHILD_SITEMAP_SIZE };
+export function classifyChunkIn(id: number, aggregationChunks: number): ChunkKind {
+  const agg = Math.max(1, aggregationChunks);
+  if (id <= 0) return { kind: 'aggregation', skip: 0 };
+  if (id < agg) return { kind: 'aggregation', skip: id * CHILD_SITEMAP_SIZE };
+  const afterAgg = id - agg; // 0-based within the active band
+  if (afterAgg < ACTIVE_CHUNKS) {
+    return { kind: 'active', skip: afterAgg * CHILD_SITEMAP_SIZE };
   }
-  const concludedIndex = id - 1 - ACTIVE_CHUNKS; // 0-based
-  return { kind: 'concluded', skip: concludedIndex * CHILD_SITEMAP_SIZE };
+  return { kind: 'concluded', skip: (afterAgg - ACTIVE_CHUNKS) * CHILD_SITEMAP_SIZE };
 }

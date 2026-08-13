@@ -43,54 +43,30 @@ import { auctionOutcome, STALE_SUSPENDED_DAYS } from '../src/lib/seo/auction-out
 import type { SaleResult } from '@prisma/client';
 
 /**
- * The outcome projection, in ONE place.
+ * ⭐ MOVED 2026-08-13 (v4 P3). The outcome CASE and the rollup SELECT now live in
+ * `src/lib/registro/archive-census-sql.ts` and are RE-EXPORTED here so this
+ * script keeps its filename, its CLI and its `--verify` proof.
  *
- * Ordered WHENs, and the order IS the precedence rule from `auctionOutcome()`:
- * a resolved sale wins over status, so by the time control reaches the third
- * branch `saleResult` is necessarily NULL or SIN_RESULTADO and the `NOT_SOLD`
- * predicate `outcomeWhere()` writes explicitly is implied rather than repeated.
- * The suspended branch is `staleSuspendedWhere()` verbatim: suspended, with
- * resumption absent or past, untouched for STALE_SUSPENDED_DAYS — which is
- * interpolated from the taxonomy constant, so raising the window cannot leave a
- * stale 60 behind in a query.
+ * Why they moved: P3 serves the same census at request time (the sitemap must
+ * advertise the tree the routes serve), and an app module cannot import from
+ * `scripts/`. Copying the SQL would have re-opened Ken's T2 ticket with a third
+ * definition. There is still exactly one.
  *
- * `$1` is the "as of" instant, supplied once so every row is classified against
- * the same clock (a rollup that drifts mid-scan double-counts the boundary).
+ * The SELECT gained `AT TIME ZONE 'UTC'` around the date extraction — see the
+ * header of that file. It makes the SQL bucket bit-identical to
+ * `archiveYearOf()`, which matters now that a SERVED sitemap depends on it.
  */
-export const ARCHIVE_ROLLUP_OUTCOME_CASE = `CASE
-      WHEN a."saleResult" = 'ADJUDICADA' THEN 'VENDIDA'
-      WHEN a."saleResult" = 'DESIERTA'   THEN 'DESIERTA'
-      WHEN a.status IN ('CANCELADA','CANCELLED') THEN 'CANCELADA'
-      WHEN a.status IN ('SUSPENDIDA','SUSPENDED')
-       AND (a."resumeAt" IS NULL OR a."resumeAt" < $1)
-       AND a."updatedAt" < $1 - interval '${STALE_SUSPENDED_DAYS} days'
-                                                 THEN 'CANCELADA'
-      WHEN a.status = 'FINALIZADA_AUTORIDAD'      THEN 'FINALIZADA_SIN_RESULTADO'
-      ELSE 'INDETERMINADO'
-    END`;
-
-/**
- * The read-only prod rollup that feeds `archive-partition-report.ts`.
- *
- * ⚠️ The COALESCEs are `''`/0, NOT defaults: an absent province or auctionType
- * must stay absent so the location-free shelf and the excluded-row census can
- * see it. An earlier version defaulted auctionType to 'JUDICIAL' and silently
- * hid exactly the residue the report is asked to count.
- */
-export function archiveRollupQuery(): string {
-  return `COPY (
-  WITH base AS (
-    SELECT COALESCE(a.province,'')                AS province,
-           COALESCE(a."municipality",'')          AS municipality,
-           COALESCE(a."auctionType",'')           AS auction_type,
-           COALESCE(EXTRACT(YEAR    FROM COALESCE(a."endsAt", a."publishedAt"))::int, 0) AS yr,
-           COALESCE(EXTRACT(QUARTER FROM COALESCE(a."endsAt", a."publishedAt"))::int, 0) AS qtr,
-           ${ARCHIVE_ROLLUP_OUTCOME_CASE} AS outcome
-    FROM "Auction" a )
-  SELECT province, municipality, auction_type, yr, qtr, outcome, count(*)
-  FROM base WHERE outcome <> 'INDETERMINADO' GROUP BY 1,2,3,4,5,6
-) TO STDOUT WITH CSV HEADER;`;
-}
+export {
+  ARCHIVE_ROLLUP_OUTCOME_CASE,
+  ARCHIVE_ROLLUP_SELECT,
+  archiveRollupQuery,
+} from '../src/lib/registro/archive-census-sql';
+// Imported as VALUES too: `export … from` re-exports without binding anything
+// into local scope, and `main()` below calls `archiveRollupQuery()`.
+import {
+  ARCHIVE_ROLLUP_OUTCOME_CASE,
+  archiveRollupQuery,
+} from '../src/lib/registro/archive-census-sql';
 
 type Probe = {
   id: string;

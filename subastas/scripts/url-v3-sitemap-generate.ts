@@ -27,8 +27,8 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-import { TOTAL_CHILDREN, sitemapChildUrls } from '../src/lib/seo/sitemap-config';
-import { buildSitemapEntries } from '../src/lib/seo/sitemap-entries';
+import { CHILD_SITEMAP_SIZE, buildSitemapLayout } from '../src/lib/seo/sitemap-config';
+import { buildAggregationEntries, buildSitemapEntries } from '../src/lib/seo/sitemap-entries';
 import { URL_V3_SWITCH_ENV } from '../src/lib/seo/url-v3-switch';
 
 const SITE = 'https://subastasactivas.com';
@@ -78,8 +78,17 @@ async function main(): Promise<number> {
   let v3Count = 0;
   let legacyCount = 0;
 
-  for (let id = 0; id < TOTAL_CHILDREN; id += 1) {
-    const entries = await buildSitemapEntries(id);
+  // The aggregation band's width is derived from its own URL count (v4 P3), so
+  // the layout has to be resolved before the children can be enumerated.
+  const aggregation = await buildAggregationEntries();
+  const layout = buildSitemapLayout(aggregation.length);
+
+  for (let id = 0; id < layout.totalChildren; id += 1) {
+    const chunk = layout.classify(id);
+    const entries =
+      chunk.kind === 'aggregation'
+        ? aggregation.slice(chunk.skip, chunk.skip + CHILD_SITEMAP_SIZE)
+        : await buildSitemapEntries(id, layout.aggregationChunks);
     writeFileSync(join(outDir, `${id}.xml`), renderUrlset(entries), 'utf8');
     for (const e of entries) {
       const path = e.url.startsWith(SITE) ? e.url.slice(SITE.length) : e.url;
@@ -94,7 +103,7 @@ async function main(): Promise<number> {
   // a whole. Still a file. Still not served.
   const index =
     `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-    sitemapChildUrls(SITE).map((u) => `  <sitemap><loc>${xmlEscape(u)}</loc></sitemap>`).join('\n') +
+    layout.urls(SITE).map((u: string) => `  <sitemap><loc>${xmlEscape(u)}</loc></sitemap>`).join('\n') +
     `\n</sitemapindex>\n`;
   writeFileSync(join(outDir, 'index.xml'), index, 'utf8');
 

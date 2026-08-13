@@ -61,7 +61,13 @@ import { buildAuctionSlug } from '@/lib/seo/auction-slug';
  */
 import { fetchV3UrlsBatch, resolveAuctionPath } from '@/lib/seo/auction-url';
 import { listNoticias } from '@/lib/noticias';
-import { CHILD_SITEMAP_SIZE, classifyChunk } from '@/lib/seo/sitemap-config';
+import {
+  CHILD_SITEMAP_SIZE,
+  SITEMAP_ARCHIVE_MAX_URLS,
+  classifyChunkIn,
+} from '@/lib/seo/sitemap-config';
+import { isUrlV4SwitchOn } from '@/lib/seo/url-v4-switch';
+import { readArchiveCensus } from '@/lib/registro/archive-census-read';
 import { ARCHIVE_PAGE_SIZE } from '@/lib/registro/archive-paging';
 import { concludedIndexableWhere } from '@/lib/seo/concluded-indexable';
 import { readSummary, concludedMunicipioPairsAll } from '@/lib/registro/registro-read';
@@ -105,9 +111,12 @@ export interface SitemapUrlEntry {
  * a stable orderBy + skip/take so a given URL stays in the same child between
  * requests. Callers render the returned entries to XML.
  */
-export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]> {
+export async function buildSitemapEntries(
+  id: number,
+  aggregationChunks: number,
+): Promise<SitemapUrlEntry[]> {
   const chunkId = Number.isFinite(id) ? id : 0;
-  const chunk = classifyChunk(chunkId);
+  const chunk = classifyChunkIn(chunkId, aggregationChunks);
 
   // --- ACTIVE auction-detail children ---
   if (chunk.kind === 'active') {
@@ -181,7 +190,38 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
     return entries;
   }
 
-  // --- Chunk 0: core + provinces + towns + tipos + categories + guides ---
+  // --- AGGREGATION children (ids 0 .. aggregationChunks-1) ---
+  //
+  // ⭐ CHUNKED AS OF 2026-08-13 (Ken's ruling, v4 P3). This band used to be a
+  // single child that TRUNCATED at CHILD_SITEMAP_SIZE and logged a warning
+  // nobody would read. It is now sliced like every other band: one ordered
+  // list, `skip`/`take` by offset. `CHILD_SITEMAP_SIZE` stays 20,000 — FIRM
+  // (Dennis) — and the band grew a dimension instead of the cap growing.
+  //
+  // The list is built ONCE per child. That is deliberate: the alternative is a
+  // stateful cursor, and a cursor over a list assembled from eight separate
+  // queries is exactly how a URL ends up in two children or none.
+  const all = await buildAggregationEntries();
+  return all.slice(chunk.skip, chunk.skip + CHILD_SITEMAP_SIZE);
+}
+
+/**
+ * The COMPLETE aggregation band, in stable order: core, provinces, active
+ * towns, tipos, dense categories, the /resultados archive tree, guias,
+ * noticias, monthly recaps.
+ *
+ * Exported because the sitemap INDEX needs its LENGTH to know how many
+ * aggregation children to advertise — see `aggregationChildCount`. Deriving the
+ * child count from this list is what makes an empty aggregation child
+ * impossible rather than merely unlikely.
+ *
+ * ⭐ ORDER MATTERS AND THE ARCHIVE IS LAST. The non-archive URLs (roughly 1,100,
+ * measured on prod 2026-08-13) are the ones Google has had longest, and they sit
+ * ahead of the archive so that they are always inside the first child — no
+ * setting of the ramp knob can push an already-indexed core page out of the
+ * published range.
+ */
+export async function buildAggregationEntries(): Promise<SitemapUrlEntry[]> {
   const entries: SitemapUrlEntry[] = [];
 
   // ⭐ REAL hub lastmods (D5, Forge 2026-08-12). Every entry in this child used
@@ -295,11 +335,43 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
   }
 
   // --- /resultados registry (concluded auction-outcomes archive) ---
-  // Landing + count-gated region pages. Every URL here is index,follow by the
-  // SAME count-gate the pages use (region present in the rollup with total>0),
-  // so a sitemap URL is never noindex. These interlink the concluded detail
-  // pages (the orphan fix), which live in the concluded detail children above.
-  try {
+  //
+  // ⭐ TWO GRAMMARS, ONE OF WHICH IS DARK (Forge, v4 P3).
+  //
+  // With `URL_V4_SWITCH` OFF this block emits exactly what it emitted before
+  // P3, URL for URL — the v3 set, unchanged. That is not a promise, it is the
+  // structure: the v4 branch returns early and nothing below it is reachable
+  // from the lit path. The sitemap is the surface where a leak reaches Google
+  // fastest and is the hardest to retract, so the dark/lit split here is a
+  // whole-branch swap rather than a set of conditionals sprinkled through a
+  // shared code path.
+  //
+  // With the switch ON the URLs come from `readArchiveCensus()` — the planner,
+  // never a hand-maintained list (P3 brief §2). The superseded shapes
+  // (`/{outcome}/{prov}`, `municipios/pagina/{n}` past the index, `pagina/{n>10}`)
+  // are absent because nothing produces them, and a 301 in a sitemap is a wasted
+  // crawl.
+  if (isUrlV4SwitchOn()) {
+    try {
+      const census = await readArchiveCensus();
+      // THE RAMP. Ken's knob, applied in the census's own stable order so that
+      // raising it only ever APPENDS. See SITEMAP_ARCHIVE_MAX_URLS.
+      for (const path of census.urls.slice(0, SITEMAP_ARCHIVE_MAX_URLS)) {
+        entries.push({
+          url: `${SITE}${path}`,
+          changeFrequency: 'weekly',
+          priority: path === '/resultados' ? 0.8 : 0.5,
+        });
+      }
+    } catch {
+      // Non-fatal — the rest of the aggregation band is still valid. Never fall
+      // back to the v3 shapes here: half a v3 tree mixed into a lit sitemap is
+      // worse than a smaller one, because the v3 halves all 301.
+    }
+  } else {
+    // ── THE v3 SET, BYTE FOR BYTE AS BEFORE P3 ──────────────────────────────
+    // Nothing in this branch changed. It is the thing "ships dark" means.
+    try {
     entries.push({ url: `${SITE}/resultados`, changeFrequency: 'daily', priority: 0.8 });
 
     const summary = await readSummary({});
@@ -360,32 +432,26 @@ export async function buildSitemapEntries(id: number): Promise<SitemapUrlEntry[]
     // The cap below is a STRUCTURAL guard, not a comment: the archive grows, and
     // the day this band would cross the cap it must stop and be visible in the
     // logs, never quietly emit a 20,001st URL into an unchunked child.
-    let emitted = entries.length;
-    let paginaSkipped = 0;
+    //
+    // ⭐ THE CAP THAT USED TO BE HERE IS GONE, AND ITS REMOVAL IS THE POINT.
+    // This loop used to stop at CHILD_SITEMAP_SIZE and `console.warn` that "the
+    // aggregation band needs chunking before the archive grows further". It now
+    // is chunked, so silently dropping URLs to fit one file is no longer the
+    // lesser evil — it is just a bug. The band's own comment asked for this fix
+    // by name; this is it.
     for (const p of muniPairs) {
       const pages = Math.ceil(p.total / ARCHIVE_PAGE_SIZE);
       for (let n = 2; n <= pages; n++) {
-        if (emitted >= CHILD_SITEMAP_SIZE) {
-          paginaSkipped++;
-          continue;
-        }
         entries.push({
           url: `${SITE}/resultados/${p.provinceSlug}/${p.municipioSlug}/pagina/${n}`,
           changeFrequency: 'weekly',
           priority: 0.4,
         });
-        emitted++;
       }
     }
-    if (paginaSkipped > 0) {
-      console.warn(
-        `[sitemap] aggregation child hit CHILD_SITEMAP_SIZE (${CHILD_SITEMAP_SIZE}); ` +
-          `${paginaSkipped} /resultados pagina URLs omitted. The aggregation band needs ` +
-          `chunking before the archive grows further.`,
-      );
+    } catch {
+      // Non-fatal — the rest of the sitemap is still valid if the rollup read trips.
     }
-  } catch {
-    // Non-fatal — the rest of the sitemap is still valid if the rollup read trips.
   }
 
   // --- Published /guia/ articles (link from #9 blog) ---
