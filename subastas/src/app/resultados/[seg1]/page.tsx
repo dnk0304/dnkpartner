@@ -42,7 +42,10 @@ import {
   RegistryBreadcrumb,
   RegistryBackLink,
 } from '@/components/registro/RegistryNav';
-import { ArchiveNodeView, archiveNodeMetadata } from '../_shared/archive-node-view';
+import { ArchiveNodeView, archiveNodeMetadata, archiveChildLinks } from '../_shared/archive-node-view';
+import { isUrlV4SwitchOn } from '@/lib/seo/url-v4-switch';
+import { archivePageLinks } from '@/lib/seo/archive-partitions';
+import { readArchivePlan } from '@/lib/registro/archive-node-read';
 
 type PageProps = { params: Promise<{ seg1: string }> };
 
@@ -172,12 +175,22 @@ export default async function ResultadosSegPage({ params }: PageProps) {
   }
 
   // -------- Province archive --------
+  //
+  // ⭐ v4 (P2): the URL does not move, the PAGINATION does — see the identical
+  // note on the town hub. Page 1 is read at the node's own page size so it meets
+  // page 2 without a gap, the fan is the planner's, and the ladder children are
+  // rendered because capping the pages without them would orphan the overflow.
+  const v4 = isUrlV4SwitchOn() ? await readArchivePlan({ prov: r.slug }) : null;
+  const hubPageSize = v4?.plan.pageSize ?? ARCHIVE_PAGE_SIZE;
   const [summary, list, munis, provinces] = await Promise.all([
     readSummary({ province: r.dbKey }),
-    readList({ province: r.dbKey, page: 1, pageSize: ARCHIVE_PAGE_SIZE }),
+    readList({ province: r.dbKey, page: 1, pageSize: hubPageSize }),
     concludedMunicipioRegions(r.dbKey),
     concludedProvinceRegions(),
   ]);
+  const hubTotalPages = v4 ? v4.plan.pages : list.totalPages;
+  const hubPageHrefs = v4 ? archivePageLinks(v4.plan.node, v4.plan.pages) : undefined;
+  const ladderLinks = v4 ? archiveChildLinks(v4.plan.node, v4.plan.children, v4.childTotals) : [];
   const count = summary.headline.registryTotal;
   const nf = (n: number) => n.toLocaleString(locale === 'en' ? 'en-US' : 'es-ES');
 
@@ -192,7 +205,11 @@ export default async function ResultadosSegPage({ params }: PageProps) {
     label: capitalizeLocation(m.municipalityName),
     count: m.total,
   }));
-  const muniIndexPages = Math.max(1, Math.ceil(munis.length / MUNI_INDEX_PAGE_SIZE));
+  // v4 DE-PAGINATES the municipality index onto one A–Z page, so the "jump to
+  // index page N" fan must collapse to 1 in the same breath — otherwise this hub
+  // links `/municipios/pagina/2..5`, which v4 retires and 301s, i.e. the site
+  // would be linking its own redirects.
+  const muniIndexPages = v4 ? 1 : Math.max(1, Math.ceil(munis.length / MUNI_INDEX_PAGE_SIZE));
   // Only worth a separate surface when the hub does not already show them all.
   const showMuniIndex = munis.length > HUB_MUNI_PREVIEW;
   const otherProvinceLinks = provinces
@@ -259,12 +276,20 @@ export default async function ResultadosSegPage({ params }: PageProps) {
         <SeoPagination
           basePath={`/resultados/${r.slug}`}
           page={list.page}
-          totalPages={list.totalPages}
+          totalPages={hubTotalPages}
           ariaLabel={copy.pagLabel}
           prevLabel={copy.pagPrev}
           nextLabel={copy.pagNext}
+          pageHrefs={hubPageHrefs}
         />
       </section>
+
+      {ladderLinks.length > 0 ? (
+        <section className="mb-8">
+          <h2 className="mb-3 text-lg font-semibold text-[var(--color-ink-primary)]">{copy.archiveHeading}</h2>
+          <ChipLinks items={ladderLinks} locale={locale} />
+        </section>
+      ) : null}
 
       {municipioLinks.length > 0 ? (
         <section className="mb-8">

@@ -45,6 +45,8 @@ import { SeoPagination } from '@/components/seo/SeoPagination';
 import Link from 'next/link';
 import { RegistryBreadcrumb, RegistryBackLink } from '@/components/registro/RegistryNav';
 import { SITE_ORIGIN, buildAlternates, ogLocale } from '@/lib/seo/alternates';
+import { ChipLinks } from '@/components/registro/RegistryNav';
+import { isUrlV4SwitchOn } from '@/lib/seo/url-v4-switch';
 
 export { MUNI_INDEX_PAGE_SIZE, parseArchivePage } from '@/lib/registro/archive-paging';
 
@@ -58,6 +60,13 @@ export type MuniIndexResolved = {
   munis: MunicipioRegionEntry[];
   total: number;
   totalPages: number;
+  /**
+   * v4 rendering: one de-paginated A–Z list of plain anchors. Off = the shipped
+   * chip grid at 200 per page. Carried on the payload rather than re-read from
+   * the env in the body, so one resolve decides both the slice and the markup
+   * and the two can never disagree about which page they are rendering.
+   */
+  az: boolean;
 };
 
 /**
@@ -112,18 +121,52 @@ export async function resolveMuniIndex(
   // assuming this still fits — and if anyone re-chips this list, re-paginate it.
   //
   // `/municipios/pagina/{n}` stops being a live route and becomes a P2 redirect
-  // target. Nothing here forecloses that: the path still resolves to this
-  // province, so P2 can 301 it onto the bare index.
+  // target (`muniIndexRedirectTarget` below).
+  //
+  // ⛔ AND IT IS SWITCH-GATED (Forge, P2). P1 applied the de-pagination
+  // UNCONDITIONALLY, which with the flag OFF turned `/municipios/pagina/2..5`
+  // from a 200 into a 404 on prod and changed the visible markup from chips to
+  // an A–Z list — both observable without the switch, i.e. exactly what Ken's
+  // ruling §3 forbids ("a user or Googlebot on prod must not be able to tell the
+  // flag is there") and what §4.3 of the P2 brief makes the release gate. With
+  // the flag off this function is byte-for-byte the shipped behaviour again.
   // ---------------------------------------------------------------------
-  if (page > 1) return null;
+  if (isUrlV4SwitchOn()) {
+    // Defensive: the routes 301 page > 1 before reaching here.
+    if (page > 1) return null;
+    return { provSlug: r.slug, provLabel: r.label, munis: all, total, totalPages: 1, az: true };
+  }
 
+  const totalPages = Math.max(1, Math.ceil(total / MUNI_INDEX_PAGE_SIZE));
+  if (page > totalPages) return null;
+  const start = (page - 1) * MUNI_INDEX_PAGE_SIZE;
   return {
     provSlug: r.slug,
     provLabel: r.label,
-    munis: all,
+    munis: all.slice(start, start + MUNI_INDEX_PAGE_SIZE),
     total,
-    totalPages: 1,
+    totalPages,
+    az: false,
   };
+}
+
+/**
+ * v4 destination for `/resultados/{seg1}/municipios/pagina/{n}` — ONE hop.
+ *
+ * ⭐ The reason this is not the literal string `/resultados/{seg1}/municipios`:
+ * a province with ≤ HUB_MUNI_PREVIEW towns has no index page at all — the bare
+ * index 307s to the province hub. Targeting the index there would be a 301 into
+ * a 307, i.e. the two-hop chain §4.1 calls a defect. Resolving the alias in the
+ * same breath (`r.slug`, not `seg1`) closes the other chain for the same reason.
+ * Returns null when seg1 is not a province, so the caller 404s.
+ */
+export async function muniIndexRedirectTarget(seg1: string): Promise<string | null> {
+  const r = resolveResultadosSeg(seg1);
+  if (r.kind !== 'province') return null;
+  const all = await concludedMunicipioRegions(r.dbKey);
+  return all.length <= HUB_MUNI_PREVIEW
+    ? `/resultados/${r.slug}`
+    : `/resultados/${r.slug}/municipios`;
 }
 
 /**
@@ -195,12 +238,20 @@ export function MuniIndexBody({
   locale: Locale;
   copy: ResultadosCopy;
 }) {
-  const { provSlug, provLabel, munis, total, totalPages } = resolved;
+  const { provSlug, provLabel, munis, total, totalPages, az } = resolved;
   const nf = (n: number) => n.toLocaleString(locale === 'en' ? 'en-US' : 'es-ES');
   const basePath = `/resultados/${provSlug}/municipios`;
-  void locale;
 
-  const h1 = copy.muniIndexH1(provLabel);
+  // Flag off: the shipped chip grid and the page-suffixed H1, unchanged.
+  const chipItems = munis.map((m) => ({
+    href: `/resultados/${provSlug}/${m.municipioSlug}`,
+    label: capitalizeLocation(m.municipalityName),
+    count: m.total,
+  }));
+
+  const h1 = az
+    ? copy.muniIndexH1(provLabel)
+    : `${copy.muniIndexH1(provLabel)}${page > 1 ? copy.pageSuffix(page) : ''}`;
 
   const breadcrumbLd = {
     '@context': 'https://schema.org',
@@ -235,11 +286,13 @@ export function MuniIndexBody({
           <div className="rounded-[var(--radius-lg)] border border-[var(--color-hairline)] bg-[var(--color-surface-muted)] p-8 text-center text-sm text-[var(--color-ink-tertiary)]">
             {copy.empty}
           </div>
-        ) : (
+        ) : az ? (
           <MuniAZList provSlug={provSlug} munis={munis} />
+        ) : (
+          <ChipLinks items={chipItems} locale={locale} />
         )}
-        {/* De-paginated: totalPages is always 1, so this renders nothing. Kept
-            so a future re-pagination has one place to turn back on. */}
+        {/* v4 de-paginates (totalPages === 1, renders nothing); with the flag
+            off this is the shipped 200-per-page nav. */}
         <SeoPagination
           basePath={basePath}
           page={page}

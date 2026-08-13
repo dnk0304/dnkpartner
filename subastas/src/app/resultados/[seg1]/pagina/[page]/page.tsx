@@ -18,7 +18,7 @@
  */
 
 import type { Metadata } from 'next';
-import { notFound, redirect } from 'next/navigation';
+import { notFound, redirect, permanentRedirect } from 'next/navigation';
 import { getLocale } from 'next-intl/server';
 import type { Locale as AppLocale } from '@/i18n/routing';
 import { buildAlternates, ogLocale, SITE_ORIGIN } from '@/lib/seo/alternates';
@@ -27,6 +27,10 @@ import { resolveResultadosSeg, type ResultadosSeg } from '@/lib/registro/resulta
 import { getResultadosCopy, OUTCOME_META, type Locale } from '@/lib/registro/registro-ui';
 import { RegistryBreadcrumb, RegistryBackLink } from '@/components/registro/RegistryNav';
 import { ArchivePageBody, ARCHIVE_PAGE_SIZE, parseArchivePage } from '../../../_shared/archive-page';
+import { isUrlV4SwitchOn } from '@/lib/seo/url-v4-switch';
+import { archivePagePath } from '@/lib/seo/archive-partitions';
+import { legacyArchivePageTarget } from '@/lib/registro/archive-legacy-target';
+import { ArchiveNodeView, archiveNodeMetadata } from '../../../_shared/archive-node-view';
 
 type PageProps = { params: Promise<{ seg1: string; page: string }> };
 
@@ -50,6 +54,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const copy = getResultadosCopy(locale);
   const seg = resolveResultadosSeg(seg1);
   if (seg.kind === 'invalid' || seg.kind === 'redirect') return { title: copy.brandSuffix };
+
+  // v4: the province archive IS a ladder node, so its deep pages take the node's
+  // metadata (v4 page count, self-canonical, index,follow). See the body.
+  if (isUrlV4SwitchOn() && seg.kind === 'province') {
+    const n4 = parseArchivePage(page);
+    return archiveNodeMetadata([seg.slug], n4 ?? 1);
+  }
 
   const n = parseArchivePage(page);
   const nf = (x: number) => x.toLocaleString(locale === 'en' ? 'en-US' : 'es-ES');
@@ -87,6 +98,25 @@ export default async function ResultadosSegPaginaPage({ params }: PageProps) {
 
   const basePath = `/resultados/${seg.slug}`;
   if (n === 1) redirect(basePath);
+
+  // ---- v4 (P2) — province deep pages ------------------------------------
+  //
+  // The province hub is a v4 LADDER ROOT, so `/resultados/{prov}/pagina/{n}` is
+  // a URL both grammars own. Under v4 it therefore MEANS the node's page n and
+  // is served, not redirected — for n inside the 10-page cap. Past the cap the
+  // page has no v4 twin, and rather than 404 a URL Google already crawled we
+  // 301 it onto the PARTITION that now holds its rows (see
+  // `archive-legacy-target.ts` for why that is computable and not a guess).
+  //
+  // The national OUTCOME archive (`/resultados/adjudicadas/pagina/{n}`) is a
+  // hand-built hub outside the ladder and v4 does not move it — untouched here.
+  if (isUrlV4SwitchOn() && seg.kind === 'province') {
+    const node = { prov: seg.slug };
+    const target = await legacyArchivePageTarget(node, n);
+    // Identity means "this page survives v4" — never redirect a URL onto itself.
+    if (target !== archivePagePath(node, n)) permanentRedirect(target);
+    return <ArchiveNodeView segs={[seg.slug]} page={n} />;
+  }
 
   const read = readFor(seg, n);
   if (!read) notFound();

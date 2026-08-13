@@ -15,7 +15,10 @@
  */
 
 import type { Metadata } from 'next';
-import { notFound, redirect } from 'next/navigation';
+import { notFound, redirect, permanentRedirect } from 'next/navigation';
+import { isUrlV4SwitchOn } from '@/lib/seo/url-v4-switch';
+import { archivePagePath, type ArchiveNode } from '@/lib/seo/archive-partitions';
+import { legacyArchivePageTarget } from '@/lib/registro/archive-legacy-target';
 import { getLocale } from 'next-intl/server';
 import type { Locale as AppLocale } from '@/i18n/routing';
 import { buildAlternates, ogLocale, SITE_ORIGIN } from '@/lib/seo/alternates';
@@ -76,6 +79,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
   if (shape.kind === 'redirect') return { title: copy.brandSuffix };
 
+  // v4 (P2). The outcome×province page MOVES, so its metadata is never used —
+  // the body 301s. The town archive is a ladder node and keeps serving, so it
+  // takes the node's metadata (v4 page count, self-canonical, index,follow).
+  if (isUrlV4SwitchOn()) {
+    if (shape.kind === 'outcome-province') return { title: copy.brandSuffix };
+    const n4 = parseArchivePage(page);
+    return archiveNodeMetadata([shape.provSlug, shape.muniSlug], n4 ?? 1);
+  }
+
   const n = parseArchivePage(page);
   const nf = (x: number) => x.toLocaleString(locale === 'en' ? 'en-US' : 'es-ES');
   const read = n ? readFor(shape, n) : null;
@@ -125,6 +137,36 @@ export default async function ResultadosChildPaginaPage({ params }: PageProps) {
 
   const basePath = basePathFor(shape);
   if (n === 1) redirect(basePath);
+
+  // ---- v4 (P2) — the two-segment deep pages ------------------------------
+  //
+  // Two different jobs share this file, and they differ in whether the URL moves:
+  //
+  //  • outcome×province — the SEGMENTS REVERSE, so every one of these URLs is
+  //    retired and 301s. In range it lands on the same page number of the v4
+  //    facet; past the facet's 10-page cap it lands on the facet hub, which is
+  //    the nearest meaningful ancestor (an outcome facet is a filtered VIEW and
+  //    has no ladder to descend — see `isTerminalFacet`).
+  //  • province×municipio — the URL is IDENTICAL in both grammars, so it serves
+  //    as the v4 town node and only the past-the-cap pages redirect, onto the
+  //    partition holding their rows.
+  //
+  // Both emit exactly ONE hop: every target above is a v4 URL that answers 200,
+  // never another legacy shape this same file would rewrite again.
+  if (isUrlV4SwitchOn()) {
+    if (shape.kind === 'outcome-province') {
+      const facet: ArchiveNode = { prov: shape.provSlug, outcome: shape.outcomeSlug };
+      permanentRedirect(await legacyArchivePageTarget(facet, n));
+    }
+    const node: ArchiveNode = {
+      prov: shape.provSlug,
+      muni: shape.muniSlug,
+      muniDbName: shape.muniName,
+    };
+    const target = await legacyArchivePageTarget(node, n);
+    if (target !== archivePagePath(node, n)) permanentRedirect(target);
+    return <ArchiveNodeView segs={[shape.provSlug, shape.muniSlug]} page={n} />;
+  }
 
   const read = readFor(shape, n);
   if (!read) notFound();
