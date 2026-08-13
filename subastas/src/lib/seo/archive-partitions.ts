@@ -21,13 +21,16 @@
  * ---------------------------------------------------------------------------
  * THE LADDER
  *
- *     provincia  →  municipio  →  tipo  →  año
+ *     provincia  →  municipio  →  tipo  →  año  →  trimestre
+ *
+ * plus a LOCATION-FREE shelf for rows with no province at all:
+ *
+ *     tipo  →  año  →  trimestre        (`/resultados/{tipo}/{año}`)
  *
  * applied ONLY AS NEEDED, one rung at a time:
  *
- *   • Every list node paginates at ARCHIVE_PAGE_SIZE, hard-capped at
- *     ARCHIVE_MAX_PAGES (10). Capacity of a single node's pagination is
- *     therefore ARCHIVE_NODE_CAPACITY = 240 rows.
+ *   • Every list node paginates at `archivePageSizeFor(total)`, hard-capped at
+ *     ARCHIVE_MAX_PAGES (10).
  *   • A node whose row count exceeds that capacity still renders its 10 pages,
  *     but it ALSO emits the next ladder dimension as child partitions. The
  *     children — not the truncated pagination — are what make rows 241..N
@@ -57,19 +60,91 @@ import { TIPO_SLUGS, type TipoSlug } from '@/lib/seo/slugs';
  */
 export const ARCHIVE_MAX_PAGES = 10;
 
-/** Rows a single node can hold within its capped pagination. */
+/**
+ * Rows per page on a node that would otherwise overflow (Ken ruling, 2026-08-13).
+ *
+ * A node whose row count exceeds the 24-row capacity (240) switches to 48/page,
+ * lifting its capacity to 480 and clearing most of the ladder-exhausted leaves
+ * without adding a rung. The cap of 10 pages does NOT move — the whole point of
+ * this wave is to kill the 307-page tail, so the extra headroom has to come
+ * from page size, never from more pages.
+ *
+ * MEASURED, not assumed (2026-08-13, prod): `/resultados/madrid/parla/pagina/19`
+ * (24 rows) = 145,268 B vs `/pagina/20` (10 rows) = 107,866 B → 2,672 B/row.
+ * The heaviest archive template (page 1, which carries the intro + stat blocks)
+ * is 171,569 B at 24 rows, so at 48 rows it projects to ~235,700 B ≈ 230 KB —
+ * comfortably under the 443 KB worst case already shipping at
+ * `/subastas/madrid/madrid` (measured 453,758 B). Re-measure before raising it
+ * again; that headroom is the only thing justifying the switch.
+ */
+export const ARCHIVE_PAGE_SIZE_DENSE = 48;
+
+/** Rows a node can hold at the default page size. */
 export const ARCHIVE_NODE_CAPACITY = ARCHIVE_PAGE_SIZE * ARCHIVE_MAX_PAGES;
 
-/** Ladder rungs BELOW the province root, in the order Dennis confirmed. */
-export const ARCHIVE_LADDER = ['municipio', 'tipo', 'anio'] as const;
+/** Rows a node can hold once it switches to the dense page size. */
+export const ARCHIVE_NODE_CAPACITY_DENSE = ARCHIVE_PAGE_SIZE_DENSE * ARCHIVE_MAX_PAGES;
+
+/**
+ * Page size for a node, derived from its OWN row count so that the route, the
+ * sitemap and the link blocks all arrive at the same answer from the same
+ * input. Never store this — derive it, or the three drift.
+ */
+export function archivePageSizeFor(total: number): number {
+  return total > ARCHIVE_NODE_CAPACITY ? ARCHIVE_PAGE_SIZE_DENSE : ARCHIVE_PAGE_SIZE;
+}
+
+/** Rows a node can hold within its capped pagination, at its own page size. */
+export function archiveCapacityFor(total: number): number {
+  return archivePageSizeFor(total) * ARCHIVE_MAX_PAGES;
+}
+
+/**
+ * Ladder rungs BELOW the province root, in the order Dennis confirmed, with
+ * `trimestre` appended by Ken's 2026-08-13 ruling.
+ *
+ * `trimestre` is NOT a general rung: it is offered only to a node that already
+ * has a year (see `remainingDimensions`), because its whole job is to rescue
+ * the handful of fully-specified `(muni, tipo, año)` leaves that still overflow.
+ * Quarters, not months — twelve children would be mostly thin, which is the
+ * duplicate/thin-content failure this design exists to avoid.
+ */
+export const ARCHIVE_LADDER = ['municipio', 'tipo', 'anio', 'trimestre'] as const;
 export type ArchiveDimension = (typeof ARCHIVE_LADDER)[number];
+
+/**
+ * ⚠️ WHAT `anio` (and `trimestre`) ACTUALLY MEAN — read before using them.
+ *
+ * The year rung keys on `COALESCE(endsAt, publishedAt)`, NOT on `endsAt` alone
+ * (approved by Ken 2026-08-13). 17,848 registry rows have a NULL `endsAt`;
+ * `publishedAt` is non-null for 100% of them (measured, not assumed), so the
+ * coalesced year is the only basis that partitions the whole corpus. On
+ * `endsAt` alone those rows would fall into a "year 0" bucket — a literal `/0`
+ * URL segment — or into no partition at all.
+ *
+ * The consequence, which a future reader will otherwise get wrong: for those
+ * 17,848 rows `año` is the year the auction was PUBLISHED, not the year it
+ * ended. Do not label these pages "subastas que terminaron en {año}" and do not
+ * derive an end-date claim from the segment. It is "the year we can place this
+ * auction in", nothing stronger.
+ *
+ * It also means date-shaped rungs inherit `publishedAt`'s clumping: a bulk BOE
+ * import lands hundreds of rows on one publication day, which no date rung can
+ * split. See the ladder-exhaustion note in `scripts/archive-partition-report.ts`.
+ */
 
 /**
  * A node in the archive tree.
  *
- * `prov` is always present: the national root (`/resultados`) and the national
- * outcome pages (`/resultados/adjudicadas`) are hand-built hubs, not ladder
- * nodes, and are deliberately outside this planner.
+ * `prov` ABSENT means the LOCATION-FREE shelf (`/resultados/{tipo}/{año}`) — the
+ * home for rows whose province we do not know. Ken's 2026-08-13 ruling: never
+ * invent a province and never mint a `sin-provincia` hub, because a fabricated
+ * location baked into a permanent URL is worse than no page. These rows are
+ * placed by the attributes we actually have (tipo, año) and make no geo claim.
+ *
+ * The national root (`/resultados`) and the national outcome pages
+ * (`/resultados/adjudicadas`) are hand-built hubs, not ladder nodes, and are
+ * deliberately outside this planner.
  *
  * `outcome` is the REVERSED location-first outcome facet
  * (`/resultados/{prov}/{outcome}`, replacing `/resultados/{outcome}/{prov}`).
@@ -77,10 +152,12 @@ export type ArchiveDimension = (typeof ARCHIVE_LADDER)[number];
  * `isTerminalFacet` below.
  */
 export type ArchiveNode = {
-  readonly prov: string;
+  readonly prov?: string;
   readonly muni?: string;
   readonly tipo?: TipoSlug;
   readonly anio?: number;
+  /** 1..4. Only ever set on a node that already has `anio`. */
+  readonly trimestre?: number;
   readonly outcome?: string;
 };
 
@@ -135,13 +212,15 @@ export type ArchivePlan = {
  * exactly why the reserved-segment guard below has to exist.
  */
 export function archiveNodePath(node: ArchiveNode): string {
-  const parts = ['resultados', node.prov];
+  const parts = ['resultados'];
+  if (node.prov) parts.push(node.prov);
   if (node.outcome) {
     parts.push(node.outcome);
   } else {
     if (node.muni) parts.push(node.muni);
     if (node.tipo) parts.push(node.tipo);
     if (node.anio !== undefined) parts.push(String(node.anio));
+    if (node.trimestre !== undefined) parts.push(`t${node.trimestre}`);
   }
   return `/${parts.join('/')}`;
 }
@@ -150,6 +229,26 @@ export function archiveNodePath(node: ArchiveNode): string {
 export function archivePagePath(node: ArchiveNode, page: number): string {
   const base = archiveNodePath(node);
   return page <= 1 ? base : `${base}/pagina/${page}`;
+}
+
+/**
+ * EVERY page URL of a node, page 1 first. P1 MUST render this complete set on
+ * every page of a capped list — not prev/next, not a first+last+current±2
+ * window (Ken ruling, 2026-08-13: "mandatory ... without it the depth number is
+ * fiction").
+ *
+ * WHY IT IS THE PLANNER'S JOB. The depth guarantee is a property of the LINK
+ * GRAPH, not of the URL set: with a ±2 window, reaching the middle of a 10-page
+ * node costs 3 hops and the deepest detail page sits at depth 9. With the full
+ * fan it costs 1 and the same page sits at depth 7. Shipping a partial fan
+ * silently reverts the headline number of this entire wave, so the fan is
+ * exported from the same module that proves the ≤10 cap rather than left to a
+ * component to reimplement.
+ */
+export function archivePageLinks(node: ArchiveNode, pages: number): string[] {
+  const out: string[] = [];
+  for (let p = 1; p <= Math.max(pages, 1); p++) out.push(archivePagePath(node, p));
+  return out;
 }
 
 /** `/resultados/{prov}/municipios` — the A–Z index. Never paginated by this planner. */
@@ -177,9 +276,14 @@ function isTerminalFacet(node: ArchiveNode): boolean {
 export function remainingDimensions(node: ArchiveNode): ArchiveDimension[] {
   if (isTerminalFacet(node)) return [];
   const out: ArchiveDimension[] = [];
-  if (node.muni === undefined) out.push('municipio');
+  // The location-free shelf has no municipio rung — there is no province to
+  // hang towns off, and inventing one is exactly what the ruling forbids.
+  if (node.prov !== undefined && node.muni === undefined) out.push('municipio');
   if (node.tipo === undefined) out.push('tipo');
   if (node.anio === undefined) out.push('anio');
+  // Quarter is offered ONLY to a node that already has a year: it exists to
+  // rescue overflowing year leaves, not as a general-purpose rung.
+  else if (node.trimestre === undefined) out.push('trimestre');
   return out;
 }
 
@@ -191,13 +295,18 @@ function withChild(node: ArchiveNode, dim: ArchiveDimension, key: string): Archi
       return { ...node, tipo: key as TipoSlug };
     case 'anio':
       return { ...node, anio: Number.parseInt(key, 10) };
+    case 'trimestre':
+      return { ...node, trimestre: Number.parseInt(key, 10) };
   }
 }
 
-/** Pages a node renders: ceil(total / size), hard-capped. Proven ≤ 10 by construction. */
+/**
+ * Pages a node renders: ceil(total / its own page size), hard-capped.
+ * Proven ≤ ARCHIVE_MAX_PAGES by construction and asserted in the test.
+ */
 export function pageCountFor(total: number): number {
   if (total <= 0) return 0;
-  return Math.min(Math.ceil(total / ARCHIVE_PAGE_SIZE), ARCHIVE_MAX_PAGES);
+  return Math.min(Math.ceil(total / archivePageSizeFor(total)), ARCHIVE_MAX_PAGES);
 }
 
 /**
@@ -226,9 +335,9 @@ export function planArchiveNode(node: ArchiveNode, counts: ArchiveCountSource): 
 
   // Thin guard, first form: a 0-row node is never emitted and never splits.
   if (total === 0) return base;
-  // Fits inside the capped pagination — no split needed. This is what makes the
-  // ladder "as needed": most towns stop here at depth 3.
-  if (total <= ARCHIVE_NODE_CAPACITY) return base;
+  // Fits inside the capped pagination (at this node's own page size) — no split
+  // needed. This is what makes the ladder "as needed": most towns stop here.
+  if (total <= archiveCapacityFor(total)) return base;
 
   const skipped: ArchiveDimension[] = [];
   for (const dim of remainingDimensions(node)) {
@@ -250,7 +359,7 @@ export function planArchiveNode(node: ArchiveNode, counts: ArchiveCountSource): 
   }
 
   // Ladder exhausted (or terminal facet) and still overflowing.
-  const overflow = total - ARCHIVE_NODE_CAPACITY;
+  const overflow = total - archiveCapacityFor(total);
   return {
     ...base,
     skippedDimensions: skipped,
@@ -268,23 +377,33 @@ export function planArchiveNode(node: ArchiveNode, counts: ArchiveCountSource): 
 export function planArchiveTree(
   provinces: readonly string[],
   counts: ArchiveCountSource,
-  opts: { readonly outcomeSlugs?: readonly string[] } = {},
+  opts: {
+    readonly outcomeSlugs?: readonly string[];
+    /** Roots of the location-free shelf — the tipo slugs present among province-less rows. */
+    readonly locationFreeTipos?: readonly TipoSlug[];
+  } = {},
 ): ArchivePlan[] {
   const out: ArchivePlan[] = [];
-  const queue: ArchiveNode[] = provinces.map((prov) => ({ prov }));
+  const queue: ArchiveNode[] = [
+    ...provinces.map((prov) => ({ prov })),
+    ...(opts.locationFreeTipos ?? []).map((tipo) => ({ tipo })),
+  ];
 
   while (queue.length > 0) {
     const node = queue.shift() as ArchiveNode;
-    if (remainingDimensions(node).length === 0 && !isTerminalFacet(node) && node.anio === undefined) {
-      throw new Error(`[archive-partitions] impossible node shape: ${archiveNodePath(node)}`);
-    }
     const plan = planArchiveNode(node, counts);
     if (plan.total === 0) continue; // never emit an empty URL
     out.push(plan);
     for (const child of plan.children) queue.push(child);
 
     // Province-level outcome facets, planned once per province root.
-    if (!isTerminalFacet(node) && node.muni === undefined && node.tipo === undefined && node.anio === undefined) {
+    if (
+      !isTerminalFacet(node) &&
+      node.prov !== undefined &&
+      node.muni === undefined &&
+      node.tipo === undefined &&
+      node.anio === undefined
+    ) {
       for (const outcome of opts.outcomeSlugs ?? []) {
         const facet: ArchiveNode = { prov: node.prov, outcome };
         const fp = planArchiveNode(facet, counts);
@@ -320,6 +439,31 @@ export function archiveUrlsFromPlans(plans: readonly ArchivePlan[]): string[] {
  * slug is a facet" cannot disagree.
  */
 const YEAR_RE = /^\d{4}$/;
+const QUARTER_RE = /^t[1-4]$/;
+
+/**
+ * Non-province meanings of the seg1 slot under `/resultados`.
+ *
+ * seg1 was outcome|province; the location-free shelf adds tipo. All three sets
+ * must stay disjoint or `resolveResultadosSeg` becomes ambiguous — the test
+ * proves no tipo slug equals a province slug or an outcome slug.
+ */
+export const RESERVED_UNDER_RESULTADOS_ROOT: readonly string[] = [
+  'pagina',
+  'adjudicadas',
+  'desiertas',
+  'canceladas',
+  'finalizadas-sin-resultado',
+  ...TIPO_SLUGS,
+  'aeat',
+  'tributaria',
+  'administrativa',
+];
+
+/** True when `seg` cannot be used as a province slug at the root. */
+export function isReservedResultadosRootSegment(seg: string): boolean {
+  return RESERVED_UNDER_RESULTADOS_ROOT.includes(seg);
+}
 
 /** Non-town meanings of the seg2 slot under `/resultados/{prov}`. */
 export const RESERVED_UNDER_RESULTADOS_PROVINCE: readonly string[] = [
@@ -341,7 +485,11 @@ export const RESERVED_UNDER_RESULTADOS_TOWN: readonly string[] = ['pagina'];
 
 /** True when `seg` cannot be used as a municipality slug under a province. */
 export function isReservedResultadosSegment(seg: string): boolean {
-  return RESERVED_UNDER_RESULTADOS_PROVINCE.includes(seg) || YEAR_RE.test(seg);
+  return (
+    RESERVED_UNDER_RESULTADOS_PROVINCE.includes(seg) ||
+    YEAR_RE.test(seg) ||
+    QUARTER_RE.test(seg)
+  );
 }
 
 /**
