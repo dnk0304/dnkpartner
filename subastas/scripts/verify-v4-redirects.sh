@@ -23,17 +23,15 @@
 # serve 200, so the two lists can be diffed row for row. That comparison is only
 # possible in this window, which is exactly why it lives here.
 #
-# USAGE — run the whole thing twice, once per switch state:
-#   createdb subastas_v4_p2_forge && npx prisma db push
-#   npx tsx scripts/forge-v4-p2-fixture.ts
-#   npx next build --webpack
-#   PORT=3988 npx next start -p 3988                 # URL_V4_SWITCH unset
-#   B=http://localhost:3988 MODE=dark bash scripts/verify-v4-redirects.sh
-#   URL_V4_SWITCH=1 PORT=3988 npx next start -p 3988
-#   B=http://localhost:3988 MODE=lit  bash scripts/verify-v4-redirects.sh
+# ⚠️ DO NOT RUN THIS BY HAND — run `bash scripts/verify-v4-suite.sh`, which seeds
+# `scripts/forge-v4-fixture.ts` (the ONE committed v4 fixture), builds, and runs
+# this in both switch states with a fresh server per state. Running it against
+# whatever is in your dev DB is how P1's evidence became unreproducible.
 #
-# ⚠️ The switch is read at CALL time but `next start` caches route output, so use
-# a fresh process per state rather than trusting an env change under a warm one.
+# ⚠️ The switch is read at CALL time but `next start` caches route output, so a
+# fresh process per state is required — never an env change under a warm one.
+# MODE=dark must run BEFORE MODE=lit: dark writes the status baseline that lit's
+# zero-404 gate replays.
 
 set -u
 B="${B:-http://localhost:3988}"
@@ -61,9 +59,9 @@ rows(){ body "$1" | grep -o 'href="/subastas/subasta/[^"]*"'; }
 # THE TABLE — every archive URL shape this wave retires or preserves.
 #
 # `pagina/11`+ on madrid and `pagina/20` on madrid/madrid are the overflow
-# cases: the fixture's province holds 755 rows and its biggest town 700, so both
-# exceed the 10-page cap and both ladder, which is the only way the partition
-# descent is actually executed rather than merely compiled.
+# cases: the fixture's province holds 1,755 rows and its biggest town 1,700, so
+# both exceed the 10-page cap and both ladder, which is the only way the
+# partition descent is actually executed rather than merely compiled.
 # ---------------------------------------------------------------------------
 URLS="
 /resultados/canceladas/madrid
