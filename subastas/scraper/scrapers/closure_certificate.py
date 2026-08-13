@@ -168,8 +168,16 @@ def fetch_closure_event(boe_id: str, session=None, timeout: int = 40) -> Optiona
         },
         timeout=timeout,
     )
-    if resp.status_code != 200:
+    if resp.status_code in (404, 410):
+        # Genuine absence: this auction has no closure certificate.
         return None
+    if resp.status_code != 200:
+        # Throttling (429) or a portal wobble (5xx) must NOT be recorded as
+        # "no certificate" — that would silently leave the row NULL forever.
+        # Raise so the caller retries instead of deciding.
+        raise RuntimeError(
+            f"closure certificate for {boe_id}: HTTP {resp.status_code}"
+        )
     if "pdf" not in (resp.headers.get("Content-Type") or "").lower():
         return None
     return parse_closure_event(pdf_to_text(resp.content))
