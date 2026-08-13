@@ -9,6 +9,7 @@ import { Fragment } from 'react';
 import Link from 'next/link';
 import { capitalizeLocation } from '@/lib/utils';
 import { PROVINCE_DB_KEY_TO_SLUG } from '@/lib/seo/slugs';
+import { resolveArchivePath } from '@/lib/seo/archive-path';
 import {
   OUTCOME_META,
   OUTCOME_VIZ,
@@ -116,7 +117,15 @@ export function ProvinceResultGrid({
         return (
           <li key={r.province}>
             <Link
-              href={scoped ? `/resultados/${outcomeSlug}/${slug}` : `/resultados/${slug}`}
+              // v4 REVERSES this facet to /resultados/{prov}/{outcome}. Built
+              // here as a template literal it would be a second copy of the
+              // switch, permanently stuck OFF — the exact defect D7 found four
+              // times on the detail side. One helper, correct in both states.
+              href={
+                scoped && outcomeSlug
+                  ? resolveArchivePath({ prov: slug, outcome: outcomeSlug })
+                  : resolveArchivePath({ prov: slug })
+              }
               className="flex items-center justify-between gap-3 rounded-[var(--radius-lg)] border border-[var(--color-hairline)] bg-[var(--color-surface)] p-3.5 transition-colors hover:bg-[var(--color-surface-muted)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-action)]"
             >
               <span className="min-w-0">
@@ -181,8 +190,12 @@ export function OutcomeChips({
     <ul className="flex flex-wrap gap-2">
       {REGISTRY_OUTCOME_ORDER.map((o) => {
         if (counts[o] <= 0) return null;
+        // Province-scoped: the reversible v4 facet, via the helper. Unscoped:
+        // the NATIONAL outcome hub, a hand-built page outside the ladder whose
+        // URL v4 does not move — so it stays a literal rather than pretending
+        // to be a node the planner knows about.
         const href = provinceSlug
-          ? `/resultados/${OUTCOME_TO_SLUG[o]}/${provinceSlug}`
+          ? resolveArchivePath({ prov: provinceSlug, outcome: OUTCOME_TO_SLUG[o] })
           : `/resultados/${OUTCOME_TO_SLUG[o]}`;
         const label = locale === 'en' ? OUTCOME_META[o].en : OUTCOME_META[o].es;
         return (

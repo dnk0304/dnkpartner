@@ -55,6 +55,7 @@ export function ArchivePageBody({
   locale,
   copy,
   heading,
+  pageHrefs,
 }: {
   items: RegistroListItem[];
   page: number;
@@ -64,6 +65,12 @@ export function ArchivePageBody({
   locale: Locale;
   copy: ResultadosCopy;
   heading: string;
+  /**
+   * Full page fan for a v4 archive node (see `SeoPagination.pageHrefs`).
+   * Omitted on the legacy hubs, which keep the windowed pagination they ship
+   * with today — the fan is only safe under the v4 10-page cap.
+   */
+  pageHrefs?: readonly string[];
 }) {
   return (
     <section aria-label={heading}>
@@ -86,6 +93,7 @@ export function ArchivePageBody({
         ariaLabel={copy.pagLabel}
         prevLabel={copy.pagPrev}
         nextLabel={copy.pagNext}
+        pageHrefs={pageHrefs}
       />
     </section>
   );

@@ -18,7 +18,7 @@ import Link from 'next/link';
 import { getLocale } from 'next-intl/server';
 import type { Locale as AppLocale } from '@/i18n/routing';
 import { buildAlternates, ogLocale, SITE_ORIGIN } from '@/lib/seo/alternates';
-import { PROVINCE_DB_KEY_TO_SLUG } from '@/lib/seo/slugs';
+import { PROVINCE_DB_KEY_TO_SLUG, TIPO_LABEL_PLURAL } from '@/lib/seo/slugs';
 import { capitalizeLocation } from '@/lib/utils';
 import { readSummary, readList } from '@/lib/registro/registro-read';
 import {
@@ -31,7 +31,9 @@ import {
 import { StatTiles } from '@/components/registro/StatTiles';
 import { RegistroCharts } from '@/components/registro/RegistroCharts';
 import { RegistryArchiveClient } from '@/components/registro/RegistryArchiveClient';
-import { ProvinceResultGrid, OutcomeChips } from '@/components/registro/RegistryNav';
+import { ProvinceResultGrid, OutcomeChips, ChipLinks } from '@/components/registro/RegistryNav';
+import { readShelfRoots } from '@/lib/registro/archive-node-read';
+import { archiveNodePath } from '@/lib/seo/archive-partitions';
 
 const PATH = '/resultados';
 
@@ -53,7 +55,11 @@ export default async function ResultadosPage() {
   const locale: Locale = ((await getLocale()) as AppLocale) === 'en' ? 'en' : 'es';
   const copy = getResultadosCopy(locale);
 
-  const [summary, list] = await Promise.all([readSummary({}), readList({ page: 1, pageSize: 24 })]);
+  const [summary, list, shelfRoots] = await Promise.all([
+    readSummary({}),
+    readList({ page: 1, pageSize: 24 }),
+    readShelfRoots(),
+  ]);
 
   const nfmt = summary.headline.registryTotal.toLocaleString(locale === 'en' ? 'en-US' : 'es-ES');
 
@@ -143,6 +149,39 @@ export default async function ResultadosPage() {
         </h2>
         <ProvinceResultGrid regions={summary.regions} locale={locale} concludedNoun={copy.concludedNoun} />
       </section>
+
+      {/*
+        ⛔ RELEASE GATE (Ken, 2026-08-13) — the LOCATION-FREE SHELF ROOTS.
+
+        The province grid above is keyed on province, so it cannot reach a single
+        row whose province we do not know. Those rows (949 measured on prod) live
+        on `/resultados/{tipo}`, and that shelf hangs off `/resultados` and
+        NOWHERE else — it has no other parent in the tree. Without these anchors
+        every shelf node is a link orphan, which orphans precisely the rows the
+        shelf was built for. That is why this block is a release gate and not a
+        nicety, and why it is rendered from `readShelfRoots()` rather than a
+        hardcoded list: the set is data-dependent (bounded by the 5 tipo slugs),
+        so a hardcoded list would silently stop covering a tipo the corpus gains.
+
+        ⚠️ These are unconditional, not switch-gated. A shelf root is a NEW URL
+        with no legacy twin, so linking it cannot change any existing behaviour —
+        and leaving it dark would ship the orphan this gate exists to prevent.
+      */}
+      {shelfRoots.length > 0 ? (
+        <section aria-labelledby="byshelf-h" className="mb-8">
+          <h2 id="byshelf-h" className="mb-4 text-lg font-semibold text-[var(--color-ink-primary)]">
+            {copy.archiveHeading}
+          </h2>
+          <ChipLinks
+            items={shelfRoots.map((s) => ({
+              href: archiveNodePath({ tipo: s.tipo }),
+              label: capitalizeLocation(TIPO_LABEL_PLURAL[s.tipo]),
+              count: s.total,
+            }))}
+            locale={locale}
+          />
+        </section>
+      ) : null}
 
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }} />

@@ -23,7 +23,10 @@ import {
   archiveUrlsFromPlans,
   isReservedResultadosRootSegment,
   isReservedResultadosSegment,
+  ARCHIVE_PAGE_SIZE_MAX,
+  archivePageSizeForNode,
   pageCountFor,
+  pageCountForNode,
   planArchiveNode,
   planArchiveTree,
   remainingDimensions,
@@ -294,6 +297,75 @@ check('escape mirrors the slug-v2 prefix precedent',
     plans.some((p) => p.node.muni === 'big' && p.splitDimension !== null));
   check('province outcome facet is emitted once',
     plans.filter((p) => p.node.outcome === 'adjudicadas').length === 1);
+}
+
+// ---------------------------------------------------------------------------
+// 5. ADAPTIVE PAGE SIZE at ladder-exhausted leaves (Ken addendum, 2026-08-13)
+//
+// This is the mechanism that took unreachable rows from 370 to 0 without a 6th
+// rung, and it is one wrong predicate away from deleting the entire ladder — a
+// page size derived from the row count ALONE would hand a 30,000-row province a
+// 3,000-row page. So the tests below pin both halves: it must grow on a
+// structurally terminal leaf, and it must NOT grow anywhere a rung remains.
+// ---------------------------------------------------------------------------
+{
+  const MADRID_T1 = { prov: 'madrid', muni: 'madrid', tipo: 'judicial' as const, anio: 2026, trimestre: 1 };
+  const BCN_T1 = { prov: 'barcelona', muni: 'barcelona', tipo: 'judicial' as const, anio: 2026, trimestre: 1 };
+
+  check('terminal leaf has no rungs left', remainingDimensions(MADRID_T1).length === 0);
+
+  // The two real prod nodes P0 measured.
+  check('madrid 2026/t1 (840 rows) pages at 84', archivePageSizeForNode(MADRID_T1, 840) === 84);
+  check('madrid 2026/t1 clears inside the cap', pageCountForNode(MADRID_T1, 840) === 10);
+  check('barcelona 2026/t1 (490 rows) pages at 49', archivePageSizeForNode(BCN_T1, 490) === 49);
+  check('barcelona 2026/t1 clears inside the cap', pageCountForNode(BCN_T1, 490) === 10);
+
+  // A terminal leaf that already fits keeps the ordinary size — the adaptive
+  // branch is for overflow only, not a blanket "leaves get big pages".
+  check('small terminal leaf keeps page size 24', archivePageSizeForNode(MADRID_T1, 100) === ARCHIVE_PAGE_SIZE);
+  check('mid terminal leaf keeps dense 48',
+    archivePageSizeForNode(MADRID_T1, ARCHIVE_NODE_CAPACITY + 1) === ARCHIVE_PAGE_SIZE_DENSE);
+
+  // ⛔ The load-bearing negative: a node with rungs left NEVER grows, however
+  // huge. If this ever passes at anything but the dense size, the ladder is dead
+  // and every overflowing province silently became one enormous page.
+  check('province with rungs left does NOT get a big page',
+    archivePageSizeForNode({ prov: 'madrid' }, 30_000) === ARCHIVE_PAGE_SIZE_DENSE);
+  check('town with rungs left does NOT get a big page',
+    archivePageSizeForNode({ prov: 'madrid', muni: 'madrid' }, 30_000) === ARCHIVE_PAGE_SIZE_DENSE);
+
+  // The ceiling is real: past it the node is reported capped, never absorbed.
+  const huge = planArchiveNode(MADRID_T1, { total: () => 2000, children: () => [] });
+  check('past the ceiling the page size stops at ARCHIVE_PAGE_SIZE_MAX',
+    huge.pageSize === ARCHIVE_PAGE_SIZE_MAX);
+  check('past the ceiling the node is reported capped', huge.capped === true);
+  check('past the ceiling unreachable rows are reported, not hidden',
+    huge.unreachableRows === 2000 - ARCHIVE_PAGE_SIZE_MAX * ARCHIVE_MAX_PAGES);
+
+  // ⛔ An outcome facet has no rungs left either, but must NOT grow: its rows are
+  // already covered by the location ladder, so a bigger page buys no reach and
+  // costs bytes. Caught by measuring the fixture, not by reading the code.
+  check('outcome facet does NOT get the adaptive page size',
+    archivePageSizeForNode({ prov: 'madrid', outcome: 'canceladas' }, 1550) === ARCHIVE_PAGE_SIZE_DENSE);
+  const facet = planArchiveNode({ prov: 'madrid', outcome: 'canceladas' },
+    { total: () => 1550, children: () => [] });
+  check('outcome facet still caps at 10 pages', facet.pages === ARCHIVE_MAX_PAGES);
+  check('outcome facet overflow is NOT counted as unreachable',
+    facet.unreachableRows === 0 && facet.capped === false);
+
+  // The exhausted leaf now reports ZERO unreachable rows — the P0 gate.
+  const cleared = planArchiveNode(MADRID_T1, { total: () => 840, children: () => [] });
+  check('the exhausted leaf reports 0 unreachable rows', cleared.unreachableRows === 0);
+  check('the exhausted leaf is no longer capped', cleared.capped === false);
+  check('plan.pageSize agrees with archivePageSizeForNode',
+    cleared.pageSize === archivePageSizeForNode(MADRID_T1, 840));
+
+  // The fan must cover every page of the grown node, or the depth claim is void.
+  check('page fan covers all 10 pages of the grown leaf',
+    archivePageLinks(MADRID_T1, cleared.pages).length === 10);
+  check('page fan ends at /pagina/10',
+    archivePageLinks(MADRID_T1, cleared.pages)[9] ===
+      '/resultados/madrid/madrid/judicial/2026/t1/pagina/10');
 }
 
 if (failures > 0) {

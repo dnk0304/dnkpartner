@@ -38,6 +38,7 @@ import {
   RegistryBreadcrumb,
   RegistryBackLink,
 } from '@/components/registro/RegistryNav';
+import { ArchiveNodeView, archiveNodeMetadata } from '../../_shared/archive-node-view';
 
 type PageProps = { params: Promise<{ seg1: string; seg2: string }> };
 
@@ -51,7 +52,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const locale = toLocale((await getLocale()) as AppLocale);
   const copy = getResultadosCopy(locale);
   const nf = (n: number) => n.toLocaleString(locale === 'en' ? 'en-US' : 'es-ES');
-  if (shape.kind === 'notfound' || shape.kind === 'redirect') return { title: copy.brandSuffix };
+  if (shape.kind === 'notfound') return archiveNodeMetadata([seg1, seg2]);
+  if (shape.kind === 'redirect') return { title: copy.brandSuffix };
 
   if (shape.kind === 'outcome-province') {
     const summary = await readSummary({ province: shape.provDbKey });
@@ -81,7 +83,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function ResultadosChildPage({ params }: PageProps) {
   const { seg1, seg2 } = await params;
   const shape = await resolveResultadosChild(seg1, seg2);
-  if (shape.kind === 'notfound') notFound();
+  // v4 fallback. The shipped resolver owns every 2-segment shape that serves a
+  // 200 TODAY (outcome×province, province×town) and those are untouched; the
+  // only URLs that reach here are ones that currently 404 — `{prov}/{tipo}`,
+  // `{prov}/{outcome}` (the reversed facet) and the location-free shelf's
+  // `{tipo}/{año}`. So this widens nothing a user or Googlebot can observe as a
+  // change of behaviour, which is exactly the bar Ken set for the dark switch.
+  if (shape.kind === 'notfound') return <ArchiveNodeView segs={[seg1, seg2]} />;
   if (shape.kind === 'redirect') redirect(shape.to);
 
   const locale = toLocale((await getLocale()) as AppLocale);
