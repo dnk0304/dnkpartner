@@ -86,7 +86,13 @@ function crumbsFor(node: ArchiveNode, provLabel?: string, muniLabel?: string) {
   }
   if (node.tipo) {
     Object.assign(acc, { tipo: node.tipo });
-    trail.push({ label: TIPO_LABEL_PLURAL[node.tipo], href: archiveNodePath({ ...acc }) });
+    // `TIPO_LABEL_PLURAL` is lowercase because its other caller drops it into
+    // mid-sentence ("Subastas judiciales en Madrid"). A crumb is a standalone
+    // label, so it takes a capital — "Madrid › judiciales › 2025" reads like a
+    // typo. Capitalised HERE rather than in the shared table, which the H1 and
+    // the <title> also read.
+    const t = TIPO_LABEL_PLURAL[node.tipo];
+    trail.push({ label: t.charAt(0).toUpperCase() + t.slice(1), href: archiveNodePath({ ...acc }) });
   }
   if (node.anio !== undefined) {
     Object.assign(acc, { anio: node.anio });
