@@ -213,12 +213,17 @@ export default async function ResultadosChildPage({ params }: PageProps) {
         prov: shape.provSlug,
         muni: shape.muniSlug,
         muniDbName: shape.muniName,
+        // The INE official name is a DISPLAY name and need not equal any stored
+        // `Auction.municipality`; the raw spellings are what the `where` clause
+        // must match. Omitting these silently selects zero rows.
+        muniDbNames: shape.muniDbNames,
       })
     : null;
   const hubPageSize = v4?.plan.pageSize ?? ARCHIVE_PAGE_SIZE;
   const [{ regions }, list] = await Promise.all([
     readRegions({ province: shape.provDbKey }),
-    readList({ province: shape.provDbKey, municipio: shape.muniName, page: 1, pageSize: hubPageSize }),
+    // MUNI-A: query by the raw corpus spellings, display by the INE name.
+    readList({ province: shape.provDbKey, municipio: shape.muniDbNames, page: 1, pageSize: hubPageSize }),
   ]);
   const hubTotalPages = v4 ? v4.plan.pages : list.totalPages;
   const hubPageHrefs = v4

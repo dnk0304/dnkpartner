@@ -10,6 +10,11 @@ import { unstable_cache } from 'next/cache';
 import { AuctionStatus, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { fetchV3UrlsBatch, resolveAuctionPath } from '@/lib/seo/auction-url';
+// ⭐ Ken's MUNI-A ruling: the INE gazetteer is the ONLY source of towns — no
+// municipality enumeration may derive its list from raw corpus rows. Rationale
+// lives in `@/lib/registro/archive-municipality`.
+import { foldArchiveMunicipalities, resolveArchiveMunicipality } from '@/lib/registro/archive-municipality';
+import { safeMunicipioSegment } from '@/lib/seo/archive-partitions';
 // The canonical status predicates. `buildActiveFirstCaseSql` (used by
 // /api/auctions) builds its ORDER BY CASE from these SAME two functions, which
 // is what keeps the hub's SSR order and the client list's order from drifting.
@@ -62,8 +67,12 @@ type CountInput = {
   province?: string | null;
   auctionTypeKeys?: string[] | null;
   category?: string | null;
-  /** Wave 56 — exact-DB-name municipality scope, paired with province. */
-  municipality?: string | null;
+  /**
+   * Wave 56 — exact-DB-name municipality scope, paired with province.
+   * MUNI-A: accepts an ARRAY of raw DB spellings (`municipalityDbNamesForSlug`)
+   * because one INE town can be stored under several corpus spellings.
+   */
+  municipality?: string | string[] | null;
 };
 
 /**
@@ -238,7 +247,10 @@ function scopedWhere({ province, auctionTypeKeys, category, municipality }: Coun
   if (province) where.province = province;
   if (auctionTypeKeys && auctionTypeKeys.length > 0) where.auctionType = { in: auctionTypeKeys };
   if (category) where.category = category;
-  if (municipality) where.municipality = municipality;
+  if (municipality) {
+    // MUNI-A: an array is the set of raw spellings that fold onto one INE town.
+    where.municipality = Array.isArray(municipality) ? { in: municipality } : municipality;
+  }
   return where;
 }
 
@@ -350,7 +362,10 @@ async function _minStartingPrice({ province, auctionTypeKeys, category, municipa
   if (province) where.province = province;
   if (auctionTypeKeys && auctionTypeKeys.length > 0) where.auctionType = { in: auctionTypeKeys };
   if (category) where.category = category;
-  if (municipality) where.municipality = municipality;
+  if (municipality) {
+    // MUNI-A: an array is the set of raw spellings that fold onto one INE town.
+    where.municipality = Array.isArray(municipality) ? { in: municipality } : municipality;
+  }
   const row = await prisma.auction.aggregate({
     where,
     _min: { minimumBid: true, currentBid: true },
@@ -406,29 +421,24 @@ async function _municipalitiesInProvince(
   //      name (mirrors `municipalitySlugToDbName`'s resolution so the link
   //      cluster and the town-page resolver agree on the same canonical
   //      DB name).
-  type Acc = { name: string; topCount: number; activeTotal: number; municipioSlug: string };
-  const bySlug = new Map<string, Acc>();
+  // ⛔ GAZETTEER-GATED (Ken's MUNI-A ruling) — see `@/lib/registro/archive-municipality`.
+  // This cluster mints links at `/subastas/{prov}/{muni}`, and those pages now
+  // resolve through the same gate, so an ungated chip here would link straight
+  // at a 404. Names are canonicalised to the INE denomination and every spelling
+  // of one town folds onto one chip; unresolved names produce no chip at all.
+  type Acc = { name: string; activeTotal: number; municipioSlug: string };
+  const byIne = new Map<string, Acc>();
   for (const r of allRows) {
     const name = (r.municipality ?? '').trim();
     if (!name) continue;
-    const lc = name.toLowerCase();
-    if (lc === 'null' || lc === 'undefined' || lc === 'desconocida') continue;
-    const municipioSlug = slugify(name);
-    if (!municipioSlug) continue;
-    const count = r._count?._all ?? 0;
+    const town = resolveArchiveMunicipality(province, name);
+    if (!town) continue;
     const active = activeByName.get(name) ?? 0;
-    const prev = bySlug.get(municipioSlug);
-    if (!prev) {
-      bySlug.set(municipioSlug, { name, topCount: count, activeTotal: active, municipioSlug });
-    } else {
-      prev.activeTotal += active;
-      if (count > prev.topCount) {
-        prev.name = name;
-        prev.topCount = count;
-      }
-    }
+    const prev = byIne.get(town.ine);
+    if (prev) prev.activeTotal += active;
+    else byIne.set(town.ine, { name: town.name, activeTotal: active, municipioSlug: town.slug });
   }
-  return Array.from(bySlug.values())
+  return Array.from(byIne.values())
     .map((a) => ({ name: a.name, count: a.activeTotal, municipioSlug: a.municipioSlug }))
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'es'));
 }
@@ -464,21 +474,25 @@ export async function provincesWithInventory(): Promise<Set<string>> {
 // universe is small.
 // ---------------------------------------------------------------------------
 
+/**
+ * The province's real towns — MUNI-A: gated by the INE register through the
+ * archive's ONE resolution point (see `@/lib/registro/archive-municipality`),
+ * never `DISTINCT(municipality)` over the raw corpus. `name` is the register's
+ * official denomination; `dbNames` are the raw spellings to query with.
+ */
 async function _distinctMunicipalitiesInProvince(
   provinceDbKey: string,
-): Promise<Array<{ name: string; count: number }>> {
+): Promise<Array<{ name: string; slug: string; count: number; dbNames: string[] }>> {
   const rows = await prisma.auction.groupBy({
     by: ['municipality'],
     where: { province: provinceDbKey },
     _count: { _all: true },
   });
-  return rows
-    .map((r) => ({ name: (r.municipality ?? '').trim(), count: r._count?._all ?? 0 }))
-    .filter((r) => {
-      if (!r.name) return false;
-      const lc = r.name.toLowerCase();
-      return lc !== 'null' && lc !== 'undefined' && lc !== 'desconocida';
-    });
+  const { resolved } = foldArchiveMunicipalities(
+    provinceDbKey,
+    rows.map((r) => ({ name: r.municipality, total: r._count?._all ?? 0 })),
+  );
+  return resolved.map((m) => ({ name: m.name, slug: m.slug, count: m.total, dbNames: m.dbNames }));
 }
 
 const distinctMunicipalitiesInProvince = unstable_cache(
@@ -491,10 +505,13 @@ const distinctMunicipalitiesInProvince = unstable_cache(
 );
 
 /**
- * Resolve a municipality slug to its canonical DB name within a given
- * province. Returns null when no municipality (any status) in that province
- * matches. Collision-safe: if two casings fold to the same slug the
- * highest-count variant wins.
+ * Resolve a municipality slug to its canonical town name within a province.
+ * Returns null when the slug is not a real (INE-registered) town of that
+ * province with ≥1 auction of any status.
+ *
+ * ⚠️ MUNI-A: the returned name is the INE OFFICIAL denomination — a DISPLAY
+ * name. It may match no stored `Auction.municipality` value, so it must NOT be
+ * used in a `where` clause; use `municipalityDbNamesForSlug` for that.
  */
 export async function municipalitySlugToDbName(
   provinceDbKey: string,
@@ -502,20 +519,64 @@ export async function municipalitySlugToDbName(
 ): Promise<string | null> {
   if (!provinceDbKey || !municipalitySlug) return null;
   const rows = await distinctMunicipalitiesInProvince(provinceDbKey);
-  let best: { name: string; count: number } | null = null;
-  for (const row of rows) {
-    if (slugify(row.name) === municipalitySlug) {
-      if (!best || row.count > best.count) best = row;
-    }
-  }
-  return best ? best.name : null;
+  return rows.find((r) => r.slug === municipalitySlug)?.name ?? null;
 }
 
 /**
+ * The raw DB spellings behind a town slug — what a `where` clause must use
+ * (`municipality: { in: … }`). Empty when the slug is not a real town.
+ */
+export async function municipalityDbNamesForSlug(
+  provinceDbKey: string,
+  municipalitySlug: string,
+): Promise<string[]> {
+  if (!provinceDbKey || !municipalitySlug) return [];
+  const rows = await distinctMunicipalitiesInProvince(provinceDbKey);
+  return rows.find((r) => r.slug === municipalitySlug)?.dbNames ?? [];
+}
+
+/**
+ * Did this town slug EVER name a page — i.e. does some raw `Auction.municipality`
+ * in this province slugify to it?
+ *
+ * Deliberately UNGATED by the gazetteer, and that is the whole point. It answers
+ * a historical question ("was this URL live before MUNI-A?"), not a canonical
+ * one ("is this a real municipality?"). The redirect layer needs both: a slug
+ * the corpus produced is a retired page and must 301, while a slug nobody ever
+ * minted — a typo in someone's address bar, a probe — must still 404. Without
+ * this distinction the resolver 301s literally every unrecognised segment to the
+ * province, which turns bogus URLs into soft-200s and destroys the 404 signal.
+ */
+async function _legacyMunicipalitySlugExists(
+  provinceDbKey: string,
+  municipalitySlug: string,
+): Promise<boolean> {
+  if (!provinceDbKey || !municipalitySlug) return false;
+  const rows = await prisma.auction.groupBy({
+    by: ['municipality'],
+    where: { province: provinceDbKey },
+    _count: { _all: true },
+  });
+  for (const r of rows) {
+    const name = (r.municipality ?? '').trim();
+    if (!name) continue;
+    const s = slugify(name);
+    if (s && safeMunicipioSegment(s) === municipalitySlug) return true;
+  }
+  return false;
+}
+
+export const legacyMunicipalitySlugExists = unstable_cache(
+  _legacyMunicipalitySlugExists,
+  ['seo-legacy-muni-slug-exists'],
+  { revalidate: 300, tags: ['seo-counts'] },
+);
+
+/**
  * Shared fold for the (provinceSlug, municipioSlug) pair helpers below.
- * Folds casing collisions to a single canonical slug per pair (highest-count
- * variant wins) and skips any province not in `PROVINCE_DB_KEY_TO_SLUG`
- * (off-taxonomy junk) plus junk municipality names.
+ * MUNI-A: grouped by province and routed through the archive's one resolution
+ * point, so only INE-registered towns of that province mint a pair — this feeds
+ * the sitemap. Off-taxonomy provinces are still skipped.
  */
 async function _municipalityPairs(where: Prisma.AuctionWhereInput): Promise<
   Array<{ provinceSlug: string; municipioSlug: string; count: number; municipalityName: string }>
@@ -525,29 +586,38 @@ async function _municipalityPairs(where: Prisma.AuctionWhereInput): Promise<
     where,
     _count: { _all: true },
   });
-  // Fold (provinceSlug, municipioSlug) collisions to highest-count variant.
-  const best = new Map<
-    string,
-    { provinceSlug: string; municipioSlug: string; count: number; municipalityName: string }
-  >();
+
+  const byProvince = new Map<string, Array<{ name: string | null; total: number }>>();
   for (const r of rows) {
     const provinceKey = (r.province ?? '').trim();
-    const muniName = (r.municipality ?? '').trim();
-    if (!provinceKey || !muniName) continue;
-    const lcMuni = muniName.toLowerCase();
-    if (lcMuni === 'null' || lcMuni === 'undefined' || lcMuni === 'desconocida') continue;
+    if (!provinceKey) continue;
+    let list = byProvince.get(provinceKey);
+    if (!list) {
+      list = [];
+      byProvince.set(provinceKey, list);
+    }
+    list.push({ name: r.municipality, total: r._count?._all ?? 0 });
+  }
+
+  const out: Array<{
+    provinceSlug: string;
+    municipioSlug: string;
+    count: number;
+    municipalityName: string;
+  }> = [];
+  for (const [provinceKey, list] of byProvince) {
     const provinceSlug = PROVINCE_DB_KEY_TO_SLUG[provinceKey];
     if (!provinceSlug) continue;
-    const municipioSlug = slugify(muniName);
-    if (!municipioSlug) continue;
-    const key = `${provinceSlug}|${municipioSlug}`;
-    const count = r._count?._all ?? 0;
-    const prev = best.get(key);
-    if (!prev || count > prev.count) {
-      best.set(key, { provinceSlug, municipioSlug, count, municipalityName: muniName });
+    for (const m of foldArchiveMunicipalities(provinceKey, list).resolved) {
+      out.push({
+        provinceSlug,
+        municipioSlug: m.slug,
+        count: m.total,
+        municipalityName: m.name,
+      });
     }
   }
-  return Array.from(best.values()).sort((a, b) => b.count - a.count);
+  return out.sort((a, b) => b.count - a.count);
 }
 
 /**

@@ -26,8 +26,13 @@ import {
   TIPO_SLUGS,
   type TipoSlug,
 } from '@/lib/seo/slugs';
-import { municipalitySlugToDbName } from '@/lib/seo/page-data';
+import {
+  legacyMunicipalitySlugExists,
+  municipalityDbNamesForSlug,
+  municipalitySlugToDbName,
+} from '@/lib/seo/page-data';
 import { registroMunicipioSlugToDbName } from '@/lib/registro/registro-read';
+import { archiveTownRedirect } from '@/lib/registro/archive-town-redirect';
 import { resolveResultadosSeg } from '@/lib/registro/resultados-routing';
 import { registryOutcomeFromSlug, type RegistryOutcome } from '@/lib/registro/registro-ui';
 import { archiveNodePath, type ArchiveNode } from '@/lib/seo/archive-partitions';
@@ -46,12 +51,60 @@ export type ResultadosChildShape =
       provDbKey: string;
       provSlug: string;
       provLabel: string;
+      /** INE official denomination (MUNI-A) — display only. */
       muniName: string;
+      /**
+       * Raw `Auction.municipality` spellings folded onto this town — the values
+       * a `where` clause must use (`readList({ municipio: muniDbNames })`).
+       */
+      muniDbNames: string[];
       muniSlug: string;
       total: number;
     }
   | { kind: 'redirect'; to: string }
   | { kind: 'notfound' };
+
+/**
+ * Where a town segment that no longer names a hub should go (Ken's MUNI-A
+ * task 2). Returns a path, or `null` to let the 404 stand.
+ *
+ * The gazetteer whitelist retires ~7,100 town hubs that answer 200 today. Left
+ * alone every one becomes a NEW 404 — the exact thing the v4 suite's zero-404
+ * gate exists to prevent. `archiveTownRedirect` decides WHERE from the INE
+ * register alone; this adds the one thing a pure function cannot know, namely
+ * whether the target actually has rows.
+ *
+ * ⭐ THE 301-MUST-NOT-404 CHECK. An alias target (`elche` -> `elx`) is a real
+ * municipality, but a real municipality with no auctions has no hub, and a 301
+ * onto a 404 is worse than the 404 it replaced. So a town target is CONFIRMED
+ * against the registry before it is used, and demoted to the province hub —
+ * which always exists — when it is not live. Same discipline as
+ * `archiveParentNode`'s fallback in P2.
+ *
+ * `null` (already canonical) deliberately keeps the 404: that slug names a real
+ * municipality with no rows, so the URL never existed and inventing a redirect
+ * for it would advertise a page we do not have.
+ */
+async function townRedirectTarget(
+  provSlug: string,
+  provDbKey: string,
+  seg2: string,
+): Promise<string | null> {
+  // ⛔ ONLY retired pages redirect. This branch is also the catch-all for any
+  // segment that is not a year, outcome or tipo, so without this check every
+  // bogus string (`/resultados/madrid/qwerty`) would 301 to the province — a
+  // soft-200 that destroys the 404 signal and, worse, makes a mistyped URL look
+  // like a real page. A slug the corpus never produced was never live, and a URL
+  // that was never live gets a 404, not a redirect.
+  if (!(await legacyMunicipalitySlugExists(provDbKey, seg2))) return null;
+  const target = archiveTownRedirect(provSlug, seg2);
+  if (target === null) return null;
+  if (target.kind === 'town') {
+    const live = await registroMunicipioSlugToDbName(provDbKey, target.slug);
+    if (live) return `/resultados/${provSlug}/${target.slug}`;
+  }
+  return `/resultados/${provSlug}`;
+}
 
 export async function resolveResultadosChild(
   seg1: string,
@@ -89,11 +142,14 @@ export async function resolveResultadosChild(
       provSlug: r1.slug,
       provLabel: r1.label,
       muniName: inRegistry.municipalityName,
+      muniDbNames: inRegistry.dbNames,
       muniSlug: inRegistry.municipioSlug,
       total: inRegistry.total,
     };
   }
-  // Resolvable-but-empty town (any-status): still render, noindex.
+  // Resolvable-but-empty town (any-status): still render, noindex. Also
+  // gazetteer-gated (MUNI-A) — `municipalitySlugToDbName` no longer resolves a
+  // slug the INE register does not know.
   const fallback = await municipalitySlugToDbName(provDbKey, seg2);
   if (fallback) {
     return {
@@ -102,10 +158,15 @@ export async function resolveResultadosChild(
       provSlug: r1.slug,
       provLabel: r1.label,
       muniName: fallback,
+      muniDbNames: await municipalityDbNamesForSlug(provDbKey, seg2),
       muniSlug: seg2,
       total: 0,
     };
   }
+  // MUNI-A: the slug names no town of this province. It very likely DID answer
+  // 200 before the whitelist, so send it somewhere rather than minting a 404.
+  const away = await townRedirectTarget(r1.slug, provDbKey, seg2);
+  if (away) return { kind: 'redirect', to: away };
   return { kind: 'notfound' };
 }
 
@@ -242,11 +303,20 @@ export async function resolveArchiveSegments(
 
   // seg2 = municipality
   const town = await registroMunicipioSlugToDbName(r1.dbKey, seg2);
-  if (!town) return { kind: 'notfound' };
+  if (!town) {
+    // MUNI-A: same rule as the 2-segment resolver above — a retired town slug
+    // redirects to its canonical twin or to the province, never to a 404.
+    const away = await townRedirectTarget(r1.slug, r1.dbKey, seg2);
+    return away ? { kind: 'redirect', to: away } : { kind: 'notfound' };
+  }
   const muniNode: ArchiveNode = {
     prov: r1.slug,
     muni: seg2,
     muniDbName: town.municipalityName,
+    // `municipalityName` is the INE official denomination (display); `dbNames`
+    // carries every raw corpus spelling that folded onto it, which is what
+    // `archiveNodeWhere` needs to select the town's rows.
+    muniDbNames: town.dbNames,
   };
   if (rest2.length === 0) {
     return {

@@ -17,6 +17,7 @@ import {
   countActiveAuctions,
   findScopedAuctionsPage,
   municipalitySlugToDbName,
+  municipalityDbNamesForSlug,
 } from '@/lib/seo/page-data';
 import { Breadcrumbs } from '@/components/seo/Breadcrumbs';
 import { capitalizeLocation } from '@/lib/utils';
@@ -36,7 +37,10 @@ async function resolveTown(slug: string, municipio: string) {
   if (r.kind !== 'province') return null;
   const municipalityName = await municipalitySlugToDbName(r.dbKey, municipio);
   if (!municipalityName) return null;
-  return { provinceSlug: r.slug, dbKey: r.dbKey, provinceLabel: r.label, municipalityName };
+  // MUNI-A: `municipalityName` is the INE display name; `dbNames` are the raw
+  // corpus spellings a `where` clause must use.
+  const dbNames = await municipalityDbNamesForSlug(r.dbKey, municipio);
+  return { provinceSlug: r.slug, dbKey: r.dbKey, provinceLabel: r.label, municipalityName, dbNames };
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -49,8 +53,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const n = parsePage(page);
   const muniLabel = capitalizeLocation(town.municipalityName);
   const [count, data] = await Promise.all([
-    countActiveAuctions({ province: town.dbKey, municipality: town.municipalityName }),
-    n ? findScopedAuctionsPage({ province: town.dbKey, municipality: town.municipalityName, page: n }) : Promise.resolve(null),
+    countActiveAuctions({ province: town.dbKey, municipality: town.dbNames }),
+    n ? findScopedAuctionsPage({ province: town.dbKey, municipality: town.dbNames, page: n }) : Promise.resolve(null),
   ]);
   const inRange = !!(n && n >= 2 && data && n <= data.totalPages);
   return {
@@ -75,7 +79,7 @@ export default async function TownPaginaPage({ params }: PageProps) {
   const muniLabel = capitalizeLocation(town.municipalityName);
   const data = await findScopedAuctionsPage({
     province: town.dbKey,
-    municipality: town.municipalityName,
+    municipality: town.dbNames,
     page: n,
   });
   if (n > data.totalPages) notFound();
@@ -97,7 +101,9 @@ export default async function TownPaginaPage({ params }: PageProps) {
     <Suspense fallback={<div className="min-h-screen bg-[var(--color-page)]" />}>
       <SubastasListClient
         nowMs={nowMs}
-        lockedFilter={{ province: town.dbKey, municipality: town.municipalityName }}
+        // Client list hits the API, which takes ONE municipality string — the
+        // primary raw DB spelling, not the INE display name (MUNI-A).
+        lockedFilter={{ province: town.dbKey, municipality: town.dbNames[0] ?? town.municipalityName }}
         seoTitle={t('townTitle', { town: muniLabel, province: town.provinceLabel }) + t('pageSuffix', { page: n })}
         seoIntroSlot={
           <Breadcrumbs

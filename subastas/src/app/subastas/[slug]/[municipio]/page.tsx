@@ -39,6 +39,7 @@ import {
   countActiveAuctions,
   minStartingPrice,
   municipalitySlugToDbName,
+  municipalityDbNamesForSlug,
   municipalitiesInProvince,
 } from '@/lib/seo/page-data';
 import { SeoIntroBlock } from '@/components/seo/SeoIntroBlock';
@@ -57,7 +58,10 @@ type Resolved = {
   provinceDbKey: string;
   provinceLabel: string;
   municipioSlug: string;
+  /** INE official denomination — display only (MUNI-A). */
   municipalityName: string;
+  /** Raw DB spellings that fold onto this town — what queries must use. */
+  municipalityDbNames: string[];
   count: number;
   minPrice: number | null;
   siblings: SiblingMuni[];
@@ -73,10 +77,13 @@ async function loadTown(slug: string, municipio: string): Promise<Resolved | nul
 
   const municipalityName = await municipalitySlugToDbName(r.dbKey, municipio);
   if (!municipalityName) return null;
+  // MUNI-A: `municipalityName` is the INE display name; queries use the raw
+  // corpus spellings that fold onto this town.
+  const municipality = await municipalityDbNamesForSlug(r.dbKey, municipio);
 
   const [count, minPrice, allMunis, provinceTotal] = await Promise.all([
-    countActiveAuctions({ province: r.dbKey, municipality: municipalityName }),
-    minStartingPrice({ province: r.dbKey, municipality: municipalityName }),
+    countActiveAuctions({ province: r.dbKey, municipality }),
+    minStartingPrice({ province: r.dbKey, municipality }),
     municipalitiesInProvince(r.dbKey),
     countActiveAuctions({ province: r.dbKey }),
   ]);
@@ -94,6 +101,7 @@ async function loadTown(slug: string, municipio: string): Promise<Resolved | nul
     provinceLabel: r.label,
     municipioSlug: municipio,
     municipalityName,
+    municipalityDbNames: municipality,
     count,
     minPrice,
     siblings,
@@ -138,7 +146,7 @@ export default async function MunicipioPage({ params }: PageProps) {
 
   // SSR crawlable auction block (P1/P2) — page 1 for this town.
   const auctions = await buildSeoAuctions({
-    filter: { province: data.provinceDbKey, municipality: data.municipalityName },
+    filter: { province: data.provinceDbKey, municipality: data.municipalityDbNames },
     basePath: `/subastas/${data.provinceSlug}/${data.municipioSlug}`,
     locationLabel: `${muniLabel} (${data.provinceLabel})`,
   });
@@ -280,7 +288,11 @@ export default async function MunicipioPage({ params }: PageProps) {
         nowMs={nowMs}
         lockedFilter={{
           province: data.provinceDbKey,
-          municipality: data.municipalityName,
+          // Client list filters via the API, which takes ONE municipality
+          // string — so it gets the primary raw DB spelling, not the INE
+          // display name (which may match no stored row). Full multi-spelling
+          // coverage here waits on MUNI-B normalising the corpus.
+          municipality: data.municipalityDbNames[0] ?? data.municipalityName,
         }}
         // Single indexable H1, mirrors the brief: "Subastas en {Municipio}
         // ({Provincia})" — proper-cased via capitalizeLocation.

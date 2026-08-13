@@ -82,11 +82,11 @@ export function mapLegacyArchivePage(oldPage: number, newPages: number): LegacyP
  * directly off the province) then trimestre → anio → tipo → muni.
  */
 export function archiveParentNode(node: ArchiveNode): ArchiveNode {
-  const { outcome, trimestre, anio, tipo, muni, muniDbName, ...rest } = node;
+  const { outcome, trimestre, anio, tipo, muni, muniDbName, muniDbNames, ...rest } = node;
   if (outcome !== undefined) return rest;
-  if (trimestre !== undefined) return { ...rest, muni, muniDbName, tipo, anio };
-  if (anio !== undefined) return { ...rest, muni, muniDbName, tipo };
-  if (tipo !== undefined) return { ...rest, muni, muniDbName };
+  if (trimestre !== undefined) return { ...rest, muni, muniDbName, muniDbNames, tipo, anio };
+  if (anio !== undefined) return { ...rest, muni, muniDbName, muniDbNames, tipo };
+  if (tipo !== undefined) return { ...rest, muni, muniDbName, muniDbNames };
   if (muni !== undefined) return rest;
   return node;
 }

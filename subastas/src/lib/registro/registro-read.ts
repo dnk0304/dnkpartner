@@ -28,7 +28,14 @@ import { archiveNodeWhere } from '@/lib/registro/archive-node-read';
 import type { ArchiveNode } from '@/lib/seo/archive-partitions';
 import { PERIOD_ALL, ROLLUP_ALL } from '@/lib/registro/outcome-stats';
 import { OUTCOME_SLUG } from '@/lib/seo/auction-outcome';
-import { PROVINCE_DB_KEY_TO_SLUG, slugify } from '@/lib/seo/slugs';
+import { PROVINCE_DB_KEY_TO_SLUG } from '@/lib/seo/slugs';
+// ⭐ Ken's MUNI-A ruling: the INE gazetteer is the ONLY source of towns. Every
+// municipality enumeration below goes through this one resolution point — see
+// `@/lib/registro/archive-municipality` for the full rationale.
+import {
+  foldArchiveMunicipalities,
+  resolveArchiveMunicipality,
+} from '@/lib/registro/archive-municipality';
 import { OUTCOME_TO_SLUG, REGISTRY_OUTCOME_ORDER } from '@/lib/registro/registro-ui';
 import type { Prisma } from '@prisma/client';
 
@@ -213,9 +220,21 @@ export const readSummary = unstable_cache(_readSummary, ['registro-summary'], {
 // ---------------------------------------------------------------------------
 
 export interface RegionRow {
-  label: string; // DB province or municipality name
+  /**
+   * At province level: the DB province name. At municipio level: the INE
+   * OFFICIAL denomination (MUNI-A) — NOT necessarily any stored
+   * `Auction.municipality` value, so never use it in a `where` clause; use
+   * `dbNames` for that.
+   */
+  label: string;
   counts: OutcomeCounts;
   total: number;
+  /**
+   * Municipio level: every raw corpus spelling that folded onto this town —
+   * the values to query with (`municipality: { in: dbNames }`). Province level:
+   * the province name itself.
+   */
+  dbNames: string[];
 }
 
 async function _readRegions(opts: {
@@ -236,22 +255,41 @@ async function _readRegions(opts: {
     select: { province: true, municipality: true, outcome: true, count: true },
   })) as { province: string; municipality: string; outcome: string; count: number }[];
 
-  const groups = new Map<string, { label: string; counts: OutcomeCounts }>();
+  const groups = new Map<string, { label: string; counts: OutcomeCounts; dbNames: string[] }>();
   for (const r of rows) {
-    const label = province ? r.municipality : r.province;
-    let g = groups.get(label);
-    if (!g) {
-      g = { label, counts: emptyCounts() };
-      groups.set(label, g);
+    let key: string;
+    let label: string;
+    let raw: string | null = null;
+    if (province) {
+      // MUNI-A gate: a municipality absent from the INE register is not a town.
+      // Those rows are dropped from the municipio list and stay counted at the
+      // PROVINCE level (see archive-municipality.ts). Grouping by INE code —
+      // not by the corpus string — collapses every spelling onto one town.
+      const hit = resolveArchiveMunicipality(province, r.municipality);
+      if (!hit) continue;
+      key = hit.ine;
+      label = hit.name;
+      raw = (r.municipality ?? '').trim();
+    } else {
+      key = r.province;
+      label = r.province;
     }
-    if ((AUCTION_OUTCOMES as string[]).includes(r.outcome)) g.counts[r.outcome as AuctionOutcome] = r.count;
+    let g = groups.get(key);
+    if (!g) {
+      g = { label, counts: emptyCounts(), dbNames: province ? [] : [key] };
+      groups.set(key, g);
+    }
+    if (raw && !g.dbNames.includes(raw)) g.dbNames.push(raw);
+    // `+=` (was `=`): at municipio level several spellings now fold onto one
+    // town, so their per-outcome counts must SUM, not overwrite each other.
+    if ((AUCTION_OUTCOMES as string[]).includes(r.outcome)) g.counts[r.outcome as AuctionOutcome] += r.count;
   }
 
   const regions = [...groups.values()]
     .map((g) => {
       let total = 0;
       for (const o of REGISTRY_OUTCOMES) total += g.counts[o];
-      return { label: g.label, counts: g.counts, total };
+      return { label: g.label, counts: g.counts, total, dbNames: g.dbNames };
     })
     .filter((g) => g.total > 0)
     .sort((a, b) => b.total - a.total);
@@ -283,7 +321,12 @@ export interface ReadListParams {
   outcome?: RegistryOutcome | null;
   category?: string;
   province?: string;
-  municipio?: string;
+  /**
+   * MUNI-A: an ARRAY is the set of raw `Auction.municipality` spellings that
+   * fold onto one INE town (`MunicipioRegionEntry.dbNames`). The INE official
+   * name is a display value and must not be used here.
+   */
+  municipio?: string | string[];
   priceMin?: number | null;
   priceMax?: number | null;
   from?: string | null;
@@ -307,7 +350,10 @@ async function _readList(params: ReadListParams): Promise<ReadListResult> {
   const outcome = params.outcome ?? null;
   const category = (params.category ?? '').trim();
   const province = (params.province ?? '').trim();
-  const municipio = (params.municipio ?? '').trim();
+  const municipioRaw = params.municipio;
+  const municipio = Array.isArray(municipioRaw)
+    ? municipioRaw.map((m) => m.trim()).filter(Boolean)
+    : (municipioRaw ?? '').trim();
   const periodBasis: PeriodBasis = params.periodBasis ?? 'CONCLUDED';
   const sort = params.sort ?? 'recent';
   const page = Math.max(1, Math.floor(params.page ?? 1));
@@ -319,7 +365,11 @@ async function _readList(params: ReadListParams): Promise<ReadListResult> {
   if (!params.node) {
     if (category) and.push({ category });
     if (province) and.push({ province });
-    if (municipio) and.push({ municipality: municipio });
+    if (Array.isArray(municipio)) {
+      if (municipio.length > 0) and.push({ municipality: { in: municipio } });
+    } else if (municipio) {
+      and.push({ municipality: municipio });
+    }
   }
 
   const priceWhere: { gte?: bigint; lte?: bigint } = {};
@@ -454,28 +504,34 @@ export const concludedProvinceRegions = unstable_cache(
 );
 
 export interface MunicipioRegionEntry {
+  /** INE OFFICIAL denomination (MUNI-A) — display only, never a `where` value. */
   municipalityName: string;
   municipioSlug: string;
   total: number;
+  /**
+   * Every raw `Auction.municipality` spelling that folded onto this town.
+   * Callers building a predicate MUST use `municipality: { in: dbNames }` —
+   * `municipalityName` is the register's spelling and may match no stored row.
+   */
+  dbNames: string[];
 }
 
 async function _concludedMunicipioRegions(provinceDbKey: string): Promise<MunicipioRegionEntry[]> {
   const { regions } = await _readRegions({ province: provinceDbKey });
-  // Fold slug collisions (highest-total casing wins) so links + resolver agree.
-  const best = new Map<string, MunicipioRegionEntry>();
-  for (const r of regions) {
-    const name = (r.label ?? '').trim();
-    if (!name) continue;
-    const lc = name.toLowerCase();
-    if (lc === 'null' || lc === 'undefined' || lc === 'desconocida') continue;
-    const municipioSlug = slugify(name);
-    if (!municipioSlug) continue;
-    const prev = best.get(municipioSlug);
-    if (!prev || r.total > prev.total) {
-      best.set(municipioSlug, { municipalityName: name, municipioSlug, total: r.total });
-    }
-  }
-  return [...best.values()].sort((a, b) => b.total - a.total);
+  // `_readRegions` has already applied the gazetteer gate, so its municipio
+  // labels are INE official names; the fold below is what mints the (escaped)
+  // URL segment, so links and the route resolver cannot disagree.
+  const { resolved } = foldArchiveMunicipalities(
+    provinceDbKey,
+    regions.map((r) => ({ name: r.label, total: r.total })),
+  );
+  const rawByLabel = new Map(regions.map((r) => [r.label, r.dbNames] as const));
+  return resolved.map((m) => ({
+    municipalityName: m.name,
+    municipioSlug: m.slug,
+    total: m.total,
+    dbNames: rawByLabel.get(m.name) ?? [],
+  }));
 }
 
 export const concludedMunicipioRegions = unstable_cache(
@@ -518,21 +574,31 @@ async function _concludedMunicipioPairsAll(): Promise<MunicipioPair[]> {
     totals.set(key, prev);
   }
 
-  const best = new Map<string, MunicipioPair>();
+  // Group by province, then run each province's names through the ONE
+  // resolution point. This feeds the sitemap, so the MUNI-A ruling is
+  // load-bearing here: a name the INE register does not know must not become a
+  // URL at all — its rows stay at the province level.
+  const byProvince = new Map<string, Array<{ name: string; total: number }>>();
   for (const g of totals.values()) {
     if (g.total <= 0) continue;
-    const provinceSlug = PROVINCE_DB_KEY_TO_SLUG[g.province];
-    if (!provinceSlug) continue;
-    const name = (g.municipality ?? '').trim();
-    const lc = name.toLowerCase();
-    if (!name || lc === 'null' || lc === 'undefined' || lc === 'desconocida') continue;
-    const municipioSlug = slugify(name);
-    if (!municipioSlug) continue;
-    const key = `${provinceSlug}|${municipioSlug}`;
-    const prev = best.get(key);
-    if (!prev || g.total > prev.total) best.set(key, { provinceSlug, municipioSlug, total: g.total });
+    let list = byProvince.get(g.province);
+    if (!list) {
+      list = [];
+      byProvince.set(g.province, list);
+    }
+    list.push({ name: g.municipality, total: g.total });
   }
-  return [...best.values()];
+
+  const out: MunicipioPair[] = [];
+  for (const [provinceDbKey, list] of byProvince) {
+    const provinceSlug = PROVINCE_DB_KEY_TO_SLUG[provinceDbKey];
+    if (!provinceSlug) continue; // off-taxonomy province name — skip
+    const { resolved } = foldArchiveMunicipalities(provinceDbKey, list);
+    for (const m of resolved) {
+      out.push({ provinceSlug, municipioSlug: m.slug, total: m.total });
+    }
+  }
+  return out;
 }
 
 export const concludedMunicipioPairsAll = unstable_cache(
@@ -542,9 +608,12 @@ export const concludedMunicipioPairsAll = unstable_cache(
 );
 
 /**
- * Resolve a /resultados municipality slug → canonical DB name within a
- * province (collision-safe, highest-total wins). Mirrors the town-page
- * resolver but scoped to concluded-registry municipios.
+ * Resolve a /resultados municipality slug → the canonical town within a
+ * province. Scoped to concluded-registry municipios and gated by the INE
+ * register (MUNI-A): an unknown town simply has no entry.
+ *
+ * ⚠️ The returned `municipalityName` is the register's spelling. To QUERY, use
+ * the entry's `dbNames` (`municipality: { in: entry.dbNames }`).
  */
 export async function registroMunicipioSlugToDbName(
   provinceDbKey: string,
