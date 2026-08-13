@@ -113,7 +113,7 @@ export function SeoPagination({
     : pageWindow(page, totalPages);
 
   const linkCls =
-    'inline-flex items-center justify-center min-w-9 h-9 px-3 rounded-md border border-[var(--color-border)] text-sm hover:bg-[var(--color-surface-muted)]';
+    'inline-flex items-center justify-center min-w-9 h-9 px-3 rounded-md border border-[var(--color-border)] text-sm hover:bg-[var(--color-surface-muted)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-action)]';
   const currentCls =
     'inline-flex items-center justify-center min-w-9 h-9 px-3 rounded-md border border-[var(--color-ink-primary)] bg-[var(--color-ink-primary)] text-[var(--color-page)] text-sm font-semibold';
 

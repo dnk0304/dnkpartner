@@ -182,7 +182,15 @@ export async function muniIndexRedirectTarget(seg1: string): Promise<string | nu
  * scannable by a human, which is the difference between a useful index and a
  * link farm.
  */
-function MuniAZList({ provSlug, munis }: { provSlug: string; munis: MunicipioRegionEntry[] }) {
+function MuniAZList({
+  provSlug,
+  munis,
+  jumpLabel,
+}: {
+  provSlug: string;
+  munis: MunicipioRegionEntry[];
+  jumpLabel: string;
+}) {
   const groups = new Map<string, MunicipioRegionEntry[]>();
   for (const m of [...munis].sort((a, b) =>
     capitalizeLocation(a.municipalityName).localeCompare(capitalizeLocation(b.municipalityName), 'es'),
@@ -195,14 +203,74 @@ function MuniAZList({ provSlug, munis }: { provSlug: string; munis: MunicipioReg
     if (g) g.push(m);
     else groups.set(key, [m]);
   }
+  // '#' (digits, Ll-, punctuation-initial names) sorts last, not wherever it
+  // happened to be first encountered.
+  const letters = [...groups.keys()].sort((a, b) =>
+    a === '#' ? 1 : b === '#' ? -1 : a.localeCompare(b, 'es'),
+  );
 
   return (
-    <div className="flex flex-col gap-6">
-      {[...groups].map(([letter, items]) => (
-        <section key={letter} aria-label={letter}>
-          <h3 className="mb-2 text-sm font-semibold text-[var(--color-ink-tertiary)]">{letter}</h3>
-          <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-3 lg:grid-cols-4 [&_a]:text-[var(--color-action)] [&_a:hover]:underline">
-            {items.map((m) => (
+    /*
+     * EVERY REPEATED CLASS STRING LIVES ON THIS ONE ELEMENT.
+     *
+     * This is the whole cost discipline of the page, and it is counter-intuitive
+     * enough to be worth stating: on a 840-link page the expensive thing is not
+     * the anchors, it is the CLASS ATTRIBUTES. Tailwind utilities are literal
+     * text in the SSR HTML *and again* in the RSC flight payload, so a 300-char
+     * class string on the per-letter `<ul>` costs several KB across 26 letters —
+     * more than the entire jump-nav costs. MEASURED on the 840-town fixture
+     * (`scripts/pixel-az-weight-fixture.ts`), against P1 @ e558623 = 281,050 B:
+     *   utilities on the `<section>`/`<ul>`/`<a>` elements → 289,618 B (+8,568)
+     *   utilities hoisted here (this version)             → 280,400 B (−650)
+     * i.e. hoisting pays for the jump-nav and 650 bytes more besides.
+     *
+     * So the descendant selectors below (`[&>section>ul]`, `[&_li_a]`) are not
+     * stylistic preference — they are the reason a de-paginated A–Z page fits.
+     * The children stay attribute-free apart from the `id` a jump link needs.
+     * If you find yourself adding `className` to anything inside this div, add
+     * a selector here instead.
+     */
+    <div
+      className={[
+        'flex flex-col gap-6',
+        // per-letter section: clear the sticky header when jumped to
+        '[&>section]:scroll-mt-24',
+        // letter heading
+        '[&_h2]:mb-2 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-[var(--color-ink-tertiary)]',
+        // the town grid
+        '[&>section>ul]:grid [&>section>ul]:grid-cols-2 [&>section>ul]:gap-x-4 [&>section>ul]:gap-y-0.5 [&>section>ul]:text-sm',
+        'sm:[&>section>ul]:grid-cols-3 lg:[&>section>ul]:grid-cols-4',
+        // town links — inline-block + py-0.5 on leading-5 gives a 24px target
+        // (WCAG 2.5.8) without changing the visual rhythm
+        '[&_li_a]:inline-block [&_li_a]:rounded-sm [&_li_a]:py-0.5 [&_li_a]:leading-5 [&_li_a]:text-[var(--color-action)]',
+        '[&_li_a:hover]:underline',
+        // one focus-ring rule for both the jump nav and the 840 town links
+        '[&_a:focus-visible]:outline-2 [&_a:focus-visible]:outline-offset-2 [&_a:focus-visible]:outline-[var(--color-action)]',
+        // jump nav
+        '[&>nav]:-mx-1 [&>nav]:flex [&>nav]:flex-wrap [&>nav]:gap-1 [&>nav]:border-b [&>nav]:border-[var(--color-hairline)] [&>nav]:pb-4',
+        '[&>nav>a]:inline-flex [&>nav>a]:h-8 [&>nav>a]:min-w-8 [&>nav>a]:items-center [&>nav>a]:justify-center',
+        '[&>nav>a]:rounded-md [&>nav>a]:text-sm [&>nav>a]:font-semibold [&>nav>a]:text-[var(--color-action)]',
+        '[&>nav>a:hover]:bg-[var(--color-surface-muted)]',
+      ].join(' ')}
+    >
+      {/* LETTER JUMP-NAV. At 840 towns the grouped list is ~14 screens on
+          mobile; without this the only way to reach "T" is to scroll past
+          everything. ~26 anchors is a FIXED cost, which is the test that
+          matters here — anything priced PER TOWN is the line this page cannot
+          cross. */}
+      <nav aria-label={jumpLabel}>
+        {letters.map((l) => (
+          <a key={l} href={`#L-${l === '#' ? 'num' : l}`}>
+            {l}
+          </a>
+        ))}
+      </nav>
+
+      {letters.map((letter) => (
+        <section key={letter} id={`L-${letter === '#' ? 'num' : letter}`} aria-label={letter}>
+          <h2>{letter}</h2>
+          <ul>
+            {groups.get(letter)!.map((m) => (
               <li key={m.municipioSlug}>
                 <Link href={`/resultados/${provSlug}/${m.municipioSlug}`}>
                   {capitalizeLocation(m.municipalityName)}
@@ -287,7 +355,12 @@ export function MuniIndexBody({
             {copy.empty}
           </div>
         ) : az ? (
-          <MuniAZList provSlug={provSlug} munis={munis} />
+          // P4's A–Z list, unchanged — jump-nav, h2 headings, and the hoisted
+          // class attributes that make this page net −650 B. It renders ONLY
+          // under the switch, which is the whole point of the gate: v4 replaces
+          // the paginated chip index with one de-paginated A–Z page, and while
+          // the switch is off the shipped chip grid must still be what ships.
+          <MuniAZList provSlug={provSlug} munis={munis} jumpLabel={copy.azJumpLabel} />
         ) : (
           <ChipLinks items={chipItems} locale={locale} />
         )}
