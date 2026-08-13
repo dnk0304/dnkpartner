@@ -28,6 +28,7 @@ loadEnv();
 import { PROVINCE_SLUG_TO_DB_KEY } from '../src/lib/seo/slugs';
 import { PrismaClient, SaleResult, AuctionStatus } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { assertNoUndefinedFields, assertDistribution } from './_fixture-guard';
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
@@ -148,7 +149,14 @@ async function run() {
     });
   }
 
+  assertNoUndefinedFields(rows, 'forge-v4-p2-fixture');
   await prisma.auction.createMany({ data: rows as never });
+
+  // Read the states back out — see scripts/_fixture-guard.ts for why.
+  const dist = await prisma.auction.groupBy({ by: ['status'], _count: { _all: true } });
+  const want: Record<string, number> = {};
+  for (const r of rows) want[r.status as string] = (want[r.status as string] ?? 0) + 1;
+  assertDistribution(dist.map((d) => ({ value: d.status as string, count: d._count._all })), want, 'status');
 
   // Rollup rows: `readSummary`/`concludedMunicipioRegions` read these, and a
   // province whose rollup disagrees with its auctions renders a hub that links

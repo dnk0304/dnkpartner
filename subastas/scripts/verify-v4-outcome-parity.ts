@@ -36,7 +36,7 @@ import { PROVINCE_SLUG_TO_DB_KEY } from '../src/lib/seo/slugs';
 import { archiveNodeWhere } from '../src/lib/registro/archive-node-read';
 import { outcomeWhere } from '../src/lib/registro/outcome-query';
 import { registryOutcomeFromSlug } from '../src/lib/registro/registro-ui';
-import type { AuctionOutcome } from '../src/lib/registro/registro-ui';
+import type { AuctionOutcome } from '../src/lib/seo/auction-outcome';
 
 const OUTCOME_SLUGS = ['adjudicadas', 'desiertas', 'canceladas', 'finalizadas-sin-resultado'];
 
