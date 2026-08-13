@@ -1964,6 +1964,30 @@ class BOEScraper(BaseScraper):
                     pass
         return None
 
+    def _ends_at_from_closure_certificate(self, boe_id: str) -> Optional[datetime]:
+        """
+        Last-resort endsAt for terminal auctions whose detail page carries no
+        "Fecha de conclusión": read the BOE closure certificate PDF.
+
+        Never raises and never guesses — any failure returns None so the row
+        keeps an honest NULL endsAt.
+        """
+        if not boe_id or not boe_id.startswith('SUB-'):
+            return None
+        try:
+            from .closure_certificate import fetch_closure_event
+            event = fetch_closure_event(boe_id)
+        except Exception as exc:
+            logger.debug("closure certificate unavailable for %s: %s", boe_id, exc)
+            return None
+        if event is None:
+            return None
+        logger.info(
+            "%s: endsAt %s recovered from closure certificate (%s)",
+            boe_id, event.ends_at, event.label,
+        )
+        return event.ends_at
+
     def _extract_detail_status(self, text: str) -> Optional[str]:
         """
         Derive internal status from the detail-page status banner. The detail
@@ -3102,6 +3126,17 @@ class BOEScraper(BaseScraper):
             detail_status = self._extract_detail_status(body_text)
             if detail_status is None and ends_at is not None and ends_at < datetime.now():
                 detail_status = 'CONCLUIDA_PORTAL'
+
+            # A CANCELLED (and some concluded) auction's detail page DROPS the
+            # "Fecha de conclusión" row entirely — the page says only "La
+            # subasta ha sido cancelada por la autoridad gestora". Historically
+            # that hole was filled with `now() + 7 days` (removed 2026-08-04),
+            # leaving these rows with an honest NULL endsAt. The real end
+            # instant IS published, in the closure certificate PDF linked from
+            # the same page, so read it there instead of leaving a hole.
+            # Honest-NULL preserved: no certificate / no terminal event -> None.
+            if ends_at is None and detail_status in ('CANCELADA', 'CONCLUIDA_PORTAL'):
+                ends_at = self._ends_at_from_closure_certificate(boe_id)
 
             # Address: prefer the Bienes-section anchor, fall back to whole body
             # (lote pages have no Bienes heading — see note above).
