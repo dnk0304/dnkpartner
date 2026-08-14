@@ -124,6 +124,28 @@ async function _readArchiveCensus(): Promise<ArchiveCensusResult> {
   return { urls: set.urls, rows: set.rows, unplaceableRows };
 }
 
+/**
+ * ⭐ WHY `URL_V4_SWITCH` IS **NOT** IN THIS CACHE KEY (checked, deliberately).
+ *
+ * The standing hazard with a runtime flag plus `unstable_cache` is that a flip
+ * serves the previous state's entries from a key that does not mention the
+ * flag. That hazard does not exist here, and the reason is structural rather
+ * than lucky: `_readArchiveCensus` never reads the switch. It runs one rollup
+ * query and hands the cells to `archiveUrlSetFromCells` — the v4 planner —
+ * unconditionally. Its output is the same list in both switch states.
+ *
+ * What the switch selects is whether that list is CONSUMED: `sitemap-entries.ts`
+ * calls this only inside the lit branch, and the dark branch builds the v3 set
+ * from `readSummary` / `concludedMunicipioPairsAll` instead. Both of those are
+ * separately `unstable_cache`d under their own keys and are likewise
+ * switch-independent DB reads.
+ *
+ * So a flip changes which cached list is read, never which value a key maps to,
+ * and adding the flag to the key would only halve the hit rate on a value that
+ * is identical in both halves. ⚠️ If this function ever grows a branch on
+ * `isUrlV4SwitchOn()`, that stops being true and the flag must go in the key
+ * array below in the same commit.
+ */
 export const readArchiveCensus = unstable_cache(_readArchiveCensus, ['archive-census-v4'], {
   revalidate: 3600,
   tags: ['registro'],

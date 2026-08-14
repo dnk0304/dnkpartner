@@ -20,7 +20,7 @@
 
 import { AuctionStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { CHILD_SITEMAP_SIZE, buildSitemapLayout, type SitemapLayout } from '@/lib/seo/sitemap-config';
+import { buildSitemapLayout, type SitemapLayout } from '@/lib/seo/sitemap-config';
 import { buildAggregationEntries, type SitemapUrlEntry } from '@/lib/seo/sitemap-entries';
 import { concludedIndexableWhere } from '@/lib/seo/concluded-indexable';
 
@@ -90,8 +90,13 @@ async function childLastmods(
         // modification time), and if a slice has none at all the child OMITS
         // <lastmod> rather than inventing one. Absent is neutral; fake is a
         // trust negative, and earning crawl trust is the whole point of the wave.
+        //
+        // ⭐ `layout.sliceAggregation` — NOT an open-coded slice. Dark serves
+        // the whole band in one child (67b7d3f's shape) and lit serves 20k
+        // windows; the lastmod must describe the SAME set the child route
+        // renders, in both states, so both read it from the layout.
         let max: Date | null = null;
-        for (const e of aggregation.slice(chunk.skip, chunk.skip + CHILD_SITEMAP_SIZE)) {
+        for (const e of layout.sliceAggregation(aggregation, id)) {
           if (e.lastModified && (!max || e.lastModified > max)) max = e.lastModified;
         }
         if (max) out.set(id, max);
@@ -123,6 +128,12 @@ export async function GET(): Promise<Response> {
   // index has to know that count before it can list the children. One cached
   // read (`readArchiveCensus` is `unstable_cache`d hourly) on a route that
   // already queries the DB — and it is what makes an empty child impossible.
+  //
+  // ⚠️ ...WHEN LIT. While DARK the count is the fixed pre-P3 `1`, because the
+  // number of `<sitemap>` children in this document is the most visible thing
+  // a dark flag can leak: prod went 5 → 6 on P3 and was rolled back for it.
+  // `buildSitemapLayout` reads `isUrlV4SwitchOn()` at CALL time — do not hoist
+  // it to module scope. See `DARK_AGGREGATION_CHILDREN` in sitemap-config.ts.
   const aggregation = await buildAggregationEntries();
   const layout = buildSitemapLayout(aggregation.length);
   const children = layout.urls(SITE);

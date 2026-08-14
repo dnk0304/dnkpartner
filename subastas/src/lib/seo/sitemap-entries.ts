@@ -64,6 +64,7 @@ import { listNoticias } from '@/lib/noticias';
 import {
   CHILD_SITEMAP_SIZE,
   SITEMAP_ARCHIVE_MAX_URLS,
+  buildSitemapLayout,
   classifyChunkIn,
 } from '@/lib/seo/sitemap-config';
 import { isUrlV4SwitchOn } from '@/lib/seo/url-v4-switch';
@@ -201,8 +202,13 @@ export async function buildSitemapEntries(
   // The list is built ONCE per child. That is deliberate: the alternative is a
   // stateful cursor, and a cursor over a list assembled from eight separate
   // queries is exactly how a URL ends up in two children or none.
+  //
+  // ⚠️ ...AND WHILE DARK IT IS NOT CHUNKED, because dark must be byte-for-byte
+  // 67b7d3f, where the band was a single, uncut, possibly-over-full child. The
+  // slice policy lives in the layout so the routes and this builder cannot
+  // disagree — see `SitemapLayout.sliceAggregation`.
   const all = await buildAggregationEntries();
-  return all.slice(chunk.skip, chunk.skip + CHILD_SITEMAP_SIZE);
+  return buildSitemapLayout(all.length).sliceAggregation(all, chunkId);
 }
 
 /**
@@ -369,8 +375,14 @@ export async function buildAggregationEntries(): Promise<SitemapUrlEntry[]> {
       // worse than a smaller one, because the v3 halves all 301.
     }
   } else {
-    // ── THE v3 SET, BYTE FOR BYTE AS BEFORE P3 ──────────────────────────────
-    // Nothing in this branch changed. It is the thing "ships dark" means.
+    // ── THE v3 SET, BYTE FOR BYTE AS AT 67b7d3f ─────────────────────────────
+    // ⛔ FROZEN. This branch is not "the old code, roughly"; it is the previous
+    // release's output, asserted by a real diff in scripts/verify-v4-sitemap.sh
+    // (MODE=dark diffs the served `<loc>` set against a committed 67b7d3f
+    // baseline and requires a difference count of exactly 0). P3 changed one
+    // thing in here — it dropped the truncation below — and that one change was
+    // enough to move the sitemap index's child count on prod. Treat every line
+    // as load-bearing, including the ones that look like bugs. They are bugs.
     try {
     entries.push({ url: `${SITE}/resultados`, changeFrequency: 'daily', priority: 0.8 });
 
@@ -429,25 +441,48 @@ export async function buildAggregationEntries(): Promise<SitemapUrlEntry[]> {
     // level shallower. They exist as routes and are crawlable by link; they are
     // simply not submitted.
     //
-    // The cap below is a STRUCTURAL guard, not a comment: the archive grows, and
-    // the day this band would cross the cap it must stop and be visible in the
-    // logs, never quietly emit a 20,001st URL into an unchunked child.
+    // ⛔⛔ THE TRUNCATION BELOW IS A KNOWN BUG THAT IS HELD ON PURPOSE. ⛔⛔
     //
-    // ⭐ THE CAP THAT USED TO BE HERE IS GONE, AND ITS REMOVAL IS THE POINT.
-    // This loop used to stop at CHILD_SITEMAP_SIZE and `console.warn` that "the
-    // aggregation band needs chunking before the archive grows further". It now
-    // is chunked, so silently dropping URLs to fit one file is no longer the
-    // lesser evil — it is just a bug. The band's own comment asked for this fix
-    // by name; this is it.
+    // It silently drops `/resultados/.../pagina/N` URLs once the band reaches
+    // CHILD_SITEMAP_SIZE. P3 (8667d28) deleted it — correctly, on the merits —
+    // and prod was ROLLED BACK, because deleting it while dark pushed the band
+    // past 20,000 and the derived child count turned 5 `<sitemap>` children
+    // into 6 with `URL_V4_SWITCH` unset. Ken's rule is byte-for-byte: a
+    // Googlebot must not be able to tell the flag is there, and a changed child
+    // count is the loudest possible tell.
+    //
+    // So the bug lives exactly as long as the dark path does. ⭐ THE FLIP IS
+    // WHAT RELEASES THE FIX: the lit branch above emits the full census with no
+    // truncation at all, into a properly chunked band. This branch is frozen at
+    // 67b7d3f and must not be "improved" — improving it is the rollback.
+    //
+    // (The paired half of the same guarantee is `DARK_AGGREGATION_CHILDREN`:
+    // restoring this cap alone is NOT enough, because guias/noticias/monthly
+    // recaps are appended AFTER it and were never capped, so the band can still
+    // exceed 20,000 and a derived count would still return 2.)
+    let emitted = entries.length;
+    let paginaSkipped = 0;
     for (const p of muniPairs) {
       const pages = Math.ceil(p.total / ARCHIVE_PAGE_SIZE);
       for (let n = 2; n <= pages; n++) {
+        if (emitted >= CHILD_SITEMAP_SIZE) {
+          paginaSkipped++;
+          continue;
+        }
         entries.push({
           url: `${SITE}/resultados/${p.provinceSlug}/${p.municipioSlug}/pagina/${n}`,
           changeFrequency: 'weekly',
           priority: 0.4,
         });
+        emitted++;
       }
+    }
+    if (paginaSkipped > 0) {
+      console.warn(
+        `[sitemap] aggregation child hit CHILD_SITEMAP_SIZE (${CHILD_SITEMAP_SIZE}); ` +
+          `${paginaSkipped} /resultados pagina URLs omitted. This is the DARK path ` +
+          `holding 67b7d3f's behaviour on purpose — flipping URL_V4_SWITCH is the fix.`,
+      );
     }
     } catch {
       // Non-fatal — the rest of the sitemap is still valid if the rollup read trips.
