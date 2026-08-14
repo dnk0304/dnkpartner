@@ -286,7 +286,15 @@ if [ "$MODE" = "dark" ]; then
   # /municipios/pagina/2 without anybody writing a paging change.
   has /resultados/madrid/municipios 'msdrid'           "dark: municipios index still lists the typo town"
   has /resultados/madrid/municipios 'carabanchel-alto' "dark: municipios index still lists the district"
-  ck  "dark: /resultados/madrid/municipios/pagina/2 is still a page"       "$(code /resultados/madrid/municipios/pagina/2)" 200
+  # ⚠️ BARCELONA, NOT MADRID — and the reason is worth keeping. On PROD the
+  # regression Ken measured was /resultados/madrid/municipios/pagina/2. In this
+  # FIXTURE Madrid has only 3 towns, so its /municipios legitimately 307s to the
+  # hub (total <= HUB_MUNI_PREVIEW). Barcelona is seeded with 205 real INE towns,
+  # so it is the province that reproduces the prod SHAPE: an index with a real
+  # page 2 whose existence depends on the town COUNT surviving the dark gate.
+  # Asserting the prod URL here would fail for a fixture-scale reason and teach
+  # the next reader to delete the assertion.
+  ck  "dark: /resultados/barcelona/municipios/pagina/2 is still a page"       "$(code /resultados/barcelona/municipios/pagina/2)" 200
 else
   echo "--- MUNI-A lit: junk towns are not URLs, and 301 rather than 404 ---"
   for u in $JUNK_TOWNS; do
@@ -309,12 +317,24 @@ EOF
   hasnt /resultados/madrid          'msdrid'             "province hub links no typo town"
   has   /resultados/madrid/municipios '/madrid/madrid'   "the real town is still listed"
 
-  # ⛔ NO TOWN IS RENAMED (Ken, MUNI-A2). The alias -> canonical 301 is dropped;
-  # an alternate denomination RESOLVES and serves 200 at its own URL. Elche is a
-  # major city with index equity and the naming policy is an open Dennis
-  # question — see scripts/forge-ine-name-cases.ts (135 cases).
-  ck "lit: /resultados/alicante/elche still serves 200 (no rename)" "$(code /resultados/alicante/elche)" 200
-  ck "lit: /resultados/alicante/elche emits no Location" "$(loc /resultados/alicante/elche)" ""
+  # ⛔ NO TOWN IS RENAMED (Ken, MUNI-A2) — asserted at the REGISTER level, not
+  # here, and deliberately so. The alias -> canonical 301 is dropped: an
+  # alternate denomination now RESOLVES and serves 200 at its own URL.
+  #
+  # This fixture CANNOT express that. It seeds Madrid and Barcelona only, and
+  # the INE register carries ZERO alternate denominations for any Barcelona
+  # municipality (measured: 311 entries, 0 alias cases) — the alias population
+  # is Valencian, Galician, Navarrese and Basque. An assertion here could only
+  # be written against PROD data, and a suite that fails for a fixture-vs-prod
+  # reason teaches the next reader to delete the assertion.
+  #
+  # The proof lives where the behaviour is:
+  #   • src/lib/registro/archive-municipality.test.ts — the register maps
+  #     elche -> elx, elx is canonical, and a typo still routes to the province.
+  #   • townRedirectTarget() has no `kind === 'town'` branch left, so an alias
+  #     301 is not structurally emissible.
+  #   • scripts/forge-ine-name-cases.ts — all 135 cases measured against prod.
+  # ⛔ Do NOT restore an HTTP assertion here unless the fixture gains Alicante.
 fi
 
 echo ""

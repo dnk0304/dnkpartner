@@ -25,6 +25,7 @@ import {
   foldLegacyMunicipalities,
   foldMunicipalitiesForLegacySurface,
 } from './archive-municipality';
+import { archiveTownRedirect } from './archive-town-redirect';
 
 let failures = 0;
 function check(label: string, cond: boolean, detail?: string): void {
@@ -131,6 +132,42 @@ check(
   withSwitch(true, () => foldLegacyMunicipalities(MADRID_ROWS).length) ===
     withSwitch(false, () => foldLegacyMunicipalities(MADRID_ROWS).length),
 );
+
+// ---------------------------------------------------------------------------
+console.log('\nno town is renamed: the alias maps, but nothing redirects');
+// ⛔ Ken killed the alias -> canonical 301 (MUNI-A2). Elche is a major city with
+// existing index equity, Spanish search demand is overwhelmingly "Elche", and
+// the naming principle is an OPEN question with Dennis. The alternate slug
+// therefore keeps serving at its own URL instead of being moved.
+//
+// This lives here rather than in verify-v4-suite.sh because the committed
+// fixture seeds only Madrid and Barcelona, and the INE register carries ZERO
+// alternate denominations for any Barcelona municipality — the alias population
+// is Valencian, Galician, Navarrese and Basque. The register is committed data,
+// so this assertion is reproducible without a database at all.
+const elche = archiveTownRedirect('alicante', 'elche');
+check(
+  'the register still maps elche -> elx (so resolution can serve the alias)',
+  elche !== null && elche.kind === 'town' && elche.slug === 'elx',
+  JSON.stringify(elche),
+);
+// The canonical slug must return null — "do not redirect". That identity is what
+// makes the maximum chain length structurally 1 rather than merely observed:
+// a redirect target is always canonical, and a canonical slug never redirects.
+check('elx is canonical and does not redirect', archiveTownRedirect('alicante', 'elx') === null);
+
+// ⭐ THE ONE THAT MATTERS. `townRedirectTarget` in resolve-child.ts no longer has
+// a `kind === 'town'` branch, so an alias CANNOT produce a 301 no matter what
+// the register says. Proven structurally here: every non-canonical live slug
+// resolves to the province hub, which always exists.
+const junk = archiveTownRedirect('madrid', 'msdrid');
+check('a typo still routes to the province (rule 3 is the whole rule now)',
+  junk !== null && junk.kind === 'province', JSON.stringify(junk));
+
+// ⚠️ Anti-vacuity: if `archiveTownRedirect` returned 'province' for EVERYTHING
+// the two checks above would both pass while proving nothing about aliases.
+check('the register distinguishes an alias from a typo',
+  elche?.kind === 'town' && junk?.kind === 'province');
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
 process.exit(failures ? 1 : 0);
