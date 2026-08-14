@@ -46,6 +46,7 @@ from bs4 import BeautifulSoup
 from .bank_base_scraper import BankBaseScraper
 from ..config.provinces import ALL_PROVINCES, get_province_by_code
 from ..config.municipality_province import canonical_municipality_name
+from ..config.municipality_canonical import canonical_municipality_for_province
 from ..config.categories import get_category_type
 from .vehicle_parser import set_vehicle_fields
 from .boe_scraper import set_surface_occupancy_fields
@@ -519,6 +520,18 @@ class SegSocialScraper(BankBaseScraper):
         # (e.g. "(6789 JMG)"); canonical_municipality_name returns None for it,
         # so we honestly store no town rather than a plate.
         municipality = canonical_municipality_name(municipality)
+
+        # INGEST GUARD (MUNI-B): the shared normalizer above title-cases anything
+        # it does not recognise, so an unparsed fragment becomes a brand-new
+        # "municipality" and mints a permanent town URL. Only a name the INE
+        # register recognises INSIDE this row's province survives; anything else
+        # is dropped to None (honest unknown, recoverable later).
+        #
+        # This path does NOT go through boe_scraper.apply_property_geo, so it
+        # needs the guard explicitly -- TGSS rows were measurably re-dirtying
+        # already-repaired municipalities on every pass (2026-08-14).
+        if municipality:
+            municipality = canonical_municipality_for_province(municipality, province)
         return province, municipality
 
     # ----- value parsers ----------------------------------------------------

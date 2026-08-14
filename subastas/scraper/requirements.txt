@@ -16,6 +16,13 @@ python-dateutil>=2.8.0
 pytesseract>=0.3.10
 Pillow>=10.0.0
 
+# PDF text extraction for BOE closure certificates (scrapers/closure_certificate.py).
+# Was previously undeclared: pdf_to_text() catches ImportError and returns "", so a
+# missing reader does not crash -- it silently yields "no certificate" for every
+# auction and the endsAt ingest hook goes dead. That exact gap produced false
+# NO_CERTIFICATE results on 2026-08-13. Declared so the image cannot ship without it.
+pypdf>=4.0.0
+
 # Optional: Better HTTP handling
 urllib3>=2.0.0
 
