@@ -316,9 +316,21 @@ const ES: ResultadosCopy = {
   outcomeNationalH1: (outcome) => `Subastas ${outcome} en España`,
   townsHeading: (province) => `Por municipio en ${province}`,
   muniIndexH1: (province) => `Municipios con resultados en ${province}`,
+  // ⭐ SAY WHAT THE PAGE SHOWS, NOT WHAT THE PROVINCE HAS (Ken, 2026-08-13).
+  // "Los {n} municipios de Madrid" claims to be the COMPLETE list of Madrid's
+  // municipalities. It never was: before the gazetteer gate it read 302 (Madrid
+  // has 179, the surplus being scraper typos and districts), and after the gate
+  // it reads 149 — still not 179, because a municipality with no auctions has no
+  // archive page and the planner deliberately refuses to mint zero-row hubs.
+  // Both numbers are false statements about Madrid; only the leading article
+  // makes them a claim at all. The honest count is the count of towns we have
+  // results for, so the article goes and the qualifier becomes explicit.
+  // ⛔ Do NOT "fix" this by minting empty town hubs to reach 179 — that trades a
+  // cosmetic problem for thin pages and soft-404s. Ken ruled the refuse-zero-row
+  // rule correct and it stays.
   muniIndexLead: (n, province) =>
-    `Los ${n} municipios de ${province} con subastas concluidas en el registro del BOE. Cada municipio enlaza con su archivo de resultados.`,
-  muniIndexLink: (n) => `Ver los ${n} municipios`,
+    `${n} municipios de ${province} con subastas concluidas en el registro del BOE. Cada municipio enlaza con su archivo de resultados.`,
+  muniIndexLink: (n) => `Ver los ${n} municipios con resultados`,
   muniIndexPagesLabel: 'Páginas del índice de municipios',
   crumbMunicipios: 'Municipios',
   otherProvincesHeading: 'Otras provincias',

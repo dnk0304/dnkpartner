@@ -192,3 +192,19 @@ echo "  lit:  $([ $lit_fail -eq 0 ] && echo PASS || echo FAIL)"
 echo "  ramp: $([ $ramp_fail -eq 0 ] && echo PASS || echo FAIL)"
 [ $dark_fail -eq 0 ] && [ $lit_fail -eq 0 ] && [ $ramp_fail -eq 0 ] || exit 1
 echo "  v4 archive suite GREEN in both switch states, and the ramp knob turns."
+
+# ===== BEGIN: unit suite step (owned by T4 — safe to move as one block) =====
+# Ken T4: the geo resolver tests existed but nothing ever ran them. They are
+# tsx exit-code scripts, not vitest — see scripts/run-unit-tests.mjs. Run last
+# so a red unit test cannot be mistaken for a server/redirect failure above.
+say "UNIT  (resolver + seo unit suite, no server, no DB)"
+unit_fail=0
+npm run --silent test:unit || unit_fail=1
+if [ $unit_fail -eq 0 ]; then
+  echo "  PASS  unit suite green"
+else
+  echo "  FAIL  unit suite red — see the per-file list above"
+fi
+echo "  unit: $([ $unit_fail -eq 0 ] && echo PASS || echo FAIL)"
+[ $unit_fail -eq 0 ] || exit 1
+# ===== END: unit suite step =====

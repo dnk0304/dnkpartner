@@ -33,6 +33,7 @@ import {
 } from '@/lib/seo/page-data';
 import { registroMunicipioSlugToDbName } from '@/lib/registro/registro-read';
 import { archiveTownRedirect } from '@/lib/registro/archive-town-redirect';
+import { archiveWhitelistActive } from '@/lib/registro/archive-municipality';
 import { resolveResultadosSeg } from '@/lib/registro/resultados-routing';
 import { registryOutcomeFromSlug, type RegistryOutcome } from '@/lib/registro/registro-ui';
 import { archiveNodePath, type ArchiveNode } from '@/lib/seo/archive-partitions';
@@ -90,6 +91,22 @@ async function townRedirectTarget(
   provDbKey: string,
   seg2: string,
 ): Promise<string | null> {
+  // ⛔ SWITCH-GATED (Ken's MUNI-A2 ruling, after a prod rollback).
+  //
+  // Nothing here may fire while `URL_V4_SWITCH` is off. Ken measured
+  // `/resultados/madrid/msdrid` and `/resultados/madrid/carabanchel-alto`
+  // answering 307 on a dark build where they had answered 200, and rolled the
+  // release back inside a minute.
+  //
+  // ⭐ THIS GUARD IS THE BACKSTOP, NOT THE FIX. The reason those URLs reached
+  // this function at all is that the gazetteer whitelist had already made them
+  // unresolvable upstream; gating only here would have converted the 307 into a
+  // 404, which is worse. The real gate is on the whitelist itself, in
+  // `archive-municipality.ts` — dark, `msdrid` resolves and returns 200 and
+  // control never gets here. This check exists so that no future change to the
+  // resolution layer can reintroduce a dark redirect by accident.
+  if (!archiveWhitelistActive()) return null;
+
   // ⛔ ONLY retired pages redirect. This branch is also the catch-all for any
   // segment that is not a year, outcome or tipo, so without this check every
   // bogus string (`/resultados/madrid/qwerty`) would 301 to the province — a
@@ -99,10 +116,19 @@ async function townRedirectTarget(
   if (!(await legacyMunicipalitySlugExists(provDbKey, seg2))) return null;
   const target = archiveTownRedirect(provSlug, seg2);
   if (target === null) return null;
-  if (target.kind === 'town') {
-    const live = await registroMunicipioSlugToDbName(provDbKey, target.slug);
-    if (live) return `/resultados/${provSlug}/${target.slug}`;
-  }
+
+  // ⛔ THE ALIAS -> CANONICAL 301 IS GONE (Ken, MUNI-A2). `archiveTownRedirect`
+  // still reports `kind: 'town'` for an alternate denomination, but that answer
+  // is now consumed by `registroMunicipioSlugToDbName`, which RESOLVES the alias
+  // slug to the same town and serves it 200 at its own URL instead of moving it.
+  // Control therefore only reaches here for a slug that names no town at all —
+  // a typo or a district — and every one of those goes to the province hub,
+  // which always exists. Rule 3 is the whole rule now.
+  //
+  // Consequence worth stating: no live town URL is renamed by this wave. That
+  // was Ken's explicit instruction and it is also why the 135-case enumeration
+  // exists — the rename policy is Dennis's to settle, once, for provinces and
+  // towns together.
   return `/resultados/${provSlug}`;
 }
 
