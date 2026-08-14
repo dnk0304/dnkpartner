@@ -31,6 +31,7 @@ from ..config.municipality_province import (
     canonical_municipality_name, derive_province_from_address,
     derive_municipality_from_address, geo_cross_check,
 )
+from ..config.municipality_canonical import resolve_municipality
 from ..config.settings import SCRAPE_MAX_PAGES, SCRAPE_MAX_ITEMS_PER_PAGE, BOE_REQUEST_DELAY_SECONDS
 from ..database.adapter import get_database_adapter
 from ..lib import doc_storage
@@ -1071,6 +1072,24 @@ def apply_property_geo(rec: Dict[str, Any], logger_fn=None) -> Dict[str, Any]:
         a_town, _ap, _am = derive_municipality_from_address(address)
         if a_town:
             town, muni_src = a_town, 'address'
+    # INGEST GUARD (MUNI-B task 4): a municipality only reaches the column if the
+    # INE register recognises it INSIDE this row's province. A name we cannot
+    # resolve is dropped to None rather than written, because an unrecognised
+    # string mints a brand-new "municipality" and a permanent town URL with it --
+    # that is how the corpus grew 302 municipios for Madrid against a real 179.
+    # Unresolved is recoverable; a wrong town in a URL is not.
+    if town:
+        canon_town, _ine, canon_tier = resolve_municipality(town, prov)
+        if canon_town:
+            if canon_town != town:
+                muni_src = f'{muni_src}+ine'
+            town = canon_town
+        else:
+            if logger_fn:
+                logger_fn(f"municipality '{town}' not in INE register for "
+                          f"province={prov} ({canon_tier}) - left unresolved")
+            town, muni_src = None, None
+
     if town:
         rec['municipality'] = town
 

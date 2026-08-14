@@ -29,32 +29,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def run_boe_pre_auctions():
-    """Run BOE pre-auction scraper (PA status)"""
-    logger.info("=" * 60)
-    logger.info("Starting BOE Pre-Auctions (PA) scraper...")
-    logger.info("=" * 60)
-    
-    try:
-        # Use property_scraper with pre mode
-        result = subprocess.run(
-            [sys.executable, str(SCRAPER_DIR / 'property_scraper.py'), '--mode', 'pre', '--pages', '50'],
-            cwd=str(SCRAPER_DIR),
-            capture_output=True,
-            text=True,
-            timeout=1800  # 30 min timeout
-        )
-        logger.info(f"Pre-auction scraper output:\n{result.stdout}")
-        if result.returncode != 0:
-            logger.error(f"Pre-auction scraper error:\n{result.stderr}")
-        return result.returncode == 0
-    except subprocess.TimeoutExpired:
-        logger.warning("Pre-auction scraper timed out after 30 minutes")
-        return False
-    except Exception as e:
-        logger.error(f"Pre-auction scraper failed: {e}")
-        return False
-
 def run_boe_vehicles():
     """Run BOE vehicle scraper"""
     logger.info("=" * 60)
@@ -176,9 +150,9 @@ def main():
     # 3. Run bank scrapers
     results['banks'] = run_bank_scrapers()
     
-    # 4. Run pre-auction scraper
-    results['pre_auctions'] = run_boe_pre_auctions()
-    
+    # 4. Pre-auction scraping intentionally removed: its only implementation
+    #    (scraper/property_scraper.py) manufactured publishedAt/endsAt from
+    #    datetime.now() instead of reading BOE. Deleted 2026-08-13 (MUNI-B).
     end_time = datetime.now()
     duration = (end_time - start_time).total_seconds()
     
