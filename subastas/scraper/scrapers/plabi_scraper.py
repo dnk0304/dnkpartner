@@ -56,6 +56,7 @@ from bs4 import BeautifulSoup
 from .bank_base_scraper import BankBaseScraper
 from ..config.provinces import ALL_PROVINCES
 from ..config.municipality_province import canonical_municipality_name
+from ..config.municipality_canonical import canonical_municipality_for_province
 from ..config.categories import get_category_type
 from .vehicle_parser import set_vehicle_fields
 from .boe_scraper import set_surface_occupancy_fields
@@ -503,6 +504,15 @@ class PlabiScraper(BankBaseScraper):
             municipality = None
         # Shared normalizer: title-case + dedup vs INE + STRIP plate/junk.
         municipality = canonical_municipality_name(municipality)
+
+        # INGEST GUARD (MUNI-B): the normalizer above title-cases anything it does
+        # not recognise, minting a new "municipality" and a permanent town URL.
+        # Only a name the INE register recognises INSIDE this row's province
+        # survives; anything else becomes None. This path does NOT go through
+        # boe_scraper.apply_property_geo, so the guard is applied explicitly --
+        # PLABI rows were re-dirtying already-repaired municipalities (2026-08-14).
+        if municipality:
+            municipality = canonical_municipality_for_province(municipality, province)
 
         # Category: PLABI's own Tipo-de-activo labels gate the keyword classifier.
         description = detail.get("description")

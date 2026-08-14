@@ -149,3 +149,33 @@ def test_cross_province_name_does_not_leak():
     """'Sestao' (Bizkaia) under Madrid must not resolve to the Bizkaia town."""
     display, _ine, _tier = resolve_municipality("Sestao", "Madrid")
     assert display != "Sestao"
+
+
+# --------------------------------------------------------------------------- #
+# the non-BOE ingest paths (TGSS + PLABI) must be covered too
+# --------------------------------------------------------------------------- #
+def test_province_vocabularies_of_all_ingest_paths_resolve():
+    """TGSS uses the repo's Castilian province keys ('Vizcaya', 'Baleares',
+    'La Coruña'); PLABI uses the co-official ones ('Bizkaia', 'Illes Balears').
+    Both must map into the register or the guard silently rejects every row on
+    that source.
+    """
+    from scraper.config.municipality_canonical import _REG, _load, province_key
+    _load()
+    tgss = ['Guipúzcoa', 'Vizcaya', 'Álava', 'Baleares', 'La Coruña', 'Orense']
+    plabi = ['Bizkaia', 'Gipuzkoa', 'Álava', 'A Coruña', 'Ourense', 'Illes Balears']
+    for province in tgss + plabi:
+        assert province_key(province) in _REG, province
+
+
+def test_the_rows_that_eroded_now_self_heal():
+    """These four values were re-written by the unguarded TGSS/PLABI paths on
+    2026-08-14. With the guard wired in they resolve to the canonical name, so a
+    re-scrape repairs the row instead of re-dirtying it."""
+    cases = [
+        ('Alcoy/alcoi', 'Alicante', 'Alcoi/Alcoy'),
+        ("Alcora (l')", 'Castellón', "l'Alcora"),
+        ('Acebeda (la)', 'Madrid', 'La Acebeda'),
+    ]
+    for stored, province, expected in cases:
+        assert canonical_municipality_for_province(stored, province) == expected
