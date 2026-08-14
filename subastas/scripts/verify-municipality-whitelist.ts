@@ -209,7 +209,7 @@ function main(): number {
   let beforeTotal = 0;
   let afterTotal = 0;
   let coverageTotal = 0;
-  let redirectsToTown = 0;
+  let aliasesServing200 = 0;
   let redirectsToProvince = 0;
 
   for (const [province, group] of [...perProvince].sort((a, b) => a[0].localeCompare(b[0], 'es'))) {
@@ -264,11 +264,22 @@ function main(): number {
         continue;
       }
       if (target.kind === 'town') {
+        // ⭐ NO LONGER A 301 (Ken, MUNI-A2). `archiveTownRedirect` still reports
+        // `kind: 'town'` for an alternate denomination, but that answer is now
+        // consumed by `registroMunicipioSlugToDbName`, which RESOLVES the alias
+        // slug onto the same town and serves it 200 at its own URL rather than
+        // renaming it. Ken killed the alias 301 because Elche is a major city
+        // with existing index equity and the naming principle is an open Dennis
+        // question — see `scripts/forge-ine-name-cases.ts` for all 135 cases.
+        //
+        // Counting these as redirects would overstate the wave's 301 volume by
+        // 39 on a report Ken reads to size the risk, so they are counted as what
+        // they now are: alias slugs that keep serving.
         if (!canonicalSlugs.has(target.slug)) {
           failures.push(
-            `G6 ${province}: /${pSlug}/${slug} would 301 to /${pSlug}/${target.slug}, which is not a live hub (301 -> 404)`,
+            `G6 ${province}: /${pSlug}/${slug} resolves to /${pSlug}/${target.slug}, which is not a live hub (would 200 with no rows)`,
           );
-        } else redirectsToTown++;
+        } else aliasesServing200++;
       } else redirectsToProvince++;
     }
 
@@ -307,9 +318,9 @@ function main(): number {
     }
     console.log('');
     console.log(`TOWN HUBS            ${beforeTotal} -> ${afterTotal}   (removed ${beforeTotal - afterTotal})`);
-    console.log(`301s ADDED           ${redirectsToTown + redirectsToProvince}`);
-    console.log(`  -> canonical town  ${redirectsToTown}  (register-identifiable alternate denominations)`);
+    console.log(`301s ADDED           ${redirectsToProvince}  (all to the province hub — no town is renamed)`);
     console.log(`  -> province hub    ${redirectsToProvince}  (typos, districts, cross-province misfiles)`);
+    console.log(`ALIAS SLUGS SERVING 200  ${aliasesServing200}  (alternate denominations — NOT renamed; Ken/MUNI-A2)`);
     console.log(`AUCTIONS             ${auctionsTotal} total`);
     console.log(`  no province        ${noProvince}  (location-free shelf)`);
     console.log(`  province, no muni  ${provinceOnly}`);
