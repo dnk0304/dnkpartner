@@ -247,11 +247,24 @@ EOF
 fi
 
 # ---------------------------------------------------------------------------
-# MUNI-A — the gazetteer whitelist (Ken's ruling, 2026-08-13)
+# MUNI-A — the gazetteer whitelist (Ken's MUNI-A2 ruling, 2026-08-13)
 #
-# Asserted in BOTH switch states on purpose: the whitelist is NOT behind
-# URL_V4_SWITCH. A municipality the INE register does not know must never mint a
-# URL, in either state, because a junk town page is junk in v3 too.
+# ⛔ THIS BLOCK USED TO ASSERT THE BUG. Its original header read: "Asserted in
+# BOTH switch states on purpose: the whitelist is NOT behind URL_V4_SWITCH. A
+# municipality the INE register does not know must never mint a URL, in either
+# state, because a junk town page is junk in v3 too."
+#
+# That premise was wrong, and it is why the suite went green on a build Ken
+# rolled back within a minute. Junk-town pages ARE junk in v3 — but they are
+# junk that is LIVE, and Ken's dark rule is not "serve only good URLs", it is
+# "change NOTHING until the flip": a user or Googlebot on prod must not be able
+# to tell the flag is there. A verify script that encodes the feature author's
+# intent rather than the release contract cannot catch the feature author's
+# mistake. It just agrees with it.
+#
+# So the expectation is now state-dependent, which is the whole point:
+#   dark → 200, byte-identical to wave192, junk included.
+#   lit  → 301 to the province hub, one hop, no 404.
 #
 # The fixture seeds one row of each defect class under Madrid with real auctions
 # attached, so a pass here means row count did not buy a URL — only the register
@@ -259,26 +272,50 @@ fi
 # province's capital misfiled (that last one passes a bare gazetteer check and is
 # caught ONLY by the province cross-check).
 # ---------------------------------------------------------------------------
-echo "--- MUNI-A: junk towns are not URLs, and 301 rather than 404 ---"
-for u in /resultados/madrid/msdrid /resultados/madrid/carabanchel-alto /resultados/madrid/valencia; do
-  c="$(code "$u")"
-  ck "$u is a redirect, not a page" "$([ "$c" = 200 ] && echo page || echo redirect)" redirect
-  ck "$u does not 404"              "$([ "$c" = 404 ] && echo 404 || echo ok)" ok
-  ck "$u targets the province hub"  "$(loc "$u")" /resultados/madrid
-  read -r n final <<EOF
+JUNK_TOWNS="/resultados/madrid/msdrid /resultados/madrid/carabanchel-alto /resultados/madrid/valencia"
+
+if [ "$MODE" = "dark" ]; then
+  echo "--- MUNI-A dark: the legacy town surface is UNTOUCHED ---"
+  # These three URLs are exactly what Ken measured going 200 -> 307 on prod.
+  for u in $JUNK_TOWNS; do
+    ck "$u still serves 200 while dark" "$(code "$u")" 200
+    ck "$u emits no Location while dark" "$(loc "$u")" ""
+  done
+  # And the lists still carry them, because the town COUNT is what drives
+  # ceil(total / MUNI_INDEX_PAGE_SIZE) — the arithmetic that 404'd
+  # /municipios/pagina/2 without anybody writing a paging change.
+  has /resultados/madrid/municipios 'msdrid'           "dark: municipios index still lists the typo town"
+  has /resultados/madrid/municipios 'carabanchel-alto' "dark: municipios index still lists the district"
+  ck  "dark: /resultados/madrid/municipios/pagina/2 is still a page"       "$(code /resultados/madrid/municipios/pagina/2)" 200
+else
+  echo "--- MUNI-A lit: junk towns are not URLs, and 301 rather than 404 ---"
+  for u in $JUNK_TOWNS; do
+    c="$(code "$u")"
+    ck "$u is a redirect, not a page" "$([ "$c" = 200 ] && echo page || echo redirect)" redirect
+    ck "$u does not 404"              "$([ "$c" = 404 ] && echo 404 || echo ok)" ok
+    ck "$u targets the province hub"  "$(loc "$u")" /resultados/madrid
+    read -r n final <<EOF
 $(hops "$u")
 EOF
-  # The province hub always exists, so this is also the no-301-lands-on-a-404 proof.
-  ck "$u settles at 200 in $n hop(s)" "$final" 200
-  ck "$u chain length"                "$n" 1
-done
+    # The province hub always exists, so this is also the no-301-lands-on-a-404 proof.
+    ck "$u settles at 200 in $n hop(s)" "$final" 200
+    ck "$u chain length"                "$n" 1
+  done
 
-echo "--- MUNI-A: junk towns appear in no list ---"
-hasnt /resultados/madrid/municipios 'msdrid'           "municipios index omits the typo town"
-hasnt /resultados/madrid/municipios 'carabanchel-alto' "municipios index omits the district"
-hasnt /resultados/madrid/municipios '/madrid/valencia' "municipios index omits the misfiled capital"
-hasnt /resultados/madrid          'msdrid'             "province hub links no typo town"
-has   /resultados/madrid/municipios '/madrid/madrid'   "the real town is still listed"
+  echo "--- MUNI-A lit: junk towns appear in no list ---"
+  hasnt /resultados/madrid/municipios 'msdrid'           "municipios index omits the typo town"
+  hasnt /resultados/madrid/municipios 'carabanchel-alto' "municipios index omits the district"
+  hasnt /resultados/madrid/municipios '/madrid/valencia' "municipios index omits the misfiled capital"
+  hasnt /resultados/madrid          'msdrid'             "province hub links no typo town"
+  has   /resultados/madrid/municipios '/madrid/madrid'   "the real town is still listed"
+
+  # ⛔ NO TOWN IS RENAMED (Ken, MUNI-A2). The alias -> canonical 301 is dropped;
+  # an alternate denomination RESOLVES and serves 200 at its own URL. Elche is a
+  # major city with index equity and the naming policy is an open Dennis
+  # question — see scripts/forge-ine-name-cases.ts (135 cases).
+  ck "lit: /resultados/alicante/elche still serves 200 (no rename)" "$(code /resultados/alicante/elche)" 200
+  ck "lit: /resultados/alicante/elche emits no Location" "$(loc /resultados/alicante/elche)" ""
+fi
 
 echo ""
 echo "PASS=$pass FAIL=$fail"
