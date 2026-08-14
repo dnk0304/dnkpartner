@@ -38,7 +38,11 @@ import {
 } from '../src/lib/seo/archive-census';
 import { safeMunicipioSegment } from '../src/lib/seo/archive-partitions';
 import { ARCHIVE_PAGE_SIZE } from '../src/lib/registro/archive-paging';
-import { CHILD_SITEMAP_SIZE } from '../src/lib/seo/sitemap-config';
+import {
+  CHILD_SITEMAP_SIZE,
+  DARK_AGGREGATION_CHILDREN,
+  aggregationChildCountFor,
+} from '../src/lib/seo/sitemap-config';
 import {
   DB_AUCTIONTYPE_TO_TIPO_SLUG,
   PROVINCE_DB_KEY_TO_SLUG,
@@ -204,7 +208,38 @@ for (const u of removed) byShape.set(shapeOf(u), (byShape.get(shapeOf(u)) ?? 0) 
 // ---------------------------------------------------------------------------
 const v3Total = V3_NON_ARCHIVE + v3.length;
 const v4Total = V3_NON_ARCHIVE + v4.length;
-const childrenNeeded = Math.max(1, Math.ceil(v4Total / CHILD_SITEMAP_SIZE));
+const childrenNeeded = aggregationChildCountFor(v4Total, true);
+
+/**
+ * ⭐ THE DARK SIZING — the number P3 got wrong and prod was rolled back for.
+ *
+ * The report above sizes the LIT band. This sizes the DARK one, at prod scale,
+ * which is the only place that boundary can be examined offline: the committed
+ * fixture's aggregation band is 64 urls and the split happens at 20,000.
+ *
+ * Two independent things are checked, because P3 broke both and either alone is
+ * invisible:
+ *
+ *   1. the dark band still TRUNCATES its `/pagina/N` block at CHILD_SITEMAP_SIZE
+ *      (67b7d3f's behaviour — a known bug, held deliberately until the flip);
+ *   2. the dark aggregation child count is the CONSTANT 1, whatever the band
+ *      size, so guias/noticias/monthly recaps appended after the truncation can
+ *      push the band past 20,000 without adding a `<sitemap>` child.
+ *
+ * `v3PaginaTruncated` reproduces (1) against this rollup so the report states
+ * how many urls the held bug is currently costing us — a number worth seeing on
+ * flip day, since flipping is what pays it back.
+ *
+ * ⚠️ IT IS AN UPPER BOUND, AND IT IS LABELLED AS ONE. The live cap counts
+ * `entries.length`, and `V3_NON_ARCHIVE` lumps together urls emitted BEFORE the
+ * /resultados block (core, provinces, towns, tipos, categories) with ones
+ * emitted AFTER it (guias, noticias, monthly recaps). Treating all of them as
+ * "before" over-states how early the cap bites. The number is reported as
+ * guidance; nothing is asserted on it. What IS asserted is (2), which is exact.
+ */
+const v3PaginaTruncated = Math.max(0, v3Total - CHILD_SITEMAP_SIZE);
+const darkBandTotal = v3Total - v3PaginaTruncated;
+const darkChildren = aggregationChildCountFor(darkBandTotal, false);
 
 const pad = (n: number) => n.toLocaleString('en-US').padStart(9);
 console.log('=== v4 SITEMAP AGGREGATION BAND REPORT ===');
@@ -230,6 +265,12 @@ for (let i = 0; i < childrenNeeded; i++) {
   console.log(`    child ${i}: skip ${String(lo).padStart(6)}  urls ${pad(size)}  ${size > 0 ? 'NON-EMPTY' : '*** EMPTY ***'}`);
 }
 console.log('');
+console.log('--- 2b. ⭐ DARK CHILDREN (the P3 rollback: prod went 5 -> 6) ---');
+console.log(`  dark band, /pagina/N truncated at ${CHILD_SITEMAP_SIZE} (UPPER BOUND on the`);
+console.log(`  truncation — see the comment): ${pad(darkBandTotal)}   [${v3PaginaTruncated} urls held back]`);
+console.log(`  DARK aggregation children         : ${darkChildren}  (pinned constant, must be ${DARK_AGGREGATION_CHILDREN})`);
+console.log(`  LIT  aggregation children         : ${childrenNeeded}  (derived from the band)`);
+console.log('');
 console.log('--- 3. <loc> UNION DIFF (aggregation band) ---');
 console.log(`  added   : ${pad(added.length)}`);
 console.log(`  removed : ${pad(removed.length)}`);
@@ -254,4 +295,34 @@ console.log('--- 5. SAMPLES ---');
 console.log('  first 5 added  :', added.slice(0, 5).join('  '));
 console.log('  first 5 removed:', removed.slice(0, 5).join('  '));
 
-process.exit(unexplained.length === 0 ? 0 : 1);
+// ---------------------------------------------------------------------------
+// ⭐ GATE 6 — the dark child count cannot move, AT PROD SCALE.
+//
+// This is the assertion whose absence let P3 through. Checked here rather than
+// only in the served suite because the served suite runs on the committed
+// fixture, whose aggregation band is 64 urls: it can never reach the 20,000
+// boundary where the count changes, so it is green either way. This rollup is
+// 195,408 rows, which is the scale the defect lives at.
+//
+// Paired with a LIT reading, so it cannot pass by the band being trivially
+// small — if lit and dark ever agree at a band size past CHILD_SITEMAP_SIZE,
+// the chunking the flip is meant to release has been disabled.
+// ---------------------------------------------------------------------------
+console.log('');
+console.log('--- 6. GATE: the DARK child count is pinned (P3 rollback regression) ---');
+let darkGateFail = false;
+if (darkChildren !== DARK_AGGREGATION_CHILDREN) {
+  console.log(`  FAIL — dark aggregation children = ${darkChildren}, must be ${DARK_AGGREGATION_CHILDREN}.`);
+  console.log('         This is exactly what took prod from 5 <sitemap> children to 6.');
+  darkGateFail = true;
+} else if (aggregationChildCountFor(CHILD_SITEMAP_SIZE * 3, false) !== DARK_AGGREGATION_CHILDREN) {
+  console.log('  FAIL — dark count is derived for large bands; it must be a constant.');
+  darkGateFail = true;
+} else if (aggregationChildCountFor(CHILD_SITEMAP_SIZE * 3, true) < 2) {
+  console.log('  FAIL — lit count is NOT derived; the chunking the flip releases is dead.');
+  darkGateFail = true;
+} else {
+  console.log(`  PASS — dark = ${DARK_AGGREGATION_CHILDREN} child at any band size; lit derives (${childrenNeeded} here).`);
+}
+
+process.exit(unexplained.length === 0 && !darkGateFail ? 0 : 1);

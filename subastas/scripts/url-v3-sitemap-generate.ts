@@ -27,7 +27,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-import { CHILD_SITEMAP_SIZE, buildSitemapLayout } from '../src/lib/seo/sitemap-config';
+import { buildSitemapLayout } from '../src/lib/seo/sitemap-config';
 import { buildAggregationEntries, buildSitemapEntries } from '../src/lib/seo/sitemap-entries';
 import { URL_V3_SWITCH_ENV } from '../src/lib/seo/url-v3-switch';
 
@@ -87,7 +87,12 @@ async function main(): Promise<number> {
     const chunk = layout.classify(id);
     const entries =
       chunk.kind === 'aggregation'
-        ? aggregation.slice(chunk.skip, chunk.skip + CHILD_SITEMAP_SIZE)
+        // ⭐ `layout.sliceAggregation`, NOT an open-coded slice. Dark serves the
+        // WHOLE band as one child (pinned to wave192); lit serves 20k windows.
+        // This generator writing a lit-shaped slice while the app serves a
+        // dark-shaped one is exactly the drift that put a 6-child index on a
+        // dark prod build and got the release rolled back.
+        ? layout.sliceAggregation(aggregation, id)
         : await buildSitemapEntries(id, layout.aggregationChunks);
     writeFileSync(join(outDir, `${id}.xml`), renderUrlset(entries), 'utf8');
     for (const e of entries) {

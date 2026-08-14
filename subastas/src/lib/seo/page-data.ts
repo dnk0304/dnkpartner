@@ -13,7 +13,13 @@ import { fetchV3UrlsBatch, resolveAuctionPath } from '@/lib/seo/auction-url';
 // ⭐ Ken's MUNI-A ruling: the INE gazetteer is the ONLY source of towns — no
 // municipality enumeration may derive its list from raw corpus rows. Rationale
 // lives in `@/lib/registro/archive-municipality`.
-import { foldArchiveMunicipalities, resolveArchiveMunicipality } from '@/lib/registro/archive-municipality';
+import {
+  archiveWhitelistActive,
+  archiveWhitelistCacheKey,
+  foldArchiveMunicipalities,
+  foldMunicipalitiesForLegacySurface,
+  resolveArchiveMunicipality,
+} from '@/lib/registro/archive-municipality';
 import { safeMunicipioSegment } from '@/lib/seo/archive-partitions';
 // The canonical status predicates. `buildActiveFirstCaseSql` (used by
 // /api/auctions) builds its ORDER BY CASE from these SAME two functions, which
@@ -394,6 +400,8 @@ export const minStartingPrice = unstable_cache(_minStartingPrice, ['seo-min-pric
  */
 async function _municipalitiesInProvince(
   province: string,
+  /** Cache-key discriminator only — see `municipalitiesInProvince`. */
+  _whitelist: string,
 ): Promise<Array<{ name: string; count: number; municipioSlug: string }>> {
   const [allRows, activeRows] = await Promise.all([
     prisma.auction.groupBy({
@@ -426,30 +434,83 @@ async function _municipalitiesInProvince(
   // resolve through the same gate, so an ungated chip here would link straight
   // at a 404. Names are canonicalised to the INE denomination and every spelling
   // of one town folds onto one chip; unresolved names produce no chip at all.
-  type Acc = { name: string; activeTotal: number; municipioSlug: string };
-  const byIne = new Map<string, Acc>();
+  //
+  // ⛔ …BUT ONLY WHEN THE SWITCH IS ON (MUNI-A2). This function does not mint a
+  // URL, it mints the CHIP CLUSTER on `/subastas/{prov}` — a page that ships
+  // today. Applying the whitelist while dark silently deletes every junk chip
+  // from a live page, which is a visible content change with the flag off. It
+  // also has to move in lockstep with `distinctMunicipalitiesInProvince` above:
+  // if the chips were gated and the resolver were not (or vice versa) the hub
+  // would link towns that 404, or hide towns that serve — which is the exact
+  // link/resolver disagreement MUNI-A's one-resolution-point rule exists to
+  // prevent. One switch, read in both places, keeps them in step in BOTH states.
+  if (archiveWhitelistActive()) {
+    type Acc = { name: string; activeTotal: number; municipioSlug: string };
+    const byIne = new Map<string, Acc>();
+    for (const r of allRows) {
+      const name = (r.municipality ?? '').trim();
+      if (!name) continue;
+      const town = resolveArchiveMunicipality(province, name);
+      if (!town) continue;
+      const active = activeByName.get(name) ?? 0;
+      const prev = byIne.get(town.ine);
+      if (prev) prev.activeTotal += active;
+      else byIne.set(town.ine, { name: town.name, activeTotal: active, municipioSlug: town.slug });
+    }
+    return Array.from(byIne.values())
+      .map((a) => ({ name: a.name, count: a.activeTotal, municipioSlug: a.municipioSlug }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'es'));
+  }
+
+  // ── DARK: the pre-MUNI-A body, reproduced exactly. 🗑️ Delete at the flip. ──
+  // Note the asymmetry, which is original and load-bearing: `activeTotal` SUMS
+  // across the spellings that share a slug, but the display `name` is the one
+  // with the highest ANY-STATUS count. Folding those two the same way would
+  // change the chip labels on a live page.
+  type LegacyAcc = { name: string; topCount: number; activeTotal: number; municipioSlug: string };
+  const bySlug = new Map<string, LegacyAcc>();
   for (const r of allRows) {
     const name = (r.municipality ?? '').trim();
     if (!name) continue;
-    const town = resolveArchiveMunicipality(province, name);
-    if (!town) continue;
+    const lc = name.toLowerCase();
+    if (lc === 'null' || lc === 'undefined' || lc === 'desconocida') continue;
+    const municipioSlug = slugify(name);
+    if (!municipioSlug) continue;
+    const count = r._count?._all ?? 0;
     const active = activeByName.get(name) ?? 0;
-    const prev = byIne.get(town.ine);
-    if (prev) prev.activeTotal += active;
-    else byIne.set(town.ine, { name: town.name, activeTotal: active, municipioSlug: town.slug });
+    const prev = bySlug.get(municipioSlug);
+    if (!prev) {
+      bySlug.set(municipioSlug, { name, topCount: count, activeTotal: active, municipioSlug });
+    } else {
+      prev.activeTotal += active;
+      if (count > prev.topCount) {
+        prev.name = name;
+        prev.topCount = count;
+      }
+    }
   }
-  return Array.from(byIne.values())
+  return Array.from(bySlug.values())
     .map((a) => ({ name: a.name, count: a.activeTotal, municipioSlug: a.municipioSlug }))
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'es'));
 }
 
-export const municipalitiesInProvince = unstable_cache(
+const municipalitiesInProvinceCached = unstable_cache(
   _municipalitiesInProvince,
   // Key bumped (town-pages Phase 2) — semantics widened from active-only to
   // any-status towns; a stale active-only cache must not hide finished towns.
   ['seo-municipalities-by-province-anystatus'],
   { revalidate: 300, tags: ['seo-counts'] },
 );
+
+/**
+ * Public signature UNCHANGED for callers; the switch state rides along as a
+ * second argument purely so it lands in the `unstable_cache` key. See
+ * `distinctMunicipalitiesCached` for why a shared key across the two states
+ * would make the flip take up to 300s instead of being instant.
+ */
+export function municipalitiesInProvince(province: string) {
+  return municipalitiesInProvinceCached(province, archiveWhitelistCacheKey());
+}
 
 /** Slugs of the indexable provinces that actually have inventory (for sitemap). */
 export async function provincesWithInventory(): Promise<Set<string>> {
@@ -482,17 +543,19 @@ export async function provincesWithInventory(): Promise<Set<string>> {
  */
 async function _distinctMunicipalitiesInProvince(
   provinceDbKey: string,
+  /** Cache-key discriminator only — see `distinctMunicipalitiesCached`. */
+  _whitelist: string,
 ): Promise<Array<{ name: string; slug: string; count: number; dbNames: string[] }>> {
   const rows = await prisma.auction.groupBy({
     by: ['municipality'],
     where: { province: provinceDbKey },
     _count: { _all: true },
   });
-  const { resolved } = foldArchiveMunicipalities(
+  const folded = foldMunicipalitiesForLegacySurface(
     provinceDbKey,
     rows.map((r) => ({ name: r.municipality, total: r._count?._all ?? 0 })),
   );
-  return resolved.map((m) => ({ name: m.name, slug: m.slug, count: m.total, dbNames: m.dbNames }));
+  return folded.map((m) => ({ name: m.name, slug: m.slug, count: m.total, dbNames: m.dbNames }));
 }
 
 const distinctMunicipalitiesInProvince = unstable_cache(
@@ -503,6 +566,20 @@ const distinctMunicipalitiesInProvince = unstable_cache(
   ['seo-distinct-municipalities-in-province-anystatus'],
   { revalidate: 300, tags: ['seo-counts'] },
 );
+
+/**
+ * ⚠️ The `whitelist` argument is not used by the callee — it is a CACHE KEY.
+ *
+ * `unstable_cache` keys on the static key array PLUS the arguments, so a value
+ * computed while dark would otherwise still be served after the flip (and vice
+ * versa on a rollback) until the 300s revalidate expired. Ken's rollback budget
+ * is one minute; a five-minute stale town list is not compatible with that.
+ * Threading the switch state through as an argument makes the two states
+ * physically different cache entries, so a flip is instant in both directions.
+ */
+function distinctMunicipalitiesCached(provinceDbKey: string) {
+  return distinctMunicipalitiesInProvince(provinceDbKey, archiveWhitelistCacheKey());
+}
 
 /**
  * Resolve a municipality slug to its canonical town name within a province.
@@ -518,7 +595,7 @@ export async function municipalitySlugToDbName(
   municipalitySlug: string,
 ): Promise<string | null> {
   if (!provinceDbKey || !municipalitySlug) return null;
-  const rows = await distinctMunicipalitiesInProvince(provinceDbKey);
+  const rows = await distinctMunicipalitiesCached(provinceDbKey);
   return rows.find((r) => r.slug === municipalitySlug)?.name ?? null;
 }
 
@@ -531,7 +608,7 @@ export async function municipalityDbNamesForSlug(
   municipalitySlug: string,
 ): Promise<string[]> {
   if (!provinceDbKey || !municipalitySlug) return [];
-  const rows = await distinctMunicipalitiesInProvince(provinceDbKey);
+  const rows = await distinctMunicipalitiesCached(provinceDbKey);
   return rows.find((r) => r.slug === municipalitySlug)?.dbNames ?? [];
 }
 
@@ -608,7 +685,11 @@ async function _municipalityPairs(where: Prisma.AuctionWhereInput): Promise<
   for (const [provinceKey, list] of byProvince) {
     const provinceSlug = PROVINCE_DB_KEY_TO_SLUG[provinceKey];
     if (!provinceSlug) continue;
-    for (const m of foldArchiveMunicipalities(provinceKey, list).resolved) {
+    // ⛔ SWITCH-GATED (MUNI-A2). These pairs are the v3 SITEMAP's town-page
+    // entries. Whitelisting them while dark deletes ~7,100 `<loc>`s from the
+    // live sitemap with the flag off — the single most visible dark change
+    // available to us, and one Googlebot acts on within hours.
+    for (const m of foldMunicipalitiesForLegacySurface(provinceKey, list)) {
       out.push({
         provinceSlug,
         municipioSlug: m.slug,
@@ -624,11 +705,16 @@ async function _municipalityPairs(where: Prisma.AuctionWhereInput): Promise<
  * Pairs with ≥1 ACTIVE auction (legacy active-only view — kept exported for
  * call sites that want the live-inventory subset).
  */
-export const activeMunicipalityPairs = unstable_cache(
-  () => _municipalityPairs({ status: { in: SITEMAP_INVENTORY_STATUSES } }),
+const activeMunicipalityPairsCached = unstable_cache(
+  (_whitelist: string) => _municipalityPairs({ status: { in: SITEMAP_INVENTORY_STATUSES } }),
   ['seo-active-municipality-pairs'],
   { revalidate: 300, tags: ['seo-counts'] },
 );
+
+/** Switch state rides in the cache key — this feeds the SITEMAP. */
+export function activeMunicipalityPairs() {
+  return activeMunicipalityPairsCached(archiveWhitelistCacheKey());
+}
 
 /**
  * Town-pages Phase 2 — ALL clean (provinceSlug, municipioSlug) pairs with
@@ -636,11 +722,16 @@ export const activeMunicipalityPairs = unstable_cache(
  * 0-active towns are noindex,follow at the page until inventory returns.
  * Same junk gates + collision fold as the active variant.
  */
-export const allMunicipalityPairs = unstable_cache(
-  () => _municipalityPairs({}),
+const allMunicipalityPairsCached = unstable_cache(
+  (_whitelist: string) => _municipalityPairs({}),
   ['seo-all-municipality-pairs'],
   { revalidate: 300, tags: ['seo-counts'] },
 );
+
+/** Switch state rides in the cache key — this feeds the SITEMAP. */
+export function allMunicipalityPairs() {
+  return allMunicipalityPairsCached(archiveWhitelistCacheKey());
+}
 
 /** Active-count per category label (for sitemap / threshold check). */
 export async function categoryActiveCounts(): Promise<Map<string, number>> {

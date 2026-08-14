@@ -29,11 +29,14 @@ import type { ArchiveNode } from '@/lib/seo/archive-partitions';
 import { PERIOD_ALL, ROLLUP_ALL } from '@/lib/registro/outcome-stats';
 import { OUTCOME_SLUG } from '@/lib/seo/auction-outcome';
 import { PROVINCE_DB_KEY_TO_SLUG } from '@/lib/seo/slugs';
+import { archiveTownRedirect } from '@/lib/registro/archive-town-redirect';
 // ⭐ Ken's MUNI-A ruling: the INE gazetteer is the ONLY source of towns. Every
 // municipality enumeration below goes through this one resolution point — see
 // `@/lib/registro/archive-municipality` for the full rationale.
 import {
-  foldArchiveMunicipalities,
+  archiveWhitelistActive,
+  archiveWhitelistCacheKey,
+  foldMunicipalitiesForLegacySurface,
   resolveArchiveMunicipality,
 } from '@/lib/registro/archive-municipality';
 import { OUTCOME_TO_SLUG, REGISTRY_OUTCOME_ORDER } from '@/lib/registro/registro-ui';
@@ -260,7 +263,7 @@ async function _readRegions(opts: {
     let key: string;
     let label: string;
     let raw: string | null = null;
-    if (province) {
+    if (province && archiveWhitelistActive()) {
       // MUNI-A gate: a municipality absent from the INE register is not a town.
       // Those rows are dropped from the municipio list and stay counted at the
       // PROVINCE level (see archive-municipality.ts). Grouping by INE code —
@@ -269,6 +272,14 @@ async function _readRegions(opts: {
       if (!hit) continue;
       key = hit.ine;
       label = hit.name;
+      raw = (r.municipality ?? '').trim();
+    } else if (province) {
+      // ── DARK: group by the RAW corpus string, exactly as before MUNI-A.
+      // 🗑️ Delete at the flip. This is the function that produces the number in
+      // "N municipios de Madrid" and, downstream, `ceil(total / 200)` — i.e. it
+      // is the one that turned `/municipios/pagina/2` into a 404 on prod.
+      key = r.municipality;
+      label = r.municipality;
       raw = (r.municipality ?? '').trim();
     } else {
       key = r.province;
@@ -297,10 +308,22 @@ async function _readRegions(opts: {
   return { level: province ? 'municipio' : 'province', regions };
 }
 
-export const readRegions = unstable_cache(_readRegions, ['registro-regions'], {
-  revalidate: 3600,
-  tags: ['registro'],
-});
+
+// ⚠️ The `whitelist` argument below is never read by the callee — it exists to
+// land the URL_V4_SWITCH state in the `unstable_cache` KEY. Without it a value
+// computed while dark is still served after the flip (and vice versa on a
+// rollback) until the 3600s revalidate expires. Ken's rollback budget is one
+// minute; an hour-stale town list is not compatible with that.
+// 🗑️ At the flip these wrappers collapse back to the bare cached function.
+const readRegionsCached = unstable_cache(
+  (opts: Parameters<typeof _readRegions>[0], _whitelist: string) => _readRegions(opts),
+  ['registro-regions'],
+  { revalidate: 3600, tags: ['registro'] },
+);
+
+export function readRegions(opts: Parameters<typeof _readRegions>[0]) {
+  return readRegionsCached(opts, archiveWhitelistCacheKey());
+}
 
 // ---------------------------------------------------------------------------
 // list (a single bounded page of concluded rows, classified)
@@ -521,24 +544,35 @@ async function _concludedMunicipioRegions(provinceDbKey: string): Promise<Munici
   // `_readRegions` has already applied the gazetteer gate, so its municipio
   // labels are INE official names; the fold below is what mints the (escaped)
   // URL segment, so links and the route resolver cannot disagree.
-  const { resolved } = foldArchiveMunicipalities(
+  // ⛔ SWITCH-GATED (MUNI-A2). Dark this is the pre-MUNI-A fold — junk filter,
+  // bare slugify, highest-total casing wins — so Madrid enumerates 302 towns
+  // and `/municipios/pagina/2` stays in range. Lit it is the INE fold.
+  const folded = foldMunicipalitiesForLegacySurface(
     provinceDbKey,
     regions.map((r) => ({ name: r.label, total: r.total })),
   );
   const rawByLabel = new Map(regions.map((r) => [r.label, r.dbNames] as const));
-  return resolved.map((m) => ({
+  return folded.map((m) => ({
     municipalityName: m.name,
     municipioSlug: m.slug,
     total: m.total,
-    dbNames: rawByLabel.get(m.name) ?? [],
+    // Dark, `m.name` IS the raw label, so this resolves to the single spelling
+    // the legacy `where` clause used. Lit, `m.name` is the INE denomination and
+    // may match no stored row — hence the fallback to the folded `dbNames`.
+    dbNames: rawByLabel.get(m.name) ?? m.dbNames,
   }));
 }
 
-export const concludedMunicipioRegions = unstable_cache(
-  _concludedMunicipioRegions,
+const concludedMunicipioRegionsCached = unstable_cache(
+  (provinceDbKey: string, _whitelist: string) => _concludedMunicipioRegions(provinceDbKey),
   ['registro-municipio-regions'],
   { revalidate: 3600, tags: ['registro'] },
 );
+
+/** Switch state rides in the cache key — see the note above `readRegions`. */
+export function concludedMunicipioRegions(provinceDbKey: string) {
+  return concludedMunicipioRegionsCached(provinceDbKey, archiveWhitelistCacheKey());
+}
 
 export interface MunicipioPair {
   provinceSlug: string;
@@ -593,19 +627,24 @@ async function _concludedMunicipioPairsAll(): Promise<MunicipioPair[]> {
   for (const [provinceDbKey, list] of byProvince) {
     const provinceSlug = PROVINCE_DB_KEY_TO_SLUG[provinceDbKey];
     if (!provinceSlug) continue; // off-taxonomy province name — skip
-    const { resolved } = foldArchiveMunicipalities(provinceDbKey, list);
-    for (const m of resolved) {
+    // ⛔ SWITCH-GATED (MUNI-A2) — this feeds the SITEMAP's town `<loc>`s.
+    for (const m of foldMunicipalitiesForLegacySurface(provinceDbKey, list)) {
       out.push({ provinceSlug, municipioSlug: m.slug, total: m.total });
     }
   }
   return out;
 }
 
-export const concludedMunicipioPairsAll = unstable_cache(
-  _concludedMunicipioPairsAll,
+const concludedMunicipioPairsAllCached = unstable_cache(
+  (_whitelist: string) => _concludedMunicipioPairsAll(),
   ['registro-municipio-pairs-all'],
   { revalidate: 3600, tags: ['registro'] },
 );
+
+/** Switch state rides in the cache key — this feeds the SITEMAP. */
+export function concludedMunicipioPairsAll() {
+  return concludedMunicipioPairsAllCached(archiveWhitelistCacheKey());
+}
 
 /**
  * Resolve a /resultados municipality slug → the canonical town within a
@@ -620,5 +659,39 @@ export async function registroMunicipioSlugToDbName(
   municipioSlug: string,
 ): Promise<MunicipioRegionEntry | null> {
   const list = await concludedMunicipioRegions(provinceDbKey);
-  return list.find((m) => m.municipioSlug === municipioSlug) ?? null;
+  const direct = list.find((m) => m.municipioSlug === municipioSlug);
+  if (direct) return direct;
+  if (!archiveWhitelistActive()) return null;
+
+  // ── ⛔ NO REGISTER-DRIVEN RENAME OF A LIVE TOWN URL (Ken, MUNI-A2) ─────────
+  // MUNI-A canonicalised each town to its INE OFFICIAL denomination and 301'd
+  // the alternate spelling onto it — `/resultados/alicante/elche` -> `.../elx`.
+  // Ken killed that: Elche is a major city with existing index equity, Spanish
+  // search demand is overwhelmingly "Elche", and the naming principle it rests
+  // on is an OPEN question with Dennis (co-official provinces, girona/gerona,
+  // held since 2026-08-04). A naming policy must not arrive as a side effect of
+  // a data-cleanup wave.
+  //
+  // ⭐ AND THE MEASUREMENT SAYS HE IS RIGHT FOR A REASON NOBODY EXPECTED. The
+  // enumeration Ken asked for (`scripts/forge-ine-name-cases.ts`, 135 cases, 91
+  // with rows) shows "INE official" is NOT a synonym for "the co-official-
+  // language form": in Valencia it officialises the Valencian name
+  // (elche->elx), but in Navarra and Álava it officialises the CASTILIAN one
+  // (iruna->pamplona, agoitz->aoiz, erriberri->olite). "Follow INE" and
+  // "prefer the co-official form" are DIFFERENT policies that move different
+  // URLs in opposite directions. No resolver should pick between them.
+  //
+  // So: the alternate slug keeps SERVING, at its own URL, self-canonical — the
+  // status quo, which is the only safe default while the policy is pending. It
+  // maps onto the same town's rows, so the content is right; it is simply not
+  // moved. The sitemap continues to advertise one slug per town, so this adds
+  // no duplicate `<loc>`. Reversible into either policy with one edit.
+  const provSlug = PROVINCE_DB_KEY_TO_SLUG[provinceDbKey];
+  if (!provSlug) return null;
+  const alias = archiveTownRedirect(provSlug, municipioSlug);
+  if (!alias || alias.kind !== 'town') return null;
+  const target = list.find((m) => m.municipioSlug === alias.slug);
+  // `municipioSlug: municipioSlug` — the REQUESTED slug, not the official one.
+  // That is what keeps the page self-canonical instead of advertising a move.
+  return target ? { ...target, municipioSlug } : null;
 }

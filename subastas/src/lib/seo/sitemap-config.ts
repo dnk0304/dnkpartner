@@ -33,6 +33,8 @@
  * the freshest 20k. Sizing rationale for the current value lives on the constant.
  */
 
+import { isUrlV4SwitchOn } from '@/lib/seo/url-v4-switch';
+
 /** URLs per child sitemap file. FIRM (Dennis). Under the 50k spec cap. */
 export const CHILD_SITEMAP_SIZE = 20_000;
 
@@ -126,6 +128,69 @@ export const SITEMAP_ARCHIVE_MAX_URLS = ((): number => {
  */
 export function aggregationChildCount(aggregationUrlCount: number): number {
   return Math.max(1, Math.ceil(aggregationUrlCount / CHILD_SITEMAP_SIZE));
+}
+
+/**
+ * ⛔⛔ THE DARK CHILD COUNT — DO NOT MAKE THIS DERIVED. ⛔⛔
+ *
+ * ── WHAT WENT WRONG (rolled back from prod, 2026-08-13) ───────────────────
+ * P3 (8667d28) shipped the derived count above as the ONLY count. Measured on
+ * prod with `URL_V4_SWITCH` UNSET:
+ *
+ *     /sitemap.xml on 67b7d3f (previous release) : 5 <sitemap> children
+ *     /sitemap.xml on 8667d28 (P3)               : 6 <sitemap> children
+ *
+ * Two P3 changes combined to produce that, and BOTH are needed to explain it:
+ *
+ *   1. `sitemap-entries.ts` removed the `CHILD_SITEMAP_SIZE` truncation that
+ *      had been silently dropping `/resultados/.../pagina/N` URLs from the v3
+ *      aggregation band. Un-truncated, the band crosses 20,000 on the current
+ *      corpus (it did not when it was last measured at 16,507 on 2026-08-13 —
+ *      the `endsAt` closure-certificate backfill, 3cefe46, moved ~17,800 rows
+ *      into the concluded set afterwards, and every one of them can add town
+ *      and `/pagina/N` URLs).
+ *   2. THIS number stopped being a constant. Pre-P3 the aggregation band was
+ *      hardcoded to exactly ONE child (`TOTAL_CHILDREN = 1 + ACTIVE_CHUNKS +
+ *      PUBLISHED_CONCLUDED_CHILDREN`) no matter how many URLs it held — an
+ *      over-full child 0 was served over-full and still counted as one.
+ *
+ * Either alone is invisible; together they are +1 child, dark, on the one URL
+ * Dennis submits to GSC. Ken's rule is byte-for-byte: *"A user or Googlebot
+ * must not be able to tell the flag is there."* A child count that moves is the
+ * loudest possible tell.
+ *
+ * ── WHY THE FIX IS A CONSTANT AND NOT A BIGGER TRUNCATION ─────────────────
+ * Restoring the truncation alone is NOT sufficient, and this is the subtle part.
+ * The pre-P3 cap stopped the `/pagina/N` LOOP at 20,000 — but `guias`,
+ * `noticias` and the monthly recaps are appended AFTER that block and were
+ * never capped. So the pre-P3 band could legitimately be ~21,200 URLs inside a
+ * single, fixed, over-full child. A derived count over that same list returns 2.
+ * Reproducing 67b7d3f therefore requires reproducing the CONSTANT, not just the
+ * cap. Both are restored, because the dark path has to match on the `<loc>` set
+ * AND on the child count, and they are two different mechanisms.
+ *
+ * ── THIS IS A BUG BEING HELD, NOT A BUG BEING FIXED ───────────────────────
+ * Serving >20,000 URLs in one child is out of spec, and so is dropping the
+ * truncated `/pagina/N` URLs. Both are real defects and both are FIXED — by the
+ * lit path. THE FLIP IS WHAT RELEASES THE FIX. Dark is deliberately, knowingly
+ * bug-compatible with the previous release, which is the entire meaning of
+ * "ships dark". Do not "helpfully" correct the dark branch.
+ */
+export const DARK_AGGREGATION_CHILDREN = 1;
+
+/**
+ * The aggregation child count for a given switch state.
+ *
+ * ⚠️ `v4On` is a PARAMETER, and its default is evaluated at CALL time via
+ * `isUrlV4SwitchOn()`. It must never become a module-load constant — see the
+ * warning in `url-v4-switch.ts`: a baked-in constant turns "flip the env var"
+ * into "rebuild and redeploy" and makes the flag un-revertible in a hurry.
+ */
+export function aggregationChildCountFor(
+  aggregationUrlCount: number,
+  v4On: boolean = isUrlV4SwitchOn(),
+): number {
+  return v4On ? aggregationChildCount(aggregationUrlCount) : DARK_AGGREGATION_CHILDREN;
 }
 
 /**
@@ -251,10 +316,39 @@ export interface SitemapLayout {
   urls(site: string): string[];
   /** id → what it contains + its skip offset. Pure. */
   classify(id: number): ChunkKind;
+  /**
+   * The slice of the FULL aggregation band that child `id` serves. Returns []
+   * for non-aggregation ids.
+   *
+   * ⭐ THE DARK BRANCH DOES NOT SLICE, AND THAT IS THE POINT. Pre-P3 there was
+   * exactly one aggregation child and it served the WHOLE list — including,
+   * when `guias`/`noticias`/monthly recaps pushed it past 20,000, an over-full
+   * child. Slicing to `CHILD_SITEMAP_SIZE` while dark would silently drop those
+   * trailing URLs and break the byte-for-byte rule in the opposite direction
+   * from the child count. Dark: the whole band, one child. Lit: 20k windows.
+   *
+   * Single-sourced here rather than open-coded at each call site, because the
+   * INDEX (`childLastmods`) and the CHILD route must agree about what a child
+   * contains or the `<lastmod>` describes a different set than the `<urlset>`.
+   */
+  sliceAggregation<T>(all: readonly T[], id: number): T[];
 }
 
-export function buildSitemapLayout(aggregationUrlCount: number): SitemapLayout {
-  const aggregationChunks = aggregationChildCount(aggregationUrlCount);
+/**
+ * @param aggregationUrlCount  length of the band `buildAggregationEntries()` built.
+ * @param v4On  switch state. ⚠️ DEFAULTED, NOT CAPTURED — the default expression
+ *   runs `isUrlV4SwitchOn()` on every call, so the layout follows the env var
+ *   without a rebuild. Callers pass it explicitly only in tests, where both
+ *   states have to be exercised in one process.
+ *
+ * DARK returns a FIXED one-child aggregation band (67b7d3f's shape); LIT returns
+ * the derived count. See `DARK_AGGREGATION_CHILDREN` for why dark is a constant.
+ */
+export function buildSitemapLayout(
+  aggregationUrlCount: number,
+  v4On: boolean = isUrlV4SwitchOn(),
+): SitemapLayout {
+  const aggregationChunks = aggregationChildCountFor(aggregationUrlCount, v4On);
   const totalChildren = aggregationChunks + ACTIVE_CHUNKS + PUBLISHED_CONCLUDED_CHILDREN;
   const ids = () => Array.from({ length: totalChildren }, (_, i) => i);
   return {
@@ -263,6 +357,12 @@ export function buildSitemapLayout(aggregationUrlCount: number): SitemapLayout {
     ids,
     urls: (site: string) => ids().map((id) => `${site}/sitemap/${id}.xml`),
     classify: (id: number) => classifyChunkIn(id, aggregationChunks),
+    sliceAggregation<T>(all: readonly T[], id: number): T[] {
+      const chunk = classifyChunkIn(id, aggregationChunks);
+      if (chunk.kind !== 'aggregation') return [];
+      if (!v4On) return [...all]; // 67b7d3f: one child, the whole band, uncut.
+      return all.slice(chunk.skip, chunk.skip + CHILD_SITEMAP_SIZE);
+    },
   };
 }
 

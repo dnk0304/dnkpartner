@@ -192,3 +192,56 @@ echo "  lit:  $([ $lit_fail -eq 0 ] && echo PASS || echo FAIL)"
 echo "  ramp: $([ $ramp_fail -eq 0 ] && echo PASS || echo FAIL)"
 [ $dark_fail -eq 0 ] && [ $lit_fail -eq 0 ] && [ $ramp_fail -eq 0 ] || exit 1
 echo "  v4 archive suite GREEN in both switch states, and the ramp knob turns."
+
+# ===== BEGIN: unit suite step (owned by T4 — safe to move as one block) =====
+# Ken T4: the geo resolver tests existed but nothing ever ran them. They are
+# tsx exit-code scripts, not vitest — see scripts/run-unit-tests.mjs. Run last
+# so a red unit test cannot be mistaken for a server/redirect failure above.
+say "UNIT  (resolver + seo unit suite, no server, no DB)"
+unit_fail=0
+npm run --silent test:unit || unit_fail=1
+if [ $unit_fail -eq 0 ]; then
+  echo "  PASS  unit suite green"
+else
+  echo "  FAIL  unit suite red — see the per-file list above"
+fi
+echo "  unit: $([ $unit_fail -eq 0 ] && echo PASS || echo FAIL)"
+[ $unit_fail -eq 0 ] || exit 1
+# ===== END: unit suite step =====
+
+# ===== BEGIN: dark-parity step (owned by MUNI-A2 — safe to move as one block) =====
+# ⭐ Ken, after the wave193 rollback: "Add a dark-state assertion that the entire
+# legacy surface is untouched — status code and `location` for every legacy
+# shape, diffed against the pre-switch build, expecting zero differences. Your
+# suite proved the LIT behaviour beautifully; it did not assert that dark
+# changes NOTHING. That is the gap."
+#
+# Everything above this line asserts what the switch DOES. This asserts what it
+# must NOT do, by standing up 67b7d3f beside HEAD and diffing (status, location)
+# over a DERIVED corpus — and it carries its own positive control, so a zero
+# here cannot be the vacuous kind.
+#
+# Runs LAST because it stands up its OWN two servers on its OWN ports and needs
+# $PORT free; and because a red here is a different class of finding from a red
+# above (a dark regression, not a broken v4 behaviour) and should not be
+# confused with one.
+#
+# Skipped, loudly, when the baseline worktree is absent — it needs a checkout of
+# 67b7d3f and this suite must stay runnable from a clean box. Set up with:
+#   git -C <repo> worktree add C:/Users/D/worktrees/dnkpartner/muni-a2-baseline 67b7d3f
+#   New-Item -ItemType Junction -Path <baseline>/subastas/node_modules -Target <repo>/subastas/node_modules
+say "DARK-PARITY  (67b7d3f vs HEAD, switch off, zero differences)"
+stop_server   # free $PORT; the parity script binds its own ports and checks them
+parity_fail=0
+BASELINE_DIR="${BASELINE_DIR:-C:/Users/D/worktrees/dnkpartner/muni-a2-baseline}"
+if [ ! -d "$BASELINE_DIR/subastas" ]; then
+  echo "  SKIP  baseline worktree missing at $BASELINE_DIR — see the header above."
+  echo "        ⚠️ This step is the wave193 gate. A suite that skips it is not"
+  echo "           asserting the dark contract; do not read a green run as one."
+else
+  BASELINE_DIR="$BASELINE_DIR" DATABASE_URL="$DATABASE_URL" \
+    bash scripts/verify-v4-dark-parity.sh || parity_fail=1
+  echo "  dark-parity: $([ $parity_fail -eq 0 ] && echo PASS || echo FAIL)"
+  [ $parity_fail -eq 0 ] || exit 1
+fi
+# ===== END: dark-parity step =====

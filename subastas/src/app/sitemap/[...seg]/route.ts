@@ -24,7 +24,7 @@ import {
   buildSitemapEntries,
   type SitemapUrlEntry,
 } from '@/lib/seo/sitemap-entries';
-import { CHILD_SITEMAP_SIZE, buildSitemapLayout } from '@/lib/seo/sitemap-config';
+import { buildSitemapLayout } from '@/lib/seo/sitemap-config';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -96,7 +96,11 @@ export async function GET(
   const chunk = layout.classify(id);
   const entries =
     chunk.kind === 'aggregation'
-      ? aggregation.slice(chunk.skip, chunk.skip + CHILD_SITEMAP_SIZE)
+      ? // ⚠️ NOT an open-coded slice. While DARK this returns the WHOLE band in
+        // child 0 — pre-P3's shape, over-full and all — and while LIT it returns
+        // the 20k window. The sitemap INDEX computes this child's <lastmod> from
+        // the same call, so the two cannot describe different sets.
+        layout.sliceAggregation(aggregation, id)
       : await buildSitemapEntries(id, layout.aggregationChunks);
   const body = renderUrlset(entries);
 
