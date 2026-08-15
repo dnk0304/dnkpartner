@@ -155,6 +155,26 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url, 301);
   }
 
+  // ---- Rule 2c: bare /guia → /blog (the article index) -------------------
+  //
+  // `/guia/{slug}` renders 55 articles; the bare `/guia` segment has no route
+  // file and 404s. It is the URL a human — or an old inbound link — guesses.
+  // Ken's ruling (2026-08-15): 301 it to `/blog` and pass any historical
+  // equity to the real index. Explicitly NOT a second index page at /guia —
+  // one canonical article index is the point.
+  //
+  // `/blog` and `/en/blog` both return 200, so `relocale` is safe here and the
+  // redirect resolves in exactly one hop on both locales — the target is a
+  // terminal 200, never another redirect. (`/guia/` → `/guia` is Next's own
+  // trailing-slash 308 and is pre-existing.)
+  //
+  // Not added to the sitemap: redirects don't belong in sitemaps.
+  if (pathname === '/guia') {
+    const url = request.nextUrl.clone();
+    url.pathname = relocale('/blog', urlHadLocale);
+    return NextResponse.redirect(url, 301);
+  }
+
   // ---- Rule 2b (Wave 56 Option A): old province URL → clean province URL.
   //
   // The 52 province pages MOVED from /subastas/provincia/{slug} to the clean
