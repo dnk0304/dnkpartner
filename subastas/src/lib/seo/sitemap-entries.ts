@@ -489,6 +489,31 @@ export async function buildAggregationEntries(): Promise<SitemapUrlEntry[]> {
     }
   }
 
+  // --- /blog: the guía article index ---
+  //
+  // /blog is the real hub for the 55 /guia/ articles: it links every one of
+  // them and is itself linked from the homepage and /subastas. It was never
+  // submitted, which is the same "crawlable but not advertised" gap the town
+  // archives had. One URL, priority parallel to /noticias below.
+  //
+  // ⚠️ DELIBERATELY PLACED HERE — AFTER the CHILD_SITEMAP_SIZE truncation loop
+  // above, not in the `--- Core ---` block. That loop seeds `emitted` from
+  // `entries.length`, so a URL added ABOVE it costs exactly one
+  // `/resultados/.../pagina/N` URL whenever the band is at the cap. The band is
+  // at 16,516/20,000 so the cap is not currently reached and either position
+  // would measure the same today — but the dark path's guarantee is that its
+  // `/resultados` set stays byte-identical to 67b7d3f, and "true because we are
+  // under the cap" is a property that expires silently. Adding here cannot
+  // displace anything, at any band size.
+  //
+  // Redirect targets are NOT sitemap entries: /guia 301s to /blog (middleware
+  // Rule 2c) and is deliberately absent from this file.
+  entries.push({
+    url: `${SITE}/blog`,
+    changeFrequency: 'weekly',
+    priority: 0.6,
+  });
+
   // --- Published /guia/ articles (link from #9 blog) ---
   try {
     const guides = await prisma.article.findMany({
