@@ -50,6 +50,14 @@ function check(name: string, cond: boolean) {
   check('no numerator (both null) → null', derivePricePerM2(null, null, 50) === null);
   check('both numerators 0 → null', derivePricePerM2(0, 0, 50) === null);
   check('NaN m² → null', derivePricePerM2(100_000, null, Number.NaN) === null);
+  // Surface plausibility band (m²-plausibility dispatch, Ken 2026-08-19): an
+  // implausible area is a parse error, never a home — €/m² must not compute.
+  check('9 m² (below band) → null (the "9 m² · 7.587 €/m²" bug)', derivePricePerM2(68_283, null, 9) === null);
+  check('10 m² (band floor) → value', derivePricePerM2(100_000, null, 10) === 10_000);
+  check('90 m² (plausible) → €/m² computes', derivePricePerM2(180_000, null, 90) === 2000);
+  check('10,000 m² (band ceiling) → value', derivePricePerM2(5_000_000, null, 10_000) === 500);
+  check('10,001 m² (above band) → null', derivePricePerM2(5_000_000, null, 10_001) === null);
+  check('12,000 m² (land-area grab) → null', derivePricePerM2(3_600_000, null, 12_000) === null);
 }
 
 // ── 2. DWELLING RESTRICTION ─────────────────────────────────────────────────
