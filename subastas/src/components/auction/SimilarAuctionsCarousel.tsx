@@ -31,6 +31,8 @@ import { StatusBadge } from "@/components/observatory/StatusBadge";
 import { LiveCountdown } from "@/components/observatory/LiveCountdown";
 import { effectiveStatus } from "@/components/observatory/status";
 import { capitalize, titleCase, formatPrice } from "@/components/observatory/format";
+import { auctionCardTitle } from "@/lib/seo/display-title";
+import { OFFICIAL_CATEGORIES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 type SimilarAuction = {
@@ -49,6 +51,15 @@ type SimilarAuction = {
   imageUrl: string | null;
   address?: string | null;
   hasImage?: boolean | null;
+  // Fields the shared `auctionCardTitle` helper consumes to derive a
+  // street/address headline (mirroring the list cards). All optional +
+  // nullable — the same additive `/api/auctions` projection the list uses;
+  // any absent field degrades gracefully inside the helper.
+  propertyType?: string | null;
+  lotDescription?: string | null;
+  vehicleMake?: string | null;
+  vehicleModel?: string | null;
+  vehicleYear?: number | null;
   /**
    * ⭐ Canonical detail path, resolved SERVER-side by `resolveAuctionPath` and
    * already projected by `/api/auctions` (the endpoint this strip reads). This
@@ -198,6 +209,37 @@ function SimilarCard({
     .filter(Boolean)
     .join(", ");
 
+  // Card title — STREET/ADDRESS first, BOE ref only as last resort.
+  // Reuse the SAME shared `auctionCardTitle` helper (and the same bare-address
+  // wiring) the list cards use, so the parecidas strip stops leaking raw
+  // "SUB-JA-2026-…" codes while its own href already carries the clean street.
+  // The helper never returns the ref: address → street; else "{Tipo} en
+  // {town}"; last resort "{Tipo}" — never `auction.title`.
+  const isVehicle = auction.category
+    ? (OFFICIAL_CATEGORIES.MOVABLE as readonly string[]).includes(auction.category)
+    : false;
+  const baseTitle = auctionCardTitle({
+    address: auction.address,
+    propertyType: auction.propertyType,
+    auctionType: auction.auctionType,
+    category: auction.category,
+    municipality: auction.municipality,
+    province: auction.province,
+    title: auction.title,
+    categoryGroup: isVehicle ? "movable" : "real_estate",
+    vehicleMake: auction.vehicleMake,
+    vehicleModel: auction.vehicleModel,
+    vehicleYear: auction.vehicleYear,
+    lotDescription: auction.lotDescription,
+    useFullStreet: !isVehicle,
+    bareAddress: !isVehicle,
+  });
+  const vehicleMakeModel =
+    isVehicle && auction.vehicleMake && auction.vehicleModel
+      ? `${titleCase(auction.vehicleMake)} ${titleCase(auction.vehicleModel)}`
+      : null;
+  const cardTitle = vehicleMakeModel ?? baseTitle;
+
   const resolved = resolveCardImage({
     imageUrl: auction.imageUrl ?? undefined,
     hasImage: auction.hasImage ?? null,
@@ -251,7 +293,7 @@ function SimilarCard({
       </div>
       <div className="flex flex-1 flex-col gap-1.5 p-3">
         <p className="line-clamp-2 text-sm font-medium text-[var(--color-ink-primary)]">
-          {auction.title}
+          {cardTitle}
         </p>
         {where && (
           <p className="flex items-center gap-1 text-[11px] text-[var(--color-ink-tertiary)]">

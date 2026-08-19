@@ -27,16 +27,27 @@
 import * as React from "react";
 import { Clock, Gavel } from "lucide-react";
 import { LiveCountdown } from "@/components/observatory/LiveCountdown";
+import { isUpcoming } from "@/components/observatory/status";
 import { cn } from "@/lib/utils";
 
 export type AuctionCountdownBadgeProps = {
-  /** ISO string, Date, or epoch ms. */
+  /** ISO string, Date, or epoch ms. The END of the auction window. */
   endDate: string | Date | number | null | undefined;
+  /**
+   * ISO string, Date, or epoch ms — the OPENING moment (opensAt / startedAt).
+   * For an UPCOMING (próxima apertura) row the countdown targets this, not
+   * `endDate`: the pill must read "Abre en 58d…", never "Termina en 58d…".
+   * Null-safe; when absent on an upcoming row the pill hides gracefully.
+   * Ignored for live/terminal rows (they count down to `endDate`).
+   */
+  opensAt?: string | Date | number | null;
   /** Resolved bid-status string from the API (e.g. "Sin pujas", "3 pujas"). */
   bidStatus?: string | null;
   /**
-   * Effective (clock-wins) status string. Passed through to LiveCountdown so
-   * the past-text behavior agrees with the StatusBadge alongside.
+   * Effective (clock-wins) status string. Drives BOTH the label/target
+   * (upcoming → "Abre en"/opensAt; live → "Termina en"/endDate) — reusing the
+   * SAME status predicates the sidebar (DetailStatusPanel) uses, so the two
+   * never disagree — and LiveCountdown's past-text behavior.
    */
   effectiveStatus?: string | null;
   /**
@@ -88,28 +99,38 @@ function tierFor(endDate: AuctionCountdownBadgeProps["endDate"], nowMs: number):
 
 export function AuctionCountdownBadge({
   endDate,
+  opensAt,
   bidStatus,
   effectiveStatus,
   hideWhenEmpty = true,
   nowMs,
   className,
 }: AuctionCountdownBadgeProps) {
+  // Status-aware countdown target — the fix for the "TERMINA EN" mislabel on
+  // próxima-apertura rows. An UPCOMING auction counts down to its OPENING
+  // (opensAt); everything else counts down to its END (endDate). This mirrors
+  // DetailStatusPanel's sidebar logic exactly (live → endsAt, upcoming →
+  // startedAt) via the shared `isUpcoming` predicate — one classification,
+  // never a forked second mapping.
+  const upcoming = isUpcoming(effectiveStatus);
+  const countdownTarget = upcoming ? (opensAt ?? null) : endDate;
+
   // Seeded from the SERVER-sampled clock so SSR and the first client render
   // agree (React #418). The effect below re-syncs to the real client clock
   // immediately after hydration.
-  const [tier, setTier] = React.useState<Tier>(() => tierFor(endDate, nowMs));
+  const [tier, setTier] = React.useState<Tier>(() => tierFor(countdownTarget, nowMs));
   // Re-tier every minute so the surface escalates on its own. Cheaper than
   // mirroring LiveCountdown's per-second loop — the tier only changes a few
   // times per auction lifetime. `Date.now()` is CORRECT here: effects are
   // client-only and run after hydration has already committed.
   React.useEffect(() => {
-    setTier(tierFor(endDate, Date.now()));
+    setTier(tierFor(countdownTarget, Date.now()));
     const id = window.setInterval(
-      () => setTier(tierFor(endDate, Date.now())),
+      () => setTier(tierFor(countdownTarget, Date.now())),
       60 * 1000,
     );
     return () => window.clearInterval(id);
-  }, [endDate]);
+  }, [countdownTarget]);
 
   // QC fix (Pixel 2026-06-07): PLABI rows are CELEBRÁNDOSE with NO end date.
   // We previously rendered an empty "Tiempo restante / Fecha por confirmar"
@@ -119,23 +140,33 @@ export function AuctionCountdownBadge({
   if (hideWhenEmpty && tier === "missing" && !bidStatus) return null;
 
   const isPast = tier === "past";
+  // The urgency escalation (amber → red) is END-of-auction semantics — "time
+  // is running out to bid". An OPENING countdown is anticipatory, not urgent,
+  // so an upcoming row always wears the calm winter-green tint regardless of
+  // how close the opening is. (Past/missing still degrade to muted below.)
   const tone =
-    tier === "imminent"
-      ? "border-red-300 bg-red-50 text-red-900"
-      : tier === "soon"
-        ? "border-amber-300 bg-amber-50 text-amber-900"
-        : isPast
-          ? "border-[var(--color-hairline)] bg-[var(--color-surface-muted)] text-[var(--color-ink-tertiary)]"
-          : tier === "missing"
+    upcoming && !isPast && tier !== "missing"
+      ? "border-[var(--color-brand)]/20 bg-[var(--color-brand)]/5 text-[var(--color-ink-primary)]"
+      : tier === "imminent"
+        ? "border-red-300 bg-red-50 text-red-900"
+        : tier === "soon"
+          ? "border-amber-300 bg-amber-50 text-amber-900"
+          : isPast
             ? "border-[var(--color-hairline)] bg-[var(--color-surface-muted)] text-[var(--color-ink-tertiary)]"
-            : // calm — the winter-green default
-              "border-[var(--color-brand)]/20 bg-[var(--color-brand)]/5 text-[var(--color-ink-primary)]";
+            : tier === "missing"
+              ? "border-[var(--color-hairline)] bg-[var(--color-surface-muted)] text-[var(--color-ink-tertiary)]"
+              : // calm — the winter-green default
+                "border-[var(--color-brand)]/20 bg-[var(--color-brand)]/5 text-[var(--color-ink-primary)]";
 
-  const label = isPast
-    ? "Finalizada"
-    : tier === "missing"
+  const label =
+    tier === "missing"
       ? "Fecha por confirmar"
-      : "Termina en";
+      : upcoming
+        ? // Próxima apertura — count down to the OPENING, not the end.
+          "Abre en"
+        : isPast
+          ? "Finalizada"
+          : "Termina en";
 
   return (
     <div
@@ -155,9 +186,9 @@ export function AuctionCountdownBadge({
         <span className="text-[11px] font-semibold uppercase tracking-wide opacity-80">
           {label}
         </span>
-        {!isPast && tier !== "missing" && (
+        {(upcoming || !isPast) && tier !== "missing" && (
           <LiveCountdown
-            target={endDate ?? null}
+            target={countdownTarget ?? null}
             size="sm"
             effectiveStatus={effectiveStatus ?? null}
             nowMs={nowMs}
