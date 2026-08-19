@@ -783,6 +783,10 @@
     "detailAbove": "{pct}% por encima de la media de {region}",
     "detailInline": "en línea con la media de {region}",
     "detailBand": "La mayoría de la zona: {p25}–{p75}",
-    "detailSampleFootnote": "Basado en {n} inmuebles comparables"
+    "detailSampleFootnote": "Basado en {n} inmuebles comparables",
+    "tooltipProvince": "Mediana de {n} inmuebles comparables · provincia de {region}",
+    "tooltipMunicipality": "Mediana de {n} inmuebles comparables · municipio de {region}",
+    "footnoteProvince": "Mediana de {n} inmuebles de la provincia de {region}",
+    "footnoteMunicipality": "Mediana de {n} inmuebles del municipio de {region}"
   }
 }

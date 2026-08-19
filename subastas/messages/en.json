@@ -783,6 +783,10 @@
     "detailAbove": "{pct}% above the {region} median",
     "detailInline": "in line with the {region} median",
     "detailBand": "Most of the area: {p25}–{p75}",
-    "detailSampleFootnote": "Based on {n} comparable properties"
+    "detailSampleFootnote": "Based on {n} comparable properties",
+    "tooltipProvince": "Median of {n} comparable properties · {region} province",
+    "tooltipMunicipality": "Median of {n} comparable properties · {region} municipality",
+    "footnoteProvince": "Median of {n} properties across {region} province",
+    "footnoteMunicipality": "Median of {n} properties in {region} municipality"
   }
 }
