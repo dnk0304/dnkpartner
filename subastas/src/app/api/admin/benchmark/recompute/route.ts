@@ -11,11 +11,14 @@
  * (e.g. hourly/daily) so the benchmark tracks the live pool.
  *
  * Method (see src/lib/benchmark.ts):
- *   - Pool = property categories only (OFFICIAL_CATEGORIES.REAL_ESTATE),
- *     status ∈ active ∪ upcoming, surfaceM2 present, and a positive
- *     valorSubasta OR appraisalValue (so €/m² is computable).
- *   - €/m² per row = valorSubasta||appraisalValue ÷ surfaceM2 (card-pill
- *     definition), then plausibility band + 1.5×IQR trim, then MEDIAN.
+ *   - Pool = DWELLING categories only (BENCHMARK_CATEGORIES), surfaceM2 present,
+ *     and EITHER a live-market row (active ∪ upcoming) OR a recently-adjudicated
+ *     row (concluded/sold status with soldDate within BENCHMARK_RECENCY_MONTHS).
+ *     Pool-widen (benchmark-pool-widen, 2026-08-19): Ken §3 — the area median
+ *     comes from ADJUDICATED (sold) data, which the active-only pool dropped.
+ *   - €/m² per row = soldPrice(¢→€) FIRST, else valorSubasta, else appraisal,
+ *     ÷ surfaceM2 (card-pill rounding/guards via derivePricePerM2), then the
+ *     plausibility band + 1.5×IQR trim, then MEDIAN.
  *   - One province-level bucket + one bucket per municipality that each clear
  *     MIN_SAMPLE comparables after trimming. Sub-threshold buckets suppressed.
  *
@@ -25,22 +28,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminOrCron } from '@/lib/auth-helpers';
 import { prisma } from '@/lib/prisma';
-import { ACTIVE_DB_STATUSES, PRE_AUCTION_DB_STATUSES } from '@/lib/auction-status';
+import {
+  ACTIVE_DB_STATUSES,
+  PRE_AUCTION_DB_STATUSES,
+  ADJUDICATED_DB_STATUSES,
+} from '@/lib/auction-status';
 import { coerceFiniteNumber } from '@/lib/auction-derive';
 import {
   BENCHMARK_CATEGORIES,
   PROVINCE_LEVEL_SENTINEL,
+  benchmarkRecencyCutoff,
+  BENCHMARK_RECENCY_MONTHS,
   computeBenchmarks,
   toBenchmarkSample,
   type BenchmarkSample,
 } from '@/lib/benchmark';
 import type { Prisma, AuctionStatus } from '@prisma/client';
 
-// active + upcoming — "what's on the market in this area right now". Cast: the
+// The LIVE-market arm: active + upcoming — "what's on the market in this area
+// right now". Not date-filtered (these rows have no sale date). Cast: the
 // status constants are the AuctionStatus enum values as strings.
-const BENCHMARK_POOL_STATUSES = [
+const BENCHMARK_LIVE_STATUSES = [
   ...ACTIVE_DB_STATUSES,
   ...PRE_AUCTION_DB_STATUSES,
+] as unknown as AuctionStatus[];
+
+// The ADJUDICATED arm: concluded/sold rows (Ken §3 — area median from sold
+// data). Recency-windowed by soldDate so decade-old sales don't pollute the
+// median. This is the pool-widen (benchmark-pool-widen, 2026-08-19): today's
+// active-only pool clears n>=8 in ~1 municipality; adding recent sold dwellings
+// lifts that to ~400 (soldPrice) / up to ~900 (valorSubasta fallback).
+const BENCHMARK_SOLD_STATUSES = [
+  ...ADJUDICATED_DB_STATUSES,
 ] as unknown as AuctionStatus[];
 
 export async function POST(req: NextRequest) {
@@ -50,16 +69,26 @@ export async function POST(req: NextRequest) {
   try {
     // Pull only the columns the benchmark needs, only for rows that can
     // possibly contribute (property category, has surface).
+    const recencyCutoff = benchmarkRecencyCutoff();
     const rows = await prisma.auction.findMany({
       where: {
-        status: { in: BENCHMARK_POOL_STATUSES },
+        // dwelling-category gate + surface guard apply to the WHOLE pool.
         category: { in: BENCHMARK_CATEGORIES as string[] },
         surfaceM2: { not: null },
+        // Two arms: the live market (no date gate) OR recently-sold rows.
+        OR: [
+          { status: { in: BENCHMARK_LIVE_STATUSES } },
+          {
+            status: { in: BENCHMARK_SOLD_STATUSES },
+            soldDate: { gte: recencyCutoff },
+          },
+        ],
       },
       select: {
         province: true,
         category: true,
         municipality: true,
+        soldPrice: true,
         valorSubasta: true,
         appraisalValue: true,
         surfaceM2: true,
@@ -67,16 +96,24 @@ export async function POST(req: NextRequest) {
     });
 
     const samples: BenchmarkSample[] = [];
+    const basisCounts = { sold: 0, valorSubasta: 0, appraisal: 0 };
     for (const r of rows) {
+      // soldPrice is BigInt CENTS (winning bid); convert to whole euros.
+      const soldCents = coerceFiniteNumber(r.soldPrice);
+      const soldPriceEur = soldCents != null && soldCents > 0 ? soldCents / 100 : null;
       const s = toBenchmarkSample({
         province: r.province,
         category: r.category,
         municipality: r.municipality,
+        soldPriceEur,
         valorSubasta: coerceFiniteNumber(r.valorSubasta),
         appraisalValue: coerceFiniteNumber(r.appraisalValue),
         surfaceM2: coerceFiniteNumber(r.surfaceM2),
       });
-      if (s) samples.push(s);
+      if (s) {
+        samples.push(s);
+        basisCounts[s.basis]++;
+      }
     }
 
     const buckets = computeBenchmarks(samples);
@@ -113,6 +150,11 @@ export async function POST(req: NextRequest) {
         buckets: buckets.length,
         provinceBuckets,
         municipalityBuckets: buckets.length - provinceBuckets,
+        // Price-provenance breakdown of the samples (Ken §3 observability):
+        // soldPrice-first, valorSubasta fallback, appraisal last resort.
+        priceBasis: basisCounts,
+        recencyMonths: BENCHMARK_RECENCY_MONTHS,
+        recencyCutoff: recencyCutoff.toISOString(),
         computedAt: computedAt.toISOString(),
       },
     });

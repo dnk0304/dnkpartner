@@ -88,6 +88,24 @@ export const FINISHED_DB_STATUSES = [
 ] as const;
 
 /**
+ * ADJUDICATED / concluded-with-a-result — the SOLD subset of the terminal
+ * states. A strict subset of FINISHED_DB_STATUSES that EXCLUDES the cancelled
+ * variants (CANCELLED / CANCELADA), which never produced a sale and carry no
+ * market signal. These are the rows whose soldPrice / valorSubasta reflects a
+ * real adjudicated auction outcome.
+ *
+ * Used by the region €/m² benchmark pool (Forge, benchmark-pool-widen dispatch
+ * 2026-08-19): Ken's §3 ruling is that the area median should come from
+ * ADJUDICATED data. The benchmark pools these concluded rows (recency-windowed)
+ * alongside the current active + pre-auction market.
+ */
+export const ADJUDICATED_DB_STATUSES = [
+  'FINISHED',
+  'CONCLUIDA_PORTAL',
+  'FINALIZADA_AUTORIDAD',
+] as const;
+
+/**
  * Active OR upcoming — the carousel's default bucket. Re-includes SUSPENDIDA
  * via ACTIVE_DB_STATUSES (this is the 2026-06-03 unification — carousel no
  * longer forks the active definition).

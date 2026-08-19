@@ -24,6 +24,8 @@ import {
   benchmarkKey,
   MIN_SAMPLE,
   PROVINCE_LEVEL_SENTINEL,
+  BENCHMARK_RECENCY_MONTHS,
+  benchmarkRecencyCutoff,
   type BenchmarkRow,
   type BenchmarkSample,
 } from './benchmark';
@@ -87,7 +89,7 @@ function check(name: string, cond: boolean) {
 
 // ── 3. AREA MEDIAN — n >= 8 gate, sample size carried, median correctness ────
 function dwellingSamples(muni: string, values: number[]): BenchmarkSample[] {
-  return values.map((eurM2) => ({ province: 'Madrid', category: 'Viviendas', municipality: muni, eurM2 }));
+  return values.map((eurM2) => ({ province: 'Madrid', category: 'Viviendas', municipality: muni, eurM2, basis: 'sold' as const }));
 }
 
 {
@@ -171,6 +173,71 @@ function dwellingSamples(muni: string, values: number[]): BenchmarkSample[] {
     lookup,
   );
   check('signal: no surface → honest-null', sigNoSurface === null);
+}
+
+// ── 5. Pool-widen: soldPrice-first preference + basis flag + recency window ──
+//     (Forge, benchmark-pool-widen dispatch 2026-08-19)
+{
+  // soldPrice (whole €) OVERRIDES valorSubasta: 300k sold / 100 m² = 3000, not
+  // the 2000 valorSubasta would give.
+  const sold = toBenchmarkSample({
+    province: 'Madrid', category: 'Viviendas', municipality: 'Getafe',
+    soldPriceEur: 300_000, valorSubasta: 200_000, appraisalValue: null, surfaceM2: 100,
+  });
+  check('soldPrice preferred over valorSubasta', sold?.eurM2 === 3000);
+  check('soldPrice → basis "sold"', sold?.basis === 'sold');
+
+  // valorSubasta used (basis) when there is no sold price.
+  const vs = toBenchmarkSample({
+    province: 'Madrid', category: 'Viviendas', municipality: 'Getafe',
+    soldPriceEur: null, valorSubasta: 200_000, appraisalValue: 500_000, surfaceM2: 100,
+  });
+  check('no soldPrice → valorSubasta used (2000)', vs?.eurM2 === 2000);
+  check('no soldPrice → basis "valorSubasta"', vs?.basis === 'valorSubasta');
+
+  // appraisal is the last-resort fallback (basis reflects it).
+  const ap = toBenchmarkSample({
+    province: 'Madrid', category: 'Viviendas', municipality: 'Getafe',
+    soldPriceEur: 0, valorSubasta: 0, appraisalValue: 400_000, surfaceM2: 100,
+  });
+  check('sold=0 & valor=0 → appraisal fallback (4000)', ap?.eurM2 === 4000);
+  check('appraisal fallback → basis "appraisal"', ap?.basis === 'appraisal');
+
+  // soldPrice ≤ 0 (DESIERTA / hidden) is treated as absent → falls to valorSubasta.
+  const desierta = toBenchmarkSample({
+    province: 'Madrid', category: 'Viviendas', municipality: 'Getafe',
+    soldPriceEur: 0, valorSubasta: 150_000, appraisalValue: null, surfaceM2: 100,
+  });
+  check('soldPrice 0 → falls back to valorSubasta', desierta?.eurM2 === 1500 && desierta?.basis === 'valorSubasta');
+
+  // Existing (no soldPriceEur field) callers still work and default to valorSubasta basis.
+  const legacy = toBenchmarkSample({
+    province: 'Madrid', category: 'Viviendas', municipality: 'Getafe',
+    valorSubasta: 250_000, appraisalValue: null, surfaceM2: 100,
+  });
+  check('legacy row (no soldPriceEur field) still samples', legacy?.eurM2 === 2500 && legacy?.basis === 'valorSubasta');
+
+  // Dwelling gate + plausibility band still hold on the sold path.
+  const soldGarage = toBenchmarkSample({
+    province: 'Madrid', category: 'Garajes', municipality: 'Getafe',
+    soldPriceEur: 300_000, valorSubasta: null, appraisalValue: null, surfaceM2: 100,
+  });
+  check('sold garage → still rejected (dwelling gate)', soldGarage === null);
+  const soldImplausible = toBenchmarkSample({
+    province: 'Madrid', category: 'Viviendas', municipality: 'Getafe',
+    soldPriceEur: 300_000, valorSubasta: null, appraisalValue: null, surfaceM2: 1,
+  });
+  check('sold €/m² above plausibility band → rejected', soldImplausible === null);
+
+  // Recency window: 60 months, reproducible against an injected "now".
+  check('BENCHMARK_RECENCY_MONTHS is 60', BENCHMARK_RECENCY_MONTHS === 60);
+  const now = new Date('2026-08-19T00:00:00.000Z');
+  const cutoff = benchmarkRecencyCutoff(now);
+  check('recency cutoff = now − 60 months (2021-08-19)', cutoff.toISOString().startsWith('2021-08-19'));
+  const soldDate2020 = new Date('2020-01-01T00:00:00.000Z');
+  const soldDate2024 = new Date('2024-01-01T00:00:00.000Z');
+  check('a 2020 sale is OUTSIDE the 60mo window', soldDate2020 < cutoff);
+  check('a 2024 sale is INSIDE the 60mo window', soldDate2024 >= cutoff);
 }
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`);
