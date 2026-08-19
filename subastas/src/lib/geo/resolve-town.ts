@@ -41,6 +41,30 @@ function sameProvince(a: string | null | undefined, b: string | null | undefined
  * the mint query. Isolation is only worth something if the mint respects it.
  */
 
+/**
+ * ⭐ RESOLVER FINGERPRINT — bump on ANY change to town resolution.
+ *
+ * A `degraded` outcome of this function is a DERIVED negative: it depends on the
+ * resolver logic here AND on the data that feeds it (the INE gazetteer CSVs,
+ * `municipality-aliases.json`, the cp-municipality table). Better data or better
+ * logic can flip a past `degraded` to `resolved` — Ghost's normalisation pass and
+ * the MUNI-A/B gazetteer adoption both did exactly that.
+ *
+ * The mint sweep caches degrade decisions in `auction_url_v3_skip` so its backlog
+ * has a terminal state. That cache MUST be invalidated when resolution improves,
+ * or mintable rows sit on legacy URLs forever (the 2026-08-05 skip set stranded
+ * 5,826 rows — incl. active auctions — after MUNI-B landed 2026-08-14, and the
+ * census read "candidate pool 0" while they were mintable).
+ *
+ * ⚠️ BUMP THIS STRING whenever you edit `resolve-town.ts`/`resolveTownName`, OR
+ * regenerate the INE gazetteer CSVs, OR change `municipality-aliases.json` or the
+ * cp-municipality data. A bump re-offers EVERY degrade-skip to the mint on the
+ * next sweep — no manual `recheckSkipped`, no second switchover. Rows that still
+ * degrade are re-stamped with the new version and stop being re-offered, so the
+ * backlog re-converges. `held:` skips are NOT gazetteer-gated and are unaffected.
+ */
+export const TOWN_RESOLVER_VERSION = '2026-08-14-muni-b';
+
 export type TownSource =
   /** Rung 1 — the CP→municipality table resolved the postcode deterministically. */
   | 'cp-muni'

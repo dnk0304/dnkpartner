@@ -33,6 +33,14 @@ import { query, execute } from '@/lib/db';
 import {
   mintAuctionUrlV3, MintGateError, type MintRowInput, type MintedUrlRow,
 } from '@/lib/seo/mint-url-v3';
+import { TOWN_RESOLVER_VERSION } from '@/lib/geo/resolve-town';
+
+/**
+ * The active auction states — minted FIRST because an active auction on a legacy
+ * URL is the user-visible pain, and the concluded backlog is orders of magnitude
+ * larger. Used only for candidate ORDER BY; never as a filter.
+ */
+const ACTIVE_STATUSES = ['PROXIMA_APERTURA', 'CELEBRANDOSE', 'SUSPENDIDA'];
 
 /**
  * The frozen geo-quarantine snapshot. Quarantined rows never vote and never
@@ -104,7 +112,27 @@ async function ensureSkipTable(): Promise<void> {
       "detail"     TEXT,
       "decided_at" TIMESTAMPTZ NOT NULL DEFAULT now()
     )`);
+  // Self-migrating column. A degrade decision records the resolver fingerprint
+  // that produced it; a NULL means "decided before versioning" — treated as
+  // stale, so the row is re-offered. `held:` rows leave this NULL deliberately:
+  // they are not gazetteer-gated and never expire with a resolver bump.
+  await execute(
+    `ALTER TABLE "${SKIP_TABLE}" ADD COLUMN IF NOT EXISTS "resolver_version" TEXT`,
+  );
 }
+
+/**
+ * A skip row is BINDING (excludes its auction from the candidate pool) only when:
+ *   • it is a `held:` decision (descriptor-cap, not gazetteer-gated — terminal), OR
+ *   • it is a `degraded:` decision stamped with the CURRENT resolver fingerprint.
+ * A degrade stamped with an OLD or NULL fingerprint is STALE and re-offered, so a
+ * resolver/gazetteer upgrade recovers every row it can now resolve, automatically.
+ * The current fingerprint is bound as a parameter, never interpolated.
+ */
+const BINDING_SKIP = `NOT EXISTS (
+      SELECT 1 FROM "${SKIP_TABLE}" s WHERE s.auction_id = a.id
+        AND ( s.reason LIKE 'held:%'
+           OR (s.reason LIKE 'degraded:%' AND s.resolver_version = ?) ) )`;
 
 /**
  * The candidate query: every auction with no v3 url, no skip decision, that is
@@ -120,19 +148,19 @@ async function selectCandidates(limit: number): Promise<MintRowInput[]> {
   const quarantineClause = hasQuarantine
     ? `AND NOT EXISTS (SELECT 1 FROM "${QUARANTINE_TABLE}" q WHERE q.id = a.id)`
     : '';
+  const activeList = ACTIVE_STATUSES.map((s) => `'${s}'`).join(',');
   return query<MintRowInput>(
     `SELECT a.id, a."boeId" AS "boeId", a.category, a.province,
             a.municipality, a."postalCode" AS "postalCode", a.address
        FROM "Auction" a
        LEFT JOIN auction_url_v3 v ON v.auction_id = a.id
-       LEFT JOIN "${SKIP_TABLE}" s ON s.auction_id = a.id
       WHERE v.auction_id IS NULL
-        AND s.auction_id IS NULL
+        AND ${BINDING_SKIP}
         AND a."boeId" NOT LIKE '0x%'
         ${quarantineClause}
-      ORDER BY a."createdAt" DESC
+      ORDER BY (a.status IN (${activeList})) DESC, a."createdAt" DESC
       LIMIT ?`,
-    [limit],
+    [TOWN_RESOLVER_VERSION, limit],
   );
 }
 
@@ -145,9 +173,9 @@ async function countRemaining(): Promise<number> {
     `SELECT count(*)::text AS n
        FROM "Auction" a
        LEFT JOIN auction_url_v3 v ON v.auction_id = a.id
-       LEFT JOIN "${SKIP_TABLE}" s ON s.auction_id = a.id
-      WHERE v.auction_id IS NULL AND s.auction_id IS NULL
+      WHERE v.auction_id IS NULL AND ${BINDING_SKIP}
         AND a."boeId" NOT LIKE '0x%' ${quarantineClause}`,
+    [TOWN_RESOLVER_VERSION],
   );
   return Number(rows[0]?.n ?? 0);
 }
@@ -181,11 +209,21 @@ async function insertMinted(row: MintedUrlRow): Promise<void> {
 
 async function recordSkip(
   auctionId: string, boeId: string, reason: string, detail: string | null,
+  resolverVersion: string | null,
 ): Promise<void> {
+  // DO UPDATE (not DO NOTHING): a row re-offered after a resolver bump and still
+  // degrading must have its stamp refreshed to the CURRENT version, otherwise it
+  // stays stale-flagged and is re-processed on every pass forever. Refreshing it
+  // is what lets the backlog re-converge after an upgrade.
   await execute(
-    `INSERT INTO "${SKIP_TABLE}" (auction_id, boe_id, reason, detail)
-     VALUES (?,?,?,?) ON CONFLICT (auction_id) DO NOTHING`,
-    [auctionId, boeId, reason, detail],
+    `INSERT INTO "${SKIP_TABLE}" (auction_id, boe_id, reason, detail, resolver_version)
+     VALUES (?,?,?,?,?)
+     ON CONFLICT (auction_id) DO UPDATE
+        SET reason = EXCLUDED.reason,
+            detail = EXCLUDED.detail,
+            resolver_version = EXCLUDED.resolver_version,
+            decided_at = now()`,
+    [auctionId, boeId, reason, detail, resolverVersion],
   );
 }
 
@@ -216,15 +254,23 @@ export async function sweepMintUrlV3(
       const outcome = mintAuctionUrlV3(c);
       if (outcome.status === 'degraded') {
         stats.degraded += 1;
-        if (!dryRun) await recordSkip(c.id, c.boeId, `degraded:${outcome.reason}`, null);
+        // Stamp the resolver fingerprint so a future upgrade re-offers this row.
+        if (!dryRun) {
+          await recordSkip(c.id, c.boeId, `degraded:${outcome.reason}`, null, TOWN_RESOLVER_VERSION);
+        }
         continue;
       }
       if (outcome.status === 'held') {
         stats.held += 1;
-        if (!dryRun) await recordSkip(c.id, c.boeId, 'held:identifying-detail-lost', outcome.row.url);
+        // held is descriptor-cap, not gazetteer-gated → NULL version = terminal.
+        if (!dryRun) await recordSkip(c.id, c.boeId, 'held:identifying-detail-lost', outcome.row.url, null);
         continue;
       }
-      if (!dryRun) await insertMinted(outcome.row);
+      if (!dryRun) {
+        await insertMinted(outcome.row);
+        // A stale degrade-skip that now mints must not linger claiming "degraded".
+        await execute(`DELETE FROM "${SKIP_TABLE}" WHERE auction_id = ?`, [outcome.row.auctionId]);
+      }
       stats.minted += 1;
     } catch (err) {
       // LOUD, and NEVER "fixed" by shortening the url. The row stays unminted
