@@ -509,6 +509,7 @@ export default function AuctionDetailClient({
               (QC fix, Pixel 2026-06-07). */}
           <AuctionCountdownBadge
             endDate={raw.endDate ?? raw.endsAt ?? null}
+            opensAt={raw.opensAt ?? null}
             bidStatus={raw.bidStatus ?? null}
             effectiveStatus={status}
             nowMs={nowMs}
