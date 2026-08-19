@@ -31,7 +31,7 @@
  */
 
 import { OFFICIAL_CATEGORIES } from '@/lib/constants';
-import { derivePricePerM2 } from '@/lib/auction-derive';
+import { derivePricePerM2, coerceFiniteNumber } from '@/lib/auction-derive';
 
 /**
  * Property categories eligible for a €/m² figure — the DWELLING subset (Ken,
@@ -81,10 +81,36 @@ export const PLAUSIBILITY_MAX_EUR_M2 = 30_000;
 /** IQR multiplier for the per-bucket outlier trim. */
 const IQR_K = 1.5;
 
+/**
+ * Recency window (months) for CONCLUDED/adjudicated comparables entering the
+ * benchmark pool (Forge, benchmark-pool-widen dispatch 2026-08-19). A decade-old
+ * sale is a poor proxy for today's area price, so concluded rows older than this
+ * (by soldDate) are excluded from the median. Aligned with the SEO concluded
+ * ramp's 60-month step (see lib/seo/concluded-indexable.ts). Active + upcoming
+ * rows carry no sale date and represent the live market — they are NOT
+ * date-filtered. Ken's call was "consider ~60mo"; locked at 60 here.
+ */
+export const BENCHMARK_RECENCY_MONTHS = 60;
+
+/**
+ * The cutoff Date: concluded comparables with soldDate strictly before this are
+ * dropped. `now` is injectable for reproducible tests.
+ */
+export function benchmarkRecencyCutoff(now: Date = new Date()): Date {
+  const d = new Date(now);
+  d.setMonth(d.getMonth() - BENCHMARK_RECENCY_MONTHS);
+  return d;
+}
+
 /** Sentinel municipality value for a PROVINCE-LEVEL bucket (municipality NULL
  * in the source row). Empty string keeps the (province, category, municipality)
  * unique key clean and makes upsert deterministic (SQL NULLs are distinct). */
 export const PROVINCE_LEVEL_SENTINEL = '';
+
+/** Which price the €/m² numerator came from (provenance flag, Forge
+ * benchmark-pool-widen 2026-08-19). 'sold' = adjudicated winning bid (the truest
+ * market signal), then valorSubasta, then appraisal as last resort. */
+export type BenchmarkPriceBasis = 'sold' | 'valorSubasta' | 'appraisal';
 
 /** One raw comparable fed into the aggregator. */
 export type BenchmarkSample = {
@@ -92,6 +118,8 @@ export type BenchmarkSample = {
   category: string;
   municipality: string | null;
   eurM2: number;
+  /** Provenance of the €/m² numerator (observability only — not aggregated). */
+  basis: BenchmarkPriceBasis;
 };
 
 /** A published benchmark bucket (one row of the RegionBenchmark table). */
@@ -118,6 +146,11 @@ export function toBenchmarkSample(row: {
   province: string | null | undefined;
   category: string | null | undefined;
   municipality: string | null | undefined;
+  /** Adjudicated winning bid in WHOLE EUROS (not cents). When present and > 0
+   * it OVERRIDES valorSubasta/appraisal — the sold price is the truest market
+   * signal (Ken §3, benchmark-pool-widen 2026-08-19). Optional: omitted for
+   * active/upcoming rows that have not sold. */
+  soldPriceEur?: number | null | undefined;
   valorSubasta: number | null | undefined;
   appraisalValue: number | null | undefined;
   surfaceM2: number | null | undefined;
@@ -125,11 +158,27 @@ export function toBenchmarkSample(row: {
   const province = (row.province ?? '').trim();
   const category = (row.category ?? '').trim();
   if (!province || !isBenchmarkCategory(category)) return null;
-  const eurM2 = derivePricePerM2(row.valorSubasta, row.appraisalValue, row.surfaceM2);
+
+  // Price preference: soldPrice FIRST, then valorSubasta, then appraisal.
+  // We reuse derivePricePerM2 (the card-pill definition — same surface guards,
+  // same whole-€ rounding) by feeding the sold price as its primary numerator
+  // when present, so listing €/m² and benchmark €/m² stay on one arithmetic.
+  const sold = coerceFiniteNumber(row.soldPriceEur);
+  const valor = coerceFiniteNumber(row.valorSubasta);
+  const appraisal = coerceFiniteNumber(row.appraisalValue);
+  const usedSold = sold != null && sold > 0;
+  const primary = usedSold ? sold : valor;
+  const eurM2 = derivePricePerM2(primary, row.appraisalValue, row.surfaceM2);
   if (eurM2 == null) return null;
   if (eurM2 < PLAUSIBILITY_MIN_EUR_M2 || eurM2 > PLAUSIBILITY_MAX_EUR_M2) return null;
+
+  const basis: BenchmarkPriceBasis = usedSold
+    ? 'sold'
+    : valor != null && valor > 0
+      ? 'valorSubasta'
+      : 'appraisal';
   const municipality = (row.municipality ?? '').trim() || null;
-  return { province, category, municipality, eurM2 };
+  return { province, category, municipality, eurM2, basis };
 }
 
 /** Linear-interpolated percentile over a pre-sorted ascending array. */
