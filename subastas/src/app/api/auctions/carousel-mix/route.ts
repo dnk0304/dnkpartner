@@ -51,6 +51,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { derivePricePerM2 } from "@/lib/auction-derive";
+import { isDwellingCategory } from "@/lib/benchmark";
 import { coarseCoord } from "@/lib/guest-teaser";
 import {
   DB_TO_FRONTEND_STATUS,
@@ -391,7 +392,12 @@ function projectAuction(a: AuctionRow, detailPath: string): FeedAuctionProjectio
     // surfaceM2 + derived €/m² (2026-06-19). Same derive rule as /api/auctions:
     // round(valorSubasta||appraisalValue ÷ m²). Honest-NULL ⇒ card omits pill.
     surfaceM2: a.surfaceM2 ?? null,
-    pricePerM2: derivePricePerM2(a.valorSubasta, a.appraisalValue, a.surfaceM2),
+    // DWELLING GATE (Ken, 2026-08-19): €/m² only on Viviendas/Locales/Naves —
+    // non-dwelling rows now carry surfaceM2 (Ghost backfill) but €/m² there is
+    // meaningless, so honest-null.
+    pricePerM2: isDwellingCategory(a.category)
+      ? derivePricePerM2(a.valorSubasta, a.appraisalValue, a.surfaceM2)
+      : null,
   };
 }
 

@@ -2,6 +2,7 @@ import { AuctionCategory } from "@/types";
 
 export const OFFICIAL_CATEGORIES: {
   REAL_ESTATE: AuctionCategory[];
+  DWELLING: AuctionCategory[];
   MOVABLE: AuctionCategory[];
 } = {
   REAL_ESTATE: [
@@ -13,6 +14,23 @@ export const OFFICIAL_CATEGORIES: {
     'Fincas rústicas',
     'Naves industriales',
     'Otros inmuebles'
+  ],
+  // DWELLING (price-per-m2 dispatch, 2026-08-19, Ken). The STRICT subset of
+  // REAL_ESTATE for which €/m² is economically meaningful — buildings priced
+  // per square metre. Ghost's full-corpus attribute backfill (2026-08-19) now
+  // populates surfaceM2 on NON-dwelling categories too (Garajes, Trasteros,
+  // Terrenos/land, Fincas rústicas, and even vehicles), so €/m² MUST be gated
+  // to this set explicitly — a garage or a plot of land has a surface but its
+  // €/m² is not a comparable listing signal (garages price per unit, land per
+  // its own market). Brief-named set: Viviendas / Locales / Oficinas / Naves.
+  // ('Oficinas' has no distinct DB label — it lands under Locales; 'Otros
+  // inmuebles' is excluded as its composition is unknown/mixed → honest opt-out
+  // rather than a possibly-meaningless €/m².) This is the single source of
+  // truth for BOTH the card €/m² pill and the region €/m² benchmark.
+  DWELLING: [
+    'Viviendas',
+    'Locales',
+    'Naves industriales'
   ],
   // Wave C1a (2026-06-07). Widened to include the actual DB category labels
   // for "vehicle-shaped" auctions that Ghost surfaces from upstream feeds.
