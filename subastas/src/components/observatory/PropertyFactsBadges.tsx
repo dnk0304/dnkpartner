@@ -74,7 +74,7 @@ type Fact = {
 };
 
 /** Positive finite integer, else null. */
-function posInt(v: number | null | undefined): number | null {
+export function posInt(v: number | null | undefined): number | null {
   if (v == null || !Number.isFinite(v)) return null;
   const n = Math.round(v);
   return n > 0 ? n : null;
@@ -86,7 +86,7 @@ function posInt(v: number | null | undefined): number | null {
  *   anything else → the trimmed string, title-cased ("Ático", "Entreplanta",
  *                   "Principal", "3ª", …) so we never lose a real datum.
  */
-function formatFloor(raw: string): string {
+export function formatFloor(raw: string): string {
   const s = raw.trim();
   if (/^-?\d+$/.test(s)) {
     const n = Number(s);

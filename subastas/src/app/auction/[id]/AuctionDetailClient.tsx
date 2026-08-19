@@ -62,6 +62,7 @@ import { cn } from "@/lib/utils";
 // detail page composes them, it does not own their rendering logic.
 import { AuctionFinancialsTable, type FinancialEntry } from "@/components/auction/AuctionFinancialsTable";
 import { RegionBenchmarkChip } from "@/components/observatory/RegionBenchmarkChip";
+import { PropertyAttributesPanel } from "@/components/auction/PropertyAttributesPanel";
 import { AuctionCountdownBadge } from "@/components/auction/AuctionCountdownBadge";
 import { type SourceLink } from "@/components/auction/AuctionSourceLinks";
 import { ParticiparButton } from "@/components/auction/ParticiparButton";
@@ -647,6 +648,31 @@ export default function AuctionDetailClient({
                 </p>
               </section>
             )}
+
+            {/* Property attributes — "Características" stat grid (attrs
+                dispatch, 2026-08-19). Benchmark-independent home for m² /
+                habitaciones / baños / planta / año / garaje. Honest-partial:
+                the panel returns null when no attribute is present (the common
+                case), so this collapses cleanly with no empty heading. Placed
+                above the €/m² signal so the physical facts read before the
+                value comparison. */}
+            <PropertyAttributesPanel
+              item={{
+                surfaceM2: (raw as { surfaceM2?: number | null }).surfaceM2 ?? null,
+                bedrooms: (raw as { bedrooms?: number | null }).bedrooms ?? null,
+                bathrooms: (raw as { bathrooms?: number | null }).bathrooms ?? null,
+                floorLevel: (raw as { floorLevel?: string | null }).floorLevel ?? null,
+                catastroYearBuilt:
+                  (raw as { catastroYearBuilt?: number | null }).catastroYearBuilt ?? null,
+                hasGarage: (raw as { hasGarage?: boolean | null }).hasGarage ?? null,
+                // €/m² tile ONLY when there is no benchmark section below — the
+                // benchmark chip already leads with the same figure, so this
+                // avoids printing €/m² twice on one page (honest, not doubled).
+                pricePerM2: raw.regionBenchmark
+                  ? null
+                  : (raw as { pricePerM2?: number | null }).pricePerM2 ?? null,
+              }}
+            />
 
             {/* Region €/m² value signal (Phase 3, wave141) — "vs área" line.
                 Honest-null: RegionBenchmarkChip returns null when the payload

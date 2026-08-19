@@ -64,10 +64,15 @@ export function RegionBenchmarkChip({
   // Honest-null: no signal ⇒ render nothing. Strip collapses on its own.
   if (!benchmark) return null;
 
-  const { deltaPct, regionLabel, sampleSize, eurM2, p25EurM2, p75EurM2 } =
+  const { deltaPct, regionLabel, sampleSize, eurM2, p25EurM2, p75EurM2, scope } =
     benchmark;
   const tone = toneOf(deltaPct);
   const absPct = Math.abs(Math.round(deltaPct));
+  // Scope basis (municipio vs provincia) is shown honestly: a province median
+  // is a broader, coarser comparison than a municipal one, and the reader
+  // deserves to know which bucket answered. Grammar differs by gender
+  // ("la provincia" / "el municipio"), so we pick a whole scoped string.
+  const scopeKey = scope === "municipality" ? "Municipality" : "Province";
 
   // Tone → design-system tokens (warn palette). Below = positive/green,
   // above = attention/amber, inline = neutral ink.
@@ -94,7 +99,7 @@ export function RegionBenchmarkChip({
           toneClasses[tone],
           className ?? "",
         ].join(" ")}
-        title={t("tooltipSample", { n: sampleSize, region: regionLabel })}
+        title={t(`tooltip${scopeKey}`, { n: sampleSize, region: regionLabel })}
       >
         {chipLabel}
       </span>
@@ -136,7 +141,7 @@ export function RegionBenchmarkChip({
         </p>
       )}
       <p className="text-[10px] text-[var(--color-ink-quiet)]">
-        {t("detailSampleFootnote", { n: sampleSize })}
+        {t(`footnote${scopeKey}`, { n: sampleSize, region: regionLabel })}
       </p>
     </div>
   );

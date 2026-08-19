@@ -30,7 +30,8 @@ import { buildAuctionSlug } from "@/lib/seo/auction-slug";
 import { StatusBadge } from "@/components/observatory/StatusBadge";
 import { LiveCountdown } from "@/components/observatory/LiveCountdown";
 import { effectiveStatus } from "@/components/observatory/status";
-import { capitalize, titleCase, formatPrice } from "@/components/observatory/format";
+import { capitalize, titleCase, formatPrice, formatM2, formatPricePerM2 } from "@/components/observatory/format";
+import { posInt } from "@/components/observatory/PropertyFactsBadges";
 import { auctionCardTitle } from "@/lib/seo/display-title";
 import { OFFICIAL_CATEGORIES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -46,6 +47,12 @@ type SimilarAuction = {
   auctionType: string | null;
   appraisalValue: number | null;
   currentBid: number | null;
+  // Compact attribute row (attrs dispatch, 2026-08-19) — same additive
+  // `/api/auctions` projection the list cards read. All optional + nullable;
+  // any absent field is honestly omitted from the "m² · N hab · €/m²" row.
+  surfaceM2?: number | null;
+  pricePerM2?: number | null;
+  bedrooms?: number | null;
   endsAt: string | null;
   endDate?: string | null;
   imageUrl: string | null;
@@ -301,6 +308,25 @@ function SimilarCard({
             <span className="truncate">{where}</span>
           </p>
         )}
+        {/* Compact attribute row — "82 m² · 3 hab · 1.732 €/m²". Each token
+            renders ONLY when present (honest omission); the whole line
+            collapses when there's nothing to show, so no-attrs cards look
+            intact. Mirrors the list-card fact strip in a tighter register. */}
+        {(() => {
+          const m2 = formatM2(auction.surfaceM2);
+          const beds = posInt(auction.bedrooms);
+          const ppm2 = formatPricePerM2(auction.pricePerM2);
+          const tokens: string[] = [];
+          if (m2) tokens.push(m2);
+          if (beds != null) tokens.push(beds === 1 ? "1 hab" : `${beds} hab`);
+          if (ppm2) tokens.push(ppm2);
+          if (tokens.length === 0) return null;
+          return (
+            <p className="tnum text-[11px] text-[var(--color-ink-secondary)]">
+              {tokens.join("  ·  ")}
+            </p>
+          );
+        })()}
         <div className="mt-auto flex items-baseline justify-between gap-2 pt-1">
           <span className="tnum text-sm font-semibold text-[var(--color-ink-primary)]">
             {formatPrice(headlinePrice)}
