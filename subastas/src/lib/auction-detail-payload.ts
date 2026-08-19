@@ -35,6 +35,7 @@ import { prisma } from '@/lib/prisma';
 import { hasFullAccessServer } from '@/lib/access';
 import { publicPathForDocId } from '@/lib/auction-docs/storage';
 import { buildFinancials } from '@/lib/financials';
+import { derivePricePerM2 } from '@/lib/auction-derive';
 import {
   buildRegionBenchmarkSignal,
   benchmarkKey,
@@ -279,6 +280,15 @@ export async function buildAuctionDetailPayload(
     }
   }
 
+  // Detail-page €/m² (price-per-m2 dispatch, Ken 2026-08-19). Same read-time
+  // derive + DWELLING GATE as the list cards, exposed as a standalone field so
+  // a dwelling with a real surface still shows its own €/m² even when its area
+  // lacks >= MIN_SAMPLE comparables (regionBenchmark null). Honest-null when the
+  // category is non-dwelling (garage/land/vehicle) or the surface is missing.
+  const pricePerM2 = isBenchmarkCategory(auction.category)
+    ? derivePricePerM2(auction.valorSubasta, auction.appraisalValue, auction.surfaceM2)
+    : null;
+
   const bidCount = bidHistory.length;
   const bidStatus: string | null = (() => {
     const ps = (auction.pujaStatus ?? '').toUpperCase();
@@ -336,6 +346,8 @@ export async function buildAuctionDetailPayload(
     documents,
     financials,
     regionBenchmark,
+    // Standalone dwelling-gated €/m² (see derive above). Card parity.
+    pricePerM2,
     endDate: auction.endsAt ? auction.endsAt.toISOString() : null,
     bidStatus,
     lastUpdated: auction.updatedAt ? auction.updatedAt.toISOString() : null,

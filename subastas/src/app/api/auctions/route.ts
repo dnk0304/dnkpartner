@@ -496,7 +496,12 @@ function transformAuction(item: AuctionFromDB, userTier: UserTier | 'GUEST', isL
   // valorSubasta>0 → appraisalValue>0 → null. Uses the post-pre-auction
   // `appraisalValue` computed above (pre-auction-without-pdf nulls appraisal;
   // €/m² then falls to valorSubasta or null — honest). NULL ⇒ card omits pill.
-  const pricePerM2 = derivePricePerM2(item.valorSubasta, appraisalValue, surfaceM2);
+  // DWELLING GATE (Ken, 2026-08-19): only Viviendas/Locales/Naves get a €/m² —
+  // Ghost's full-corpus backfill now puts surfaceM2 on garages/land/vehicles
+  // where €/m² is meaningless, so a non-dwelling category is honest-null here.
+  const pricePerM2 = isBenchmarkCategory(item.category)
+    ? derivePricePerM2(item.valorSubasta, appraisalValue, surfaceM2)
+    : null;
 
   // Property-portal attributes (Phase 1/2, 2026-07-11 → 07-16) — idealista-style
   // BADGE-ONLY facts. PUBLIC auction information (same posture as surfaceM2 /
