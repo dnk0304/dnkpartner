@@ -704,6 +704,27 @@ def _spanish_words_to_int(phrase: str) -> Optional[int]:
     tokens = [t for t in re.split(r"[\s,]+", _norm_accents(phrase)) if t and t != "y"]
     if not tokens:
         return None
+    # An indefinite article "un/uno/una" is the cardinal 1 ONLY when it forms a
+    # compound with an adjacent number word ("noventa y un" = 91, "un mil") or
+    # stands as the whole quantity ("un decimetro" = 1). Standing before ordinary
+    # prose with the REAL figure further on ("UNA superficie de setenta y siete
+    # metros") it is a grammatical article; left in, the cardinal map reads it as
+    # 1 and stops, truncating the phrase to 1. Drop such an article ONLY when a
+    # genuine number word follows later (dropping it recovers that figure). Bug:
+    # 'una superficie de <N> metros' collapsed to 1 m2 across ~299 dwellings.
+    _NUMWORDS = set(_ES_UNITS) | set(_ES_TENS) | set(_ES_HUNDREDS) | {"mil"}
+    _filtered = []
+    for _i, _tk in enumerate(tokens):
+        if _tk in ("un", "uno", "una"):
+            _prev = _filtered[-1] if _filtered else None
+            _nxt = tokens[_i + 1] if _i + 1 < len(tokens) else None
+            _later = any(t in _NUMWORDS for t in tokens[_i + 1:])
+            if _prev not in _NUMWORDS and _nxt not in _NUMWORDS and _later:
+                continue
+        _filtered.append(_tk)
+    tokens = _filtered
+    if not tokens:
+        return None
     total = 0          # accumulated value of completed hundred-groups + thousands
     current = 0        # value being built in the current hundred-group
     seen = False       # have we consumed at least one number word yet?
