@@ -36,6 +36,10 @@ import {
   PROVINCE_DB_KEY_TO_SLUG,
   slugify,
 } from './slugs';
+// ⭐ Phase B: the SINGLE-SOURCE concluded-indexable predicate — reused verbatim
+// for the finished-only town count AND the "recent results" content block, so
+// the town index tier can never fork from the sitemap/detail-page gate.
+import { concludedIndexableWhere } from '@/lib/seo/concluded-indexable';
 
 /**
  * "Active" auctions for the count-in-title.
@@ -158,6 +162,58 @@ export const countIndexableInventory = unstable_cache(
   ['seo-indexable-count'],
   { revalidate: 60, tags: ['seo-counts'] },
 );
+
+/**
+ * ⭐ PHASE B (Forge 2026-08-24, Dennis-approved B1) — concluded-with-result
+ * count for the "finished-only town" indexability tier.
+ *
+ * Reuses the SINGLE-SOURCE-OF-TRUTH concluded predicate
+ * (`concludedIndexableWhere` in `@/lib/seo/concluded-indexable`) — the SAME
+ * fragment the sitemap membership query and the concluded DETAIL-page robots
+ * gate use, so a town this count marks indexable is composed entirely of rows
+ * the sitemap already trusts (no new predicate to drift). AND-ed with the
+ * `inScope` soft-hide gate every catalog surface shares, plus the town/province
+ * scope.
+ *
+ * WHY A SEPARATE COUNT. `countIndexableInventory` (active+upcoming) drives the
+ * existing town/province robots decision; this adds the finished dimension.
+ * The town robots decision becomes `countIndexableInventory > 0 OR
+ * countConcludedIndexable > 0` (see `isSeoIndexable`), so a town with ONLY
+ * finished-with-result inventory now indexes — but ONLY because the content
+ * block (below) renders that inventory as real crawlable HTML, so the page is
+ * never thin. A truly-zero-history town (both counts 0) stays noindex.
+ */
+async function _countConcludedIndexable({ province, municipality }: CountInput): Promise<number> {
+  const where: Prisma.AuctionWhereInput = {
+    ...concludedIndexableWhere(),
+    inScope: true,
+  };
+  if (province) where.province = province;
+  if (municipality) {
+    where.municipality = Array.isArray(municipality) ? { in: municipality } : municipality;
+  }
+  return prisma.auction.count({ where });
+}
+
+/** Memoised concluded-with-result count (60s — same TTL as the other counts). */
+export const countConcludedIndexable = unstable_cache(
+  _countConcludedIndexable,
+  ['seo-concluded-indexable-count'],
+  { revalidate: 60, tags: ['seo-counts'] },
+);
+
+/**
+ * ⭐ THE SHARED town/province robots decision (Phase B). Index a location iff it
+ * carries ANY renderable inventory — active/upcoming (the sitemap inventory
+ * set) OR finished-with-result (the concluded-indexable set). noindex ONLY when
+ * BOTH are zero: a truly-empty location with no auction in any status, ever.
+ *
+ * ONE helper, used by the town page, the province page, and their metadata, so
+ * the gate can never fork between the `robots:` meta and the content it guards.
+ */
+export function isSeoIndexable(indexableCount: number, concludedCount: number): boolean {
+  return indexableCount > 0 || concludedCount > 0;
+}
 
 async function _findActive(args: CountInput & { take: number }) {
   const where: Prisma.AuctionWhereInput = { status: { in: ACTIVE_STATUSES } };
@@ -399,6 +455,119 @@ async function _findScopedAuctionsPage(
 export const findScopedAuctionsPage = unstable_cache(
   _findScopedAuctionsPage,
   ['seo-scoped-auctions-page'],
+  { revalidate: 60, tags: ['seo-counts'] },
+);
+
+// ---------------------------------------------------------------------------
+// ⭐ PHASE B — the finished-only town CONTENT BLOCK data (Forge 2026-08-24).
+//
+// PURPOSE (dual). (1) Anti-thin: a town indexed on finished-only inventory must
+// carry a genuine server-rendered content block or it is a thin page. (2)
+// Anti-SSR-gap: the existing `findScopedAuctionsPage` is bound to the `activas`
+// bucket, so an upcoming-only OR finished-only town renders ZERO server-side
+// anchors to detail pages — Googlebot sees no internal crawl path. This block
+// emits REAL crawlable <a href> to detail pages for BOTH cases.
+//
+// It fetches TWO scoped, capped, SSR-anchored slices:
+//   - upcoming teaser  — the `proximas` bucket (PRE_AUCTION), the same set the
+//                        sitemap inventory count already trusts.
+//   - recent results   — `concludedIndexableWhere()` (the single-source concluded
+//                        predicate), most-recent first, capped ~10. TEASER ONLY:
+//                        capped so the town page never becomes a second full
+//                        archive competing with /resultados (see the cap).
+// ---------------------------------------------------------------------------
+
+/** Cap on each content-block section — a teaser, never a full archive. */
+export const SEO_TOWN_CONTENT_CAP = 10;
+
+/** One concluded-results card — the SSR card columns PLUS the outcome fields. */
+const SEO_CONCLUDED_CARD_SELECT = {
+  ...SEO_CARD_SELECT,
+  saleResult: true,
+  soldPrice: true,
+  soldDate: true,
+} satisfies Prisma.AuctionSelect;
+
+type ConcludedResultRow = Prisma.AuctionGetPayload<{ select: typeof SEO_CONCLUDED_CARD_SELECT }>;
+
+/** One concluded-results card as rendered — outcome fields + resolved link. */
+export type ConcludedResultCard = ScopedAuctionCard & {
+  saleResult: string | null;
+  /** Winning bid in CENTS (BigInt in the DB → number here so the row is
+   * JSON-serialisable across the `unstable_cache` boundary). NULL for DESIERTA. */
+  soldPriceCents: number | null;
+  soldDate: Date | null;
+};
+
+/** The whole town content block payload. */
+export type TownContentBlock = {
+  upcoming: ScopedAuctionCard[];
+  concluded: ConcludedResultCard[];
+};
+
+/** Scope spread shared by both content-block queries (province + MUNI-A muni). */
+function applyScope(where: Prisma.AuctionWhereInput, { province, municipality }: CountInput): void {
+  if (province) where.province = province;
+  if (municipality) {
+    where.municipality = Array.isArray(municipality) ? { in: municipality } : municipality;
+  }
+}
+
+/** Resolve v3/legacy detail paths for a set of rows in ONE batched probe. */
+async function resolveDetailPaths<T extends { id: string; auctionType: string | null; province: string | null; municipality: string | null }>(
+  rows: T[],
+): Promise<Array<T & { detailPath: string }>> {
+  const v3 = await fetchV3UrlsBatch(rows.map((r) => r.id));
+  return rows.map((r) => ({ ...r, detailPath: resolveAuctionPath(r, v3.get(r.id) ?? null) }));
+}
+
+async function _findTownContentBlock(args: CountInput): Promise<TownContentBlock> {
+  // Section A — upcoming teaser (PRE_AUCTION), scope-gated, capped. Soonest
+  // opening first (endsAt asc, nulls last), id tiebreak.
+  const upcomingWhere = { ...whenBucketWherePrisma('proximas') } as Prisma.AuctionWhereInput;
+  applyScope(upcomingWhere, args);
+
+  // Section B — recent finished-with-result, via the SINGLE-SOURCE concluded
+  // predicate (result-checked, indexable category, sold/deserted, recency
+  // floor) + scope + soft-hide. Most recent first (endsAt desc), capped.
+  const concludedWhere: Prisma.AuctionWhereInput = { ...concludedIndexableWhere(), inScope: true };
+  applyScope(concludedWhere, args);
+
+  const [upcomingRaw, concludedRaw] = await Promise.all([
+    prisma.auction.findMany({
+      where: upcomingWhere,
+      select: SEO_CARD_SELECT,
+      orderBy: [{ endsAt: 'asc' }, { id: 'asc' }],
+      take: SEO_TOWN_CONTENT_CAP,
+    }),
+    prisma.auction.findMany({
+      where: concludedWhere,
+      select: SEO_CONCLUDED_CARD_SELECT,
+      orderBy: [{ endsAt: 'desc' }, { id: 'desc' }],
+      take: SEO_TOWN_CONTENT_CAP,
+    }),
+  ]);
+
+  const upcoming = await resolveDetailPaths(upcomingRaw);
+  const concludedLinked = await resolveDetailPaths(concludedRaw as ConcludedResultRow[]);
+  const concluded: ConcludedResultCard[] = concludedLinked.map((r) => ({
+    ...r,
+    saleResult: r.saleResult == null ? null : String(r.saleResult),
+    // BigInt → number for cross-cache serialisation (see the type note).
+    soldPriceCents: r.soldPrice == null ? null : Number(r.soldPrice),
+    soldDate: r.soldDate ?? null,
+  }));
+
+  return { upcoming, concluded };
+}
+
+/**
+ * Fetch the finished-only town content block. Cached 60s (the counts TTL),
+ * keyed by the full args object so every town memoises independently.
+ */
+export const findTownContentBlock = unstable_cache(
+  _findTownContentBlock,
+  ['seo-town-content-block'],
   { revalidate: 60, tags: ['seo-counts'] },
 );
 

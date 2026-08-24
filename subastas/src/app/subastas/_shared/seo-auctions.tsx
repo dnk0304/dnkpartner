@@ -10,9 +10,12 @@
 import { getTranslations } from 'next-intl/server';
 import {
   findScopedAuctionsPage,
+  findTownContentBlock,
   type ScopedAuctionPage,
+  type TownContentBlock,
 } from '@/lib/seo/page-data';
 import { SeoAuctionSection } from '@/components/seo/SeoAuctionSection';
+import { SeoTownContentBlock } from '@/components/seo/SeoTownContentBlock';
 
 /** The dimension a hub locks. Mirrors page-data's CountInput (subset). */
 export type HubFilter = {
@@ -56,5 +59,36 @@ export async function buildSeoAuctions(opts: {
 }): Promise<{ data: ScopedAuctionPage; node: React.ReactNode }> {
   const data = await findScopedAuctionsPage({ ...opts.filter, page: opts.page ?? 1 });
   const node = await seoAuctionsNode(data, opts.basePath, opts.locationLabel);
+  return { data, node };
+}
+
+/**
+ * ⭐ PHASE B — the finished-only / upcoming-only town CONTENT BLOCK (Forge
+ * 2026-08-24). Fetches the upcoming teaser + recent-results slices and renders
+ * the SSR-anchored block. Used by the town page when the ACTIVE display count
+ * is 0 but the town is still indexable, replacing the active grid's dead-end
+ * empty state with crawlable content + real internal links to detail pages.
+ *
+ * Returns `data` too so the caller can tell a genuinely-empty result apart from
+ * one with content (both sections empty ⇒ nothing to render).
+ */
+export async function buildTownContentBlock(opts: {
+  filter: HubFilter;
+}): Promise<{ data: TownContentBlock; node: React.ReactNode }> {
+  const data = await findTownContentBlock(opts.filter);
+  const t = await getTranslations('listTemplates');
+  const node = (
+    <SeoTownContentBlock
+      upcoming={data.upcoming}
+      concluded={data.concluded}
+      labels={{
+        upcomingHeading: t('upcomingAuctionsHeading'),
+        resultsHeading: t('recentResultsHeading'),
+        emptyMessage: t('noActiveAuctions'),
+        soldLabel: t('outcomeAdjudicada'),
+        desertedLabel: t('outcomeDesierta'),
+      }}
+    />
+  );
   return { data, node };
 }

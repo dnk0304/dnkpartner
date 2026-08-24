@@ -36,6 +36,8 @@ import {
 import {
   countActiveAuctions,
   countIndexableInventory,
+  countConcludedIndexable,
+  isSeoIndexable,
   minStartingPrice,
   municipalitiesInProvince,
 } from '@/lib/seo/page-data';
@@ -43,7 +45,7 @@ import { SeoIntroBlock } from '@/components/seo/SeoIntroBlock';
 import { Breadcrumbs } from '@/components/seo/Breadcrumbs';
 import { capitalizeLocation } from '@/lib/utils';
 import SubastasListClient from '../SubastasListClient';
-import { buildSeoAuctions } from '../_shared/seo-auctions';
+import { buildSeoAuctions, buildTownContentBlock } from '../_shared/seo-auctions';
 
 type PageProps = { params: Promise<{ slug: string }> };
 const SITE = 'https://subastasactivas.com';
@@ -79,9 +81,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   // kind === 'province'
-  const [count, indexableCount] = await Promise.all([
+  const [count, indexableCount, concludedCount] = await Promise.all([
     countActiveAuctions({ province: r.dbKey }),
     countIndexableInventory({ province: r.dbKey }),
+    countConcludedIndexable({ province: r.dbKey }),
   ]);
   const title = t('provinceMetaTitle', { count: count.toLocaleString(nf), province: r.label });
   const description = t('provinceMetaDescription', { count: count.toLocaleString(nf), province: r.label }).slice(0, 158);
@@ -92,10 +95,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     // locale + hreflang cluster (i18n Phase 1).
     ...buildAlternates(`/subastas/${slug}`, locale),
     openGraph: { locale: ogLocale(locale) },
-    // Robots gates on active+upcoming (SITEMAP_INVENTORY_STATUSES) so a province
-    // with only upcoming inventory (Segovia is the live probe) indexes, matching
-    // `provincesWithInventory()`. Title/intro keep the active display count.
-    robots: indexableCount > 0 ? 'index,follow' : 'noindex,follow',
+    // Robots = active+upcoming (SITEMAP_INVENTORY_STATUSES, matching
+    // `provincesWithInventory()`, so an upcoming-only province like Segovia
+    // indexes) OR finished-with-result (Phase B — the same OR-tier as towns,
+    // for the rare finished-only province). noindex only when both are 0.
+    // Title/intro keep the active display count.
+    robots: isSeoIndexable(indexableCount, concludedCount)
+      ? 'index,follow'
+      : 'noindex,follow',
   };
 }
 
@@ -177,8 +184,10 @@ async function renderProvincePage(slugUrl: string, r: {
 }) {
   const { dbKey, label } = r;
   const t = await getTranslations('listTemplates');
-  const [count, minPrice, municipalities, auctions] = await Promise.all([
+  const [count, indexableCount, concludedCount, minPrice, municipalities, auctions] = await Promise.all([
     countActiveAuctions({ province: dbKey }),
+    countIndexableInventory({ province: dbKey }),
+    countConcludedIndexable({ province: dbKey }),
     minStartingPrice({ province: dbKey }),
     municipalitiesInProvince(dbKey),
     buildSeoAuctions({
@@ -187,6 +196,18 @@ async function renderProvincePage(slugUrl: string, r: {
       locationLabel: label,
     }),
   ]);
+
+  // ⭐ PHASE B: same content-block substitution as the town page. A province
+  // with no ACTIVE inventory but still indexable (upcoming-only OR finished-
+  // only) gets the SSR-anchored content block instead of the empty active grid
+  // — otherwise an indexed province would be thin AND emit zero server-rendered
+  // links to its detail pages (the same crawl-path gap the towns had, e.g.
+  // upcoming-only Segovia). A truly-empty province keeps the active grid + stays
+  // noindex.
+  const useContentBlock = count === 0 && isSeoIndexable(indexableCount, concludedCount);
+  const auctionsSlot = useContentBlock
+    ? (await buildTownContentBlock({ filter: { province: dbKey } })).node
+    : auctions.node;
 
   // CollectionPage JSON-LD now points at the clean canonical URL.
   const collectionLd = {
@@ -286,7 +307,7 @@ async function renderProvincePage(slugUrl: string, r: {
         seoTitle={t('provinceTitle', { province: label })}
         seoIntroSlot={introSlot}
         seoFooterSlot={footerSlot}
-        seoAuctionsSlot={auctions.node}
+        seoAuctionsSlot={auctionsSlot}
       />
     </Suspense>
   );

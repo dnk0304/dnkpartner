@@ -42,6 +42,8 @@ import {
 import {
   countActiveAuctions,
   countIndexableInventory,
+  countConcludedIndexable,
+  isSeoIndexable,
   minStartingPrice,
   municipalitySlugToDbName,
   municipalityDbNamesForSlug,
@@ -51,7 +53,7 @@ import { SeoIntroBlock } from '@/components/seo/SeoIntroBlock';
 import { Breadcrumbs } from '@/components/seo/Breadcrumbs';
 import { capitalizeLocation } from '@/lib/utils';
 import SubastasListClient from '../../SubastasListClient';
-import { buildSeoAuctions } from '../../_shared/seo-auctions';
+import { buildSeoAuctions, buildTownContentBlock } from '../../_shared/seo-auctions';
 
 type PageProps = { params: Promise<{ slug: string; municipio: string }> };
 const SITE = 'https://subastasactivas.com';
@@ -74,6 +76,12 @@ type Resolved = {
    * from `count`, which is the active-only DISPLAY figure.
    */
   indexableCount: number;
+  /**
+   * Concluded-with-result count (Phase B). Finished-only towns index ONLY when
+   * this is > 0 — and only because the content block renders that inventory as
+   * crawlable HTML. Distinct from `indexableCount` (active+upcoming).
+   */
+  concludedCount: number;
   minPrice: number | null;
   siblings: SiblingMuni[];
   provinceTotal: number;
@@ -92,9 +100,10 @@ async function loadTown(slug: string, municipio: string): Promise<Resolved | nul
   // corpus spellings that fold onto this town.
   const municipality = await municipalityDbNamesForSlug(r.dbKey, municipio);
 
-  const [count, indexableCount, minPrice, allMunis, provinceTotal] = await Promise.all([
+  const [count, indexableCount, concludedCount, minPrice, allMunis, provinceTotal] = await Promise.all([
     countActiveAuctions({ province: r.dbKey, municipality }),
     countIndexableInventory({ province: r.dbKey, municipality }),
+    countConcludedIndexable({ province: r.dbKey, municipality }),
     minStartingPrice({ province: r.dbKey, municipality }),
     municipalitiesInProvince(r.dbKey),
     countActiveAuctions({ province: r.dbKey }),
@@ -116,6 +125,7 @@ async function loadTown(slug: string, municipio: string): Promise<Resolved | nul
     municipalityDbNames: municipality,
     count,
     indexableCount,
+    concludedCount,
     minPrice,
     siblings,
     provinceTotal,
@@ -146,10 +156,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     // Self-canonical per locale + es/en/x-default hreflang (i18n Phase 1).
     ...buildAlternates(`/subastas/${data.provinceSlug}/${data.municipioSlug}`, locale),
     openGraph: { locale: ogLocale(locale) },
-    // Indexability gates on active+upcoming (SITEMAP_INVENTORY_STATUSES) so the
-    // robots decision stays in lockstep with the sitemap town set; the DISPLAY
-    // count (`data.count`) stays active-only.
-    robots: data.indexableCount > 0 ? 'index,follow' : 'noindex,follow',
+    // Indexability = active+upcoming (SITEMAP_INVENTORY_STATUSES, in lockstep
+    // with the sitemap town set) OR finished-with-result (Phase B). A
+    // finished-only town indexes because the content block renders its results
+    // as real crawlable HTML; only a truly-zero-history town (both 0) noindexes.
+    // The DISPLAY count (`data.count`) stays active-only.
+    robots: isSeoIndexable(data.indexableCount, data.concludedCount)
+      ? 'index,follow'
+      : 'noindex,follow',
   };
 }
 
@@ -160,12 +174,33 @@ export default async function MunicipioPage({ params }: PageProps) {
   const t = await getTranslations('listTemplates');
   const muniLabel = capitalizeLocation(data.municipalityName);
 
-  // SSR crawlable auction block (P1/P2) — page 1 for this town.
-  const auctions = await buildSeoAuctions({
-    filter: { province: data.provinceDbKey, municipality: data.municipalityDbNames },
-    basePath: `/subastas/${data.provinceSlug}/${data.municipioSlug}`,
-    locationLabel: `${muniLabel} (${data.provinceLabel})`,
-  });
+  // SSR crawlable auction slot.
+  //
+  // ⭐ PHASE B: when the town has ACTIVE inventory, keep the existing active
+  // grid (page 1). When it has NONE but is still indexable (upcoming-only OR
+  // finished-only), render the CONTENT BLOCK instead — the active grid would
+  // otherwise be an empty dead-end with ZERO server-rendered anchors, so
+  // Googlebot saw no internal crawl path into these towns' detail pages. The
+  // content block emits real <a href> to detail pages for both cases.
+  //
+  // A truly-empty town (not indexable) falls through to the active grid, which
+  // shows the "create an alert" empty state and stays noindex — unchanged.
+  const isIndexable = isSeoIndexable(data.indexableCount, data.concludedCount);
+  const useContentBlock = data.count === 0 && isIndexable;
+
+  const auctionsSlot = useContentBlock
+    ? (
+        await buildTownContentBlock({
+          filter: { province: data.provinceDbKey, municipality: data.municipalityDbNames },
+        })
+      ).node
+    : (
+        await buildSeoAuctions({
+          filter: { province: data.provinceDbKey, municipality: data.municipalityDbNames },
+          basePath: `/subastas/${data.provinceSlug}/${data.municipioSlug}`,
+          locationLabel: `${muniLabel} (${data.provinceLabel})`,
+        })
+      ).node;
 
   // BreadcrumbList + CollectionPage JSON-LD (mirror province page).
   const collectionLd = {
@@ -315,7 +350,7 @@ export default async function MunicipioPage({ params }: PageProps) {
         seoTitle={t('townTitle', { town: muniLabel, province: data.provinceLabel })}
         seoIntroSlot={introSlot}
         seoFooterSlot={footerSlot}
-        seoAuctionsSlot={auctions.node}
+        seoAuctionsSlot={auctionsSlot}
       />
     </Suspense>
   );
