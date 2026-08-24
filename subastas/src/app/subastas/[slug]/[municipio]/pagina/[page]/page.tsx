@@ -15,6 +15,7 @@ import type { Locale } from '@/i18n/routing';
 import { resolveSubastasSlug, RESERVED_SEGMENTS } from '@/lib/seo/slugs';
 import {
   countActiveAuctions,
+  countIndexableInventory,
   findScopedAuctionsPage,
   municipalitySlugToDbName,
   municipalityDbNamesForSlug,
@@ -52,8 +53,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const nf = locale === 'en' ? 'en-US' : 'es-ES';
   const n = parsePage(page);
   const muniLabel = capitalizeLocation(town.municipalityName);
-  const [count, data] = await Promise.all([
+  const [count, indexableCount, data] = await Promise.all([
     countActiveAuctions({ province: town.dbKey, municipality: town.dbNames }),
+    countIndexableInventory({ province: town.dbKey, municipality: town.dbNames }),
     n ? findScopedAuctionsPage({ province: town.dbKey, municipality: town.dbNames, page: n }) : Promise.resolve(null),
   ]);
   const inRange = !!(n && n >= 2 && data && n <= data.totalPages);
@@ -63,7 +65,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       (n ? t('pageSuffix', { page: n }) : ''),
     ...buildAlternates(`/subastas/${slug}/${municipio}/pagina/${page}`, locale),
     openGraph: { locale: ogLocale(locale) },
-    robots: inRange && count > 0 ? 'index,follow' : 'noindex,follow',
+    // Robots gates on active+upcoming (sitemap parity); title keeps the active
+    // display count.
+    robots: inRange && indexableCount > 0 ? 'index,follow' : 'noindex,follow',
   };
 }
 

@@ -35,6 +35,7 @@ import {
 } from '@/lib/seo/slugs';
 import {
   countActiveAuctions,
+  countIndexableInventory,
   minStartingPrice,
   municipalitiesInProvince,
 } from '@/lib/seo/page-data';
@@ -78,7 +79,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   // kind === 'province'
-  const count = await countActiveAuctions({ province: r.dbKey });
+  const [count, indexableCount] = await Promise.all([
+    countActiveAuctions({ province: r.dbKey }),
+    countIndexableInventory({ province: r.dbKey }),
+  ]);
   const title = t('provinceMetaTitle', { count: count.toLocaleString(nf), province: r.label });
   const description = t('provinceMetaDescription', { count: count.toLocaleString(nf), province: r.label }).slice(0, 158);
   return {
@@ -88,7 +92,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     // locale + hreflang cluster (i18n Phase 1).
     ...buildAlternates(`/subastas/${slug}`, locale),
     openGraph: { locale: ogLocale(locale) },
-    robots: count > 0 ? 'index,follow' : 'noindex,follow',
+    // Robots gates on active+upcoming (SITEMAP_INVENTORY_STATUSES) so a province
+    // with only upcoming inventory (Segovia is the live probe) indexes, matching
+    // `provincesWithInventory()`. Title/intro keep the active display count.
+    robots: indexableCount > 0 ? 'index,follow' : 'noindex,follow',
   };
 }
 

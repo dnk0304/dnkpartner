@@ -62,7 +62,7 @@ const ACTIVE_STATUSES = [...WHEN_BUCKET_DB_STATUSES.activas] as AuctionStatus[];
  * the divergence from `ACTIVE_STATUSES` is a stated choice, not a leftover
  * copy of a predicate someone forgot to update.
  */
-const SITEMAP_INVENTORY_STATUSES: AuctionStatus[] = [
+export const SITEMAP_INVENTORY_STATUSES: AuctionStatus[] = [
   AuctionStatus.ACTIVE,
   AuctionStatus.CELEBRANDOSE,
   AuctionStatus.PRE_AUCTION,
@@ -100,6 +100,62 @@ async function _countActive(args: CountInput): Promise<number> {
 export const countActiveAuctions = unstable_cache(
   _countActive,
   ['seo-active-count'],
+  { revalidate: 60, tags: ['seo-counts'] },
+);
+
+/**
+ * ⭐ THE INDEXABILITY COUNT (Forge 2026-08-24) — restores Dennis's 2026-06-24
+ * "index active + upcoming" directive.
+ *
+ * This is a SEPARATE count from `countActiveAuctions`, and the separation is
+ * the whole point:
+ *
+ *   - `countActiveAuctions` drives the DISPLAY (H1/title/intro) and MUST stay
+ *     bound to the `activas` bucket so the number over the Activas tab matches
+ *     the tab (the correct 2026-08-05 display fix). That bucket DROPS upcoming
+ *     (PRE_AUCTION / PROXIMA_APERTURA).
+ *   - `countIndexableInventory` drives ONLY the `robots:` decision on the town,
+ *     town-pagination, province, and province-pagination pages. It is gated on
+ *     `SITEMAP_INVENTORY_STATUSES` — the EXACT status set the sitemap's
+ *     `activeMunicipalityPairs()` / `provincesWithInventory()` use — so a page
+ *     the sitemap advertises can never say `noindex`, and vice-versa.
+ *
+ * WHY THE TWO CAN'T BE ONE. On 2026-08-05 the hub-count unification collapsed
+ * the indexing signal onto the display bucket, silently dropping upcoming towns
+ * out of the index while the sitemap kept advertising them — the mixed signal
+ * that grew "Excluded by noindex" to ~1,305 in GSC. Keeping the robots count on
+ * the SAME constant the sitemap reads is the drift-proofing (see the drift
+ * test, `page-data.indexability-drift.test.ts`).
+ *
+ * PREDICATE: `status ∈ SITEMAP_INVENTORY_STATUSES` (active + upcoming) AND
+ * `inScope = true` (the soft-hide gate every catalog surface shares). NO clock
+ * guard — mirrors how the sitemap treats these rows: a PROXIMA_APERTURA row
+ * with a null/stale `endsAt` is still genuinely upcoming inventory and must
+ * keep its page indexable, exactly as the sitemap keeps its `<loc>`.
+ */
+export function indexableWhere({ province, auctionTypeKeys, category, municipality }: CountInput): Prisma.AuctionWhereInput {
+  const where: Prisma.AuctionWhereInput = {
+    status: { in: SITEMAP_INVENTORY_STATUSES },
+    inScope: true,
+  };
+  if (province) where.province = province;
+  if (auctionTypeKeys && auctionTypeKeys.length > 0) where.auctionType = { in: auctionTypeKeys };
+  if (category) where.category = category;
+  if (municipality) {
+    // MUNI-A: an array is the set of raw spellings that fold onto one INE town.
+    where.municipality = Array.isArray(municipality) ? { in: municipality } : municipality;
+  }
+  return where;
+}
+
+async function _countIndexable(args: CountInput): Promise<number> {
+  return prisma.auction.count({ where: indexableWhere(args) });
+}
+
+/** Memoised indexability count (60s — same TTL as the display count). */
+export const countIndexableInventory = unstable_cache(
+  _countIndexable,
+  ['seo-indexable-count'],
   { revalidate: 60, tags: ['seo-counts'] },
 );
 

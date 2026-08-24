@@ -24,7 +24,7 @@ import {
   isOfficialCategory,
   CATEGORY_INDEX_THRESHOLD,
 } from '@/lib/seo/slugs';
-import { countActiveAuctions, findScopedAuctionsPage } from '@/lib/seo/page-data';
+import { countActiveAuctions, countIndexableInventory, findScopedAuctionsPage } from '@/lib/seo/page-data';
 import { Breadcrumbs } from '@/components/seo/Breadcrumbs';
 import SubastasListClient from '../../../SubastasListClient';
 import { seoAuctionsNode } from '../../../_shared/seo-auctions';
@@ -65,14 +65,18 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   // province
-  const count = await countActiveAuctions({ province: r.dbKey });
-  const data = n ? await findScopedAuctionsPage({ province: r.dbKey, page: n }) : null;
+  const [count, indexableCount, data] = await Promise.all([
+    countActiveAuctions({ province: r.dbKey }),
+    countIndexableInventory({ province: r.dbKey }),
+    n ? findScopedAuctionsPage({ province: r.dbKey, page: n }) : Promise.resolve(null),
+  ]);
   const inRange = !!(n && n >= 2 && data && n <= data.totalPages);
   return {
     title: t('provinceMetaTitle', { count: count.toLocaleString(nf), province: r.label }) + suffix,
     ...buildAlternates(canonical, locale),
     openGraph: { locale: ogLocale(locale) },
-    robots: inRange && count > 0 ? 'index,follow' : 'noindex,follow',
+    // Robots gates on active+upcoming (sitemap parity); title keeps active count.
+    robots: inRange && indexableCount > 0 ? 'index,follow' : 'noindex,follow',
   };
 }
 

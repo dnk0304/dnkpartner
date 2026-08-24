@@ -13,11 +13,15 @@
  * — the new server-side `municipality` filter on /api/auctions (Wave 56
  * additive) makes counts/list/badge correct at the server.
  *
- * Index gate: count>0 → index,follow; count==0 → noindex,follow (still 200).
- * `count` is the ACTIVE count (`countActiveAuctions`) — it MUST stay
- * active-only so finished-only towns get noindex. Those pages still render
- * content: the list defaults to `when=todas` (all user-facing states), so a
- * 0-active town shows its finished inventory rather than an empty state.
+ * Index gate: indexableCount>0 → index,follow; ==0 → noindex,follow (still
+ * 200). The gate uses `countIndexableInventory` (active + UPCOMING, the same
+ * SITEMAP_INVENTORY_STATUSES set the sitemap ships) so a sitemapped town never
+ * self-noindexes (restores Dennis's 2026-06-24 "index active + upcoming"
+ * directive; the 2026-08-05 hub-count unification had regressed it onto the
+ * active-only display bucket). `count` stays the ACTIVE DISPLAY figure in the
+ * H1/title. Finished-only + truly-empty towns still noindex, and still render
+ * content: the list defaults to `when=todas`, so a 0-active town shows its
+ * finished inventory rather than an empty state.
  *
  * SEO body (intro/footer/internal-link clusters) is Pixel's brief — this file
  * owns the route skeleton + data + canonical + JSON-LD + lockedFilter wiring.
@@ -37,6 +41,7 @@ import {
 } from '@/lib/seo/slugs';
 import {
   countActiveAuctions,
+  countIndexableInventory,
   minStartingPrice,
   municipalitySlugToDbName,
   municipalityDbNamesForSlug,
@@ -63,6 +68,12 @@ type Resolved = {
   /** Raw DB spellings that fold onto this town — what queries must use. */
   municipalityDbNames: string[];
   count: number;
+  /**
+   * Indexability count (active + upcoming, SITEMAP_INVENTORY_STATUSES) — drives
+   * ONLY the robots decision, kept in sync with the sitemap town set. Distinct
+   * from `count`, which is the active-only DISPLAY figure.
+   */
+  indexableCount: number;
   minPrice: number | null;
   siblings: SiblingMuni[];
   provinceTotal: number;
@@ -81,8 +92,9 @@ async function loadTown(slug: string, municipio: string): Promise<Resolved | nul
   // corpus spellings that fold onto this town.
   const municipality = await municipalityDbNamesForSlug(r.dbKey, municipio);
 
-  const [count, minPrice, allMunis, provinceTotal] = await Promise.all([
+  const [count, indexableCount, minPrice, allMunis, provinceTotal] = await Promise.all([
     countActiveAuctions({ province: r.dbKey, municipality }),
+    countIndexableInventory({ province: r.dbKey, municipality }),
     minStartingPrice({ province: r.dbKey, municipality }),
     municipalitiesInProvince(r.dbKey),
     countActiveAuctions({ province: r.dbKey }),
@@ -103,6 +115,7 @@ async function loadTown(slug: string, municipio: string): Promise<Resolved | nul
     municipalityName,
     municipalityDbNames: municipality,
     count,
+    indexableCount,
     minPrice,
     siblings,
     provinceTotal,
@@ -133,7 +146,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     // Self-canonical per locale + es/en/x-default hreflang (i18n Phase 1).
     ...buildAlternates(`/subastas/${data.provinceSlug}/${data.municipioSlug}`, locale),
     openGraph: { locale: ogLocale(locale) },
-    robots: data.count > 0 ? 'index,follow' : 'noindex,follow',
+    // Indexability gates on active+upcoming (SITEMAP_INVENTORY_STATUSES) so the
+    // robots decision stays in lockstep with the sitemap town set; the DISPLAY
+    // count (`data.count`) stays active-only.
+    robots: data.indexableCount > 0 ? 'index,follow' : 'noindex,follow',
   };
 }
 
