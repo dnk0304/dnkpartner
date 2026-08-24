@@ -150,6 +150,55 @@ section('full pipeline');
   ok('plate never reaches the descriptor', !/5751/.test(d.descriptor), d.descriptor);
 }
 
+section('street-type full-word expansion inside the pipeline');
+{
+  // Abbreviated leading via-type spelled in full.
+  const d = buildDescriptorV3({
+    address: 'CL MAYOR 12, 28013, MADRID, Madrid', townSlug: 'madrid', provinceSlug: 'madrid',
+  });
+  ok('cl -> calle in descriptor', d.descriptor.startsWith('calle-mayor'), d.descriptor);
+  ok('no leading cl- survives', !/^cl-/.test(d.descriptor), d.descriptor);
+
+  const av = buildDescriptorV3({
+    address: 'AVDA DEL PUERTO 4, 46023, VALENCIA, Valencia', townSlug: 'valencia', provinceSlug: 'valencia',
+  });
+  ok('avda -> avenida', av.descriptor.startsWith('avenida-del-puerto'), av.descriptor);
+
+  // Idempotent: an address already in full stays full.
+  const full = buildDescriptorV3({
+    address: 'CALLE MAYOR 12, MADRID', townSlug: 'madrid', provinceSlug: 'madrid',
+  });
+  ok('calle stays calle', full.descriptor.startsWith('calle-mayor'), full.descriptor);
+
+  // Ambiguous code left UNEXPANDED (pj = paraje/pasaje).
+  const amb = buildDescriptorV3({
+    address: 'PJ DE LA FUENTE 3, MURCIA', townSlug: 'murcia', provinceSlug: 'murcia',
+  });
+  ok('ambiguous pj left unexpanded', amb.descriptor.startsWith('pj-'), amb.descriptor);
+
+  // Expansion must not corrupt a street NAMED with code letters.
+  const named = buildDescriptorV3({
+    address: 'CALLE CLAVEL 5, SEVILLA', townSlug: 'sevilla', provinceSlug: 'sevilla',
+  });
+  ok('calle clavel not mangled', named.descriptor.startsWith('calle-clavel'), named.descriptor);
+}
+
+section('expansion + guard ladder: still within the 200 ceiling');
+{
+  // Worst realistic case: a long address led by the longest-expanding code (c->calle),
+  // pushed through the full path builder. Must never breach the ceiling.
+  const d = buildDescriptorV3({
+    address: 'C DE LA CONSTITUCION NUMERO CATORCE PLANTA TERCERA PUERTA B EDIFICIO LAS PALMERAS BLOQUE DOS ESCALERA A, MADRID',
+    townSlug: 'madrid', provinceSlug: 'madrid',
+  });
+  ok('expanded to calle', d.descriptor.startsWith('calle-'), d.descriptor);
+  const p = buildAuctionPathV3({
+    provinceSlug: 'madrid', townSlug: 'madrid', category: 'Viviendas',
+    descriptor: d.descriptor, ref: 'sub-ja-2020-0000123456789',
+  });
+  ok('url within 200 after expansion', p.url.length <= MAX_URL_LEN_V3, `len=${p.url.length}`);
+}
+
 console.log(
   failures === 0
     ? `\nAll descriptor-v3 tests passed (${checks} checks).`

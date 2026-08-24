@@ -1,6 +1,7 @@
 import { guardDescriptor, type GuardSignal } from '@/lib/seo/descriptor-guard';
 import { categoryKeyword } from '@/lib/seo/slug-v2';
 import { slugify } from '@/lib/seo/slugs';
+import { expandLeadingViaType } from '@/lib/seo/street-type-expand';
 
 /**
  * URL-v3 DESCRIPTOR PIPELINE — the single definition of how a row's `address`
@@ -12,7 +13,9 @@ import { slugify } from '@/lib/seo/slugs';
  *                         `e6037htp` and `https://` is `https-`, both far
  *                         harder to match). Runs on EVERY row and EVERY
  *                         category; the category rule is defence-in-depth only.
- *   2. slugify
+ *   2. slugify, then expandLeadingViaType — spell the leading Spanish via-type
+ *      abbreviation in full (`cl-mayor` -> `calle-mayor`). Token-anchored to the
+ *      leading token; never a substring replace.
  *   3. compactUnit      — fold verbose cadastral unit tokens ("es 1 pl 3 pt d"
  *                         -> "pl3-d") so the slug reads like an address.
  *   4. stripTrailingLocality — drop trailing town / province / postcode. All
@@ -149,7 +152,10 @@ export function buildDescriptorV3(args: {
   max?: number;
 }): DescriptorResult {
   const guarded = guardDescriptor(args.address);
-  const folded = compactUnit(slugify(guarded.text));
+  // Expand the leading Spanish via-type abbreviation to its full word
+  // (`cl-mayor` -> `calle-mayor`) BEFORE folding/stripping. Token-anchored to
+  // the leading token only; never a substring replace. See street-type-expand.
+  const folded = compactUnit(expandLeadingViaType(slugify(guarded.text)));
   const noCp = stripOwnPostcode(folded, args.postalCode);
   const full = stripTrailingLocality(
     noCp, args.townSlug, args.provinceSlug, ...(args.localityAliases ?? []),

@@ -51,7 +51,7 @@ import { notFound, permanentRedirect } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getLocale, getTranslations } from 'next-intl/server';
 import type { Locale } from '@/i18n/routing';
-import { fetchAuctionIdByV3Url, resolveAuctionPath } from '@/lib/seo/auction-url';
+import { fetchAuctionIdByV3Url, resolveAuctionPath, resolveV3Alias } from '@/lib/seo/auction-url';
 import { isUrlV3SwitchOn } from '@/lib/seo/url-v3-switch';
 import { resolveProvinceSlugToCanonicalSlug } from '@/lib/province-slug';
 import { isReachableV3Path } from '@/lib/seo/reserved-segments';
@@ -151,6 +151,17 @@ export default async function SubastaDetailV3Page({ params, searchParams }: Page
     const aliasTarget = canonicalAliasPath(p);
     if (aliasTarget && (await fetchAuctionIdByV3Url(aliasTarget))) {
       permanentRedirect(aliasTarget);
+    }
+    // Re-mint 301 alias: this exact path was an OLD minted url (e.g. an
+    // abbreviated `cl-…` street type that was re-minted to `calle-…`). Redirect
+    // permanently to the auction's CURRENT url. Miss-path only — one indexed
+    // join. Locale-aware: middleware stripped any `/en` prefix before this
+    // route saw the path, so re-prepend it on the target to keep the visitor in
+    // the same locale (the alias table is locale-agnostic).
+    const currentUrl = await resolveV3Alias(v3PathOf(p));
+    if (currentUrl) {
+      const locale = (await getLocale()) as Locale;
+      permanentRedirect(locale === 'en' ? `/en${currentUrl}` : currentUrl);
     }
   }
 
