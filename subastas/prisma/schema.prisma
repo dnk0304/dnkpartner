@@ -962,3 +962,32 @@ model AuctionUrlV3 {
   @@map("auction_url_v3")
   @@ignore
 }
+
+/// 301 ALIAS layer for `auction_url_v3` (2026-08-24, url-street-fullword).
+///
+/// When a minted url is RE-MINTED to a new form (street-type abbreviation
+/// expanded to a full word), the OLD url must keep resolving — a permanent url
+/// that starts 404-ing is an SEO regression. Each re-mint writes the old url
+/// here IN THE SAME TRANSACTION as it updates `auction_url_v3.url`, so the alias
+/// and the new url can never diverge (no window where the old url 404s and the
+/// new one is not yet live).
+///
+/// Resolver: request url -> `auction_url_v3` (200) -> else `auction_url_v3_alias`
+/// -> 301/308 to the CURRENT `auction_url_v3.url` for that auction -> else 404.
+/// One extra indexed probe, on the MISS path only. One locale-agnostic table —
+/// middleware handles the `/en` prefix.
+///
+/// Declared here (not left unmanaged) to heed the @@ignore/droppable lesson:
+/// a table absent from schema.prisma is one `db push` away from deletion.
+/// @@ignore keeps it OUT of the generated Client; reads/writes are raw SQL.
+/// `npm run guard:db-model` diffs this shape against a real DB and fails on
+/// drift. The `old_url LIKE '/subastas/%'` CHECK lives in the migration.
+model AuctionUrlV3Alias {
+  oldUrl    String   @id @map("old_url")
+  auctionId String   @map("auction_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([auctionId], map: "auction_url_v3_alias_auction_idx")
+  @@map("auction_url_v3_alias")
+  @@ignore
+}

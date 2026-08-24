@@ -40,6 +40,7 @@ import {
   fetchV3UrlsBatch,
   legacyAuctionPath,
   resolveAuctionPath,
+  resolveV3Alias,
 } from '@/lib/seo/auction-url';
 import { isUrlV3SwitchOn, URL_V3_SWITCH_ENV } from '@/lib/seo/url-v3-switch';
 import { isReachableV3Path, shadowReason } from '@/lib/seo/reserved-segments';
@@ -290,6 +291,45 @@ async function main(): Promise<number> {
     // And it is genuinely gone again.
     assert.strictEqual(await fetchV3Url(victim.id), null);
   });
+
+  // ── G. 301 alias layer: old (re-minted) url → current url ───────────────
+  console.log('\nG — the re-mint 301 alias resolves old urls to the current one');
+  {
+    await checkAsync('an OLD url that was re-minted resolves to the CURRENT url', async () => {
+      const current = minted[0];
+      // Synthesize the OLD (abbreviated) form the re-mint would have aliased.
+      const oldUrl = `/subastas/street-fullword-alias-proof/${Date.now()}/cl-mayor-1-sub-xx-0`;
+      try {
+        await query(
+          `INSERT INTO auction_url_v3_alias (old_url, auction_id) VALUES (?, ?)
+             ON CONFLICT (old_url) DO NOTHING`,
+          [oldUrl, current.auction_id],
+        );
+        // The old url no longer matches any CURRENT url …
+        assert.strictEqual(await fetchAuctionIdByV3Url(oldUrl), null, 'old url still current?');
+        // … but the alias resolves it to the auction's current url (the 301 target).
+        assert.strictEqual(await resolveV3Alias(oldUrl), current.url, 'alias did not resolve to current');
+      } finally {
+        await query('DELETE FROM auction_url_v3_alias WHERE old_url = ?', [oldUrl]);
+      }
+    });
+    await checkAsync('a CURRENT url is never self-aliased (no redirect loop)', async () => {
+      const current = minted[0];
+      try {
+        await query(
+          `INSERT INTO auction_url_v3_alias (old_url, auction_id) VALUES (?, ?)
+             ON CONFLICT (old_url) DO NOTHING`,
+          [current.url, current.auction_id],
+        );
+        assert.strictEqual(await resolveV3Alias(current.url), null, 'self-alias produced a loop');
+      } finally {
+        await query('DELETE FROM auction_url_v3_alias WHERE old_url = ?', [current.url]);
+      }
+    });
+    await checkAsync('an unknown old url resolves to nothing (→ 404)', async () => {
+      assert.strictEqual(await resolveV3Alias('/subastas/nope/nope/nothing-sub-zz-0'), null);
+    });
+  }
 
   switchOff();
   console.log(`\n${passed} passed, ${failed} failed`);

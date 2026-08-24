@@ -149,3 +149,30 @@ export async function fetchAuctionIdByV3Url(url: string): Promise<string | null>
   );
   return row?.auction_id ?? null;
 }
+
+/**
+ * MISS-PATH ALIAS RESOLVE: given an OLD url that no longer matches any current
+ * `auction_url_v3.url`, return the auction's CURRENT url to 301 to — or null.
+ *
+ * One indexed join: `auction_url_v3_alias.old_url` (PK) -> `auction_url_v3`
+ * (PK on auction_id). Runs ONLY when `fetchAuctionIdByV3Url` already missed, so
+ * the happy path (url still current) never pays for it.
+ *
+ * ⚠️ NOT switch-guarded, matching `fetchAuctionIdByV3Url`: the alias must be
+ * resolvable while the switch is off so the redirect is verifiable in a browser
+ * before anything is flipped. Returns the current url (never the old one) so a
+ * caller cannot accidentally build a redirect loop.
+ */
+export async function resolveV3Alias(oldUrl: string): Promise<string | null> {
+  const row = await queryOne<{ url: string }>(
+    `SELECT v.url AS url
+       FROM auction_url_v3_alias a
+       JOIN auction_url_v3 v ON v.auction_id = a.auction_id
+      WHERE a.old_url = ?`,
+    [oldUrl],
+  );
+  // Guard against a degenerate self-alias (old == current): never redirect a
+  // url to itself.
+  if (!row || row.url === oldUrl) return null;
+  return row.url;
+}
