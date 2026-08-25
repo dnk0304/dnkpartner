@@ -439,7 +439,7 @@ export function middleware(request: NextRequest) {
   }
 
   if (process.env.NODE_ENV === 'development') {
-    response.headers.set('Content-Security-Policy', "script-src 'self' 'unsafe-eval' 'unsafe-inline';");
+    response.headers.set('Content-Security-Policy', "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.clarity.ms https://*.clarity.ms; connect-src 'self' https://*.clarity.ms;");
   }
   return response;
 }

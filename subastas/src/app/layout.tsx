@@ -6,6 +6,7 @@ import "./globals.css";
 import { SessionProvider } from "@/components/SessionProvider";
 import { AdminSettingsProvider } from "@/context/AdminSettingsContext";
 import { SiteChrome } from "@/components/observatory/SiteChrome";
+import { MicrosoftClarity } from "@/components/analytics/MicrosoftClarity";
 
 /**
  * Typography — the single biggest "less AI" lever we have.
@@ -67,6 +68,7 @@ export default async function RootLayout({
             </AdminSettingsProvider>
           </SessionProvider>
         </NextIntlClientProvider>
+        <MicrosoftClarity />
       </body>
     </html>
   );
