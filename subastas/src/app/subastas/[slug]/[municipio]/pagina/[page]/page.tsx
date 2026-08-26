@@ -7,7 +7,7 @@
  */
 
 import type { Metadata } from 'next';
-import { notFound, redirect } from 'next/navigation';
+import { notFound, redirect, permanentRedirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { buildAlternates, ogLocale } from '@/lib/seo/alternates';
@@ -19,6 +19,7 @@ import {
   findScopedAuctionsPage,
   municipalitySlugToDbName,
   municipalityDbNamesForSlug,
+  townBrowseRedirectTarget,
 } from '@/lib/seo/page-data';
 import { Breadcrumbs } from '@/components/seo/Breadcrumbs';
 import { capitalizeLocation } from '@/lib/utils';
@@ -74,7 +75,19 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function TownPaginaPage({ params }: PageProps) {
   const { slug, municipio, page } = await params;
   const town = await resolveTown(slug, municipio);
-  if (!town) notFound();
+  if (!town) {
+    // Town-browse redirect layer parity with ../../page.tsx: a moved/renormalized
+    // town slug on a paginated URL 301s to the current town's page 1 (or the
+    // province page), rather than 404ing this deep sibling while the base 301s.
+    if (!RESERVED_SEGMENTS.has(slug) && !RESERVED_SEGMENTS.has(municipio)) {
+      const prov = resolveSubastasSlug(slug);
+      if (prov.kind === 'province') {
+        const to = await townBrowseRedirectTarget(prov.dbKey, prov.slug, municipio);
+        if (to) permanentRedirect(to);
+      }
+    }
+    notFound();
+  }
   const n = parsePage(page);
   if (n === null) notFound();
   if (n === 1) redirect(`/subastas/${slug}/${municipio}`);

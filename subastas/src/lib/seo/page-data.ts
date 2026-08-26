@@ -837,6 +837,153 @@ export async function municipalityDbNamesForSlug(
   return rows.find((r) => r.slug === municipalitySlug)?.dbNames ?? [];
 }
 
+// ---------------------------------------------------------------------------
+// Town-BROWSE slug redirect resolver (Forge 2026-08-26, Dennis-approved).
+//
+// THE GAP: `/subastas/{prov}/{town}` had no 301/alias layer. When the town-slug
+// normalization moved a town's canonical slug (Jávea→Xàbia, Sagunto→Sagunt,
+// Ibiza→Eivissa, Alcoy→Alcoi, "Donostia/San Sebastián"→donostia, …) the OLD
+// crawled slug started hard-404ing, while the property-DETAIL layer got its
+// `auction_url_v3_alias` 308s. GSC surfaced ~114 such town-browse 404s.
+//
+// THE FIX — reverse-resolution, NOT a hardcoded list. Two deterministic signals,
+// both derived from the SAME data the live resolver uses, so the map stays
+// correct as the corpus and gazetteer grow:
+//
+//   1. CORPUS REVERSE MAP. Every live town carries `dbNames` — the raw
+//      `Auction.municipality` spellings the INE gazetteer folded onto it. The
+//      OLD url slug for any of those spellings is `slugify(rawName)`. So
+//      `slugify(rawName) -> town.currentSlug` is the exact inverse of the fold:
+//      "Javea"→xabia, "Sagunto"→sagunt, "Ibiza"→eivissa, "Alcoy"/"Alcoi-Alcoy"→
+//      alcoi, "Donostia/San Sebastián"→donostia. No town names are hardcoded —
+//      this is generated from whatever spellings the corpus currently holds.
+//
+//   2. COMPOUND-SEGMENT REDUCTION. Historical slugs the corpus no longer holds
+//      verbatim are address/compound artifacts — a real town slug wearing an
+//      extra segment: `llucmajor-palma`, `o-porto-do-son`, `saladillo-estepona`,
+//      `donostia-san-sebastian`. We progressively drop trailing THEN leading
+//      hyphen segments (longest candidate first) and accept the first candidate
+//      that is itself a LIVE town slug (or a corpus-map key). `-palma` peels off
+//      Llucmajor; the leading `o-` article peels off Porto do Son; the neighbourhood
+//      prefix `saladillo-` peels off Estepona.
+//
+// Every returned town target is a slug that resolves 200 by construction (it
+// came from the live town set), so a 301 can never land on a 404, and the target
+// is canonical so it never itself redirects — max chain length is structurally 1.
+// A slug that matches neither signal is a typo / address fragment / wrong-province
+// junk: it 301s to the PROVINCE page (which always exists), never a hard 404.
+// The caller reserves 404 for an INVALID province.
+//
+// SWITCH-AGNOSTIC BY CONSTRUCTION: the map is read from `distinctMunicipalitiesCached`,
+// the very set that decides what answers 200, so it tracks the whitelist flip in
+// lockstep with the pages themselves — no `URL_V4_SWITCH` gate is needed. A slug
+// that answers 200 today never reaches this resolver (the page renders first), so
+// no live 200 can be turned into a redirect (the dark-redirect regression Ken
+// rolled back on `/resultados` cannot occur here).
+// ---------------------------------------------------------------------------
+
+/** Every legacy slug spelling for a slug's own segments, longest candidate first. */
+function segmentReductions(slug: string): string[] {
+  const segs = slug.split('-').filter(Boolean);
+  if (segs.length < 2) return [];
+  const out: string[] = [];
+  // Drop trailing segments (llucmajor-palma -> llucmajor), then leading
+  // segments (o-porto-do-son -> porto-do-son, saladillo-estepona -> estepona).
+  // Longest candidate first so the most specific real town wins.
+  for (let keep = segs.length - 1; keep >= 1; keep--) {
+    out.push(segs.slice(0, keep).join('-')); // drop from the end
+    out.push(segs.slice(segs.length - keep).join('-')); // drop from the start
+  }
+  // Dedup, preserve order, never return the input itself.
+  return [...new Set(out)].filter((s) => s && s !== slug);
+}
+
+async function _townBrowseRedirectTarget(
+  provinceDbKey: string,
+  provinceSlug: string,
+  municipalitySlug: string,
+): Promise<string | null> {
+  if (!provinceDbKey || !provinceSlug || !municipalitySlug) return null;
+  const towns = await distinctMunicipalitiesCached(provinceDbKey);
+
+  // Live canonical slugs (answer 200) + the corpus reverse map
+  // (old-spelling-slug -> current-slug). Both derived from the SAME town set.
+  const liveSlugs = new Set<string>();
+  const reverse = new Map<string, string>();
+  for (const t of towns) {
+    liveSlugs.add(t.slug);
+    for (const raw of t.dbNames) {
+      const s = slugify(raw);
+      if (!s) continue;
+      // Old /subastas urls used bare `slugify`; the LIT resolver escapes reserved
+      // segments. Key on both so a legacy slug matches regardless.
+      for (const key of new Set([s, safeMunicipioSegment(s)])) {
+        if (key && key !== t.slug && !reverse.has(key)) reverse.set(key, t.slug);
+      }
+    }
+  }
+
+  const toTown = (target: string) =>
+    target && target !== municipalitySlug ? `/subastas/${provinceSlug}/${target}` : null;
+
+  // 1. Exact corpus reverse-map hit (Jávea→xabia, Sagunto→sagunt, …).
+  const direct = reverse.get(municipalitySlug);
+  if (direct) {
+    const t = toTown(direct);
+    if (t) return t;
+  }
+
+  // 2. Compound-segment reduction (llucmajor-palma→llucmajor, o-porto-do-son→
+  //    porto-do-son, saladillo-estepona→estepona). Accept the first candidate
+  //    that is a live town slug or a known old spelling.
+  for (const cand of segmentReductions(municipalitySlug)) {
+    if (liveSlugs.has(cand)) {
+      const t = toTown(cand);
+      if (t) return t;
+    }
+    const mapped = reverse.get(cand);
+    if (mapped) {
+      const t = toTown(mapped);
+      if (t) return t;
+    }
+  }
+
+  // 3. Unresolvable town slug under a valid province -> the province page.
+  //    Recovers crawl signal instead of a hard 404. The caller has already
+  //    confirmed the province is real; an invalid province stays a 404.
+  return `/subastas/${provinceSlug}`;
+}
+
+/**
+ * Where a `/subastas/{prov}/{town}` request whose town slug does NOT resolve to a
+ * live town page should be 301-redirected. Returns:
+ *   - `/subastas/{prov}/{current-slug}` when the old slug reverse-resolves to a
+ *     real, currently-live town (moved/renormalized slug), or
+ *   - `/subastas/{prov}` (province page) when it cannot — typo, address fragment,
+ *     wrong-province junk.
+ * Never returns the input path (no self-loop); every town target answers 200.
+ * Cached per-province, keyed by the whitelist state so a flip is instant.
+ */
+export function townBrowseRedirectTarget(
+  provinceDbKey: string,
+  provinceSlug: string,
+  municipalitySlug: string,
+): Promise<string | null> {
+  return townBrowseRedirectTargetCached(
+    provinceDbKey,
+    provinceSlug,
+    municipalitySlug,
+    archiveWhitelistCacheKey(),
+  );
+}
+
+const townBrowseRedirectTargetCached = unstable_cache(
+  (provinceDbKey: string, provinceSlug: string, municipalitySlug: string, _whitelist: string) =>
+    _townBrowseRedirectTarget(provinceDbKey, provinceSlug, municipalitySlug),
+  ['seo-town-browse-redirect-target'],
+  { revalidate: 300, tags: ['seo-counts'] },
+);
+
 /**
  * Did this town slug EVER name a page — i.e. does some raw `Auction.municipality`
  * in this province slugify to it?
