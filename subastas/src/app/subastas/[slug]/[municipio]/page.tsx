@@ -28,7 +28,7 @@
  */
 
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { getLocale, getTranslations } from 'next-intl/server';
@@ -47,6 +47,7 @@ import {
   minStartingPrice,
   municipalitySlugToDbName,
   municipalityDbNamesForSlug,
+  townBrowseRedirectTarget,
   municipalitiesInProvince,
 } from '@/lib/seo/page-data';
 import { SeoIntroBlock } from '@/components/seo/SeoIntroBlock';
@@ -170,7 +171,21 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function MunicipioPage({ params }: PageProps) {
   const { slug, municipio } = await params;
   const data = await loadTown(slug, municipio);
-  if (!data) notFound();
+  if (!data) {
+    // TOWN-BROWSE REDIRECT LAYER (Forge 2026-08-26). The town slug did not
+    // resolve to a live page. Before 404ing, try to reverse-resolve it: a moved/
+    // renormalized town slug 301s to its current live town page, and any other
+    // unrecognised slug 301s to the province page rather than hard-404ing. A
+    // reserved segment or a non-province first slug still 404s.
+    if (!RESERVED_SEGMENTS.has(slug) && !RESERVED_SEGMENTS.has(municipio)) {
+      const prov = resolveSubastasSlug(slug);
+      if (prov.kind === 'province') {
+        const to = await townBrowseRedirectTarget(prov.dbKey, prov.slug, municipio);
+        if (to) permanentRedirect(to); // 308 permanent — see subasta/[slug] header note
+      }
+    }
+    notFound();
+  }
   const t = await getTranslations('listTemplates');
   const muniLabel = capitalizeLocation(data.municipalityName);
 
