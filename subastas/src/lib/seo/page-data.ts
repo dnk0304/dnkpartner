@@ -550,11 +550,20 @@ async function _findTownContentBlock(args: CountInput): Promise<TownContentBlock
 
   const upcoming = await resolveDetailPaths(upcomingRaw);
   const concludedLinked = await resolveDetailPaths(concludedRaw as ConcludedResultRow[]);
-  const concluded: ConcludedResultCard[] = concludedLinked.map((r) => ({
+  const concluded: ConcludedResultCard[] = concludedLinked.map(({ soldPrice, ...r }) => ({
     ...r,
     saleResult: r.saleResult == null ? null : String(r.saleResult),
-    // BigInt → number for cross-cache serialisation (see the type note).
-    soldPriceCents: r.soldPrice == null ? null : Number(r.soldPrice),
+    // BigInt → number for cross-cache serialisation. `soldPrice` (BigInt CENTS)
+    // is DESTRUCTURED OUT of the spread above so the raw BigInt can NEVER survive
+    // into the returned object. It used to ride along in `...r`: the map added
+    // `soldPriceCents` but left the raw `soldPrice` BigInt on the row, so on any
+    // town/province page with a concluded SOLD result `unstable_cache` threw
+    // "Do not know how to serialize a BigInt" while serialising this value —
+    // surfacing as a recurring `unhandledRejection` on the background cache write
+    // (wave206). Cents are well within Number.MAX_SAFE_INTEGER (a winning bid in
+    // cents never approaches 9e15), so Number() is exact — same choice as the
+    // detail payload's soldPriceSafe.
+    soldPriceCents: soldPrice == null ? null : Number(soldPrice),
     soldDate: r.soldDate ?? null,
   }));
 
@@ -882,6 +891,20 @@ export async function municipalityDbNamesForSlug(
 // rolled back on `/resultados` cannot occur here).
 // ---------------------------------------------------------------------------
 
+// Known name-VARIANT aliases the corpus reverse-map cannot produce because the
+// corpus never held the variant spelling verbatim — a rename / exonym, NOT an
+// accent fold (accent folds like Jávea→xabia come for free from `dbNames`).
+// Keyed old-browse-slug -> current town slug. Seeded into `reverse` below ONLY
+// when the target is a LIVE town in the province being resolved, so the
+// invariants hold: the target 200s (no 301→404), and it is canonical so it never
+// itself redirects (max chain length stays 1). A variant whose canonical is not
+// live in this province is simply skipped and falls through to the province page,
+// exactly as before — so this can only ADD a correct town hop, never break one.
+const TOWN_SLUG_NAME_VARIANTS: Record<string, string> = {
+  ibiza: 'eivissa', // Baleares — Castilian exonym for the official Catalan name Eivissa
+  murguia: 'murgia', // Araba/Álava — old Castilian spelling of the official Murgia
+};
+
 /** Every legacy slug spelling for a slug's own segments, longest candidate first. */
 function segmentReductions(slug: string): string[] {
   const segs = slug.split('-').filter(Boolean);
@@ -921,6 +944,14 @@ async function _townBrowseRedirectTarget(
         if (key && key !== t.slug && !reverse.has(key)) reverse.set(key, t.slug);
       }
     }
+  }
+
+  // Seed the known name-variant aliases (exonyms / old spellings the corpus
+  // never held verbatim). Guarded on `liveSlugs.has(canonical)` so the target is
+  // guaranteed to answer 200 in THIS province — a variant for another province's
+  // town never matches here and harmlessly falls through to the province page.
+  for (const [variant, canonical] of Object.entries(TOWN_SLUG_NAME_VARIANTS)) {
+    if (liveSlugs.has(canonical) && !reverse.has(variant)) reverse.set(variant, canonical);
   }
 
   const toTown = (target: string) =>
