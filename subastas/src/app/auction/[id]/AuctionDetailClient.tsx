@@ -692,6 +692,7 @@ export default function AuctionDetailClient({
                   <RegionBenchmarkChip
                     benchmark={raw.regionBenchmark}
                     variant="detail"
+                    surfaceM2={(raw as { surfaceM2?: number | null }).surfaceM2 ?? null}
                   />
                 </div>
               </section>
