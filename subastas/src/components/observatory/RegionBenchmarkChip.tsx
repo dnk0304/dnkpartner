@@ -26,6 +26,7 @@
 import * as React from "react";
 import { useTranslations } from "next-intl";
 import type { RegionBenchmarkSignal } from "@/types";
+import { formatM2 } from "./format";
 
 /** |deltaPct| at or below this reads as "in line with the area". */
 const NEUTRAL_BAND = 3;
@@ -50,6 +51,15 @@ interface RegionBenchmarkChipProps {
   variant?: Variant;
   /** BCP-47 locale for number grouping (detail variant). Defaults to es-ES. */
   locale?: string;
+  /**
+   * Raw surface area (m²) for the DETAIL variant. When present (finite > 0) it
+   * renders as its own stat box to the LEFT of the €/m² figure, so the detail
+   * benchmark line reads as the full trio: m² · €/m² · vs la zona. Honest-NULL:
+   * when absent/≤0 the box omits entirely (never "0 m²", never a dash) — most
+   * historical rows carry no surface. Ignored by the "card" variant, where the
+   * card's own fact strip already prints the m² pill.
+   */
+  surfaceM2?: number | null;
   className?: string;
 }
 
@@ -57,6 +67,7 @@ export function RegionBenchmarkChip({
   benchmark,
   variant = "card",
   locale = "es-ES",
+  surfaceM2,
   className,
 }: RegionBenchmarkChipProps) {
   const t = useTranslations("benchmark");
@@ -117,9 +128,24 @@ export function RegionBenchmarkChip({
 
   const hasBand = p25EurM2 != null && p75EurM2 != null;
 
+  // Raw surface (m²) stat, LEFT of the €/m² figure so the detail benchmark line
+  // reads as the full trio: m² · €/m² · vs la zona. Honest-NULL: omit entirely
+  // when absent/≤0 (formatM2 returns null) — never "0 m²", never an orphan dash.
+  const surfaceLabel = formatM2(surfaceM2);
+
   return (
     <div className={["flex flex-col gap-1", className ?? ""].join(" ")}>
       <div className="flex flex-wrap items-center gap-2">
+        {surfaceLabel && (
+          <>
+            <span className="tnum text-sm font-semibold text-[var(--color-ink-primary)]">
+              {surfaceLabel}
+            </span>
+            <span aria-hidden="true" className="text-[var(--color-ink-quiet)]">
+              ·
+            </span>
+          </>
+        )}
         <span className="tnum text-sm font-semibold text-[var(--color-ink-primary)]">
           {formatEurM2(eurM2, locale)}
         </span>
