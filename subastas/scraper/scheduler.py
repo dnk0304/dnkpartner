@@ -450,6 +450,21 @@ class ScraperScheduler:
         The endsAt guard prevents promoting a window that has already closed
         (that case is the sweep's job once both opensAt and endsAt are past).
 
+        CP2 opensAt-NULL gap (Forge 2026-09-02): the `opensAt IS NOT NULL` guard
+        used to strand a pre-auction that OPENED before its opensAt was ever
+        captured (BOE drops it from the PA-state search, so this time-driven
+        promotion never fired -> it went stale and cleanup_withdrawn_preauctions
+        false-cancelled it). That gap is now closed UPSTREAM:
+        cleanup_withdrawn_preauctions re-scrapes each stale candidate and, when
+        BOE confirms it live, BACKFILLS opensAt from BOE "Fecha de inicio"
+        (start_at). On the next run of THIS job that row satisfies
+        `opensAt IS NOT NULL AND opensAt <= now` and is promoted here normally
+        (end-to-end chain: verify -> backfill opensAt -> promote). When BOE
+        confirms it open but publishes no start instant, cleanup promotes it
+        directly (it never reaches this query). The endsAt guard below is the
+        same guard cleanup applies, so a closed window is never promoted by
+        either path.
+
         Emits auction.go_live (via emit_status_change, which auto-selects the
         go_live event type for a CELEBRANDOSE transition out of PROXIMA) and an
         AuctionStatusHistory row, in the same psycopg2 transaction as the UPDATE.
@@ -574,17 +589,56 @@ class ScraperScheduler:
     # -----------------------------------------------------------------------
     def cleanup_withdrawn_preauctions(self, found_this_run):
         """
-        Withdraw PROXIMA_APERTURA rows that disappeared from BOE before opening.
+        Withdraw PROXIMA_APERTURA rows that BOE CONFIRMS are gone — verified
+        PER ROW against the live BOE detail page (CP2, Forge 2026-09-02).
 
-        Runs at the TAIL of run_preauction_discovery() only. `found_this_run` is
-        the discovery pass's found count; if it is <= 0 the sweep is skipped to
-        avoid mass false-removal on a flaky/empty BOE run.
+        HISTORY / why this changed
+        --------------------------
+        The prior form flipped EVERY stale candidate (status='PROXIMA_APERTURA'
+        AND opensAt IS NULL AND updatedAt < now-GRACE) straight to CANCELADA on
+        the *inference* "not re-seen in the PA discovery search => withdrawn".
+        That inference is WRONG for the dominant case: a pre-auction that OPENED
+        leaves the PA-state (ESTADO=PA) search — it is now Celebrándose — and,
+        because its opensAt was never captured, promote_pending_auctions
+        (opensAt IS NOT NULL guard) never flips it live. So the row went stale
+        and this sweep CANCELLED it while it was actually LIVE on BOE. Audited
+        false-cancel rate ~56% of 453 rows (CP1 evidence).
 
-        Candidates (status='PROXIMA_APERTURA' AND opensAt IS NULL AND
-        updatedAt < now - GRACE_WINDOW) flip to CANCELADA with
-        suspensionReason='WITHDRAWN_PRE_AUCTION' via emit_status_change, which
-        writes EventOutbox (auction.finished) + AuctionStatusHistory in the same
-        transaction. No hard-delete, no schema change.
+        New contract (fail-safe, never false-cancel)
+        ---------------------------------------------
+        The `updatedAt < now-GRACE + opensAt IS NULL` predicate is now only a
+        *candidate* filter. NO row flips to CANCELADA without positive per-row
+        BOE evidence. For each candidate we re-scrape its BOE detail page (same
+        confirmed-parse pattern as recheck_suspended_auctions) and:
+
+          * BOE detail_status == 'CANCELADA' (explicit banner)
+                -> withdraw: CANCELADA + WITHDRAWN_PRE_AUCTION via
+                   emit_status_change, logging boeId + the BOE evidence.
+          * BOE shows it LIVE/opened (confirmed parse, no terminal banner,
+            endsAt is NULL or in the future)
+                -> do NOT cancel. Capture opensAt so the promotion chain can
+                   flip it: backfill opensAt = BOE "Fecha de inicio" (start_at)
+                   when present; if BOE confirms it open but publishes no start
+                   instant, promote it here directly (PROXIMA_APERTURA ->
+                   CELEBRANDOSE) exactly like the SUSPENDIDA reopen path. This
+                   closes the promote_pending_auctions opensAt-NULL gap (item 2).
+          * BOE shows a non-withdrawal terminal/other state (SUSPENDIDA,
+            CONCLUIDA_PORTAL) -> leave as-is (not this sweep's job).
+          * Fetch/parse FAILED (no 'identificador' key — the empty-on-exception
+            fallback) -> leave as-is. A verify failure NEVER cancels.
+
+        Guards retained + added
+        ------------------------
+        * found_this_run<=0 false-removal floor (empty/flaky discovery pass).
+        * GRACE_WINDOW candidate filter (PREAUCTION_WITHDRAW_GRACE_HOURS).
+        * endsAt guard on any promotion (never resurrect a closed window).
+        * Per-run BOE re-check CAP (PREAUCTION_WITHDRAW_VERIFY_CAP, default 50),
+          oldest-stale first; rate-limited by the scraper's own navigate delay.
+        * BOE-down bail: if the first probes all fail to confirm-parse (>=5
+          consecutive failures with 0 confirmed), abort the sweep entirely —
+          a BOE outage must not silently swallow the whole candidate bucket.
+        * Every write goes through emit_status_change (outbox + history, same tx).
+        No hard-delete, no schema change, no bulk UPDATE.
         """
         # ---- False-removal floor: never sweep on an empty/flaky discovery run --
         if not found_this_run or found_this_run <= 0:
@@ -600,12 +654,15 @@ class ScraperScheduler:
             return
 
         grace_hours = int(os.getenv("PREAUCTION_WITHDRAW_GRACE_HOURS", "36"))
+        verify_cap = int(os.getenv("PREAUCTION_WITHDRAW_VERIFY_CAP", "50"))
 
         self.log(
-            f"Sweeping withdrawn pre-auctions "
-            f"(PROXIMA_APERTURA, opensAt NULL, not re-seen in {grace_hours}h)..."
+            f"Verifying withdrawn-pre-auction candidates against BOE "
+            f"(PROXIMA_APERTURA, opensAt NULL, not re-seen in {grace_hours}h; "
+            f"cap {verify_cap}/run)..."
         )
 
+        # ---- Phase 1: build the candidate set (DB only, main thread) ----------
         try:
             conn = self._get_pg_conn()
             cursor = conn.cursor()
@@ -613,6 +670,8 @@ class ScraperScheduler:
             stale_before = now - timedelta(hours=grace_hours)
 
             # Candidate predicate: upcoming, never opened, missed ~6 runs.
+            # Oldest-stale first, capped — this is now a VERIFY queue, not a
+            # cancel list. The cap bounds BOE load per run.
             cursor.execute(f"""
                 SELECT id, "boeId", "endsAt", status, title,
                        "boeLink", province, municipality,
@@ -623,54 +682,181 @@ class ScraperScheduler:
                   AND "opensAt" IS NULL
                   AND "updatedAt" < %s
                   AND {LEGACY_EXCLUSION_SQL}
-            """, (stale_before,))
+                ORDER BY "updatedAt" ASC
+                LIMIT %s
+            """, (stale_before, verify_cap))
             candidates = cursor.fetchall()
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            self.log(f"  Withdrawal verify: candidate query failed: {e}")
+            return
 
-            if not candidates:
-                self.log("  No withdrawn pre-auctions to sweep")
-                cursor.close()
-                conn.close()
-                return
+        if not candidates:
+            self.log("  No withdrawn-pre-auction candidates to verify")
+            return
 
-            self.log(f"  Found {len(candidates)} withdrawn pre-auctions to withdraw -> CANCELADA")
+        self.log(f"  Verifying {len(candidates)} candidate(s) against BOE (cap {verify_cap})")
 
-            # Same import shim promote_pending_auctions uses.
+        # ---- Phase 2: per-row BOE verify + write, on a fresh loop-free thread --
+        # Sync-Playwright lifecycle must live entirely on one loop-free thread
+        # (same asyncio contract as recheck_suspended_auctions / pulse).
+        def _verify():
+            os.environ.setdefault("BOE_FETCH_DETAIL", "1")
             sys.path.insert(0, '/')
+            from app.scrapers.boe_scraper import BOEScraper
             from app.database.outbox import emit_status_change
+            scraper = BOEScraper()
 
-            withdrawn_ids = [row[0] for row in candidates]
-            # Flip to CANCELADA + stamp the WITHDRAWN_PRE_AUCTION sentinel so the
-            # frontend can distinguish a withdrawn-pre-auction from a normal
-            # cancelled-after-opening. NO hard-delete — the row stays SELECTable.
-            cursor.execute("""
-                UPDATE "Auction"
-                SET status = 'CANCELADA',
-                    "suspensionReason" = 'WITHDRAWN_PRE_AUCTION',
-                    "transitionedAt" = %s,
-                    "updatedAt" = %s
-                WHERE id = ANY(%s)
-            """, (now, now, withdrawn_ids))
+            withdrawn = live_kept = promoted = backfilled = other = failed = 0
+            conn2 = self._get_pg_conn()
+            now2 = datetime.utcnow()
 
-            for (
-                auction_id, boe_id, ends_at, from_status, title,
-                boe_link, province, municipality,
-                appraisal_value, current_bid,
-                address, current_bid_amount, puja_status, updated_at,
-            ) in candidates:
-                # Record Dennis wants: boeId + prior state per withdrawal.
-                self.log(
-                    f"    Withdrew {boe_id} (prior state {from_status}, "
-                    f"last seen {updated_at}) -> CANCELADA"
-                )
+            for (auction_id, boe_id, ends_at, from_status, title,
+                 boe_link, province, municipality,
+                 appraisal_value, current_bid,
+                 address, current_bid_amount, puja_status, updated_at) in candidates:
+
+                # BOE-down bail: 5 consecutive confirmed-parse failures with
+                # nothing yet verified => treat BOE as unreachable and abort the
+                # whole sweep (extends the false-removal floor to a live outage).
+                if failed >= 5 and (withdrawn + live_kept + promoted + backfilled + other) == 0:
+                    self.log(
+                        "  Withdrawal verify ABORTED — 5 consecutive BOE fetch "
+                        "failures with 0 confirmed parses (BOE likely down). "
+                        "No candidate cancelled."
+                    )
+                    break
+
+                if not boe_id:
+                    other += 1
+                    continue
+
                 try:
+                    info = scraper._fetch_detail_info(boe_id)
+                except Exception as e:
+                    failed += 1
+                    self.log(f"    verify fetch error for {boe_id}: {e}")
+                    continue
+
+                # Confirmed successful parse only: the full return dict carries an
+                # 'identificador' key; the empty-on-exception fallback never does.
+                # A failed fetch NEVER cancels — leave the row as-is (fail-safe).
+                if 'identificador' not in info:
+                    failed += 1
+                    self.log(f"    verify inconclusive for {boe_id} (no BOE parse) — left as-is")
+                    continue
+
+                detail_status = info.get('detail_status')
+                start_at = info.get('start_at')
+                di_ends = info.get('ends_at')
+                eff_ends = di_ends if di_ends is not None else ends_at
+
+                # (1) Explicit BOE cancellation banner => genuine withdrawal.
+                if detail_status == 'CANCELADA':
+                    try:
+                        c = conn2.cursor()
+                        c.execute("""
+                            UPDATE "Auction"
+                            SET status = 'CANCELADA',
+                                "suspensionReason" = 'WITHDRAWN_PRE_AUCTION',
+                                "transitionedAt" = %s,
+                                "updatedAt" = %s
+                            WHERE id = %s
+                        """, (now2, now2, auction_id))
+                        emit_status_change(
+                            c,
+                            auction_id=auction_id,
+                            boe_id=boe_id or "",
+                            boe_link=boe_link or f"https://subastas.boe.es/detalleSubasta.php?idSub={boe_id}",
+                            title=title or "",
+                            from_status=from_status,               # PROXIMA_APERTURA
+                            to_status="CANCELADA",                 # -> auction.finished
+                            province=province or "",
+                            municipality=municipality or "",
+                            address=address or "",
+                            appraisal_value=float(appraisal_value or 0),
+                            current_bid=float(current_bid) if current_bid else None,
+                            current_bid_amount=int(current_bid_amount) if current_bid_amount else None,
+                            puja_status=puja_status,
+                            ends_at=eff_ends,
+                            suspension_reason="WITHDRAWN_PRE_AUCTION",
+                            detected_by="scheduler.cleanup_withdrawn_preauctions",
+                        )
+                        conn2.commit(); c.close()
+                        withdrawn += 1
+                        self.log(
+                            f"    WITHDREW {boe_id} (prior {from_status}, last seen "
+                            f"{updated_at}) -> CANCELADA [BOE evidence: detail_status=CANCELADA]"
+                        )
+                    except Exception as e:
+                        try: conn2.rollback()
+                        except Exception: pass
+                        failed += 1
+                        self.log(f"    withdrawal write failed for {boe_id}: {e}")
+                    continue
+
+                # (2) Non-withdrawal terminal / other banner — not this sweep's
+                #     job. Leave as-is (recheck / monitor own those transitions).
+                if detail_status in ('SUSPENDIDA', 'CONCLUIDA_PORTAL'):
+                    other += 1
+                    self.log(
+                        f"    kept {boe_id}: BOE detail_status={detail_status} "
+                        f"(not a pre-auction withdrawal) — left as-is"
+                    )
+                    continue
+
+                # (3) detail_status is None on a confirmed-parsed page => BOE
+                #     shows it LIVE/opened. NEVER cancel. endsAt guard: if the
+                #     window already closed, do not resurrect it — leave it for
+                #     the normal conclude path.
+                if eff_ends is not None and eff_ends <= now2:
+                    other += 1
+                    self.log(
+                        f"    kept {boe_id}: BOE live but window already closed "
+                        f"(endsAt={eff_ends}) — left for conclude path"
+                    )
+                    continue
+
+                # (3a) BOE published a start instant => backfill opensAt and let
+                #      promote_pending_auctions flip it on its next run (30m).
+                #      Closes the opensAt-NULL promotion gap without fabricating.
+                if start_at is not None:
+                    try:
+                        c = conn2.cursor()
+                        c.execute(
+                            'UPDATE "Auction" SET "opensAt" = %s, "updatedAt" = %s WHERE id = %s',
+                            (start_at, now2, auction_id))
+                        conn2.commit(); c.close()
+                        backfilled += 1
+                        self.log(
+                            f"    kept {boe_id}: BOE live -> backfilled opensAt={start_at} "
+                            f"(promotion chain will flip it) — NOT cancelled"
+                        )
+                    except Exception as e:
+                        try: conn2.rollback()
+                        except Exception: pass
+                        failed += 1
+                        self.log(f"    opensAt backfill failed for {boe_id}: {e}")
+                    continue
+
+                # (3b) BOE confirms it open but publishes no parseable start
+                #      instant. Promote directly PROXIMA_APERTURA -> CELEBRANDOSE
+                #      (BOE-confirmed live), same as the SUSPENDIDA reopen path.
+                #      emit_status_change auto-selects auction.go_live.
+                try:
+                    c = conn2.cursor()
+                    c.execute(
+                        'UPDATE "Auction" SET status = %s, "transitionedAt" = %s, "updatedAt" = %s WHERE id = %s',
+                        ('CELEBRANDOSE', now2, now2, auction_id))
                     emit_status_change(
-                        cursor,
+                        c,
                         auction_id=auction_id,
                         boe_id=boe_id or "",
                         boe_link=boe_link or f"https://subastas.boe.es/detalleSubasta.php?idSub={boe_id}",
                         title=title or "",
-                        from_status=from_status,                 # PROXIMA_APERTURA
-                        to_status="CANCELADA",                   # -> auction.finished event + history
+                        from_status=from_status,                   # PROXIMA_APERTURA
+                        to_status="CELEBRANDOSE",                  # -> go_live
                         province=province or "",
                         municipality=municipality or "",
                         address=address or "",
@@ -678,27 +864,34 @@ class ScraperScheduler:
                         current_bid=float(current_bid) if current_bid else None,
                         current_bid_amount=int(current_bid_amount) if current_bid_amount else None,
                         puja_status=puja_status,
-                        ends_at=ends_at,
-                        suspension_reason="WITHDRAWN_PRE_AUCTION",
+                        ends_at=eff_ends,
                         detected_by="scheduler.cleanup_withdrawn_preauctions",
                     )
+                    conn2.commit(); c.close()
+                    promoted += 1
+                    self.log(
+                        f"    PROMOTED {boe_id}: BOE live, no start instant -> "
+                        f"CELEBRANDOSE (go_live emitted) — NOT cancelled"
+                    )
                 except Exception as e:
-                    self.log(f"  Warning: withdrawal outbox write failed for {boe_id}: {e}")
+                    try: conn2.rollback()
+                    except Exception: pass
+                    failed += 1
+                    self.log(f"    promote-on-verify failed for {boe_id}: {e}")
 
-            conn.commit()
-            self.log(
-                f"  Withdrew {len(candidates)} pre-auctions "
-                f"(disappeared from BOE, never opened) -> CANCELADA "
-                f"(history retained, no hard-delete)"
-            )
+            conn2.close()
+            return withdrawn, live_kept, promoted, backfilled, other, failed
 
-            cursor.close()
-            conn.close()
-
-        except Exception as e:
-            self.log(f"  Error in cleanup_withdrawn_preauctions: {e}")
-            import traceback
-            self.log(traceback.format_exc())
+        result = self._run_sync_scrape("PREAUCTION_WITHDRAW_VERIFY", _verify)
+        if result is None:
+            self.log("  Withdrawal verify: thread crashed (see traceback above) — nothing cancelled")
+            return
+        withdrawn, live_kept, promoted, backfilled, other, failed = result
+        self.log(
+            f"  Withdrawal verify complete: withdrawn(BOE-confirmed)={withdrawn} "
+            f"promoted={promoted} opensAt-backfilled={backfilled} "
+            f"kept-other={other} failed/inconclusive(left as-is)={failed}"
+        )
 
     # -----------------------------------------------------------------------
     # scrape_pulse — Wave 1 close-out (direct psycopg2) + Wave 2a (outbox)
