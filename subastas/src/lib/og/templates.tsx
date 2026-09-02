@@ -370,14 +370,14 @@ export function AuctionOgTemplate({
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {price && (
-            <>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ display: 'flex', fontFamily: BODY, fontSize: 20, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', color: BRAND.inkQuietOnPine }}>
                 {priceLabel}
               </div>
-              <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 52, color: '#F2D479' }}>
+              <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 52, lineHeight: 1.1, whiteSpace: 'nowrap', color: '#F2D479' }}>
                 {price}
               </div>
-            </>
+            </div>
           )}
           <div style={{ display: 'flex', marginTop: price ? 14 : 0 }}>
             <FooterHost onDark />
