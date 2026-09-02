@@ -739,21 +739,35 @@ class ScraperScheduler:
                     self.log(f"    verify fetch error for {boe_id}: {e}")
                     continue
 
-                # Confirmed successful parse only: the full return dict carries an
-                # 'identificador' key; the empty-on-exception fallback never does.
-                # A failed fetch NEVER cancels — leave the row as-is (fail-safe).
-                if 'identificador' not in info:
-                    failed += 1
-                    self.log(f"    verify inconclusive for {boe_id} (no BOE parse) — left as-is")
-                    continue
-
                 detail_status = info.get('detail_status')
                 start_at = info.get('start_at')
                 di_ends = info.get('ends_at')
                 eff_ends = di_ends if di_ends is not None else ends_at
+                # STRICT cancel signal (Condition A): anchored to the auction's
+                # own cancelada/anulada banner in boe_scraper, NOT a bare
+                # whole-body 'cancelada' substring. A live page whose Cargas
+                # prose says "hipoteca cancelada" has auction_cancelled=False.
+                auction_cancelled = info.get('auction_cancelled') is True
+                # CONFIRMED parse (Condition B): the full dict carries an
+                # 'identificador' KEY (the empty-on-exception fallback never
+                # does) AND at least one real auction field is populated. The
+                # BOE "Identificador incorrecto" error page returns the key with
+                # a None VALUE and no dates/financials -> NOT confirmed -> treated
+                # as a verify-failure (no promote, no cancel).
+                confirmed_live = (
+                    'identificador' in info
+                    and bool(
+                        info.get('identificador')
+                        or start_at is not None
+                        or di_ends is not None
+                        or info.get('appraisal_value')
+                    )
+                )
 
-                # (1) Explicit BOE cancellation banner => genuine withdrawal.
-                if detail_status == 'CANCELADA':
+                # (1) Genuine BOE cancellation banner => withdrawal. The strict
+                # banner is itself proof of a real auction page (the error page
+                # never carries it), so it stands independent of confirmed_live.
+                if auction_cancelled:
                     try:
                         c = conn2.cursor()
                         c.execute("""
@@ -787,7 +801,8 @@ class ScraperScheduler:
                         withdrawn += 1
                         self.log(
                             f"    WITHDREW {boe_id} (prior {from_status}, last seen "
-                            f"{updated_at}) -> CANCELADA [BOE evidence: detail_status=CANCELADA]"
+                            f"{updated_at}) -> CANCELADA "
+                            f"[BOE evidence: strict cancelada/anulada banner]"
                         )
                     except Exception as e:
                         try: conn2.rollback()
@@ -796,7 +811,21 @@ class ScraperScheduler:
                         self.log(f"    withdrawal write failed for {boe_id}: {e}")
                     continue
 
-                # (2) Non-withdrawal terminal / other banner — not this sweep's
+                # (2) NOT confirmed-live and no cancel banner => inconclusive:
+                #     network/parse failure OR the "Identificador incorrecto"
+                #     error page (identificador key present but VALUE None, no
+                #     dates/financials). NEVER promote, NEVER cancel — leave
+                #     as-is (fail-safe). This is the Condition-B guard against a
+                #     bogus go_live on an invalid/hex boeId.
+                if not confirmed_live:
+                    failed += 1
+                    self.log(
+                        f"    verify inconclusive for {boe_id} "
+                        f"(no BOE parse / error page) — left as-is"
+                    )
+                    continue
+
+                # (3) Non-withdrawal terminal / other banner — not this sweep's
                 #     job. Leave as-is (recheck / monitor own those transitions).
                 if detail_status in ('SUSPENDIDA', 'CONCLUIDA_PORTAL'):
                     other += 1
@@ -806,10 +835,10 @@ class ScraperScheduler:
                     )
                     continue
 
-                # (3) detail_status is None on a confirmed-parsed page => BOE
-                #     shows it LIVE/opened. NEVER cancel. endsAt guard: if the
-                #     window already closed, do not resurrect it — leave it for
-                #     the normal conclude path.
+                # (4) Confirmed-live, no cancel/terminal banner => BOE shows it
+                #     LIVE/opened. NEVER cancel. endsAt guard: if the window
+                #     already closed, do not resurrect it — leave it for the
+                #     normal conclude path.
                 if eff_ends is not None and eff_ends <= now2:
                     other += 1
                     self.log(

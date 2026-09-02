@@ -2044,7 +2044,41 @@ class BOEScraper(BaseScraper):
         if any(w in lowered for w in ['concluida', 'cerrada', 'finalizada', 'la subasta ha finalizado']):
             return 'CONCLUIDA_PORTAL'
         return None
-    
+
+    def _auction_cancel_confirmed(self, text: str) -> bool:
+        """
+        STRICT auction-cancellation signal for the withdrawal-authorization path
+        (cleanup_withdrawn_preauctions). Unlike _extract_detail_status, which
+        does a NAIVE whole-body substring match on 'cancelada'/'anulada', this
+        anchors to the AUCTION's own status banner so unrelated registral prose
+        — e.g. "hipoteca cancelada", "carga ... cancelada" (a cancelled
+        mortgage/charge on a perfectly LIVE auction) — can NEVER authorize a
+        withdrawal. Only a genuine "La subasta ha sido cancelada/anulada …"
+        banner (or an explicit auction Estado: Cancelada/Anulada field) returns
+        True. Additive + read-only: no other caller of _extract_detail_status is
+        affected (they keep the broad behaviour they were tuned for).
+        """
+        if not text:
+            return False
+        lowered = text.lower()
+        # 1. The authoritative BOE banner phrasings (the same anchor the pujas
+        #    parser at line ~2118 already trusts): "la subasta ha sido
+        #    cancelada/anulada …" / "subasta cancelada|anulada".
+        if any(p in lowered for p in (
+            'ha sido cancelada', 'ha sido anulada',
+            'subasta cancelada', 'subasta anulada',
+        )):
+            return True
+        # 2. "cancelada/anulada por la autoridad gestora" — the token adjacent to
+        #    the managing-authority phrase, never a bare registral 'cancelada'.
+        if re.search(r'(cancelad[ao]|anulad[ao])\s+por\s+la\s+autoridad\s+gestora',
+                     lowered):
+            return True
+        # 3. An explicit auction status field: "Estado: Cancelada/Anulada".
+        if re.search(r'estado\s*[:\-]?\s*(cancelad[ao]|anulad[ao])\b', lowered):
+            return True
+        return False
+
     def _parse_occupancy(self, text: str) -> Optional[str]:
         """
         #17 — normalize the BOE "Situación posesoria" field to one of
@@ -2751,6 +2785,9 @@ class BOEScraper(BaseScraper):
             'occupancy': None,
             'puja_status': None,
             'current_bid_amount': None,
+            # STRICT auction-cancel banner (CP2) — never True on the empty
+            # fallback (a failed fetch must never authorize a withdrawal).
+            'auction_cancelled': False,
             # G1 discrete bien fields
             'postal_code': None,
             'idufir': None,
@@ -3232,6 +3269,11 @@ class BOEScraper(BaseScraper):
                 'start_at': start_at,
                 'ends_at': ends_at,
                 'detail_status': detail_status,
+                # STRICT auction-cancel banner (CP2): authorizes a pre-auction
+                # withdrawal ONLY on the auction's own cancelada/anulada banner,
+                # never on unrelated 'cancelada' prose (e.g. "hipoteca cancelada"
+                # in Cargas). Consumed by cleanup_withdrawn_preauctions.
+                'auction_cancelled': self._auction_cancel_confirmed(body_text),
                 # #17 occupancy — parsed from this same ver=3 body (Situación
                 # posesoria), no extra fetch. #16 pujas are added later in
                 # _navigate_and_extract (ver=5 tab) so lote enumeration on the
