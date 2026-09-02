@@ -7,17 +7,18 @@
  * roster out of the schema (zero migration) while still being enforced
  * server-side on every protected route.
  *
- * Source: ADMIN_EMAILS env var (comma-separated, trimmed, lowercased). Dev/prod
- * fallback keeps Dennis admin when the env var is unset, so the live site works
- * without an env change. Add co-admins via env-var update + redeploy — no code
- * change.
+ * Source: ADMIN_EMAILS env var (comma-separated, trimmed, lowercased).
+ * FAIL-CLOSED: if the env var is unset/empty, NOBODY is admin — there is no
+ * hardcoded fallback address (that would both leak a private email into the
+ * bundle and grant standing access no env change could revoke). Add admins via
+ * env-var update + redeploy — no code change.
  *
  * Comparison is case-insensitive: both the allowlist and the candidate email
  * are normalised to trimmed-lowercase before the Set lookup.
  */
 
 const ADMIN_EMAILS: Set<string> = new Set(
-  (process.env.ADMIN_EMAILS ?? 'dennis.kotlenko@gmail.com')
+  (process.env.ADMIN_EMAILS ?? '')
     .split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean),

@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { isAdminEmail } from '@/lib/admin';
 import { query } from '@/lib/db';
 
-const ADMIN_EMAIL = 'dennis.kotlenko@gmail.com';
 
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
     
-    if (!session?.user?.email || session.user.email !== ADMIN_EMAIL) {
+    if (!isAdminEmail(session?.user?.email)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 

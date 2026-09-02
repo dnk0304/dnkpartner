@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { isAdminEmail } from '@/lib/admin';
 import fs from 'fs';
 import path from 'path';
 
-const ADMIN_EMAIL = 'dennis.kotlenko@gmail.com';
 const PROGRESS_FILES = [
   path.join(process.cwd(), 'scraper', 'parallel_backfill_1_progress.json'),
   path.join(process.cwd(), 'scraper', 'parallel_backfill_2_progress.json'),
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   try {
     const session = await auth();
     
-    if (!session?.user?.email || session.user.email !== ADMIN_EMAIL) {
+    if (!isAdminEmail(session?.user?.email)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 

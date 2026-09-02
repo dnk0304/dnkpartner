@@ -8,7 +8,7 @@
  */
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { ADMIN_EMAIL } from "@/lib/auth-helpers";
+import { isAdminEmail } from "@/lib/admin";
 import { AdminBlogList } from "./AdminBlogList";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminBlogPage() {
   const session = await auth();
   if (!session?.user?.email) redirect("/login?next=/admin/blog");
-  if (session.user.email !== ADMIN_EMAIL) redirect("/");
+  if (!isAdminEmail(session.user.email)) redirect("/");
 
   return <AdminBlogList />;
 }

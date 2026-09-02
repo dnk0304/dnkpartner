@@ -31,9 +31,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get test email address from request body or use default
+    // Get test email address from request body or fall back to the admin's own
+    // session email (no hardcoded address).
     const body = await request.json().catch(() => ({}));
-    const testEmail = body.email || 'dennis.kotlenko@gmail.com';
+    const testEmail = body.email || admin.email;
 
     // Create Resend client
     const resend = new Resend(resendKey);

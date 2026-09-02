@@ -6,15 +6,14 @@
  *   - requireAdmin()    : returns the authenticated session OR a 403 response if not admin.
  *   - requireCronSecret(): returns OK or a 401 response (constant-time comparison).
  *
- * Admin is defined by the same constant the existing /api/admin/* routes use:
- * email === ADMIN_EMAIL. Centralized here so future role expansion (DB-backed
- * roles, multi-admin) only touches one file.
+ * Admin is defined by the shared server-only allowlist helper `isAdminEmail`
+ * (reads the ADMIN_EMAILS env var). Centralized in lib/admin so future role
+ * expansion (DB-backed roles, multi-admin) only touches one file.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { isAdminEmail } from '@/lib/admin';
 import { timingSafeEqual } from 'crypto';
-
-export const ADMIN_EMAIL = 'dennis.kotlenko@gmail.com';
 
 /**
  * Resolve the session. Returns `{ userId, email, tier }` on success or a
@@ -49,7 +48,7 @@ export async function requireAdmin(): Promise<
 > {
   const result = await requireSession();
   if (result instanceof NextResponse) return result;
-  if (result.email !== ADMIN_EMAIL) {
+  if (!isAdminEmail(result.email)) {
     return NextResponse.json(
       { success: false, error: 'forbidden' },
       { status: 403 },

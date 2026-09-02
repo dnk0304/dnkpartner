@@ -4,7 +4,7 @@
  * GET  — list articles. Query: ?status=DRAFT|PUBLISHED (optional), ?q=<search>.
  * POST — create a new article. Body: { slug, title, bodyMarkdown, ...optional }.
  *
- * Admin-only (requireAdmin → ADMIN_EMAIL gate).
+ * Admin-only (requireAdmin → ADMIN_EMAILS allowlist gate).
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth-helpers';

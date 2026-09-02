@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { ADMIN_EMAIL } from "@/lib/auth-helpers";
+import { isAdminEmail } from "@/lib/admin";
 
 /**
  * Central admin gate (server component).
@@ -26,7 +26,7 @@ export default async function AdminLayout({
   if (!session?.user?.email) {
     redirect("/login?next=/admin");
   }
-  if (session.user.email !== ADMIN_EMAIL) {
+  if (!isAdminEmail(session.user.email)) {
     redirect("/");
   }
   return <>{children}</>;

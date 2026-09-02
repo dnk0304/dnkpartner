@@ -11,6 +11,9 @@ declare module "next-auth" {
     user: {
       id: string;
       tier?: UserTier;
+      // Server-computed admin flag (ADMIN_EMAILS allowlist). The client uses this
+      // boolean to render admin-only UI — no email literal in the bundle.
+      isAdmin?: boolean;
       // Freemium gate (2026-06-04): trial-end ISO string so the client can
       // derive trial-active without an extra fetch. Logged-in users only;
       // NULL when no trial was provisioned for the row.

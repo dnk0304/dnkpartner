@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import Apple from "next-auth/providers/apple";
+import { isAdminEmail } from "@/lib/admin";
 import { execute, queryOne } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { sendWelcomeEmailOnce } from "@/lib/email/send-welcome";
@@ -194,6 +195,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (token && session.user) {
         session.user.id = token.id as string;
         session.user.email = token.email as string;
+        // Admin flag computed SERVER-SIDE from the ADMIN_EMAILS allowlist. The
+        // client reads this boolean (never a hardcoded email) to gate admin UI.
+        session.user.isAdmin = isAdminEmail(token.email as string | null | undefined);
         session.user.name = token.name as string | null;
         session.user.image = token.picture as string | null;
         

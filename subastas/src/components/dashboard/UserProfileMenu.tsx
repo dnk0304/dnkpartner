@@ -187,8 +187,9 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ onUpgradeClick
             <span>Settings</span>
           </DropdownMenuItem>
 
-          {/* Admin - Only for dennis.kotlenko@gmail.com */}
-          {user.email === 'dennis.kotlenko@gmail.com' && (
+          {/* Admin - gated by the server-computed isAdmin flag on the session
+              (ADMIN_EMAILS allowlist); no email literal ships in the bundle. */}
+          {user.isAdmin && (
             <>
               <DropdownMenuItem
                 onClick={() => window.location.href = '/admin'}

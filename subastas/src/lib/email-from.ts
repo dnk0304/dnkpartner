@@ -48,9 +48,9 @@ export function infoFromEmail(): string {
  * Env: `EMAIL_FROM_ALERTS`. Legacy `RESEND_FROM_EMAIL` is still honoured for the
  * same reason.
  *
- * ⚠️ `RESEND_FROM_EMAIL` is currently a BARE ADDRESS in some environments
- * (`dennis.kotlenko@gmail.com`). That is why the new var exists and why Ken must
- * set `EMAIL_FROM_ALERTS` explicitly at deploy — leaving the legacy var in place
+ * ⚠️ `RESEND_FROM_EMAIL` is a BARE personal gmail address in some
+ * environments. That is why the new var exists and why Ken must set
+ * `EMAIL_FROM_ALERTS` explicitly at deploy — leaving the legacy var in place
  * would keep sending notifications from a gmail address that the sending domain
  * cannot authenticate.
  */
