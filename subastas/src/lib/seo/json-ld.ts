@@ -85,6 +85,32 @@ function statusToAvailability(status: string | null | undefined): string {
  * Google parses every node. Order doesn't matter to Google but we keep
  * Product → Place → BreadcrumbList for legibility.
  */
+/**
+ * A single breadcrumb crumb: display `name` + ABSOLUTE `url`.
+ */
+export type BreadcrumbCrumb = { name: string; url: string };
+
+/**
+ * Build a standalone BreadcrumbList JSON-LD document (with `@context`) from an
+ * ordered crumb list. Positions are 1-based and assigned by array order.
+ *
+ * Shared so the province/category list pages emit the SAME BreadcrumbList shape
+ * the auction-detail graph already uses (Inicio → Subastas → …). Absolute URLs
+ * only — match the page canonical + the visual breadcrumb.
+ */
+export function buildBreadcrumbJsonLd(crumbs: BreadcrumbCrumb[]): object {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: crumbs.map((c, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: c.name,
+      item: c.url,
+    })),
+  };
+}
+
 export function buildAuctionJsonLd(
   auction: AuctionLike,
   /**

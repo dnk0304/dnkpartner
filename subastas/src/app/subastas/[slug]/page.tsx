@@ -46,6 +46,7 @@ import { Breadcrumbs } from '@/components/seo/Breadcrumbs';
 import { capitalizeLocation } from '@/lib/utils';
 import SubastasListClient from '../SubastasListClient';
 import { buildSeoAuctions, buildTownContentBlock } from '../_shared/seo-auctions';
+import { buildBreadcrumbJsonLd } from '@/lib/seo/json-ld';
 
 type PageProps = { params: Promise<{ slug: string }> };
 const SITE = 'https://subastasactivas.com';
@@ -129,6 +130,14 @@ async function renderCategoryPage(slugUrl: string, r: {
     }),
   ]);
 
+  // BreadcrumbList JSON-LD — mirrors the visual breadcrumb + page canonical.
+  // Absolute URLs. Shared builder (auction detail already emits this shape).
+  const breadcrumbLd = buildBreadcrumbJsonLd([
+    { name: t('breadcrumbHome'), url: SITE },
+    { name: t('breadcrumbSubastas'), url: `${SITE}/subastas` },
+    { name: t('categoryTitle', { plural }), url: `${SITE}/subastas/${slugUrl}` },
+  ]);
+
   const introSlot = (
     <>
       <Breadcrumbs
@@ -138,6 +147,7 @@ async function renderCategoryPage(slugUrl: string, r: {
           { label: t('categoryTitle', { plural }), href: `/subastas/${slugUrl}` },
         ]}
       />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }} />
       <SeoIntroBlock
         count={count}
         noun={t('categoryNoun', { plural })}
@@ -218,6 +228,15 @@ async function renderProvincePage(slugUrl: string, r: {
     url: `${SITE}/subastas/${slugUrl}`,
   };
 
+  // BreadcrumbList JSON-LD — closes the only breadcrumb-coverage gap (detail +
+  // resultados pages already emit it). Mirrors the visual breadcrumb + canonical.
+  // Absolute URLs. Shared builder (same shape as the auction-detail graph).
+  const breadcrumbLd = buildBreadcrumbJsonLd([
+    { name: t('breadcrumbHome'), url: SITE },
+    { name: t('breadcrumbSubastas'), url: `${SITE}/subastas` },
+    { name: label, url: `${SITE}/subastas/${slugUrl}` },
+  ]);
+
   const introSlot = (
     <>
       <Breadcrumbs
@@ -288,6 +307,7 @@ async function renderProvincePage(slugUrl: string, r: {
       </section>
 
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }} />
     </>
   );
 

@@ -294,6 +294,20 @@ export default function AuctionDetailClient({
     .filter(Boolean)
     .join(", ");
 
+  // Leaf display title — the SAME address-led H1 string, reused for the H1 and
+  // the visual breadcrumb's final (leaf) crumb so the visual trail matches the
+  // BreadcrumbList JSON-LD (which already carries this leaf).
+  const displayTitle = auctionDisplayTitle({
+    address: raw.address,
+    lotDescription: raw.lotDescription,
+    propertyType: raw.propertyType,
+    auctionType: raw.auctionType,
+    category: raw.category,
+    municipality: raw.municipality,
+    province: raw.province,
+    title: raw.title,
+  });
+
   // Coerce raw Prisma row into the AuctionItem shape DetailStatusPanel & co
   // expect. Dates from JSON are strings — we leave them as strings; the
   // LiveCountdown handles ISO strings just fine.
@@ -434,6 +448,13 @@ export default function AuctionDetailClient({
               </Link>
             </>
           )}
+          {/* Leaf crumb — matches the BreadcrumbList JSON-LD's final item so the
+              visual trail and the structured data agree. Current page → plain
+              text (aria-current), not a link. */}
+          <span aria-hidden="true" className="mx-2">·</span>
+          <span aria-current="page" className="text-[var(--color-ink-secondary)]">
+            {displayTitle}
+          </span>
         </nav>
 
         {/* Hero
@@ -451,20 +472,10 @@ export default function AuctionDetailClient({
         <header className="mt-3 mb-7 md:mb-9 space-y-4">
           <div className="min-w-0 space-y-2">
             <h1 className="font-serif text-2xl md:text-3xl lg:text-4xl leading-tight text-[var(--color-ink-primary)]">
-              {auctionDisplayTitle({
-                address: raw.address,
-                // Bug 2 (2026-06-09): read-time fallback when `address` is the
-                // mis-captured BOE "Localización" junk — clean street comes
-                // from the lotDescription "Dirección" tab (street + first
-                // number only; PII in the blob can't reach the title).
-                lotDescription: raw.lotDescription,
-                propertyType: raw.propertyType,
-                auctionType: raw.auctionType,
-                category: raw.category,
-                municipality: raw.municipality,
-                province: raw.province,
-                title: raw.title,
-              })}
+              {/* Bug 2 (2026-06-09): address-led display title with read-time
+                  fallbacks — computed once above as `displayTitle` and reused
+                  by the breadcrumb leaf so both stay in sync. */}
+              {displayTitle}
             </h1>
             {where && (
               <p className="text-sm text-[var(--color-ink-secondary)]">{where}</p>
