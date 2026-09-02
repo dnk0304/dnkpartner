@@ -56,9 +56,11 @@ ENDING_SOON_HOURS = int(os.getenv("ENDING_SOON_HOURS", "24"))
 try:
     sys.path.insert(0, '/')
     from app.database.legacy_rows import LEGACY_EXCLUSION_SQL  # type: ignore
+    from app.database.boe_gates import boe_confirmed_live  # type: ignore
 except ImportError:
     sys.path.insert(0, str(SCRIPT_DIR))
     from database.legacy_rows import LEGACY_EXCLUSION_SQL  # type: ignore
+    from database.boe_gates import boe_confirmed_live  # type: ignore
 
 # Wave 2b: dispatcher cron trigger — POST to /api/dispatch/run on schedule.
 # DISPATCH_ENDPOINT overrides the URL (use http://dnksubastas-app:3005/api/dispatch/run
@@ -1396,15 +1398,9 @@ class ScraperScheduler:
                 di_ends = info.get('ends_at')
                 eff_ends = di_ends if di_ends is not None else ends_at
                 auction_cancelled = info.get('auction_cancelled') is True
-                confirmed_live = (
-                    'identificador' in info
-                    and bool(
-                        info.get('identificador')
-                        or start_at is not None
-                        or di_ends is not None
-                        or info.get('appraisal_value')
-                    )
-                )
+                # CP4: single source of truth for the live gate (boe_gates.py).
+                # Byte-identical to the former inline expression.
+                confirmed_live = boe_confirmed_live(info)
 
                 def _link():
                     return boe_link or f"https://subastas.boe.es/detalleSubasta.php?idSub={boe_id}"
