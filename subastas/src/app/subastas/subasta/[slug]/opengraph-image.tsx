@@ -65,8 +65,14 @@ export default async function Image({ params }: Props) {
       })
     : 'Subasta judicial';
 
+  // Type-guard filter (not `.filter(Boolean)`): only a predicate signature
+  // narrows `(string | null | undefined)[]` to `string[]`, which is what
+  // `capitalizeLocation(name: string)` requires under strict tsc.
   const where =
-    [a?.municipality, a?.province].filter(Boolean).map(capitalizeLocation).join(', ') || 'España';
+    [a?.municipality, a?.province]
+      .filter((s): s is string => Boolean(s))
+      .map(capitalizeLocation)
+      .join(', ') || 'España';
 
   // Appraisal first, valorSubasta fallback — same precedence as the page meta.
   const appraisal = formatEur(a?.appraisalValue ?? null);
