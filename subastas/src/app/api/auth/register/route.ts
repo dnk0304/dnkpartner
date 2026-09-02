@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { queryOne, execute } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import { sendWelcomeEmailOnce } from '@/lib/email/send-welcome';
+import { sendNewSignupAdminEmail } from '@/lib/email/send-signup-admin';
 
 export async function POST(request: NextRequest) {
   try {
@@ -70,6 +71,20 @@ export async function POST(request: NextRequest) {
     // verification-complete point. Awaited but never allowed to fail the
     // registration; `sendWelcomeEmailOnce` swallows its own errors.
     await sendWelcomeEmailOnce(userId);
+
+    // Admin heads-up — fires on a brand-new registration ONLY (we are past the
+    // duplicate-email guard above). Wrapped in try/catch AND the helper never
+    // throws: a notification failure must never break a successful signup.
+    try {
+      await sendNewSignupAdminEmail({
+        userEmail: email,
+        tier: 'FREE',
+        trialEndDate: trialEnd,
+        createdAt: now,
+      });
+    } catch (notifyErr) {
+      console.error('[register] admin signup notification failed (ignored):', notifyErr);
+    }
 
     return NextResponse.json(
       {

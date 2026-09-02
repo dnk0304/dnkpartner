@@ -18,7 +18,7 @@ function ensureVapid(): boolean {
   if (vapidConfigured) return true;
   const pub = process.env.VAPID_PUBLIC_KEY;
   const priv = process.env.VAPID_PRIVATE_KEY;
-  const subject = process.env.VAPID_SUBJECT ?? 'mailto:dennis.kotlenko@gmail.com';
+  const subject = process.env.VAPID_SUBJECT ?? 'mailto:hola@subastasactivas.com';
   if (!pub || !priv) {
     return false;
   }

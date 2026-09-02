@@ -43,8 +43,8 @@ export function PrivacidadEn() {
             <strong className="text-[var(--color-ink-primary)]">
               Contact email:
             </strong>{" "}
-            <a href="mailto:dennis.kotlenko@gmail.com" className={linkCls}>
-              dennis.kotlenko@gmail.com
+            <a href="mailto:hola@subastasactivas.com" className={linkCls}>
+              hola@subastasactivas.com
             </a>
           </li>
           <li>
@@ -328,8 +328,8 @@ export function PrivacidadEn() {
             How to exercise them:
           </strong>{" "}
           write to us at{" "}
-          <a href="mailto:dennis.kotlenko@gmail.com" className={linkCls}>
-            dennis.kotlenko@gmail.com
+          <a href="mailto:hola@subastasactivas.com" className={linkCls}>
+            hola@subastasactivas.com
           </a>{" "}
           indicating the right you wish to exercise. We may ask you to verify
           your identity. We will respond within the legal deadline (one month,

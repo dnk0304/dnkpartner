@@ -51,7 +51,7 @@ export const AUCTION_MAPS_DIR =
  * scraper/services/geocoding_service.py). Must never be empty/generic.
  */
 const OSM_TILE_USER_AGENT =
-  'SubastasActivas/1.0 (https://subastasactivas.com; dennis.kotlenko@gmail.com)';
+  'SubastasActivas/1.0 (https://subastasactivas.com; hola@subastasactivas.com)';
 
 const TILE_BASE = 'https://tile.openstreetmap.org';
 const TILE_SIZE = 256; // OSM raster tile px

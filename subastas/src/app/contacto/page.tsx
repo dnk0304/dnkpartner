@@ -11,7 +11,7 @@ import type { Locale } from "@/i18n/routing";
  * SubastasActivas" blurb. The full operator identity (DK Partner EOOD /
  * EIK 207413740) lives in /legal/aviso-legal and /legal/privacidad, so this
  * page stays a quiet contact surface. Reuses the legal page layout for
- * visual consistency. Contact email: dennis.kotlenko@gmail.com.
+ * visual consistency. Contact email: hola@subastasactivas.com.
  */
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -39,10 +39,10 @@ export default async function ContactoPage() {
         <p>{t("writeUsText")}</p>
         <p>
           <a
-            href="mailto:dennis.kotlenko@gmail.com"
+            href="mailto:hola@subastasactivas.com"
             className="text-[var(--color-action)] underline underline-offset-4 hover:text-[var(--color-action-hover)] font-medium"
           >
-            dennis.kotlenko@gmail.com
+            hola@subastasactivas.com
           </a>
         </p>
         <p>{t("responseText")}</p>

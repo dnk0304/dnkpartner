@@ -205,8 +205,8 @@ export function CookiesEn() {
       <LegalSection heading="6. Contact">
         <p>
           For any questions about the use of cookies:{" "}
-          <a href="mailto:dennis.kotlenko@gmail.com" className={linkCls}>
-            dennis.kotlenko@gmail.com
+          <a href="mailto:hola@subastasactivas.com" className={linkCls}>
+            hola@subastasactivas.com
           </a>
           .
         </p>

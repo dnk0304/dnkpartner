@@ -42,8 +42,8 @@ export function PrivacidadEs() {
             <strong className="text-[var(--color-ink-primary)]">
               Correo de contacto:
             </strong>{" "}
-            <a href="mailto:dennis.kotlenko@gmail.com" className={linkCls}>
-              dennis.kotlenko@gmail.com
+            <a href="mailto:hola@subastasactivas.com" className={linkCls}>
+              hola@subastasactivas.com
             </a>
           </li>
           <li>
@@ -326,8 +326,8 @@ export function PrivacidadEs() {
             Cómo ejercerlos:
           </strong>{" "}
           escríbenos a{" "}
-          <a href="mailto:dennis.kotlenko@gmail.com" className={linkCls}>
-            dennis.kotlenko@gmail.com
+          <a href="mailto:hola@subastasactivas.com" className={linkCls}>
+            hola@subastasactivas.com
           </a>{" "}
           indicando el derecho que quieres ejercer. Podemos pedirte que acredites
           tu identidad. Responderemos en el plazo legal (un mes, ampliable en

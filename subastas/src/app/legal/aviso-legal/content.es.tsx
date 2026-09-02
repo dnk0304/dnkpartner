@@ -40,8 +40,8 @@ export function AvisoLegalEs() {
             <strong className="text-[var(--color-ink-primary)]">
               Correo de contacto:
             </strong>{" "}
-            <a href="mailto:dennis.kotlenko@gmail.com" className={linkCls}>
-              dennis.kotlenko@gmail.com
+            <a href="mailto:hola@subastasactivas.com" className={linkCls}>
+              hola@subastasactivas.com
             </a>
           </li>
           <li>
@@ -406,8 +406,8 @@ export function AvisoLegalEs() {
         <p>
           Para cualquier consulta sobre este Aviso Legal o el Servicio,
           escríbenos a:{" "}
-          <a href="mailto:dennis.kotlenko@gmail.com" className={linkCls}>
-            dennis.kotlenko@gmail.com
+          <a href="mailto:hola@subastasactivas.com" className={linkCls}>
+            hola@subastasactivas.com
           </a>
           .
         </p>

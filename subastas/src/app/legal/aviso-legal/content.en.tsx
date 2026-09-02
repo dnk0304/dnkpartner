@@ -42,8 +42,8 @@ export function AvisoLegalEn() {
             <strong className="text-[var(--color-ink-primary)]">
               Contact email:
             </strong>{" "}
-            <a href="mailto:dennis.kotlenko@gmail.com" className={linkCls}>
-              dennis.kotlenko@gmail.com
+            <a href="mailto:hola@subastasactivas.com" className={linkCls}>
+              hola@subastasactivas.com
             </a>
           </li>
           <li>
@@ -410,8 +410,8 @@ export function AvisoLegalEn() {
         <p>
           For any enquiry about this Legal Notice or the Service, write to us
           at:{" "}
-          <a href="mailto:dennis.kotlenko@gmail.com" className={linkCls}>
-            dennis.kotlenko@gmail.com
+          <a href="mailto:hola@subastasactivas.com" className={linkCls}>
+            hola@subastasactivas.com
           </a>
           .
         </p>
