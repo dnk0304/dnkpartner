@@ -583,17 +583,32 @@ export async function GET(request: NextRequest) {
     
     // Get database stats via the standard pg-backed adapter (was direct
     // better-sqlite3 — won't work on Postgres/Coolify).
+    // CP3 (Forge 2026-09-02): the "active/live" figure was contaminated by
+    // non-BOE sources. PLABI (source='PLABI', ~491 rows) and SEGSOCIAL publish
+    // open liquidations as CELEBRANDOSE with NULL endsAt BY DESIGN, so folding
+    // every source into one "active" count inflated the BOE-live figure to ~692
+    // when BOE-only live is ~201. This dashboard is the BOE scraper's health
+    // panel, so its headline "active" must reflect BOE reality. We now group by
+    // (status, source): `by_status` stays BOE-ONLY (accurate BOE-live), and a
+    // separate `live_by_source` + `boe_live`/`non_boe_live` split keeps PLABI's
+    // own live count visible (nothing about the PLABI display is broken).
     const dbStats = {
       total: 0,
       by_status: { active: 0, finished: 0, pre: 0, suspended: 0, cancelled: 0 },
-      by_category: {} as Record<string, number>
+      by_category: {} as Record<string, number>,
+      // BOE-only live (ACTIVE + CELEBRANDOSE, source='BOE') — the honest figure.
+      boe_live: 0,
+      // Live rows from every non-BOE source combined (PLABI/SEGSOCIAL/TEJU...).
+      non_boe_live: 0,
+      // Per-source live breakdown so the PLABI count stays visible, not hidden.
+      live_by_source: {} as Record<string, number>,
     };
     try {
       const totalRows = await query<{ count: string | number }>('SELECT COUNT(*) as count FROM Auction');
       dbStats.total = Number(totalRows[0]?.count || 0);
 
-      const statusRows = await query<{ status: string; count: string | number }>(
-        'SELECT status, COUNT(*) as count FROM Auction GROUP BY status'
+      const statusRows = await query<{ status: string; source: string | null; count: string | number }>(
+        "SELECT status, COALESCE(source, 'BOE') as source, COUNT(*) as count FROM Auction GROUP BY status, source"
       );
       const statusMap: Record<string, string> = {
         'ACTIVE': 'active',
@@ -608,10 +623,25 @@ export async function GET(request: NextRequest) {
         'PRE_AUCTION': 'pre',
         'PROXIMA_APERTURA': 'pre',
       };
+      const LIVE_STATUSES = new Set(['ACTIVE', 'CELEBRANDOSE']);
 
       statusRows.forEach((row) => {
         const count = Number(row.count);
+        const source = row.source || 'BOE';
         const mappedStatus = statusMap[row.status] || 'active';
+        const isBoe = source === 'BOE';
+
+        // Per-source live split (all sources) — keeps PLABI etc. visible.
+        if (LIVE_STATUSES.has(row.status)) {
+          dbStats.live_by_source[source] = (dbStats.live_by_source[source] || 0) + count;
+          if (isBoe) dbStats.boe_live += count;
+          else dbStats.non_boe_live += count;
+        }
+
+        // by_status is now BOE-ONLY so the scraper dashboard's headline
+        // reflects BOE reality (PLABI's NULL-endsAt live rows no longer inflate
+        // it). Non-BOE live is surfaced via live_by_source/non_boe_live above.
+        if (!isBoe) return;
         if (mappedStatus === 'finished') {
           dbStats.by_status.finished += count;
         } else {
