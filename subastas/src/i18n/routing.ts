@@ -16,6 +16,22 @@ export type Locale = (typeof locales)[number];
 
 export const defaultLocale: Locale = 'es';
 
+/**
+ * English kill-switch (Dennis, 2026-09-02 — "hide the whole english part for
+ * now from the whole subastas"). While `false`, the site is Spanish-ONLY and
+ * REVERSIBLY so — no code or content is deleted:
+ *   - middleware 301-redirects every `/en/...` URL to its Spanish equivalent
+ *     (English pages become unreachable + de-indexed);
+ *   - the header LanguageSwitcher is not rendered (no ES/EN toggle);
+ *   - hreflang/alternates emit Spanish only (no `en` alternate advertised).
+ * The `.en.tsx` legal bodies, en.json messages and the whole /en routing
+ * machinery stay in the repo untouched.
+ *
+ * TO RE-ENABLE ENGLISH: flip this to `true` (single line). Everything the flag
+ * gates keys off it, so no other change is needed to bring English back.
+ */
+export const ENGLISH_ENABLED = false;
+
 /** Cookie name used by Pixel's eventual header switcher. */
 export const LOCALE_COOKIE = 'NEXT_LOCALE';
 

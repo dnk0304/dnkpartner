@@ -38,7 +38,7 @@ import {
   TIPO_SLUG_TO_DB_KEYS,
 } from '@/lib/seo/slugs';
 import { resolveProvinceSlugToCanonicalSlug } from '@/lib/province-slug';
-import { defaultLocale, LOCALE_COOKIE, LOCALE_HEADER, type Locale } from '@/i18n/routing';
+import { defaultLocale, ENGLISH_ENABLED, LOCALE_COOKIE, LOCALE_HEADER, type Locale } from '@/i18n/routing';
 
 function normaliseSlugToken(s: string): string {
   return s
@@ -133,6 +133,20 @@ function relocale(path: string, urlHadLocale: boolean): string {
 }
 
 export function middleware(request: NextRequest) {
+  // ---- English kill-switch (Dennis 2026-09-02) ---------------------------
+  // While ENGLISH_ENABLED is false the site is Spanish-only. Any `/en` or
+  // `/en/...` URL 301-redirects to its Spanish equivalent BEFORE any other
+  // rule runs, so no English page is reachable or indexable. Reversible: flip
+  // ENGLISH_ENABLED in src/i18n/routing.ts to restore the /en locale space.
+  if (!ENGLISH_ENABLED) {
+    const enMatch = request.nextUrl.pathname.match(/^\/en(?:\/(.*))?$/);
+    if (enMatch) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/' + (enMatch[1] ?? '');
+      return NextResponse.redirect(url, 301);
+    }
+  }
+
   const { locale, pathname, urlHadLocale } = detectLocale(request);
   const { search, searchParams } = request.nextUrl;
 

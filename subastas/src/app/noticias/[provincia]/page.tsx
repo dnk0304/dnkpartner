@@ -18,7 +18,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLocale } from "next-intl/server";
-import type { Locale } from "@/i18n/routing";
+import { ENGLISH_ENABLED, type Locale } from "@/i18n/routing";
 import { buildAlternates, ogLocale } from "@/lib/seo/alternates";
 import { getAllSlugs, getNoticia, formatNoticiaDate } from "@/lib/noticias";
 import { ArticleContent } from "@/components/blog/ArticleContent";
@@ -97,7 +97,7 @@ export async function generateMetadata(
     description: noticia.description,
     alternates: {
       canonical,
-      ...(noticia.hasBothLocales
+      ...(ENGLISH_ENABLED && noticia.hasBothLocales
         ? {
             languages: {
               es: `${SITE}/noticias/${provincia}`,

@@ -18,7 +18,7 @@
  * tags are correct regardless of each template's metadataBase inheritance.
  */
 import type { Metadata } from 'next';
-import type { Locale } from '@/i18n/routing';
+import { ENGLISH_ENABLED, type Locale } from '@/i18n/routing';
 
 export const SITE_ORIGIN = 'https://subastasactivas.com';
 
@@ -35,6 +35,20 @@ export function buildAlternates(
 ): Pick<Metadata, 'alternates'> {
   const es = localeUrl(path, 'es');
   const en = localeUrl(path, 'en');
+  // English kill-switch: while disabled, advertise Spanish only — no `en`
+  // hreflang alternate — and always self-canonical to the Spanish URL. When
+  // re-enabled, the original per-locale canonical + es/en/x-default returns.
+  if (!ENGLISH_ENABLED) {
+    return {
+      alternates: {
+        canonical: es,
+        languages: {
+          es,
+          'x-default': es,
+        },
+      },
+    };
+  }
   return {
     alternates: {
       // Self-canonical per rendered locale.

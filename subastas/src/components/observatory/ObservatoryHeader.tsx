@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { LanguageSwitcher } from "./LanguageSwitcher";
+import { ENGLISH_ENABLED } from "@/i18n/routing";
 import { apiFetch } from "@/lib/api-path";
 import { isAdminEmail } from "@/lib/admin";
 import { formatUpdatedDayEs } from "./format";
@@ -202,7 +203,7 @@ export function ObservatoryHeader({ hideSearch = false, className }: Observatory
 
         {/* Right cluster */}
         <div className={cn("flex items-center gap-2 shrink-0", hideSearch && "ml-auto")}>
-          <LanguageSwitcher />
+          {ENGLISH_ENABLED && <LanguageSwitcher />}
           <NotificationBell />
           {session?.user ? (
             <DropdownMenu>
