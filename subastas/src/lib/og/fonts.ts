@@ -13,7 +13,12 @@
  * build, unlike a raw `fs.readFileSync('src/...')`). Loaded once, memoised for
  * the life of the server process.
  */
-import type { ImageResponseOptions } from 'next/og';
+// Next 16 dropped the `ImageResponseOptions` named export from `next/og`.
+// Derive the options type from the `ImageResponse` constructor's 2nd param
+// instead — robust across versions since it tracks the actual runtime API.
+type ImageResponseOptions = NonNullable<
+  ConstructorParameters<typeof import('next/og').ImageResponse>[1]
+>;
 
 type Fonts = NonNullable<ImageResponseOptions['fonts']>;
 
