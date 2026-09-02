@@ -11,7 +11,7 @@ import { HomeOgTemplate } from '@/lib/og/templates';
 import { countActiveAuctions } from '@/lib/seo/page-data';
 
 export const runtime = 'nodejs';
-export const revalidate = 3600;
+export const dynamic = 'force-dynamic'; // never prerender at build time (font+photo loads run on-request only)
 export const alt = OG_ALT;
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;

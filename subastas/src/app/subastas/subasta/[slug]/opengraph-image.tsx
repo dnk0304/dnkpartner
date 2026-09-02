@@ -21,7 +21,7 @@ import { capitalizeLocation } from '@/lib/utils';
 import { prisma } from '@/lib/prisma';
 
 export const runtime = 'nodejs';
-export const revalidate = 3600;
+export const dynamic = 'force-dynamic'; // never prerender at build time (font+photo loads run on-request only)
 export const alt = OG_ALT;
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
