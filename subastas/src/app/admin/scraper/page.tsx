@@ -411,13 +411,19 @@ export default function EnhancedAdminScraperPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-green-500" />
-              Active
+              Active (BOE)
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-green-600">
-              {dbStats?.by_status?.active || '521'}
+              {dbStats?.by_status?.active ?? '521'}
             </div>
+            {dbStats?.non_boe_live ? (
+              <div className="mt-1 text-xs text-muted-foreground">
+                +{dbStats.non_boe_live} live non-BOE
+                {dbStats?.live_by_source?.PLABI ? ` (PLABI ${dbStats.live_by_source.PLABI})` : ''}
+              </div>
+            ) : null}
           </CardContent>
         </Card>
         

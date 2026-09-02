@@ -1196,6 +1196,366 @@ class ScraperScheduler:
         )
 
     # -----------------------------------------------------------------------
+    # reconcile_boe_status — ongoing BOE self-heal (CP3, Forge 2026-09-02)
+    # -----------------------------------------------------------------------
+    # WHY THIS EXISTS (root cause #4 — no reconciliation).
+    # Nothing in the scheduler re-reads BOE to correct a row that was written
+    # with the wrong status/endsAt. monitor_status_changes only expires rows
+    # whose endsAt < now (it SKIPS endsAt IS NULL); scrape_pulse only refreshes
+    # bids; recheck_suspended_auctions only covers SUSPENDIDA. So once a BOE row
+    # is wrong it is stuck forever: a CELEBRANDOSE row with NULL endsAt can never
+    # conclude, and a pre-auction that was false-cancelled (CP1/CP2 dominant
+    # defect) stays CANCELADA even after it is visibly live on BOE.
+    #
+    # This job is the ongoing forward self-heal. It re-scrapes a BOUNDED set of
+    # AT-RISK BOE rows each run and corrects status/endsAt through the SAME safe
+    # gates CP2 established (strict cancel banner, confirmed-live-with-real-
+    # fields). Over time it also un-sticks recent drift — but it is NOT the
+    # one-time mass re-sweep of the ~453 historical WITHDRAWN backlog: that is
+    # CP4, done deliberately with a dry-run. Bucket C here is time-bounded to the
+    # last RECONCILE_CANCEL_LOOKBACK_DAYS days AND capped, so it can only catch
+    # the fresh trickle, never the old backlog.
+    #
+    # AT-RISK buckets (BOE-only — PLABI/SEGSOCIAL/TEJU excluded by source; the
+    # detail fetch needs a real BOE idSub anyway), priority order:
+    #   A. Live rows with NULL endsAt  (ACTIVE/CELEBRANDOSE, source BOE) —
+    #      the monitor can never expire these; re-scrape to backfill a real
+    #      endsAt (so they conclude on time) or honor a terminal banner now.
+    #   B. PROXIMA_APERTURA staler than the grace window (opensAt NULL) —
+    #      the same candidate CP2's cleanup verifies, re-checked continuously.
+    #   C. Recently false-cancelled pre-auctions (CANCELADA +
+    #      suspensionReason='WITHDRAWN_PRE_AUCTION', transitionedAt within the
+    #      lookback) — re-open ONLY when BOE confirms live. NEVER the old
+    #      backlog (lookback-bounded), NEVER any other CANCELADA.
+    #
+    # SAFETY (identical to CP2 — no new false-cancel / bogus-promote path):
+    #   * TO-CANCELADA only on info['auction_cancelled'] is True (the strict,
+    #     anchored cancelada/anulada banner — not a whole-body substring).
+    #   * Promote / re-open / backfill only when `confirmed_live` (the return
+    #     dict carries an 'identificador' KEY AND at least one real auction
+    #     field is populated) — the "Identificador incorrecto" error page and
+    #     the empty-on-exception fallback both fail this and are left as-is.
+    #   * endsAt guard: never resurrect a window whose end already passed.
+    #   * Freeze/settled rows are UNTOUCHABLE: CONCLUIDA_PORTAL /
+    #     FINALIZADA_AUTORIDAD / FINISHED are never in any bucket, and any row
+    #     already carrying a saleResult is excluded.
+    #   * Per-run CAP (RECONCILE_VERIFY_CAP, default 60) across all buckets,
+    #     oldest-first; BOE-down bail (5 consecutive fetch failures with 0
+    #     confirmed => abort, nothing written); one loop-free thread; every
+    #     status flip goes through emit_status_change (outbox + history, same tx).
+    def reconcile_boe_status(self):
+        """Re-read BOE for a bounded set of at-risk BOE rows and self-heal
+        status/endsAt going forward. See the block comment above for the
+        at-risk definition and the CP2-equivalent safety gates."""
+        self.log("Reconciling at-risk BOE rows against live BOE...")
+
+        is_postgres = DATABASE_URL and ('postgresql://' in DATABASE_URL or 'postgres://' in DATABASE_URL)
+        if not is_postgres:
+            self.log("  BOE reconcile skipped (not Postgres — no DATABASE_URL)")
+            return
+
+        cap = int(os.getenv("RECONCILE_VERIFY_CAP", "60"))
+        grace_hours = int(os.getenv("PREAUCTION_WITHDRAW_GRACE_HOURS", "36"))
+        cancel_lookback_days = int(os.getenv("RECONCILE_CANCEL_LOOKBACK_DAYS", "7"))
+
+        # Same sale-result exclusion the freeze uses: never touch a row that has
+        # already produced a frozen result. Guarded for pre-migration DBs.
+        try:
+            probe = self._get_pg_conn()
+            pc = probe.cursor()
+            if self._sale_cols_checked is None:
+                pc.execute(
+                    """SELECT count(*) FROM information_schema.columns
+                       WHERE table_name='Auction'
+                         AND column_name = ANY(%s)""",
+                    (['saleResult', 'soldPrice', 'soldDate',
+                      'resultCheckedAt', 'resultCheckAttempts'],),
+                )
+                self._sale_cols_checked = (pc.fetchone()[0] == 5)
+            pc.close(); probe.close()
+        except Exception as e:
+            self.log(f"  BOE reconcile: sale-col probe failed: {e}")
+            return
+        sale_guard = 'AND "saleResult" IS NULL' if self._sale_cols_checked else ''
+
+        # ---- Phase 1: build the ordered candidate set (DB only) --------------
+        # Each candidate is tagged with its bucket so the shared verify loop can
+        # apply the right decision. source='BOE' excludes PLABI/SEGSOCIAL/TEJU
+        # (their SUB-PLABI-* / SUB-SS-* ids have no BOE detail page).
+        cols = ('id, "boeId", "endsAt", status, title, "boeLink", province, '
+                'municipality, "appraisalValue", "currentBid", "address", '
+                '"currentBidAmount", "pujaStatus", "updatedAt"')
+        try:
+            conn = self._get_pg_conn()
+            cursor = conn.cursor()
+            now = datetime.utcnow()
+            stale_before = now - timedelta(hours=grace_hours)
+            cancel_after = now - timedelta(days=cancel_lookback_days)
+
+            # A. Live rows with NULL endsAt (monitor can never expire them).
+            cursor.execute(f"""
+                SELECT {cols} FROM "Auction"
+                WHERE status IN ('ACTIVE', 'CELEBRANDOSE')
+                  AND "endsAt" IS NULL
+                  AND source = 'BOE'
+                  AND "boeId" IS NOT NULL
+                  {sale_guard}
+                  AND {LEGACY_EXCLUSION_SQL}
+                ORDER BY "updatedAt" ASC
+                LIMIT %s
+            """, (cap,))
+            bucket_a = [('A',) + tuple(r) for r in cursor.fetchall()]
+
+            # B. Stale un-opened pre-auctions (same candidate as CP2 cleanup).
+            cursor.execute(f"""
+                SELECT {cols} FROM "Auction"
+                WHERE status = 'PROXIMA_APERTURA'
+                  AND "opensAt" IS NULL
+                  AND "updatedAt" < %s
+                  AND source = 'BOE'
+                  AND "boeId" IS NOT NULL
+                  {sale_guard}
+                  AND {LEGACY_EXCLUSION_SQL}
+                ORDER BY "updatedAt" ASC
+                LIMIT %s
+            """, (stale_before, cap))
+            bucket_b = [('B',) + tuple(r) for r in cursor.fetchall()]
+
+            # C. RECENTLY false-cancelled pre-auctions ONLY (lookback-bounded so
+            #    this is never the CP4 mass sweep of the old ~453 backlog).
+            cursor.execute(f"""
+                SELECT {cols} FROM "Auction"
+                WHERE status = 'CANCELADA'
+                  AND "suspensionReason" = 'WITHDRAWN_PRE_AUCTION'
+                  AND "transitionedAt" IS NOT NULL
+                  AND "transitionedAt" >= %s
+                  AND source = 'BOE'
+                  AND "boeId" IS NOT NULL
+                  {sale_guard}
+                  AND {LEGACY_EXCLUSION_SQL}
+                ORDER BY "transitionedAt" DESC
+                LIMIT %s
+            """, (cancel_after, cap))
+            bucket_c = [('C',) + tuple(r) for r in cursor.fetchall()]
+
+            cursor.close(); conn.close()
+        except Exception as e:
+            self.log(f"  BOE reconcile: candidate query failed: {e}")
+            return
+
+        # Global cap across buckets, priority A > C > B (most-urgent first).
+        candidates = (bucket_a + bucket_c + bucket_b)[:cap]
+        if not candidates:
+            self.log("  BOE reconcile: no at-risk rows to verify")
+            return
+        self.log(
+            f"  Verifying {len(candidates)} at-risk BOE row(s) "
+            f"(A/null-endsAt={len(bucket_a)} C/recent-cancel={len(bucket_c)} "
+            f"B/stale-proxima={len(bucket_b)}; cap {cap}, cancel-lookback "
+            f"{cancel_lookback_days}d)"
+        )
+
+        # ---- Phase 2: per-row BOE verify + write, one loop-free thread --------
+        def _reconcile():
+            os.environ.setdefault("BOE_FETCH_DETAIL", "1")
+            sys.path.insert(0, '/')
+            from app.scrapers.boe_scraper import BOEScraper
+            from app.database.outbox import emit_status_change
+            scraper = BOEScraper()
+
+            healed_endsat = concluded = cancelled = suspended = 0
+            reopened = kept = failed = 0
+            conn2 = self._get_pg_conn()
+            now2 = datetime.utcnow()
+
+            for (bucket, auction_id, boe_id, ends_at, from_status, title,
+                 boe_link, province, municipality, appraisal_value, current_bid,
+                 address, current_bid_amount, puja_status, updated_at) in candidates:
+
+                # BOE-down bail: 5 consecutive fetch failures with nothing yet
+                # confirmed => treat BOE as down, abort, write nothing further.
+                progressed = (healed_endsat + concluded + cancelled
+                              + suspended + reopened + kept)
+                if failed >= 5 and progressed == 0:
+                    self.log(
+                        "  BOE reconcile ABORTED — 5 consecutive BOE fetch "
+                        "failures with 0 confirmed parses (BOE likely down). "
+                        "Nothing reconciled."
+                    )
+                    break
+
+                try:
+                    info = scraper._fetch_detail_info(boe_id)
+                except Exception as e:
+                    failed += 1
+                    self.log(f"    reconcile fetch error for {boe_id}: {e}")
+                    continue
+
+                detail_status = info.get('detail_status')
+                start_at = info.get('start_at')
+                di_ends = info.get('ends_at')
+                eff_ends = di_ends if di_ends is not None else ends_at
+                auction_cancelled = info.get('auction_cancelled') is True
+                confirmed_live = (
+                    'identificador' in info
+                    and bool(
+                        info.get('identificador')
+                        or start_at is not None
+                        or di_ends is not None
+                        or info.get('appraisal_value')
+                    )
+                )
+
+                def _link():
+                    return boe_link or f"https://subastas.boe.es/detalleSubasta.php?idSub={boe_id}"
+
+                def _emit(c, to_status, sset=None):
+                    kw = dict(
+                        auction_id=auction_id, boe_id=boe_id or "",
+                        boe_link=_link(), title=title or "",
+                        from_status=from_status, to_status=to_status,
+                        province=province or "", municipality=municipality or "",
+                        address=address or "",
+                        appraisal_value=float(appraisal_value or 0),
+                        current_bid=float(current_bid) if current_bid else None,
+                        current_bid_amount=int(current_bid_amount) if current_bid_amount else None,
+                        puja_status=puja_status, ends_at=eff_ends,
+                        detected_by="scheduler.reconcile_boe_status",
+                    )
+                    if sset is not None:
+                        kw["suspension_reason"] = sset
+                    emit_status_change(c, **kw)
+
+                try:
+                    # (1) STRICT cancel banner => terminal CANCELADA. For a
+                    #     bucket-C row already CANCELADA this is a confirming
+                    #     no-op on status (left as-is, counted kept).
+                    if auction_cancelled:
+                        if from_status == 'CANCELADA':
+                            kept += 1
+                            self.log(f"    kept {boe_id}: BOE confirms cancelled (bucket {bucket})")
+                            continue
+                        c = conn2.cursor()
+                        c.execute("""
+                            UPDATE "Auction"
+                            SET status='CANCELADA', "transitionedAt"=%s, "updatedAt"=%s
+                            WHERE id=%s
+                        """, (now2, now2, auction_id))
+                        _emit(c, 'CANCELADA')
+                        conn2.commit(); c.close()
+                        cancelled += 1
+                        self.log(f"    CANCELLED {boe_id} ({from_status}->CANCELADA) "
+                                 f"[strict BOE banner, bucket {bucket}]")
+                        continue
+
+                    # (2) Not confirmed-live and no cancel banner => inconclusive
+                    #     (network/parse failure or error page). Leave as-is.
+                    if not confirmed_live:
+                        failed += 1
+                        self.log(f"    reconcile inconclusive for {boe_id} "
+                                 f"(no BOE parse / error page) — left as-is")
+                        continue
+
+                    # (3) Confirmed SUSPENDIDA banner => set SUSPENDIDA (unless
+                    #     already). recheck_suspended_auctions then owns it.
+                    if detail_status == 'SUSPENDIDA':
+                        if from_status == 'SUSPENDIDA':
+                            kept += 1; continue
+                        c = conn2.cursor()
+                        c.execute('UPDATE "Auction" SET status=%s, "transitionedAt"=%s, "updatedAt"=%s WHERE id=%s',
+                                  ('SUSPENDIDA', now2, now2, auction_id))
+                        _emit(c, 'SUSPENDIDA')
+                        conn2.commit(); c.close()
+                        suspended += 1
+                        self.log(f"    SUSPENDED {boe_id} ({from_status}->SUSPENDIDA) [BOE banner, bucket {bucket}]")
+                        continue
+
+                    # (4) Confirmed CONCLUIDA banner => conclude (honor a real
+                    #     terminal state; harmless if endsAt is unknown).
+                    if detail_status == 'CONCLUIDA_PORTAL':
+                        if from_status == 'CONCLUIDA_PORTAL':
+                            kept += 1; continue
+                        c = conn2.cursor()
+                        c.execute('UPDATE "Auction" SET status=%s, "transitionedAt"=%s, "updatedAt"=%s WHERE id=%s',
+                                  ('CONCLUIDA_PORTAL', now2, now2, auction_id))
+                        _emit(c, 'CONCLUIDA_PORTAL')
+                        conn2.commit(); c.close()
+                        concluded += 1
+                        self.log(f"    CONCLUDED {boe_id} ({from_status}->CONCLUIDA_PORTAL) [BOE banner, bucket {bucket}]")
+                        continue
+
+                    # (5) Confirmed LIVE, no terminal banner. endsAt guard: a
+                    #     window that already closed is left for the conclude
+                    #     path — never resurrected.
+                    if eff_ends is not None and eff_ends <= now2:
+                        kept += 1
+                        self.log(f"    kept {boe_id}: BOE live but window already closed "
+                                 f"(endsAt={eff_ends}) — left for conclude path")
+                        continue
+
+                    # (5a) Bucket A (already live): just backfill the missing
+                    #      endsAt so the monitor can expire it on time. No status
+                    #      change, no alert. If BOE still publishes no endsAt,
+                    #      leave NULL — re-checked next run (bounded by cap).
+                    if from_status in ('ACTIVE', 'CELEBRANDOSE'):
+                        if di_ends is not None:
+                            c = conn2.cursor()
+                            c.execute('UPDATE "Auction" SET "endsAt"=%s, "updatedAt"=%s WHERE id=%s',
+                                      (di_ends, now2, auction_id))
+                            conn2.commit(); c.close()
+                            healed_endsat += 1
+                            self.log(f"    HEALED endsAt for {boe_id} ({from_status}, "
+                                     f"was NULL -> {di_ends}) [bucket {bucket}]")
+                        else:
+                            kept += 1
+                            self.log(f"    kept {boe_id}: BOE live but still no endsAt published "
+                                     f"(bucket {bucket}) — re-check next run")
+                        continue
+
+                    # (5b) Bucket B/C (PROXIMA / recently-cancelled): BOE shows
+                    #      it live. Re-open to CELEBRANDOSE (go_live). Clears the
+                    #      WITHDRAWN_PRE_AUCTION label on a false-cancel. Backfills
+                    #      endsAt/opensAt when BOE published them.
+                    c = conn2.cursor()
+                    sets = ['status = %s', '"transitionedAt" = %s', '"updatedAt" = %s',
+                            '"suspensionReason" = NULL']
+                    params = ['CELEBRANDOSE', now2, now2]
+                    if di_ends is not None and ends_at is None:
+                        sets.append('"endsAt" = %s'); params.append(di_ends)
+                    if start_at is not None:
+                        sets.append('"opensAt" = %s'); params.append(start_at)
+                    params.append(auction_id)
+                    c.execute(f'UPDATE "Auction" SET {", ".join(sets)} WHERE id = %s', params)
+                    _emit(c, 'CELEBRANDOSE')
+                    conn2.commit(); c.close()
+                    reopened += 1
+                    self.log(f"    REOPENED {boe_id} ({from_status}->CELEBRANDOSE) "
+                             f"[BOE-confirmed live, bucket {bucket}, go_live emitted]")
+
+                except Exception as e:
+                    try: conn2.rollback()
+                    except Exception: pass
+                    failed += 1
+                    self.log(f"    reconcile write failed for {boe_id}: {e}")
+
+            conn2.close()
+            return (healed_endsat, concluded, cancelled, suspended,
+                    reopened, kept, failed)
+
+        result = self._run_sync_scrape("BOE_RECONCILE", _reconcile)
+        if result is None:
+            self.log("  BOE reconcile: thread crashed (see traceback above) — nothing reconciled")
+            return
+        (healed_endsat, concluded, cancelled, suspended,
+         reopened, kept, failed) = result
+        self.log(
+            f"  BOE reconcile complete: endsAt-healed={healed_endsat} "
+            f"reopened={reopened} concluded={concluded} suspended={suspended} "
+            f"cancelled(BOE-confirmed)={cancelled} kept={kept} "
+            f"failed/inconclusive(left as-is)={failed}"
+        )
+
+    # -----------------------------------------------------------------------
     # Mechanism 1 — FREEZE-AT-CLOSE (helper, called by monitor_status_changes)
     # -----------------------------------------------------------------------
     _sale_cols_checked = None  # cache: True/False whether sale-result cols exist
@@ -2486,6 +2846,19 @@ class ScraperScheduler:
         # one staggered daily slot clear of the category browsers above.
         schedule.every().day.at("05:30").do(self.recheck_suspended_auctions)
 
+        # BOE status reconciliation (CP3, Forge 2026-09-02) — daily at 04:45,
+        # clear of the 05:15 sale-rescrape / 05:30 suspended-recheck / category
+        # browsers. The ongoing forward self-heal for root cause #4 (nothing
+        # re-reads BOE to correct a wrong status/endsAt). Re-scrapes a BOUNDED,
+        # capped set of AT-RISK BOE rows (live-with-NULL-endsAt, stale
+        # PROXIMA_APERTURA, and pre-auctions false-cancelled within the last
+        # RECONCILE_CANCEL_LOOKBACK_DAYS days) and heals status/endsAt through
+        # the CP2 safe gates (strict cancel banner + confirmed-live-with-real-
+        # fields). PLABI/SEGSOCIAL excluded (source='BOE'); settled/CONCLUIDA
+        # rows untouchable; BOE-down bail. Deliberately NOT the CP4 one-time mass
+        # sweep of the old ~453 backlog (that is lookback-bounded out here).
+        schedule.every().day.at("04:45").do(self.reconcile_boe_status)
+
         # Mechanism 2: daily post-close sale-result re-scrape (catches freeze
         # misses + drains history not yet backfilled). Bounded per run; the
         # ~200k history sweep is the one-time backfill_sale_results.py, not this.
@@ -2560,6 +2933,7 @@ class ScraperScheduler:
         self.log(f"  Catastro DNPRC:       05:45 daily (año/uso/surfaceM2 @ 1 req/s, ref-bearing rows)")
         self.log(f"  Benchmark recompute:  06:00 daily (region EUR/m2 value-signal, atomic full replace)")
         self.log(f"  Pre-auction (PA):     Every 6h (PROXIMA_APERTURA discovery, ORIGEN=J)")
+        self.log(f"  BOE reconcile:        04:45 daily (self-heal at-risk BOE rows, capped, PLABI-excluded)")
         self.log(f"  Dispatch outbox:      Every {DISPATCH_INTERVAL_MIN} min")
         self.log(f"  Mint url-v3:          Every {MINT_URL_V3_INTERVAL_MIN} min (batch {MINT_URL_V3_BATCH})")
         self.log(f"  Geocode drain (fast): Every {geocode_interval} min (active rows only)")
