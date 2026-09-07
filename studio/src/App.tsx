@@ -699,6 +699,7 @@ function App() {
             onClose={() => setIsStoryBaseManagerOpen(false)}
             onSelectStoryBase={(sb) => setActiveStoryBase(sb as unknown as StoryBase)}
             activeStoryBaseId={activeStoryBase?.id}
+            model={aiModel}
           />
         )}
         {isTransferDialogOpen && (
@@ -1157,6 +1158,7 @@ function App() {
           onClose={() => setIsStoryBaseManagerOpen(false)}
           onSelectStoryBase={(sb) => setActiveStoryBase(sb as unknown as StoryBase)}
           activeStoryBaseId={activeStoryBase?.id}
+          model={aiModel}
         />
       )}
     </>
