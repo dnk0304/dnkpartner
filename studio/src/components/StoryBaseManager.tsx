@@ -3,13 +3,15 @@
 // ============================================================
 
 import { useState, useEffect } from "react"
-import { X, Plus, Edit2, Trash2, Save, Layers, Users, Box, MapPin, Cloud, Palette, Check, Sparkles, LayoutGrid, List, Workflow } from "lucide-react"
+import { X, Plus, Edit2, Trash2, Save, Layers, Users, Box, MapPin, Cloud, Palette, Check, Sparkles, LayoutGrid, List, Workflow, Rows3 } from "lucide-react"
 import { Button } from "./Button"
 import { Card, CardContent, CardHeader, CardTitle } from "./Card"
 import { cn } from "@/lib/utils"
 import { ImageryStyle, IMAGERY_STYLE_PRESETS } from "@/types/StudioMode"
 import { CastingBoard } from "./CastingBoard"
 import { WorkboardCanvas } from "./workboard/WorkboardCanvas"
+import { CastHeader } from "./workboard/CastHeader"
+import { SectionBoard } from "./workboard/SectionBoard"
 
 interface StoryCharacter {
   id: string
@@ -94,6 +96,9 @@ export function StoryBaseManager({ onClose, onSelectStoryBase, activeStoryBaseId
   const [availableStyles, setAvailableStyles] = useState<ImageryStyle[]>([])
   const [isSelectingStyle, setIsSelectingStyle] = useState(false)
   const [viewMode, setViewMode] = useState<"list" | "board" | "canvas">("list")
+  // Workboard sub-view. Canvas is the default so the existing React Flow
+  // board stays exactly what opens.
+  const [workboardView, setWorkboardView] = useState<"canvas" | "sections">("canvas")
 
   // Load story bases list and available styles
   useEffect(() => {
@@ -517,12 +522,54 @@ export function StoryBaseManager({ onClose, onSelectStoryBase, activeStoryBaseId
                     model={model}
                   />
                 ) : viewMode === "canvas" ? (
-                  <WorkboardCanvas
-                    storyBase={currentStoryBase as any}
-                    availableStyles={availableStyles}
-                    onStoryBaseUpdated={(sb) => setCurrentStoryBase(sb as any)}
-                    model={model}
-                  />
+                  <div className="flex-1 flex flex-col min-h-0">
+                    <CastHeader storyBaseId={currentStoryBase.id} />
+
+                    {/* Workboard sub-toggle: node Canvas / Sections running order */}
+                    <div className="shrink-0 flex items-center justify-end px-6 py-2 border-b border-[var(--color-border)] bg-[var(--color-background)]">
+                      <div className="flex items-center gap-1 rounded-lg border border-[var(--color-border)] p-0.5">
+                        <button
+                          onClick={() => setWorkboardView("canvas")}
+                          aria-pressed={workboardView === "canvas"}
+                          className={cn(
+                            "flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors",
+                            workboardView === "canvas"
+                              ? "bg-orange-500 text-white"
+                              : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                          )}
+                        >
+                          <Workflow className="w-3.5 h-3.5" />
+                          Canvas
+                        </button>
+                        <button
+                          onClick={() => setWorkboardView("sections")}
+                          aria-pressed={workboardView === "sections"}
+                          className={cn(
+                            "flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors",
+                            workboardView === "sections"
+                              ? "bg-orange-500 text-white"
+                              : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                          )}
+                        >
+                          <Rows3 className="w-3.5 h-3.5" />
+                          Sections
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex-1 min-h-0 flex flex-col">
+                      {workboardView === "sections" ? (
+                        <SectionBoard storyBaseId={currentStoryBase.id} />
+                      ) : (
+                        <WorkboardCanvas
+                          storyBase={currentStoryBase as any}
+                          availableStyles={availableStyles}
+                          onStoryBaseUpdated={(sb) => setCurrentStoryBase(sb as any)}
+                          model={model}
+                        />
+                      )}
+                    </div>
+                  </div>
                 ) : (
                 <>
                 {/* Tabs */}

@@ -329,6 +329,64 @@ function listRuns(projectId: string, subprojectId?: string): AutopilotRun[] {
   return runs.sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0))
 }
 
+// P4 workboard scene-source helper: list all runs (across projects + subprojects)
+// that carry a finalDeliverable.imageryPlan, newest first, capped.
+export interface ImageryPlanRunSummary {
+  runId: string
+  projectId: string
+  subprojectId?: string
+  topic?: string
+  createdAt: number
+  sceneCount: number
+  scenes: Array<{ scene: number; prompt: string; style: string }>
+}
+
+export function listImageryPlanRuns(cap = 20): ImageryPlanRunSummary[] {
+  const projectsRoot = path.join(process.cwd(), "data", "projects")
+  if (!fs.existsSync(projectsRoot)) return []
+  let projectIds: string[] = []
+  try {
+    projectIds = fs
+      .readdirSync(projectsRoot, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name)
+  } catch {
+    return []
+  }
+
+  const out: ImageryPlanRunSummary[] = []
+  const collect = (run: AutopilotRun) => {
+    const plan = run.finalDeliverable?.imageryPlan
+    if (!Array.isArray(plan) || plan.length === 0) return
+    out.push({
+      runId: run.runId,
+      projectId: run.projectId,
+      ...(run.subprojectId ? { subprojectId: run.subprojectId } : {}),
+      topic: run.topic,
+      createdAt: Number(run.createdAt || 0),
+      sceneCount: plan.length,
+      scenes: plan.map((s) => ({
+        scene: Number(s?.scene) || 0,
+        prompt: String(s?.prompt ?? ""),
+        style: String(s?.style ?? ""),
+      })),
+    })
+  }
+
+  for (const projectId of projectIds) {
+    try {
+      for (const run of listRuns(projectId)) collect(run)
+      for (const subproject of listSubprojects(projectId)) {
+        for (const run of listRuns(projectId, subproject.id)) collect(run)
+      }
+    } catch {
+      // best-effort: skip unreadable projects
+    }
+  }
+
+  return out.sort((a, b) => b.createdAt - a.createdAt).slice(0, Math.max(0, cap))
+}
+
 type AutopilotArtifactView = {
   id: string
   kind: "scriptDraft" | "timings" | "promptPack" | "storyboardPlan" | "videoPlan" | "qaReport" | "artifactVersion"
