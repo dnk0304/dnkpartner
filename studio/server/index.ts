@@ -4847,6 +4847,7 @@ interface StoryCharacter {
   id: string
   name: string
   description: string
+  image?: string // Generated/canonical thumbnail URL (e.g. /downloads/xxx.png)
   createdAt: number
   updatedAt?: number
 }
@@ -4855,6 +4856,7 @@ interface StoryObject {
   id: string
   name: string
   description: string
+  image?: string // Generated/canonical thumbnail URL
   createdAt: number
   updatedAt?: number
 }
@@ -4863,6 +4865,7 @@ interface StoryEnvironment {
   id: string
   name: string
   description: string
+  image?: string // Generated/canonical thumbnail URL
   createdAt: number
   updatedAt?: number
 }
@@ -4871,6 +4874,7 @@ interface StoryAtmosphere {
   id: string
   name: string
   description: string
+  image?: string // Generated/canonical thumbnail URL
   createdAt: number
   updatedAt?: number
 }
@@ -5091,6 +5095,211 @@ app.delete("/api/story-bases/:id", (req, res) => {
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error deleting story base:`, error)
     return res.status(500).json({ error: "Failed to delete story base" })
+  }
+})
+
+// ============================================================
+// CASTING BOARD API — generic per-element image persistence
+// Elements (characters/objects/environments/atmospheres) live inside a
+// StoryBase. These endpoints load/persist a single element's generated
+// thumbnail image, reusing the storyBases.json store.
+// ============================================================
+
+const CASTING_TYPES = ["characters", "objects", "environments", "atmospheres"] as const
+type CastingType = (typeof CASTING_TYPES)[number]
+
+function isCastingType(t: string): t is CastingType {
+  return (CASTING_TYPES as readonly string[]).includes(t)
+}
+
+// GET /api/casting/:type?storyBaseId=xxx  -> elements of that type (with images)
+app.get("/api/casting/:type", (req, res) => {
+  res.setHeader("Content-Type", "application/json")
+  try {
+    const { type } = req.params
+    const storyBaseId = req.query.storyBaseId as string | undefined
+
+    if (!isCastingType(type)) {
+      return res.status(400).json({ error: `Invalid casting type "${type}". Must be one of: ${CASTING_TYPES.join(", ")}` })
+    }
+    if (!storyBaseId) {
+      return res.status(400).json({ error: "storyBaseId query param is required" })
+    }
+
+    const storyBases = loadStoryBases()
+    const storyBase = storyBases.find((sb) => sb.id === storyBaseId)
+    if (!storyBase) {
+      return res.status(404).json({ error: "Story base not found" })
+    }
+
+    return res.json(storyBase[type] || [])
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error loading casting elements:`, error)
+    return res.status(500).json({ error: "Failed to load casting elements" })
+  }
+})
+
+// POST /api/casting/:type  { storyBaseId, elementId, image }
+//  -> persist a single element's generated thumbnail; returns the updated element
+app.post("/api/casting/:type", (req, res) => {
+  res.setHeader("Content-Type", "application/json")
+  try {
+    const { type } = req.params
+    const { storyBaseId, elementId, image } = req.body || {}
+
+    if (!isCastingType(type)) {
+      return res.status(400).json({ error: `Invalid casting type "${type}". Must be one of: ${CASTING_TYPES.join(", ")}` })
+    }
+    if (!storyBaseId || !elementId) {
+      return res.status(400).json({ error: "storyBaseId and elementId are required" })
+    }
+
+    const storyBases = loadStoryBases()
+    const sbIndex = storyBases.findIndex((sb) => sb.id === storyBaseId)
+    if (sbIndex === -1) {
+      return res.status(404).json({ error: "Story base not found" })
+    }
+
+    const storyBase = storyBases[sbIndex]
+    const collection = storyBase[type] as Array<{ id: string; image?: string; updatedAt?: number }>
+    const element = collection.find((e) => e.id === elementId)
+    if (!element) {
+      return res.status(404).json({ error: `${type} element not found` })
+    }
+
+    element.image = image || undefined
+    element.updatedAt = Date.now()
+    storyBase.updatedAt = Date.now()
+
+    storyBases[sbIndex] = storyBase
+    saveStoryBases(storyBases)
+
+    console.log(`[${new Date().toISOString()}] Saved casting image for ${type}/${elementId} in story base ${storyBase.name}`)
+    return res.json(element)
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error saving casting element image:`, error)
+    return res.status(500).json({ error: "Failed to save casting element image" })
+  }
+})
+
+// ============================================================
+// WORKBOARD API — node-canvas graph persistence (Phase 2)
+// One light graph per StoryBase: node ids + positions (+ edges).
+// The generated images themselves stay under /api/casting/:type;
+// the graph only references casting elements by id, so it stays small.
+// ============================================================
+
+interface WorkboardNode {
+  id: string
+  position: { x: number; y: number }
+  // Optional metadata so future phases can extend node config without a migration.
+  type?: string
+  data?: Record<string, any>
+}
+
+interface WorkboardEdge {
+  id: string
+  source: string
+  target: string
+  sourceHandle?: string | null
+  targetHandle?: string | null
+}
+
+interface WorkboardGraph {
+  storyBaseId: string
+  nodes: WorkboardNode[]
+  edges: WorkboardEdge[]
+  updatedAt: number
+}
+
+const workboardsFile = path.join(__dirname, "workboards.json")
+
+function loadWorkboards(): Record<string, WorkboardGraph> {
+  try {
+    if (fs.existsSync(workboardsFile)) {
+      const data = fs.readFileSync(workboardsFile, "utf-8")
+      return JSON.parse(data) as Record<string, WorkboardGraph>
+    }
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error loading workboards:`, error)
+  }
+  return {}
+}
+
+function saveWorkboards(workboards: Record<string, WorkboardGraph>): void {
+  try {
+    const dir = path.dirname(workboardsFile)
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(workboardsFile, JSON.stringify(workboards, null, 2), "utf-8")
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error saving workboards:`, error)
+  }
+}
+
+// GET /api/workboard/:storyBaseId -> the saved graph (or an empty graph)
+app.get("/api/workboard/:storyBaseId", (req, res) => {
+  res.setHeader("Content-Type", "application/json")
+  try {
+    const { storyBaseId } = req.params
+    const workboards = loadWorkboards()
+    const graph = workboards[storyBaseId] || {
+      storyBaseId,
+      nodes: [],
+      edges: [],
+      updatedAt: 0,
+    }
+    return res.json(graph)
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error loading workboard:`, error)
+    return res.status(500).json({ error: "Failed to load workboard" })
+  }
+})
+
+// POST /api/workboard/:storyBaseId  { nodes, edges } -> persist the graph
+app.post("/api/workboard/:storyBaseId", (req, res) => {
+  res.setHeader("Content-Type", "application/json")
+  try {
+    const { storyBaseId } = req.params
+    const { nodes, edges } = req.body || {}
+
+    if (!Array.isArray(nodes)) {
+      return res.status(400).json({ error: "nodes must be an array" })
+    }
+
+    // Keep the stored graph light: only ids + positions (+ optional meta).
+    const cleanNodes: WorkboardNode[] = nodes.map((n: any) => ({
+      id: String(n.id),
+      position: {
+        x: Number(n?.position?.x) || 0,
+        y: Number(n?.position?.y) || 0,
+      },
+      ...(n.type ? { type: String(n.type) } : {}),
+      ...(n.data && typeof n.data === "object" ? { data: n.data } : {}),
+    }))
+    const cleanEdges: WorkboardEdge[] = Array.isArray(edges)
+      ? edges.map((e: any) => ({
+          id: String(e.id),
+          source: String(e.source),
+          target: String(e.target),
+          sourceHandle: e.sourceHandle ?? null,
+          targetHandle: e.targetHandle ?? null,
+        }))
+      : []
+
+    const workboards = loadWorkboards()
+    workboards[storyBaseId] = {
+      storyBaseId,
+      nodes: cleanNodes,
+      edges: cleanEdges,
+      updatedAt: Date.now(),
+    }
+    saveWorkboards(workboards)
+
+    console.log(`[${new Date().toISOString()}] Saved workboard for story base ${storyBaseId} (${cleanNodes.length} nodes)`)
+    return res.json(workboards[storyBaseId])
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error saving workboard:`, error)
+    return res.status(500).json({ error: "Failed to save workboard" })
   }
 })
 

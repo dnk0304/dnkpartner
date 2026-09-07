@@ -7,6 +7,7 @@ export interface StoryCharacter {
   id: string
   name: string
   description: string // Detailed description: appearance, personality, clothing, etc.
+  image?: string // Generated/canonical thumbnail URL (Casting Board)
   createdAt: number
   updatedAt?: number
 }
@@ -16,6 +17,7 @@ export interface StoryObject {
   id: string
   name: string
   description: string // Detailed description: color, size, material, condition, etc.
+  image?: string // Generated/canonical thumbnail URL (Casting Board)
   createdAt: number
   updatedAt?: number
 }
@@ -25,6 +27,7 @@ export interface StoryEnvironment {
   id: string
   name: string
   description: string // Detailed description: location, weather, time of day, setting, etc.
+  image?: string // Generated/canonical thumbnail URL (Casting Board)
   createdAt: number
   updatedAt?: number
 }
@@ -34,6 +37,7 @@ export interface StoryAtmosphere {
   id: string
   name: string
   description: string // Detailed description: lighting, mood, weather effects, particles, etc.
+  image?: string // Generated/canonical thumbnail URL (Casting Board)
   createdAt: number
   updatedAt?: number
 }

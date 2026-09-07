@@ -3,11 +3,13 @@
 // ============================================================
 
 import { useState, useEffect } from "react"
-import { X, Plus, Edit2, Trash2, Save, Layers, Users, Box, MapPin, Cloud, Palette, Check, Sparkles } from "lucide-react"
+import { X, Plus, Edit2, Trash2, Save, Layers, Users, Box, MapPin, Cloud, Palette, Check, Sparkles, LayoutGrid, List, Workflow } from "lucide-react"
 import { Button } from "./Button"
 import { Card, CardContent, CardHeader, CardTitle } from "./Card"
 import { cn } from "@/lib/utils"
 import { ImageryStyle, IMAGERY_STYLE_PRESETS } from "@/types/StudioMode"
+import { CastingBoard } from "./CastingBoard"
+import { WorkboardCanvas } from "./workboard/WorkboardCanvas"
 
 interface StoryCharacter {
   id: string
@@ -73,11 +75,12 @@ interface StoryBaseManagerProps {
   onClose: () => void
   onSelectStoryBase?: (storyBase: StoryBase) => void
   activeStoryBaseId?: string | null
+  model?: string // AI model to use for casting-board generation (mirrors App's aiModel)
 }
 
 type ElementType = "characters" | "objects" | "environments" | "atmospheres" | "style"
 
-export function StoryBaseManager({ onClose, onSelectStoryBase, activeStoryBaseId }: StoryBaseManagerProps) {
+export function StoryBaseManager({ onClose, onSelectStoryBase, activeStoryBaseId, model }: StoryBaseManagerProps) {
   const [storyBases, setStoryBases] = useState<StoryBaseSummary[]>([])
   const [selectedStoryBaseId, setSelectedStoryBaseId] = useState<string | null>(activeStoryBaseId || null)
   const [currentStoryBase, setCurrentStoryBase] = useState<StoryBase | null>(null)
@@ -90,6 +93,7 @@ export function StoryBaseManager({ onClose, onSelectStoryBase, activeStoryBaseId
   const [elementDescription, setElementDescription] = useState("")
   const [availableStyles, setAvailableStyles] = useState<ImageryStyle[]>([])
   const [isSelectingStyle, setIsSelectingStyle] = useState(false)
+  const [viewMode, setViewMode] = useState<"list" | "board" | "canvas">("list")
 
   // Load story bases list and available styles
   useEffect(() => {
@@ -241,12 +245,12 @@ export function StoryBaseManager({ onClose, onSelectStoryBase, activeStoryBaseId
         }
 
     const updatedElements = editingElement.id
-      ? currentStoryBase[editingElement.type].map((el: any) =>
+      ? (currentStoryBase as any)[editingElement.type].map((el: any) =>
           el.id === editingElement.id
             ? { ...el, name: elementName, description: elementDescription, updatedAt: Date.now() }
             : el
         )
-      : [...currentStoryBase[editingElement.type], newElement]
+      : [...(currentStoryBase as any)[editingElement.type], newElement]
 
     try {
       const response = await fetch(`/api/story-bases/${currentStoryBase.id}`, {
@@ -273,7 +277,7 @@ export function StoryBaseManager({ onClose, onSelectStoryBase, activeStoryBaseId
   const handleDeleteElement = async (type: ElementType, id: string) => {
     if (!currentStoryBase || !confirm("Are you sure you want to delete this element?")) return
 
-    const updatedElements = currentStoryBase[type].filter((el: any) => el.id !== id)
+    const updatedElements = (currentStoryBase as any)[type].filter((el: any) => el.id !== id)
 
     try {
       const response = await fetch(`/api/story-bases/${currentStoryBase.id}`, {
@@ -457,6 +461,70 @@ export function StoryBaseManager({ onClose, onSelectStoryBase, activeStoryBaseId
           <div className="flex-1 flex flex-col">
             {currentStoryBase ? (
               <>
+                {/* View toggle: List editor / visual Casting Board / node Workboard */}
+                <div className="flex items-center justify-between px-6 py-2 border-b border-[var(--color-border)] bg-[var(--color-background)]">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-[var(--color-text-dim)]">
+                    {currentStoryBase.name}
+                  </span>
+                  <div className="flex items-center gap-1 rounded-lg border border-[var(--color-border)] p-0.5">
+                    <button
+                      onClick={() => setViewMode("list")}
+                      aria-pressed={viewMode === "list"}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors",
+                        viewMode === "list"
+                          ? "bg-orange-500 text-white"
+                          : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                      )}
+                    >
+                      <List className="w-3.5 h-3.5" />
+                      List
+                    </button>
+                    <button
+                      onClick={() => setViewMode("board")}
+                      aria-pressed={viewMode === "board"}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors",
+                        viewMode === "board"
+                          ? "bg-orange-500 text-white"
+                          : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                      )}
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                      Casting Board
+                    </button>
+                    <button
+                      onClick={() => setViewMode("canvas")}
+                      aria-pressed={viewMode === "canvas"}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors",
+                        viewMode === "canvas"
+                          ? "bg-orange-500 text-white"
+                          : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                      )}
+                    >
+                      <Workflow className="w-3.5 h-3.5" />
+                      Workboard
+                    </button>
+                  </div>
+                </div>
+
+                {viewMode === "board" ? (
+                  <CastingBoard
+                    storyBase={currentStoryBase as any}
+                    availableStyles={availableStyles}
+                    onStoryBaseUpdated={(sb) => setCurrentStoryBase(sb as any)}
+                    model={model}
+                  />
+                ) : viewMode === "canvas" ? (
+                  <WorkboardCanvas
+                    storyBase={currentStoryBase as any}
+                    availableStyles={availableStyles}
+                    onStoryBaseUpdated={(sb) => setCurrentStoryBase(sb as any)}
+                    model={model}
+                  />
+                ) : (
+                <>
                 {/* Tabs */}
                 <div className="flex border-b border-[var(--color-border)] bg-[var(--color-background)]">
                   {(["characters", "objects", "environments", "atmospheres", "style"] as ElementType[]).map((type) => (
@@ -697,6 +765,9 @@ export function StoryBaseManager({ onClose, onSelectStoryBase, activeStoryBaseId
                     </>
                   )}
                 </div>
+
+                </>
+                )}
 
                 {/* Footer - Select Story Base */}
                 <div className="p-4 border-t border-[var(--color-border)] bg-[var(--color-background)]">
