@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 import { ImageryStyle, IMAGERY_STYLE_PRESETS } from "@/types/StudioMode"
 import { CastingBoard } from "./CastingBoard"
 import { WorkboardCanvas } from "./workboard/WorkboardCanvas"
+import { CastHeader } from "./workboard/CastHeader"
 
 interface StoryCharacter {
   id: string
@@ -517,12 +518,17 @@ export function StoryBaseManager({ onClose, onSelectStoryBase, activeStoryBaseId
                     model={model}
                   />
                 ) : viewMode === "canvas" ? (
-                  <WorkboardCanvas
-                    storyBase={currentStoryBase as any}
-                    availableStyles={availableStyles}
-                    onStoryBaseUpdated={(sb) => setCurrentStoryBase(sb as any)}
-                    model={model}
-                  />
+                  <div className="flex-1 flex flex-col min-h-0">
+                    <CastHeader storyBaseId={currentStoryBase.id} />
+                    <div className="flex-1 min-h-0 flex flex-col">
+                      <WorkboardCanvas
+                        storyBase={currentStoryBase as any}
+                        availableStyles={availableStyles}
+                        onStoryBaseUpdated={(sb) => setCurrentStoryBase(sb as any)}
+                        model={model}
+                      />
+                    </div>
+                  </div>
                 ) : (
                 <>
                 {/* Tabs */}
