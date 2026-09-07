@@ -85,7 +85,7 @@ import {
   normalizeAssistantMode,
   resolveManagerDelegationFromMemory,
 } from "./managerAgentMemory"
-import { registerAutopilotRoutes } from "./autopilot"
+import { registerAutopilotRoutes, listImageryPlanRuns } from "./autopilot"
 import { AutopilotBrain } from "./autopilotBrain"
 import { registerTelegramBot } from "./telegramBot"
 import {
@@ -5205,11 +5205,66 @@ interface WorkboardEdge {
   targetHandle?: string | null
 }
 
+// P4 section board — optional, additive. Old graphs without these load unchanged.
+interface WorkboardSection {
+  id: string
+  name: string
+  order: number
+  sceneIds: string[]
+}
+
+interface WorkboardScene {
+  id: string
+  title: string
+  prompt?: string
+  image?: string
+  order: number
+}
+
 interface WorkboardGraph {
   storyBaseId: string
   nodes: WorkboardNode[]
   edges: WorkboardEdge[]
   updatedAt: number
+  // P4 (optional): section board model. Absent on legacy graphs.
+  sections?: WorkboardSection[]
+  scenes?: WorkboardScene[]
+}
+
+// Lenient sanitizers for the P4 fields. Return undefined when the input is
+// absent so we never write empty arrays onto graphs that never had them.
+function sanitizeWorkboardSections(input: any): WorkboardSection[] | undefined {
+  if (!Array.isArray(input)) return undefined
+  return input
+    .map((s: any): WorkboardSection | null => {
+      if (!s || typeof s !== "object") return null
+      const id = String(s.id ?? "").trim()
+      const name = String(s.name ?? "").trim()
+      if (!id || !name) return null
+      const sceneIds = Array.isArray(s.sceneIds)
+        ? s.sceneIds.map((x: any) => String(x)).filter((x: string) => x.length > 0)
+        : []
+      return { id, name, order: Number(s.order) || 0, sceneIds }
+    })
+    .filter((s: WorkboardSection | null): s is WorkboardSection => s !== null)
+}
+
+function sanitizeWorkboardScenes(input: any): WorkboardScene[] | undefined {
+  if (!Array.isArray(input)) return undefined
+  return input
+    .map((s: any): WorkboardScene | null => {
+      if (!s || typeof s !== "object") return null
+      const id = String(s.id ?? "").trim()
+      if (!id) return null
+      return {
+        id,
+        title: String(s.title ?? ""),
+        order: Number(s.order) || 0,
+        ...(s.prompt != null ? { prompt: String(s.prompt) } : {}),
+        ...(s.image != null ? { image: String(s.image) } : {}),
+      }
+    })
+    .filter((s: WorkboardScene | null): s is WorkboardScene => s !== null)
 }
 
 const workboardsFile = path.join(__dirname, "workboards.json")
@@ -5260,10 +5315,17 @@ app.post("/api/workboard/:storyBaseId", (req, res) => {
   res.setHeader("Content-Type", "application/json")
   try {
     const { storyBaseId } = req.params
-    const { nodes, edges } = req.body || {}
+    const { nodes, edges, sections, scenes } = req.body || {}
 
     if (!Array.isArray(nodes)) {
       return res.status(400).json({ error: "nodes must be an array" })
+    }
+    // P4 fields are optional but must be arrays when present.
+    if (sections !== undefined && !Array.isArray(sections)) {
+      return res.status(400).json({ error: "sections must be an array when provided" })
+    }
+    if (scenes !== undefined && !Array.isArray(scenes)) {
+      return res.status(400).json({ error: "scenes must be an array when provided" })
     }
 
     // Keep the stored graph light: only ids + positions (+ optional meta).
@@ -5287,19 +5349,52 @@ app.post("/api/workboard/:storyBaseId", (req, res) => {
       : []
 
     const workboards = loadWorkboards()
+    const existing = workboards[storyBaseId]
+    // Preserve prior P4 fields when the caller omits them (e.g. a canvas-only save
+    // from the legacy React Flow view must not wipe sections/scenes).
+    const cleanSections =
+      sections !== undefined ? sanitizeWorkboardSections(sections) : existing?.sections
+    const cleanScenes =
+      scenes !== undefined ? sanitizeWorkboardScenes(scenes) : existing?.scenes
+
     workboards[storyBaseId] = {
       storyBaseId,
       nodes: cleanNodes,
       edges: cleanEdges,
       updatedAt: Date.now(),
+      ...(cleanSections !== undefined ? { sections: cleanSections } : {}),
+      ...(cleanScenes !== undefined ? { scenes: cleanScenes } : {}),
     }
     saveWorkboards(workboards)
 
-    console.log(`[${new Date().toISOString()}] Saved workboard for story base ${storyBaseId} (${cleanNodes.length} nodes)`)
+    console.log(`[${new Date().toISOString()}] Saved workboard for story base ${storyBaseId} (${cleanNodes.length} nodes, ${cleanSections?.length ?? 0} sections, ${cleanScenes?.length ?? 0} scenes)`)
     return res.json(workboards[storyBaseId])
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error saving workboard:`, error)
     return res.status(500).json({ error: "Failed to save workboard" })
+  }
+})
+
+// GET /api/workboard/:storyBaseId/scene-sources
+// Best-effort import helper: list autopilot runs that carry an imageryPlan so the
+// UI can offer to import their scenes. Runs are keyed by projectId (not storyBaseId),
+// so this returns ALL runs with imagery plans (cap 20 newest); the user picks.
+app.get("/api/workboard/:storyBaseId/scene-sources", (req, res) => {
+  res.setHeader("Content-Type", "application/json")
+  try {
+    const runs = listImageryPlanRuns(20).map((r) => ({
+      runId: r.runId,
+      projectId: r.projectId,
+      ...(r.subprojectId ? { subprojectId: r.subprojectId } : {}),
+      topic: r.topic,
+      createdAt: r.createdAt,
+      sceneCount: r.sceneCount,
+      scenes: r.scenes,
+    }))
+    return res.json({ runs })
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Error loading workboard scene-sources:`, error)
+    return res.status(500).json({ error: "Failed to load scene sources" })
   }
 })
 
