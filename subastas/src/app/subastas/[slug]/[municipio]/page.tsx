@@ -42,7 +42,7 @@ import {
 import {
   countActiveAuctions,
   countIndexableInventory,
-  countConcludedIndexable,
+  countTownHistory,
   isSeoIndexable,
   minStartingPrice,
   municipalitySlugToDbName,
@@ -78,11 +78,12 @@ type Resolved = {
    */
   indexableCount: number;
   /**
-   * Concluded-with-result count (Phase B). Finished-only towns index ONLY when
-   * this is > 0 — and only because the content block renders that inventory as
+   * History count (Phase C) — ANY past/finished auction (finalizadas bucket,
+   * any outcome, no recency floor). A town with no active/upcoming inventory
+   * indexes when this is > 0, because the content block renders that history as
    * crawlable HTML. Distinct from `indexableCount` (active+upcoming).
    */
-  concludedCount: number;
+  historyCount: number;
   minPrice: number | null;
   siblings: SiblingMuni[];
   provinceTotal: number;
@@ -101,10 +102,10 @@ async function loadTown(slug: string, municipio: string): Promise<Resolved | nul
   // corpus spellings that fold onto this town.
   const municipality = await municipalityDbNamesForSlug(r.dbKey, municipio);
 
-  const [count, indexableCount, concludedCount, minPrice, allMunis, provinceTotal] = await Promise.all([
+  const [count, indexableCount, historyCount, minPrice, allMunis, provinceTotal] = await Promise.all([
     countActiveAuctions({ province: r.dbKey, municipality }),
     countIndexableInventory({ province: r.dbKey, municipality }),
-    countConcludedIndexable({ province: r.dbKey, municipality }),
+    countTownHistory({ province: r.dbKey, municipality }),
     minStartingPrice({ province: r.dbKey, municipality }),
     municipalitiesInProvince(r.dbKey),
     countActiveAuctions({ province: r.dbKey }),
@@ -126,7 +127,7 @@ async function loadTown(slug: string, municipio: string): Promise<Resolved | nul
     municipalityDbNames: municipality,
     count,
     indexableCount,
-    concludedCount,
+    historyCount,
     minPrice,
     siblings,
     provinceTotal,
@@ -162,7 +163,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     // finished-only town indexes because the content block renders its results
     // as real crawlable HTML; only a truly-zero-history town (both 0) noindexes.
     // The DISPLAY count (`data.count`) stays active-only.
-    robots: isSeoIndexable(data.indexableCount, data.concludedCount)
+    robots: isSeoIndexable(data.indexableCount, data.historyCount)
       ? 'index,follow'
       : 'noindex,follow',
   };
@@ -200,7 +201,7 @@ export default async function MunicipioPage({ params }: PageProps) {
   //
   // A truly-empty town (not indexable) falls through to the active grid, which
   // shows the "create an alert" empty state and stays noindex — unchanged.
-  const isIndexable = isSeoIndexable(data.indexableCount, data.concludedCount);
+  const isIndexable = isSeoIndexable(data.indexableCount, data.historyCount);
   const useContentBlock = data.count === 0 && isIndexable;
 
   const auctionsSlot = useContentBlock

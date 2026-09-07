@@ -45,7 +45,7 @@ import {
   slugify,
   type CategorySlug,
 } from '@/lib/seo/slugs';
-import { categoryActiveCounts, activeMunicipalityPairs } from '@/lib/seo/page-data';
+import { categoryActiveCounts, activeMunicipalityPairs, allMunicipalityPairs } from '@/lib/seo/page-data';
 import { buildAuctionSlug } from '@/lib/seo/auction-slug';
 /**
  * URL-v3 (2026-08-04): detail urls in the sitemap now come from the SAME
@@ -291,14 +291,26 @@ export async function buildAggregationEntries(): Promise<SitemapUrlEntry[]> {
     });
   }
 
-  // --- Town pages (08 §4.3 — active-gated) ---
-  // Only clean towns with ≥1 auction in SEO ACTIVE_STATUSES (active + upcoming;
-  // off-taxonomy junk filtered inside activeMunicipalityPairs()). This is the
-  // SAME predicate the town page's index gate uses, so the sitemap town set ==
-  // the indexable town set. 0-active towns drop out here but their page stays
-  // 200 + noindex,follow + reachable — see the doctrine note in the header.
+  // --- Town pages ---
+  // PHASE C (Dennis 2026-09-07): the town page now indexes any town with ANY
+  // auction to show — active/upcoming OR any past/finished (see isSeoIndexable).
+  // The sitemap town set must stay == the indexable town set (a sitemap URL must
+  // never be noindex), so it advertises ALL clean (any-status) towns via
+  // `allMunicipalityPairs()`.
+  //
+  // ⛔ SWITCH-GATED on `URL_V4_SWITCH`, deliberately, and for the SAME reason the
+  // gazetteer junk-gate is (see archive-municipality.ts's dark-gate note + Ken's
+  // 2026-08-13 rollback): `allMunicipalityPairs` folds through
+  // `foldMunicipalitiesForLegacySurface`, which only applies the INE gazetteer
+  // whitelist when the switch is ON. With the switch OFF the all-status fold is
+  // the LEGACY fold (3 sentinels, no gazetteer) — it would flood the sitemap with
+  // vehicle-plate/district/junk history-town URLs. So while dark we keep the
+  // byte-identical active-only set; Ken's single flip activates the gazetteer
+  // gate AND this history-town widening together, coherently.
   try {
-    const pairs = await activeMunicipalityPairs();
+    const pairs = isUrlV4SwitchOn()
+      ? await allMunicipalityPairs()
+      : await activeMunicipalityPairs();
     for (const p of pairs) {
       entries.push({
         url: `${SITE}/subastas/${p.provinceSlug}/${p.municipioSlug}`,

@@ -203,16 +203,59 @@ export const countConcludedIndexable = unstable_cache(
 );
 
 /**
- * ⭐ THE SHARED town/province robots decision (Phase B). Index a location iff it
+ * ⭐ PHASE C (Dennis 2026-09-07) — town/province HISTORY count.
+ *
+ * The finished tier of the robots gate, BROADENED. Phase B indexed a
+ * finished-only location only when it had a concluded auction WITH a captured
+ * sale outcome (`countConcludedIndexable` — result-checked, indexable category,
+ * sold/deserted, recency floor). That wrongly hid towns that DO have past
+ * auctions but no recorded outcome — even though the page renders that history
+ * (the client `todas`/`finalizadas` view shows every terminal row).
+ *
+ * Dennis's rule: a location is indexable if it has ANY auction to show. So the
+ * finished tier is now the whole `finalizadas` bucket (every terminal status,
+ * any outcome) + `inScope` + scope — NO outcome filter, NO category filter, NO
+ * recency floor. A town with 8 years of auction history has real content and
+ * must index; only a location with genuinely ZERO auctions in any status ever
+ * stays `noindex,follow`.
+ *
+ * The companion `_findTownContentBlock` renders this SAME finished bucket, so a
+ * town indexed on history is never thin — it emits the history as crawlable,
+ * anchored HTML matching what the page displays.
+ */
+export function historyWhere({ province, municipality }: CountInput): Prisma.AuctionWhereInput {
+  const where = { ...whenBucketWherePrisma('finalizadas') } as Prisma.AuctionWhereInput;
+  if (province) where.province = province;
+  if (municipality) {
+    // MUNI-A: an array is the set of raw spellings that fold onto one INE town.
+    where.municipality = Array.isArray(municipality) ? { in: municipality } : municipality;
+  }
+  return where;
+}
+
+async function _countTownHistory(args: CountInput): Promise<number> {
+  return prisma.auction.count({ where: historyWhere(args) });
+}
+
+/** Memoised finished/history count (60s — same TTL as the other counts). */
+export const countTownHistory = unstable_cache(
+  _countTownHistory,
+  ['seo-town-history-count'],
+  { revalidate: 60, tags: ['seo-counts'] },
+);
+
+/**
+ * ⭐ THE SHARED town/province robots decision (Phase C). Index a location iff it
  * carries ANY renderable inventory — active/upcoming (the sitemap inventory
- * set) OR finished-with-result (the concluded-indexable set). noindex ONLY when
- * BOTH are zero: a truly-empty location with no auction in any status, ever.
+ * set, `countIndexableInventory`) OR ANY past/finished auction regardless of
+ * outcome (`countTownHistory`). noindex ONLY when BOTH are zero: a truly-empty
+ * location with no auction in any status, ever.
  *
  * ONE helper, used by the town page, the province page, and their metadata, so
  * the gate can never fork between the `robots:` meta and the content it guards.
  */
-export function isSeoIndexable(indexableCount: number, concludedCount: number): boolean {
-  return indexableCount > 0 || concludedCount > 0;
+export function isSeoIndexable(indexableCount: number, historyCount: number): boolean {
+  return indexableCount > 0 || historyCount > 0;
 }
 
 async function _findActive(args: CountInput & { take: number }) {
@@ -527,10 +570,16 @@ async function _findTownContentBlock(args: CountInput): Promise<TownContentBlock
   const upcomingWhere = { ...whenBucketWherePrisma('proximas') } as Prisma.AuctionWhereInput;
   applyScope(upcomingWhere, args);
 
-  // Section B — recent finished-with-result, via the SINGLE-SOURCE concluded
-  // predicate (result-checked, indexable category, sold/deserted, recency
-  // floor) + scope + soft-hide. Most recent first (endsAt desc), capped.
-  const concludedWhere: Prisma.AuctionWhereInput = { ...concludedIndexableWhere(), inScope: true };
+  // Section B — recent finished auctions (PHASE C, Dennis 2026-09-07). The whole
+  // `finalizadas` bucket (every terminal status, ANY outcome) + scope +
+  // soft-hide, NOT just the concluded-with-result subset. This is what keeps a
+  // town indexed on bare history (no captured outcome) from being thin: it
+  // renders that history as real crawlable, anchored cards, matching the finished
+  // rows the page's client `todas`/`finalizadas` view shows. Outcome fields
+  // (saleResult/soldPrice/soldDate) are still SELECTED and simply render null for
+  // rows without an outcome (SeoTownContentBlock already tolerates null). Most
+  // recent first (endsAt desc), capped — a teaser, never a full archive.
+  const concludedWhere = { ...whenBucketWherePrisma('finalizadas') } as Prisma.AuctionWhereInput;
   applyScope(concludedWhere, args);
 
   const [upcomingRaw, concludedRaw] = await Promise.all([

@@ -36,7 +36,7 @@ import {
 import {
   countActiveAuctions,
   countIndexableInventory,
-  countConcludedIndexable,
+  countTownHistory,
   isSeoIndexable,
   minStartingPrice,
   municipalitiesInProvince,
@@ -82,10 +82,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   // kind === 'province'
-  const [count, indexableCount, concludedCount] = await Promise.all([
+  const [count, indexableCount, historyCount] = await Promise.all([
     countActiveAuctions({ province: r.dbKey }),
     countIndexableInventory({ province: r.dbKey }),
-    countConcludedIndexable({ province: r.dbKey }),
+    countTownHistory({ province: r.dbKey }),
   ]);
   const title = t('provinceMetaTitle', { count: count.toLocaleString(nf), province: r.label });
   const description = t('provinceMetaDescription', { count: count.toLocaleString(nf), province: r.label }).slice(0, 158);
@@ -101,7 +101,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     // indexes) OR finished-with-result (Phase B — the same OR-tier as towns,
     // for the rare finished-only province). noindex only when both are 0.
     // Title/intro keep the active display count.
-    robots: isSeoIndexable(indexableCount, concludedCount)
+    robots: isSeoIndexable(indexableCount, historyCount)
       ? 'index,follow'
       : 'noindex,follow',
   };
@@ -194,10 +194,10 @@ async function renderProvincePage(slugUrl: string, r: {
 }) {
   const { dbKey, label } = r;
   const t = await getTranslations('listTemplates');
-  const [count, indexableCount, concludedCount, minPrice, municipalities, auctions] = await Promise.all([
+  const [count, indexableCount, historyCount, minPrice, municipalities, auctions] = await Promise.all([
     countActiveAuctions({ province: dbKey }),
     countIndexableInventory({ province: dbKey }),
-    countConcludedIndexable({ province: dbKey }),
+    countTownHistory({ province: dbKey }),
     minStartingPrice({ province: dbKey }),
     municipalitiesInProvince(dbKey),
     buildSeoAuctions({
@@ -214,7 +214,7 @@ async function renderProvincePage(slugUrl: string, r: {
   // links to its detail pages (the same crawl-path gap the towns had, e.g.
   // upcoming-only Segovia). A truly-empty province keeps the active grid + stays
   // noindex.
-  const useContentBlock = count === 0 && isSeoIndexable(indexableCount, concludedCount);
+  const useContentBlock = count === 0 && isSeoIndexable(indexableCount, historyCount);
   const auctionsSlot = useContentBlock
     ? (await buildTownContentBlock({ filter: { province: dbKey } })).node
     : auctions.node;
