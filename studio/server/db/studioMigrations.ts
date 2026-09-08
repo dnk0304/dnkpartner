@@ -85,6 +85,35 @@ CREATE TABLE IF NOT EXISTS studio_video_project (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS studio_video_project_tenant_idx ON studio_video_project (tenant_id);
+
+-- Clip Library (CP1). Read-mostly catalogue of pre-cut comedy clips.
+-- Rows are imported from the local yt-nova clips.db export; the 480p preview
+-- bytes live on the volume at STUDIO_DATA_DIR/clip-previews/<id>.mp4 and
+-- preview_path stores that volume-relative name so a later move to a
+-- dedicated host or S3 is a base-URL change only.
+-- Not tenant-scoped: the library is shared house content, not tenant data.
+CREATE TABLE IF NOT EXISTS studio_library_clip (
+  id            TEXT PRIMARY KEY,          -- clip_id, e.g. "4IfRgovQGtk_001"
+  comedian      TEXT NOT NULL,
+  tags          TEXT[] NOT NULL DEFAULT '{}',
+  laugh_score   SMALLINT,                  -- 1..5
+  quality       TEXT,                      -- killer|good|usable|skip
+  duration      DOUBLE PRECISION NOT NULL, -- seconds, t_out - t_in
+  source_file   TEXT NOT NULL,             -- source video id in footage/
+  t_in          DOUBLE PRECISION NOT NULL,
+  t_out         DOUBLE PRECISION NOT NULL,
+  preview_path  TEXT NOT NULL,             -- relative: "clip-previews/<id>.mp4"
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK (t_out > t_in),
+  CHECK (laugh_score IS NULL OR laugh_score BETWEEN 1 AND 5)
+);
+-- Facet-filter support (CP2: comedian/tag/laugh_score/quality/duration).
+CREATE INDEX IF NOT EXISTS studio_library_clip_comedian_idx    ON studio_library_clip (comedian);
+CREATE INDEX IF NOT EXISTS studio_library_clip_quality_idx     ON studio_library_clip (quality);
+CREATE INDEX IF NOT EXISTS studio_library_clip_laugh_idx       ON studio_library_clip (laugh_score);
+CREATE INDEX IF NOT EXISTS studio_library_clip_duration_idx    ON studio_library_clip (duration);
+CREATE INDEX IF NOT EXISTS studio_library_clip_tags_gin        ON studio_library_clip USING GIN (tags);
 `;
 
 const SEED_DEFAULT_TENANT = `
