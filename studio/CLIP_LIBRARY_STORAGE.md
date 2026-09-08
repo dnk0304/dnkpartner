@@ -59,23 +59,16 @@ rsync runs in a throwaway `instrumentisto/rsync-ssh` container with the previews
 directory and SSH key bind-mounted). Only `*.mp4` and the two JSON files are
 sent; in-progress `.part` files are excluded.
 
-Independent verification server-side, against the manifest:
+Independent verification runs on the box, against the shipped manifest — so it
+reports what actually landed rather than what the sender believes it sent:
 
 ```bash
-cd /data/dnkstudio/clip-previews
-ls -1 *.mp4 | wc -l
-python3 - <<'EOF'
-import hashlib, json, random, os
-m = json.load(open('manifest.json'))
-missing = [c['clip_id'] for c in m['clips'] if not os.path.exists(c['file'])]
-bad = []
-for c in random.sample(m['clips'], min(20, len(m['clips']))):
-    h = hashlib.sha256(open(c['file'], 'rb').read()).hexdigest()
-    if h != c['sha256']:
-        bad.append(c['clip_id'])
-print('manifest', m['count'], 'missing', len(missing), 'checksum_mismatch', bad)
-EOF
+bash tools/verify_previews_remote.sh 20   # sample size, default 20
 ```
+
+It checks file count, per-entry byte size, a random sha256 sample, and each
+sampled preview's real duration against `t_out - t_in` (0.5 s tolerance), and
+exits non-zero on any discrepancy.
 
 ## Metadata
 
