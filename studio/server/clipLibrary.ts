@@ -10,10 +10,12 @@
  *   GET /clips             → filtered + sorted + paginated catalogue
  *   GET /facets            → facet counts for the sidebar (drill-down aware)
  *   GET /clips/:id/preview → Range-capable mp4 stream
- *   GET /health            → {count, files, dir} for the post-deploy check
+ *   GET /clips/:id/poster.jpg → pre-generated still frame (CP2c)
+ *   GET /health            → {count, files, posters, dir} for the post-deploy check
  *
- * PREVIEW DIRECTORY — read `CLIP_PREVIEWS_DIR` (set to /app/data/clip-previews
- * in the container). Do NOT derive it from STUDIO_DATA_DIR: that variable is
+ * PREVIEW / POSTER DIRECTORIES — read `CLIP_PREVIEWS_DIR` and
+ * `CLIP_POSTERS_DIR` (set to /app/data/clip-previews and /app/data/clip-posters
+ * in the container). Do NOT derive either from STUDIO_DATA_DIR: that variable is
  * /app/data/sitebuilder, a per-feature directory, so
  * path.join(STUDIO_DATA_DIR, 'clip-previews') resolves to
  * /app/data/sitebuilder/clip-previews and misses the mount entirely.
@@ -23,6 +25,7 @@
  * Not tenant-scoped: the library is shared house content, matching the CP1 DDL.
  */
 import { Router, Request, Response } from 'express';
+import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getPool, hasDatabaseUrl } from './db/pool.js';
@@ -37,6 +40,17 @@ export function clipPreviewsDir(): string {
   if (fromEnv && fromEnv.trim()) return path.resolve(fromEnv.trim());
   // Local dev fallback — mirrors the container layout under the repo.
   return path.resolve(process.cwd(), 'data', 'clip-previews');
+}
+
+/**
+ * Poster directory — its OWN env var, for the same reason as the previews dir:
+ * deriving it from STUDIO_DATA_DIR would resolve to
+ * /app/data/sitebuilder/clip-posters and miss the bind mount.
+ */
+export function clipPostersDir(): string {
+  const fromEnv = process.env.CLIP_POSTERS_DIR;
+  if (fromEnv && fromEnv.trim()) return path.resolve(fromEnv.trim());
+  return path.resolve(process.cwd(), 'data', 'clip-posters');
 }
 
 // Clip ids are corpus-generated: "<youtube_id>_r001". Anything outside this
@@ -389,10 +403,131 @@ clipLibraryRouter.get('/clips/:id/preview', (req: Request, res: Response) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// GET /clips/:id/poster.jpg — pre-generated still frame (CP2c)
+//
+// The grid paints one of these per tile instead of mounting a <video>, so this
+// is the hottest route in the library. The bytes are produced ahead of time by
+// tools/generate_clip_posters.py; the lazy path below exists only to self-heal
+// a single missing file, never as the primary source.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * On-the-fly poster generation. This is a FALLBACK — in production every
+ * poster is pre-generated. ffmpeg is not guaranteed to exist in the app
+ * container, so every failure mode here must surface as a 404, never a 500.
+ */
+function generatePosterOnce(mp4: string, dest: string): Promise<void> {
+  const tmp = `${dest}.${process.pid}.tmp`;
+  return new Promise((resolve, reject) => {
+    execFile(
+      process.env.FFMPEG_BIN || 'ffmpeg',
+      [
+        '-hide_banner', '-loglevel', 'error', '-nostdin',
+        '-ss', '1.0',
+        '-i', mp4,
+        '-frames:v', '1',
+        '-vf', 'scale=480:-2',
+        '-q:v', '4',
+        '-f', 'image2', '-y', tmp,
+      ],
+      { timeout: 20_000 },
+      (err) => {
+        if (err) {
+          fs.promises.unlink(tmp).catch(() => {});
+          return reject(err);
+        }
+        fs.promises
+          .stat(tmp)
+          .then((st) => {
+            if (st.size === 0) throw new Error('empty poster');
+            return fs.promises.rename(tmp, dest);
+          })
+          .then(resolve)
+          .catch((e) => {
+            fs.promises.unlink(tmp).catch(() => {});
+            reject(e);
+          });
+      }
+    );
+  });
+}
+
+// Coalesce a burst of requests for the same missing poster into one ffmpeg run.
+const posterInFlight = new Map<string, Promise<void>>();
+
+clipLibraryRouter.get('/clips/:id/poster.jpg', async (req: Request, res: Response) => {
+  const rawId = req.params.id;
+  if (typeof rawId !== 'string' || !CLIP_ID_RE.test(rawId)) {
+    return res.status(400).json({ error: 'Invalid clip id' });
+  }
+  const safe = path.basename(rawId);
+  if (safe !== rawId) {
+    return res.status(400).json({ error: 'Invalid clip id' });
+  }
+
+  const file = path.join(clipPostersDir(), `${safe}.jpg`);
+
+  const send = (size: number) => {
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Content-Length', String(size));
+    // Posters are immutable per clip and sit behind the dnkpartner auth gate:
+    // private (no shared proxy) but cacheable in the browser for a week.
+    res.setHeader('Cache-Control', 'private, max-age=604800');
+    if (req.method === 'HEAD') return res.end();
+    const stream = fs.createReadStream(file);
+    stream.on('error', (streamErr) => {
+      console.error('[ClipLibrary] poster stream error:', streamErr);
+      if (!res.headersSent) res.status(500).json({ error: 'Poster read failed' });
+      else res.destroy();
+    });
+    res.on('close', () => stream.destroy());
+    stream.pipe(res);
+  };
+
+  try {
+    const stat = await fs.promises.stat(file);
+    if (stat.isFile() && stat.size > 0) return send(stat.size);
+  } catch {
+    // Fall through to the self-heal path.
+  }
+
+  // Self-heal: only if the source mp4 actually exists.
+  const mp4 = path.join(clipPreviewsDir(), `${safe}.mp4`);
+  try {
+    const src = await fs.promises.stat(mp4);
+    if (!src.isFile()) return res.status(404).json({ error: 'Poster not found' });
+  } catch {
+    return res.status(404).json({ error: 'Poster not found' });
+  }
+
+  try {
+    await fs.promises.mkdir(path.dirname(file), { recursive: true });
+    let job = posterInFlight.get(safe);
+    if (!job) {
+      job = generatePosterOnce(mp4, file).finally(() => posterInFlight.delete(safe));
+      posterInFlight.set(safe, job);
+    }
+    await job;
+    const stat = await fs.promises.stat(file);
+    return send(stat.size);
+  } catch (err) {
+    // Missing ffmpeg, read-only mount, decode failure — all are a missing
+    // poster from the client's point of view. Never 500 the tile grid.
+    console.warn(
+      '[ClipLibrary] poster self-heal failed for %s: %s',
+      safe,
+      err instanceof Error ? err.message : String(err)
+    );
+    return res.status(404).json({ error: 'Poster not found' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // GET /health — Ken's post-deploy check: rows vs files on the mount.
 // ─────────────────────────────────────────────────────────────────────────────
 clipLibraryRouter.get('/health', async (_req: Request, res: Response) => {
   const dir = clipPreviewsDir();
+  const postersDir = clipPostersDir();
 
   let files: number | null = null;
   let dirError: string | undefined;
@@ -401,6 +536,18 @@ clipLibraryRouter.get('/health', async (_req: Request, res: Response) => {
     files = entries.filter((f) => f.endsWith('.mp4')).length;
   } catch (err) {
     dirError = err instanceof Error ? err.message : String(err);
+  }
+
+  // Posters are a separate mount and can legitimately lag the previews (the
+  // generator runs out of band), so a missing/empty poster dir must not flip
+  // `ok` — Ken asserts `posters === files` explicitly instead.
+  let posters: number | null = null;
+  let postersDirError: string | undefined;
+  try {
+    const entries = await fs.promises.readdir(postersDir);
+    posters = entries.filter((f) => f.endsWith('.jpg')).length;
+  } catch (err) {
+    postersDirError = err instanceof Error ? err.message : String(err);
   }
 
   let count: number | null = null;
@@ -419,5 +566,7 @@ clipLibraryRouter.get('/health', async (_req: Request, res: Response) => {
   }
 
   const ok = count !== null && files !== null;
-  res.status(ok ? 200 : 503).json({ count, files, dir, ok, dirError, dbError });
+  res.status(ok ? 200 : 503).json({
+    count, files, posters, dir, postersDir, ok, dirError, postersDirError, dbError,
+  });
 });

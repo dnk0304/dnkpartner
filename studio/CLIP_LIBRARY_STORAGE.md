@@ -14,6 +14,18 @@ persistent bind mount, so a redeploy never touches the bytes.
 | Layout | flat `<clip_id>.mp4` + `manifest.json` + `library_clips.json` |
 | Encode | 480p (`scale=-2:480`) H.264 CRF 26 / AAC 96 k / `+faststart` |
 
+### Posters (CP2c)
+
+| | |
+|---|---|
+| Host path (persistent) | `/data/dnkstudio/clip-posters` |
+| Container path | `/app/data/clip-posters` |
+| Layout | flat `<clip_id>.jpg` |
+| Encode | JPEG, `scale=480:-2`, `-q:v 4` — ~16 KB each, 58.5 MiB for 3867 files |
+
+The clip grid paints one of these per tile instead of mounting a `<video>`, so
+no video bytes are fetched until the user actually presses play.
+
 `/data` is on the box's single 301 GB `/dev/sda1`. The path follows the
 convention already used by the app's two existing mounts
 (`/data/dnkstudio/trends`, `/data/dnkstudio/sitebuilder`).
@@ -37,20 +49,68 @@ This writes one row to Coolify's `local_persistent_volumes`
 (`resource_type = App\Models\Application`, `resource_id = 3`), matching the two
 rows already there. It is additive; nothing else changes.
 
-Server code resolves the directory from its **own** environment variable:
+The posters volume is the same shape, and Ken adds it the same way:
+
+```
+Name:            fhn5fjw36-clip-posters
+Source (host):   /data/dnkstudio/clip-posters
+Destination:     /app/data/clip-posters
+```
+
+Server code resolves **each** directory from its **own** environment variable:
 
 ```
 CLIP_PREVIEWS_DIR=/app/data/clip-previews     # set in the container
+CLIP_POSTERS_DIR=/app/data/clip-posters       # CP2c — must be added
 ```
 
-with a local-dev fallback of `path.resolve(cwd, 'data', 'clip-previews')`.
-See `clipPreviewsDir()` in `server/clipLibrary.ts`.
+with local-dev fallbacks of `path.resolve(cwd, 'data', 'clip-previews')` and
+`path.resolve(cwd, 'data', 'clip-posters')`. See `clipPreviewsDir()` and
+`clipPostersDir()` in `server/clipLibrary.ts`.
 
 > **Do not** derive it from `STUDIO_DATA_DIR` (an earlier revision of this file
 > said to). `STUDIO_DATA_DIR` is `/app/data/sitebuilder` — a *per-feature*
 > directory, not the volume root — so
 > `path.join(process.env.STUDIO_DATA_DIR, 'clip-previews')` resolves to
-> `/app/data/sitebuilder/clip-previews` and misses the mount entirely.
+> `/app/data/sitebuilder/clip-previews` and misses the mount entirely. The same
+> applies to `CLIP_POSTERS_DIR`.
+
+## Poster generation (CP2c)
+
+Posters are pre-generated out of band — never on the request path at scale.
+
+```bash
+# On the Hetzner box. Neither the host nor the studio container ships ffmpeg,
+# so the generator runs in a throwaway python+ffmpeg image (same throwaway-
+# container pattern as tools/sync_previews.sh).
+docker build -t clipposter:1 - <<'EOF'
+FROM python:3.11-slim
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends ffmpeg \
+ && rm -rf /var/lib/apt/lists/*
+EOF
+
+docker run --rm \
+  -v /data/dnkstudio:/data \
+  -v /root/generate_clip_posters.py:/app/gen.py:ro \
+  clipposter:1 python3 /app/gen.py \
+    --previews-dir /data/clip-previews \
+    --posters-dir  /data/clip-posters \
+    --workers 6
+```
+
+Source: `tools/generate_clip_posters.py`. Idempotent and resumable (a jpg that
+exists, is non-empty, and is not older than its mp4 is skipped), PID-locked,
+and isolated per clip so one bad mp4 cannot abort the run. `--force`,
+`--limit N`, `--dry-run` available.
+
+Frame choice: seek to `min(1.0s, duration * 0.1)`; if the resulting still is
+near-uniform (luma stddev < 8, i.e. a black/fade lead-in) retry at
+`duration * 0.35`. 21 of 3867 needed that retry on the first full run.
+
+Full-corpus run 2026-09-09: 3867 generated, 1 failed, 188 s wall, 58.5 MiB.
+The single failure is `b_KwraihYsU_r001` — a 1983-byte, **audio-only** preview
+with no video stream. That is a broken CP1 extraction, not a poster bug; it
+needs re-cutting upstream. Until then its tile 404s.
 
 `studio_library_clip.preview_path`
 stores the volume-relative `clip-previews/<id>.mp4`, so moving the corpus to a
@@ -116,7 +176,18 @@ FROM studio_library_clip ORDER BY random() LIMIT 5;
 | `GET /clips` | filter (`comedian[]`, `tag[]`, `quality[]`, `laugh_min`, `dur_min`, `dur_max`, `q`), `sort`, `page`/`limit` (default 60, max 200) → `{items,total,page,limit,sort}` |
 | `GET /facets` | drill-down counts: comedian, quality, laugh_score, tag (top 100), duration buckets 0-10/10-20/20-40/40+ |
 | `GET /clips/:id/preview` | Range-capable `video/mp4` stream (206 + `Content-Range`), `private, max-age=86400` |
-| `GET /health` | `{count, files, dir, ok}` — DB rows vs `*.mp4` on the mount |
+| `GET /clips/:id/poster.jpg` | pre-generated still frame, `image/jpeg`, `private, max-age=604800` (immutable per clip) |
+| `GET /health` | `{count, files, posters, dir, postersDir, ok}` — DB rows vs `*.mp4` and `*.jpg` on the mounts |
+
+`poster.jpg` self-heals a *single* missing file by shelling out to ffmpeg, but
+that is a fallback only: the studio container has **no ffmpeg**, so in
+production every failure mode of that path — missing binary, read-only mount,
+decode failure — deliberately surfaces as a **404, never a 500**. The grid must
+tolerate a missing poster.
+
+`posters` intentionally does not affect `ok`: the generator runs out of band and
+may legitimately lag the previews. Assert `posters` explicitly in the
+post-deploy check instead.
 
 Read-only; all SQL is parameterised and the sort key is whitelisted. Clip ids
 are validated against `/^[A-Za-z0-9_-]+$/` before touching the filesystem.
