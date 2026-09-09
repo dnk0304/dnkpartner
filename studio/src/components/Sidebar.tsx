@@ -16,6 +16,7 @@ import {
   TrendingUp,
   Rocket,
   Film,
+  LibraryBig,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -260,6 +261,22 @@ export function Sidebar({
             <Film className="w-5 h-5 flex-shrink-0" />
             <span className={cn("text-sm", isCollapsed && "text-[9px] text-center truncate w-full")}>
               {isCollapsed ? "Editor" : "Video Editor"}
+            </span>
+          </button>
+
+          <button
+            onClick={() => onNavigate?.("/clip-library")}
+            className={cn(
+              "w-full flex items-center rounded-lg transition-all",
+              isCollapsed
+                ? "flex-col gap-1 px-1 py-2 justify-center"
+                : "flex-row gap-3 px-3 py-2 text-left",
+              "text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)]"
+            )}
+          >
+            <LibraryBig className="w-5 h-5 flex-shrink-0" />
+            <span className={cn("text-sm", isCollapsed && "text-[9px] text-center truncate w-full")}>
+              {isCollapsed ? "Clips" : "Clip Library"}
             </span>
           </button>
         </div>

@@ -7,6 +7,7 @@ import { AITrends } from './components/AITrends'
 import { HealthDashboard } from './components/HealthDashboard'
 import { VideoEditor } from './components/VideoEditor'
 import { SiteBuilder } from './components/SiteBuilder/SiteBuilder'
+import { ClipLibrary } from './components/ClipLibrary/ClipLibrary'
 import './index.css'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -76,6 +77,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="/health" element={<HealthDashboard />} />
           <Route path="/video-editor" element={<VideoEditor />} />
           <Route path="/site-builder" element={<SiteBuilder />} />
+          <Route path="/clip-library" element={<ClipLibrary />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>
