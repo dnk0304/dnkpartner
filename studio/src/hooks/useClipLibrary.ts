@@ -5,6 +5,9 @@
  * served from `/studio/`, and main.tsx installs a global fetch shim that
  * rewrites `/api/...` → `/studio/api/...`. So these paths must stay relative
  * and un-prefixed — hardcoding `/studio` here would double the prefix.
+ *
+ * The exception is media URLs (poster/preview), which the browser resolves
+ * without going through `fetch`. See MEDIA_BASE below.
  */
 import { useCallback, useMemo } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
@@ -43,9 +46,33 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   return (await res.json()) as T;
 }
 
+/**
+ * Base prefix for URLs that are resolved by the BROWSER, not by `fetch`.
+ *
+ * main.tsx's shim wraps `window.fetch`, so it rewrites `/api/...` for data
+ * calls only. A `<img src>` / `<video src>` never passes through `fetch`, so
+ * the shim cannot see it: in production that URL would resolve against
+ * `dnkpartner.com/api/...`, which is not mounted (verified: 404 at the site
+ * root, while `/studio/api/...` is the real mount).
+ *
+ * So media URLs apply the shim's own rule at build time instead. This is the
+ * same transform, not a bypass — BASE_URL is `/studio/` in prod and `/` in dev,
+ * which is exactly the condition the shim keys off.
+ */
+const MEDIA_BASE = import.meta.env.BASE_URL.replace(/\/$/, '');
+
 /** Stream URL for one clip's 480p preview. Range-served by the API. */
 export function previewUrl(clipId: string): string {
-  return `/api/library/clips/${encodeURIComponent(clipId)}/preview`;
+  return `${MEDIA_BASE}/api/library/clips/${encodeURIComponent(clipId)}/preview`;
+}
+
+/**
+ * Still frame for one clip, pre-generated server-side (CP2c). Returns 404 for
+ * the handful of clips that have no frame to take (audio-only sources), so
+ * every consumer must handle the image failing to load.
+ */
+export function posterUrl(clipId: string): string {
+  return `${MEDIA_BASE}/api/library/clips/${encodeURIComponent(clipId)}/poster.jpg`;
 }
 
 /**

@@ -3,7 +3,8 @@
  *
  * Renders only the rows intersecting the viewport and asks for the next API
  * page as the window nears the loaded tail, so the full 3868-clip corpus
- * scrolls without ever holding more than ~30 <video> elements in the DOM.
+ * scrolls while the DOM holds only the current window's poster <img>s — and,
+ * since CP2c, zero <video> elements until the user presses play on one.
  */
 import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
