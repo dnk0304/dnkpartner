@@ -18,11 +18,11 @@ persistent bind mount, so a redeploy never touches the bytes.
 convention already used by the app's two existing mounts
 (`/data/dnkstudio/trends`, `/data/dnkstudio/sitebuilder`).
 
-### Coolify volume config — NOT YET ATTACHED
+### Coolify volume config — ATTACHED (verified 2026-09-09)
 
-The host directory exists and is populated, but the container mount must be
-added in Coolify and only takes effect on the next deploy. Deploys are owned by
-the release manager — this is deliberately left unattached.
+The mount is live: `docker exec <studio-container> ls /app/data/clip-previews`
+returns the corpus, and `CLIP_PREVIEWS_DIR=/app/data/clip-previews` is set in
+the container environment. Recorded here for rebuild-from-scratch purposes.
 
 Coolify UI → application `fhn5fjw36gie1q3ymnmevtw2` → **Storages** → *Add* →
 Volume Mount:
@@ -37,9 +37,22 @@ This writes one row to Coolify's `local_persistent_volumes`
 (`resource_type = App\Models\Application`, `resource_id = 3`), matching the two
 rows already there. It is additive; nothing else changes.
 
-Server code should resolve the directory as
-`path.join(process.env.STUDIO_DATA_DIR ?? 'data', 'clip-previews')`, the same
-way `siteBuilder.ts` resolves `site-assets`. `studio_library_clip.preview_path`
+Server code resolves the directory from its **own** environment variable:
+
+```
+CLIP_PREVIEWS_DIR=/app/data/clip-previews     # set in the container
+```
+
+with a local-dev fallback of `path.resolve(cwd, 'data', 'clip-previews')`.
+See `clipPreviewsDir()` in `server/clipLibrary.ts`.
+
+> **Do not** derive it from `STUDIO_DATA_DIR` (an earlier revision of this file
+> said to). `STUDIO_DATA_DIR` is `/app/data/sitebuilder` — a *per-feature*
+> directory, not the volume root — so
+> `path.join(process.env.STUDIO_DATA_DIR, 'clip-previews')` resolves to
+> `/app/data/sitebuilder/clip-previews` and misses the mount entirely.
+
+`studio_library_clip.preview_path`
 stores the volume-relative `clip-previews/<id>.mp4`, so moving the corpus to a
 dedicated host or S3 later is an rsync plus a base-URL change — no data
 migration.
@@ -93,4 +106,19 @@ SELECT id, comedian, laugh_score, duration, preview_path
 FROM studio_library_clip ORDER BY random() LIMIT 5;
 ```
 
-No API routes or UI consume this yet — that is CP2/CP3.
+## API (CP2)
+
+`server/clipLibrary.ts`, mounted from `server/index.ts` at `/api/library` and
+`/studio/api/library`:
+
+| Route | Purpose |
+|---|---|
+| `GET /clips` | filter (`comedian[]`, `tag[]`, `quality[]`, `laugh_min`, `dur_min`, `dur_max`, `q`), `sort`, `page`/`limit` (default 60, max 200) → `{items,total,page,limit,sort}` |
+| `GET /facets` | drill-down counts: comedian, quality, laugh_score, tag (top 100), duration buckets 0-10/10-20/20-40/40+ |
+| `GET /clips/:id/preview` | Range-capable `video/mp4` stream (206 + `Content-Range`), `private, max-age=86400` |
+| `GET /health` | `{count, files, dir, ok}` — DB rows vs `*.mp4` on the mount |
+
+Read-only; all SQL is parameterised and the sort key is whitelisted. Clip ids
+are validated against `/^[A-Za-z0-9_-]+$/` before touching the filesystem.
+
+The UI that consumes this is CP2 Part B.

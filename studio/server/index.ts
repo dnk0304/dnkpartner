@@ -47,6 +47,7 @@ import videoRemotionRouter from './videoRemotion.js';
 // Site Builder
 import { siteBuilderRouter } from './siteBuilder.js';
 import { videoProjectsRouter } from './videoProjects.js';
+import { clipLibraryRouter } from './clipLibrary.js';
 import { runStudioMigrations } from './db/studioMigrations.js';
 
 // KDP Mode imports
@@ -8609,6 +8610,22 @@ console.log('[Server] ✅ Site Builder endpoints registered (/api/site-builder)'
 // ==================== VIDEO PROJECTS (autosave) ====================
 app.use('/api/video-projects', videoProjectsRouter);
 console.log('[Server] ✅ Video Project endpoints registered (/api/video-projects)');
+
+// ==================== CLIP LIBRARY (CP2, read-only) ====================
+// Mounted TWICE, deliberately. The dnkpartner front has two rewrites into this
+// container (next.config.ts):
+//   1. `/studio/:path*`     → `<studio>/studio/:path*`   — IS in proxy.ts's
+//      middleware matcher, so it is auth-gated. Paths arrive WITH the /studio
+//      prefix (the destination does not strip it), which is why the SPA's
+//      fetch shim rewrites `/api/...` → `/studio/api/...` in production.
+//   2. `/api/studio/:path*` → `<studio>/api/:path*`      — NOT in the matcher,
+//      therefore NOT auth-gated.
+// Mounting the router under `/studio/api/library` as well means the browser's
+// gated path (1) reaches it instead of falling through to the SPA fallback.
+// Purely additive — no existing route's mount path changes.
+app.use('/api/library', clipLibraryRouter);
+app.use('/studio/api/library', clipLibraryRouter);
+console.log('[Server] ✅ Clip Library endpoints registered (/api/library, /studio/api/library)');
 
 // Studio Postgres schema bootstrap — idempotent CREATE TABLE IF NOT EXISTS.
 // Runs once at startup; logs and continues if DATABASE_URL is unset.

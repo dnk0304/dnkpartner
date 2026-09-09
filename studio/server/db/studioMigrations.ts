@@ -88,7 +88,9 @@ CREATE INDEX IF NOT EXISTS studio_video_project_tenant_idx ON studio_video_proje
 
 -- Clip Library (CP1). Read-mostly catalogue of pre-cut comedy clips.
 -- Rows are imported from the local yt-nova clips.db export; the 480p preview
--- bytes live on the volume at STUDIO_DATA_DIR/clip-previews/<id>.mp4 and
+-- bytes live on the volume at CLIP_PREVIEWS_DIR/<id>.mp4 (the container sets
+-- CLIP_PREVIEWS_DIR=/app/data/clip-previews; it is NOT under STUDIO_DATA_DIR,
+-- which is the per-feature /app/data/sitebuilder) and
 -- preview_path stores that volume-relative name so a later move to a
 -- dedicated host or S3 is a base-URL change only.
 -- Not tenant-scoped: the library is shared house content, not tenant data.
