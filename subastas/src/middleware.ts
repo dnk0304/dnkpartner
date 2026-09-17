@@ -133,6 +133,45 @@ function relocale(path: string, urlHadLocale: boolean): string {
 }
 
 export function middleware(request: NextRequest) {
+  // ---- www → apex 301 (Ken 2026-09-17) -----------------------------------
+  //
+  // MUST BE THE FIRST RULE. Every rule below can itself emit a 301 on the
+  // path; if the host fix ran after one of them, a www URL with a legacy path
+  // would take TWO hops (www+oldpath → www+newpath → apex+newpath). Google
+  // follows chains but discounts them, and a redirect chain is exactly the
+  // crawl-budget waste this rule exists to remove. Host first ⇒ always one hop.
+  //
+  // WHY AT ALL, given the canonical is already right: measured live 2026-09-17,
+  // all 15 sampled www rows served HTTP 200 with a correct apex `<link
+  // rel="canonical">`. So consolidation was never *broken* — Google was picking
+  // the right host. But 246 of the 1,000 URLs in the GSC export are the www
+  // host, i.e. Google is still spending crawl budget fetching a second copy of
+  // every page on a site whose town hubs have not been re-crawled since June.
+  // A 301 stops the duplicate fetches outright instead of paying for them and
+  // then discarding the result.
+  //
+  // EXACT-HOST match, not a `startsWith('www.')` prefix: this must fire for the
+  // production www host and nothing else. localhost, the container's internal
+  // hostname and any preview host fall through untouched, so dev and the
+  // Hetzner health checks are unaffected.
+  //
+  // `request.nextUrl.clone()` carries the pathname AND the query string, so a
+  // redirect never silently drops filter state.
+  //
+  // NOTE: `config.matcher` below excludes `/api/*`, so an API call made against
+  // the www host is NOT redirected. That is deliberate — this is an SEO
+  // canonicalisation rule, and 301-ing an in-flight POST would change its
+  // method semantics. Browsers and crawlers only ever reach pages through the
+  // matched paths.
+  const host = request.headers.get('host')?.toLowerCase().split(':')[0];
+  if (host === 'www.subastasactivas.com') {
+    const url = request.nextUrl.clone();
+    url.host = 'subastasactivas.com';
+    url.protocol = 'https:';
+    url.port = '';
+    return NextResponse.redirect(url, 301);
+  }
+
   // ---- English kill-switch (Dennis 2026-09-02) ---------------------------
   // While ENGLISH_ENABLED is false the site is Spanish-only. Any `/en` or
   // `/en/...` URL 301-redirects to its Spanish equivalent BEFORE any other

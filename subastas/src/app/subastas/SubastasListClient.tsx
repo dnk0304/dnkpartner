@@ -432,7 +432,32 @@ export default function SubastasListClient({
                 </>
               )}
             </h1>
-            {seoTitle && (
+            {/*
+              ⭐ RENDER THE SUBTITLE ONLY ONCE THE COUNT IS REAL (Forge 2026-09-17).
+              `totalCount` is null until the client fetch in this component
+              resolves, and `renderedCount` then falls back to `filtered.length`
+              — which is 0 during SSR, because the rows have not been fetched
+              yet. So every SEO hub server-rendered the literal text
+              "0 subastas (activas + próximas)" directly underneath an H1 that
+              correctly said "Subastas en Calamocha (Teruel)" and a <title> that
+              correctly said "40 subastas en Calamocha".
+
+              Verified live 2026-09-17 on /subastas/teruel/calamocha: 40 active
+              auctions, 24 crawlable detail anchors present in the SSR HTML, and
+              a server-rendered "0 subastas" contradicting both. For a crawler
+              that is a thin/empty-page signal on the exact pages we are trying
+              to get re-crawled, and it is in the raw HTML, so it counts.
+
+              WHY SUPPRESS RATHER THAN SEED A SERVER COUNT. The number that
+              belongs here depends on `filters.when` (activas / proximas /
+              todas / finalizadas), and each of the eight SEO call sites has its
+              own bucket. Passing down whichever count a given page happens to
+              have already computed would put a number here that can disagree
+              with the list rendered beneath it — a wrong number is worse than
+              no number, and the H1/<title> already carry the correct SSR count.
+              Absent until known is the honest signal.
+            */}
+            {seoTitle && totalCount != null && (
               <p className="mt-1 text-sm text-[var(--color-ink-tertiary)] tnum">
                 {t(
                   filters.when === "finalizadas"
