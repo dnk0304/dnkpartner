@@ -178,16 +178,16 @@ export const countIndexableInventory = unstable_cache(
  * gate use. AND-ed with the `inScope` soft-hide gate every catalog surface
  * shares, plus the town/province scope.
  *
- * ⚠️ SCOPE NOTE (Dennis 2026-09-17 content bar). `concludedIndexableWhere()` is
- * now the SQL CANDIDATE set; the full gate adds an in-memory content bar that
- * SQL cannot express (a word count). This count deliberately does NOT apply that
- * bar, so it is a count of CANDIDATES, i.e. an UPPER bound on the town's
- * individually-indexable detail pages. That is the correct input for THIS
- * decision and not a drift: the town page's content block renders the town's
- * finished auctions as crawlable HTML whether or not each one's own detail page
- * clears the bar, so what makes the town non-thin is the inventory existing, not
- * each leaf being indexable. Do NOT "fix" this by importing the in-memory
- * filter — counting would then require loading every row.
+ * ⚠️ SCOPE NOTE (content bar v2, 2026-09-17). v1's bar counted WORDS, which SQL
+ * cannot express, so this count was only an upper bound on the town's
+ * individually-indexable detail pages. v2's predicate is fully SQL-expressible,
+ * so `concludedIndexableWhere()` is again the WHOLE gate and this count is
+ * EXACT — modulo the one documented whitespace asymmetry (see
+ * concluded-indexable.ts), which can only ever make it larger by rows whose
+ * municipality is blank-but-not-null. Either way the direction is safe for THIS
+ * decision: the town page's content block renders the town's finished auctions
+ * as crawlable HTML regardless, so what makes the town non-thin is the inventory
+ * existing, not each leaf being indexable.
  *
  * WHY A SEPARATE COUNT. `countIndexableInventory` (active+upcoming) drives the
  * existing town/province robots decision; this adds the finished dimension.

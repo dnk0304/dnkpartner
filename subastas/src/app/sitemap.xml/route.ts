@@ -121,9 +121,10 @@ async function childLastmods(
       }
       // Concluded: the window is ordered soldDate DESC, so the max lastmod is
       // the first row of the window that SURVIVES the content bar (Dennis
-      // 2026-09-17). `concludedIndexableWhere()` is only the SQL candidate set —
-      // the bar counts words, which SQL cannot express — so taking the literal
-      // first row could report a lastmod for a row this child does not publish.
+      // 2026-09-17). The WHERE expresses the whole predicate under content bar
+      // v2, but the in-memory gate is still the authority (the trim asymmetry),
+      // so taking the literal first row could report a lastmod for a row this
+      // child does not publish.
       // Scan a small head slice and take the first row the real gate accepts;
       // if none of them do, OMIT rather than inventing one (the standing rule).
       const headRows = await prisma.auction.findMany({

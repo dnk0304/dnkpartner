@@ -9,15 +9,12 @@
  * property/vehicle page into a genuinely valuable sold-price comp (high
  * long-tail SEO intent). So we now index the SUBSET that carries real content.
  *
- * THE PREDICATE (Dennis-locked scope). A concluded row is indexable iff ALL:
- *   1. status ∈ concluded terminal set (CONCLUIDA_PORTAL / FINALIZADA_AUTORIDAD /
- *      legacy FINISHED). CANCELADA/CANCELLED are EXCLUDED — a cancelled auction
- *      never produced a sale outcome.
- *   2. category ∈ SEO_CONCLUDED_INDEXABLE_CATEGORIES (12 property+vehicle labels).
- *      Jewelry / machinery / art / furniture / electronics stay noindex.
- *   3. resultCheckedAt IS NOT NULL — the result-check pass actually ran.
- *   4. saleResult ∈ (ADJUDICADA, DESIERTA) — an actual, resolved outcome.
- *      SIN_RESULTADO (undetermined at attempt-cap) is thin → stays noindex.
+ * THE PREDICATE lives in the CONTENT BAR v2 block further down — that block is
+ * the specification, this header is only the background. In one line: a
+ * concluded row is indexable iff it has a terminal status, a resolved outcome
+ * (ADJUDICADA / DESIERTA), a province, a municipality, and at least 2 of the 3
+ * structured signals {date, price, text}. There is no category gate (Dennis:
+ * index the FULL registry) and no prose word count (that was v1).
  *
  * ⚠️ CRITICAL INVARIANT: the sitemap membership query (`concludedIndexableWhere`)
  * and the detail-page robots gate (`isConcludedIndexable`) MUST express the
@@ -40,8 +37,13 @@ import {
 } from '@/lib/seo/auction-outcome';
 
 /**
- * The 12 property + vehicle DB `Auction.category` labels that become indexable
- * once concluded-with-outcome. VERBATIM DB labels (see slugs.ts
+ * ⚠️ MARKETING NOTE ONLY — THIS LIST NO LONGER GATES ANYTHING (2026-09-17).
+ * Dennis ruled the FULL registry is indexed, and `category` is a NON-NULLABLE
+ * column measured 100 % filled, so gating or scoring on it was vacuous. Kept
+ * because Marketing's policy doc refers to these 12 labels as the high-intent
+ * subset, and because catalogue surfaces elsewhere still reason about them.
+ *
+ * The 12 property + vehicle DB `Auction.category` labels. VERBATIM DB labels (see slugs.ts
  * CATEGORY_SLUG_TO_DB_LABEL) — a typo here silently drops a whole category.
  *   Properties (8): Viviendas, Otros inmuebles, Garajes, Naves industriales,
  *                   Fincas rústicas, Terrenos, Locales, Trasteros
@@ -82,8 +84,8 @@ export const SEO_CONCLUDED_STATUSES: readonly AuctionStatus[] = [
  */
 export const SEO_INDEXABLE_SALE_RESULTS = SALE_RESULTS_FOR_INDEXABLE_OUTCOME;
 
-const CATEGORY_SET = new Set<string>(SEO_CONCLUDED_INDEXABLE_CATEGORIES);
 const STATUS_SET = new Set<string>(SEO_CONCLUDED_STATUSES);
+const SALE_RESULT_SET = new Set<string>(SEO_INDEXABLE_SALE_RESULTS.map(String));
 
 /**
  * RECENCY FLOOR (wave-seoslug, Ken/Dennis 2026-08-03). A concluded auction that
@@ -156,46 +158,60 @@ export function concludedRecencyCutoff(now: Date = new Date()): Date {
 }
 
 /**
- * ⭐ CONTENT BAR (Dennis 2026-09-17, codifying Marketing's policy doc).
+ * ⭐ CONTENT BAR v2 — STRUCTURED SIGNALS, NOT PROSE LENGTH
+ * (Dennis 2026-09-17 "we should index the full registry"; Ken's ruling, same day.)
  *
- * RULING: "we should also index finished auctions, those are pages we have
- * filled with all the info about the auctions and redirect links to the official
- * one. Keep noindex only for genuinely empty/placeholder records."
+ * v1 (earlier the same day) gated on `lotDescription + propertyDescription >= 40
+ * words`. Measured on prod that single arm noindexed **108,015 of 175,145**
+ * concluded-with-outcome rows (62 %) — while every one of those rows already
+ * renders a full canonical page (address-derived title, location, outcome,
+ * dates, price). A word count over scraped BOE prose is a proxy for "is this a
+ * real page", and it was a bad one: BOE writes one-line lot descriptions for
+ * perfectly complete auctions.
  *
- * This REPLACES the wave142 outcome gate (`resultCheckedAt` + saleResult ∈
- * {ADJUDICADA, DESIERTA}) as the indexability rule. That gate asked "did the
- * result-check pass resolve a sale outcome?" — a question about our own pipeline,
- * not about whether the page has anything on it. A concluded auction with a full
- * property description, an address, a valuation and the BOE link is a useful page
- * whether or not we ever determined who bought it; a SIN_RESULTADO row was being
- * noindexed for a reason the visitor cannot see.
+ * v2 asks the question directly — does the row carry the STRUCTURED FACTS the
+ * page is built out of?
  *
- * "Genuinely empty/placeholder" is now DEFINED, not implied — Marketing's bar:
+ *   REQUIRED (all four):
+ *     1. status ∈ SEO_CONCLUDED_STATUSES (CANCELADA excluded — never sold).
+ *     2. saleResult ∈ {ADJUDICADA, DESIERTA} — a resolved outcome. This is the
+ *        "not a stub" arm: no outcome ⇒ placeholder shell ⇒ noindex.
+ *     3. province present.
+ *     4. municipality present. Second half of the stub arm — a municipality-less
+ *        row renders a placeholder H1.
+ *   PLUS at least SEO_CONCLUDED_MIN_DATA_SIGNALS (2) of THREE signals:
+ *     S1 date  — endsAt OR soldDate
+ *     S2 price — soldPrice OR valorSubasta (the auction's starting value)
+ *     S3 text  — lotDescription with >= 1 word, OR an address
  *
- *   1. A real description: >= SEO_CONCLUDED_MIN_DESCRIPTION_WORDS words across
- *      the prose we store (lotDescription + propertyDescription combined).
- *      This is the load-bearing filter — a shell row has no prose.
- *   2. A location: a non-empty `municipality`. Province alone is too coarse to
- *      make a distinct page; a municipality-less row renders a placeholder H1.
- *   3. At least SEO_CONCLUDED_MIN_DATA_SIGNALS of the corroborating signals
- *      below.
+ * ⚠️ WHY `category` IS NOT A SIGNAL AND NOT A GATE (Ken, 2026-09-17).
+ * `Auction.category` is `String` — NON-NULLABLE, and measured 100.00 % filled on
+ * the population (175,148/175,148). Scoring it would have turned "≥ 2 of 4" into
+ * "≥ 1 of 3" with nothing visibly failing. Keeping it as a *required* arm would
+ * be the same vacuous test wearing a different hat. Dennis ruled the FULL
+ * registry gets indexed, so the 12-label allow-list above is now a MARKETING
+ * NOTE only (see SEO_CONCLUDED_INDEXABLE_CATEGORIES) — it decides nothing here.
+ * Same family as the `boeId` trap v1 already documented.
  *
- * ⚠️ WHY `boeId` IS NOT ONE OF THE SIGNALS. `Auction.boeId` is `String @unique`
- * — NON-NULLABLE. Every row has one. Including it as the "court/BOE reference"
- * signal would make that signal unconditionally true and quietly turn a
- * "2 of 4" bar into a "1 of 3" bar. The BOE reference signal therefore reads
- * ONLY the nullable court columns. (The official-source LINK Dennis refers to is
- * built from boeId and is present on every page regardless — it is not evidence
- * of content, so it must not score as such.)
+ * ⚠️ HONEST NOTE ON SIGNAL FILL RATES (measured on prod 2026-09-17, n=175,148).
+ * S1 date 100.00 % · S3 text 99.65 % · S2 price 98.23 %. By the rule stated in
+ * `scripts/seo/concluded-indexable-census.mjs` (any signal >= 99 % filled is
+ * vacuous), S1 and S3 carry almost no information TODAY, so "2 of 3" resolves in
+ * practice to "has a price, or has both of the other two". This is written down
+ * rather than left to be discovered, and it is NOT a reason to invent a harder
+ * bar: Dennis's ruling is that the registry IS the content. The signals stay
+ * because they are the arms that would actually fire if the scraper ever started
+ * writing shells again. Re-run the census before trusting these numbers.
  *
- * ⚠️ HONEST NOTE ON `endsAt`. On concluded rows endsAt is near-universally
- * populated (concluded-indexable's own recency floor relies on exactly that).
- * So in practice this bar resolves to: 40-word description + municipality +
- * endsAt + ONE of {price, cadastralRef, court reference}. That is stated here
- * rather than left for someone to discover, and it is still a real bar: the
- * word count is what actually excludes placeholder rows.
+ * ⭐ HOW THE INVARIANT IS ENFORCED NOW. v1's doctrine was "the WHERE is only a
+ * candidate set, because SQL cannot count words". v2's predicate is fully
+ * SQL-expressible, so the file goes back to the stronger contract: every arm is
+ * declared ONCE below as a `{ test, where }` pair, and BOTH `isConcludedIndexable`
+ * and `concludedIndexableWhere` are assembled from that one list by the same
+ * combinator. They cannot drift, because there is nothing to keep in sync.
+ * (`concluded-content-bar.test.ts` feeds shared fixtures through both and asserts
+ * equality.)
  */
-export const SEO_CONCLUDED_MIN_DESCRIPTION_WORDS = 40;
 
 /** How many corroborating data signals a concluded page needs. */
 export const SEO_CONCLUDED_MIN_DATA_SIGNALS = 2;
@@ -203,23 +219,21 @@ export const SEO_CONCLUDED_MIN_DATA_SIGNALS = 2;
 /** Minimal row shape the in-memory predicate needs (detail-page gate). */
 export interface ConcludedIndexableRow {
   status: string | null | undefined;
-  category: string | null | undefined;
-  /** Location component of the content bar. */
-  municipality?: string | null | undefined;
-  /** Prose components — combined for the word count. */
-  lotDescription?: string | null | undefined;
-  propertyDescription?: string | null | undefined;
-  /** Corroborating signals. */
-  appraisalValue?: number | null | undefined;
-  valorSubasta?: number | null | undefined;
-  cadastralRef?: string | null | undefined;
-  courtName?: string | null | undefined;
-  courtReference?: string | null | undefined;
-  /** Retained for `hasConcludedOutcome` (the teaser's sold-price block). */
   saleResult?: SaleResult | string | null | undefined;
-  resultCheckedAt?: Date | null | undefined;
-  /** Auction end date — recency floor input AND one of the data signals. */
+  province?: string | null | undefined;
+  municipality?: string | null | undefined;
+  /** S1 — date. */
   endsAt: Date | null | undefined;
+  soldDate?: Date | null | undefined;
+  /** S2 — price. soldPrice is BigInt CENTS; valorSubasta a Float in euros. */
+  soldPrice?: bigint | number | null | undefined;
+  valorSubasta?: number | null | undefined;
+  /** S3 — text. */
+  lotDescription?: string | null | undefined;
+  address?: string | null | undefined;
+  /** Retained for `hasConcludedOutcome` (the teaser's sold-price block). */
+  category?: string | null | undefined;
+  resultCheckedAt?: Date | null | undefined;
 }
 
 /** A string that carries actual content (not null, not blank). */
@@ -227,155 +241,210 @@ function filled(s: string | null | undefined): boolean {
   return typeof s === 'string' && s.trim() !== '';
 }
 
-/**
- * Word count across the stored prose. Whitespace-split on the trimmed join —
- * deliberately crude, because the input is scraped BOE prose and any smarter
- * tokenizer would just be a second thing to keep in sync.
- */
-export function concludedDescriptionWords(row: ConcludedIndexableRow): number {
-  const prose = [row.lotDescription, row.propertyDescription]
-    .filter(filled)
-    .join(' ')
-    .trim();
-  return prose === '' ? 0 : prose.split(/\s+/).length;
+/** A real amount. `> 0` — a scraped 0 is a missing value wearing a number. */
+function positive(v: bigint | number | null | undefined): boolean {
+  if (v == null) return false;
+  return typeof v === 'bigint' ? v > BigInt(0) : Number.isFinite(v) && v > 0;
 }
 
 /**
- * How many corroborating data signals this row carries. See the content-bar
- * doc above for why `boeId` is deliberately absent from this list.
+ * One arm of the predicate, declared ONCE: the in-memory test and the Prisma
+ * fragment that must mean the same thing, side by side on the same line.
  */
+interface PredicateArm {
+  readonly key: string;
+  readonly test: (row: ConcludedIndexableRow) => boolean;
+  readonly where: Prisma.AuctionWhereInput;
+}
+
+/**
+ * Non-empty-string fragment. Both clauses are spelled out rather than relying
+ * on SQL's three-valued logic to make `<> ''` also drop NULLs.
+ *
+ * ⚠️ THE ONE DELIBERATE ASYMMETRY. The in-memory `filled()` TRIMS; Prisma has no
+ * `trim()` / `length()` filter, so a whitespace-only value passes the SQL
+ * fragment and fails the in-memory test. That is the SAFE direction — the WHERE
+ * stays a superset, so `sitemap ⊆ indexable` still holds — and both sitemap call
+ * sites re-apply `isConcludedIndexable` in memory. Measured on prod: 0 rows in
+ * the population have a whitespace-only province / municipality / lotDescription
+ * / address, so the asymmetry is currently empty as well as safe. The census
+ * re-counts it every run.
+ */
+function nonEmpty(
+  field: 'province' | 'municipality' | 'lotDescription' | 'address',
+): Prisma.AuctionWhereInput {
+  return { AND: [{ [field]: { not: null } }, { NOT: { [field]: '' } }] } as Prisma.AuctionWhereInput;
+}
+
+/** REQUIRED arms — all must hold. */
+const CONCLUDED_REQUIRED_ARMS: readonly PredicateArm[] = [
+  {
+    key: 'status',
+    test: (r) => r.status != null && STATUS_SET.has(r.status),
+    where: { status: { in: [...SEO_CONCLUDED_STATUSES] } },
+  },
+  {
+    key: 'outcome',
+    test: (r) => r.saleResult != null && SALE_RESULT_SET.has(String(r.saleResult)),
+    where: { saleResult: { in: [...SEO_INDEXABLE_SALE_RESULTS] } },
+  },
+  { key: 'province', test: (r) => filled(r.province), where: nonEmpty('province') },
+  { key: 'municipality', test: (r) => filled(r.municipality), where: nonEmpty('municipality') },
+] as const;
+
+/** SIGNAL arms — at least SEO_CONCLUDED_MIN_DATA_SIGNALS must hold. */
+const CONCLUDED_SIGNAL_ARMS: readonly PredicateArm[] = [
+  {
+    key: 'date',
+    test: (r) => r.endsAt != null || r.soldDate != null,
+    where: { OR: [{ endsAt: { not: null } }, { soldDate: { not: null } }] },
+  },
+  {
+    key: 'price',
+    test: (r) => positive(r.soldPrice) || positive(r.valorSubasta),
+    where: { OR: [{ soldPrice: { gt: 0 } }, { valorSubasta: { gt: 0 } }] },
+  },
+  {
+    key: 'text',
+    test: (r) => filled(r.lotDescription) || filled(r.address),
+    where: { OR: [nonEmpty('lotDescription'), nonEmpty('address')] },
+  },
+] as const;
+
+/** Every arm key, in declaration order — for the census and the tests. */
+export const CONCLUDED_REQUIRED_KEYS: readonly string[] = CONCLUDED_REQUIRED_ARMS.map((a) => a.key);
+export const CONCLUDED_SIGNAL_KEYS: readonly string[] = CONCLUDED_SIGNAL_ARMS.map((a) => a.key);
+
+/** How many of the three structured signals this row carries. */
 export function concludedDataSignals(row: ConcludedIndexableRow): number {
-  let n = 0;
-  // Price — any real valuation. `> 0` because a scraped 0 is a missing value
-  // wearing a number, and `!= null` alone would score it.
-  if ((row.appraisalValue ?? 0) > 0 || (row.valorSubasta ?? 0) > 0) n += 1;
-  if (filled(row.cadastralRef)) n += 1;
-  // Court reference — NULLABLE columns only (never boeId; see above).
-  if (filled(row.courtReference) || filled(row.courtName)) n += 1;
-  if (row.endsAt != null) n += 1;
-  return n;
+  return CONCLUDED_SIGNAL_ARMS.reduce((n, a) => n + (a.test(row) ? 1 : 0), 0);
+}
+
+/** Which arms a row FAILS — drives the census's "by failing arm" table. */
+export function concludedFailingArms(row: ConcludedIndexableRow): string[] {
+  const failed = CONCLUDED_REQUIRED_ARMS.filter((a) => !a.test(row)).map((a) => a.key);
+  if (concludedDataSignals(row) < SEO_CONCLUDED_MIN_DATA_SIGNALS) failed.push('signals');
+  return failed;
+}
+
+/** All k-sized subsets of `xs`, in index order. */
+function combinations<T>(xs: readonly T[], k: number): T[][] {
+  if (k <= 0) return [[]];
+  if (k > xs.length) return [];
+  const [head, ...rest] = xs;
+  return [...combinations(rest, k - 1).map((c) => [head, ...c]), ...combinations(rest, k)];
 }
 
 /**
- * ⭐ THE CONTENT BAR. True when a concluded row is a real page rather than a
- * placeholder shell. Status/category scope + description + location + signals.
- * Carries NO recency floor — that is a crawl-budget concern layered on top by
- * `isConcludedIndexable`.
+ * "At least k of these arms" as one Prisma fragment: the OR of every k-sized
+ * AND-combination. For 2-of-3 that is 3 branches — small and index-friendly.
+ * Generated from the SAME arm list the in-memory count walks, so the threshold
+ * can move without anyone hand-editing a boolean expression.
+ */
+function atLeastWhere(arms: readonly PredicateArm[], k: number): Prisma.AuctionWhereInput {
+  if (k <= 0) return {};
+  return { OR: combinations(arms, k).map((c) => ({ AND: c.map((a) => a.where) })) };
+}
+
+/**
+ * ⭐ THE CONTENT BAR (v2). True when a concluded row is a real registry entry
+ * rather than a placeholder shell. Carries NO recency floor — that is a
+ * crawl-budget concern layered on top by `isConcludedIndexable`.
  */
 export function hasConcludedContent(row: ConcludedIndexableRow): boolean {
   return (
-    row.status != null &&
-    STATUS_SET.has(row.status) &&
-    row.category != null &&
-    CATEGORY_SET.has(row.category) &&
-    filled(row.municipality) &&
-    concludedDescriptionWords(row) >= SEO_CONCLUDED_MIN_DESCRIPTION_WORDS &&
+    CONCLUDED_REQUIRED_ARMS.every((a) => a.test(row)) &&
     concludedDataSignals(row) >= SEO_CONCLUDED_MIN_DATA_SIGNALS
   );
 }
 
 /**
- * In-memory predicate — used by the detail-page robots gate. A concluded row is
- * indexable iff it is in a concluded terminal status, in the SEO category set,
- * has actually been result-checked, AND its canonical OUTCOME is SEO-indexable
- * (VENDIDA or DESIERTA — see auction-outcome.ts). The outcome membership is the
- * single source of truth for "sold or deserted"; the status/category/checked
- * gates are the orthogonal "is it a concluded page we index" scope. Compares
- * against string Sets so it accepts either the raw enum value or its string
- * form.
+ * The recency floor, as a predicate. Split out so the floor-disabled case adds
+ * NO constraint at all: the old code kept `endsAt >= epoch`, which still
+ * required a non-null `endsAt` and so quietly excluded the 423 rows that carry
+ * only a `soldDate` — "floor disabled ⇒ whole corpus eligible" (the doc above)
+ * was not actually true. It is now.
+ */
+function passesRecencyFloor(row: ConcludedIndexableRow, now: Date): boolean {
+  if (SEO_CONCLUDED_FLOOR_DISABLED) return true;
+  return row.endsAt != null && row.endsAt >= concludedRecencyCutoff(now);
+}
+
+function recencyFloorWhere(now: Date): Prisma.AuctionWhereInput {
+  if (SEO_CONCLUDED_FLOOR_DISABLED) return {};
+  return { endsAt: { gte: concludedRecencyCutoff(now) } };
+}
+
+/**
+ * In-memory predicate — the detail-page robots gate, and the in-memory half of
+ * sitemap membership. Content bar + the operator-controlled recency floor.
+ *
+ * ⚠️ PROD RUNS WITH `SEO_CONCLUDED_MAX_AGE_MONTHS=0` (verified in the container
+ * by Ken 2026-09-17), i.e. the floor is OFF and this equals `hasConcludedContent`.
+ * The floor is left in place because widening it is Ken's phased GSC ramp, not a
+ * code change — see SEO_CONCLUDED_MAX_AGE_MONTHS above.
  */
 export function isConcludedIndexable(row: ConcludedIndexableRow, now: Date = new Date()): boolean {
-  return (
-    // ⭐ CONTENT BAR, not the old sale-outcome gate (Dennis 2026-09-17).
-    hasConcludedContent(row) &&
-    // Recency floor — mirrors the `endsAt >= cutoff` in concludedIndexableWhere().
-    // Only the CRAWL gate (robots meta + sitemap membership) applies it; content
-    // presence (the teaser) uses hasConcludedOutcome and shows old comps freely.
-    row.endsAt != null &&
-    row.endsAt >= concludedRecencyCutoff(now)
-  );
+  return hasConcludedContent(row) && passesRecencyFloor(row, now);
 }
 
 /**
  * Content-presence predicate: does this concluded row carry a real, displayable
- * sale outcome? Identical to isConcludedIndexable MINUS the recency floor. Used
- * by the teaser (a user who lands on an old — noindexed — sold page should still
- * see the sold-price block; recency is a crawl-budget concern, not a content
- * one). Do NOT use this for robots/sitemap — those must carry the recency floor.
+ * sale outcome? Used by the teaser's sold-price block, which must be a SUPERSET
+ * of the index gate — an indexable page whose outcome block is hidden is exactly
+ * the thin page this predicate exists to avoid.
+ *
+ * The category gate was REMOVED here together with the one in the content bar
+ * (Dennis's full-registry ruling): keeping it would have made 2,539 indexable
+ * off-taxonomy rows render without their outcome block. It remains recency-FREE
+ * on purpose — a visitor landing on an old sold page still sees the sold price.
  */
 export function hasConcludedOutcome(
-  row: Pick<ConcludedIndexableRow, 'status' | 'category' | 'saleResult' | 'resultCheckedAt'>,
+  row: Pick<ConcludedIndexableRow, 'status' | 'saleResult' | 'resultCheckedAt'>,
 ): boolean {
   return (
     row.status != null &&
     STATUS_SET.has(row.status) &&
-    row.category != null &&
-    CATEGORY_SET.has(row.category) &&
     row.resultCheckedAt != null &&
     isSeoIndexableOutcome(auctionOutcome({ status: row.status, saleResult: row.saleResult }))
   );
 }
 
 /**
- * Prisma WHERE fragment — the CANDIDATE query for sitemap membership.
+ * Prisma WHERE fragment for sitemap membership — assembled from the SAME arm
+ * list as `isConcludedIndexable`, so the two express the IDENTICAL predicate
+ * (modulo the documented whitespace asymmetry, which leaves the WHERE a
+ * superset — the safe direction: a sitemap URL must never render `noindex`).
  *
- * ⚠️ THE INVARIANT, RESTATED PRECISELY (changed 2026-09-17 — read this).
- *
- * The old doctrine was "this WHERE and the in-memory gate express the IDENTICAL
- * predicate". That is no longer achievable and pretending otherwise would be the
- * bug: the content bar counts WORDS across two prose columns, and Prisma cannot
- * express a string length — there is no `length()` filter. The invariant that
- * actually matters is not equality, it is DIRECTION:
- *
- *     sitemap membership  ⊆  the page index gate
- *
- * A sitemap URL that renders `noindex` is a self-inflicted GSC error
- * ("Submitted URL marked noindex"). A page that is indexable but absent from the
- * sitemap is merely undiscovered — worse for traffic, harmless for trust. Subset
- * is the safe direction, so this WHERE is the CANDIDATE set and callers MUST
- * apply `isConcludedIndexable` in memory to the rows they fetch. Both sitemap
- * call sites do (sitemap-entries.ts, sitemap.xml/route.ts); do not add a third
- * that skips it.
- *
- * Everything expressible in SQL is enforced here so the in-memory pass has as
- * little to reject as possible and the children stay close to full:
- *   - status / category scope
- *   - a non-empty municipality (the location half of the bar)
- *   - the recency floor
- *
- * The outcome gate (`resultCheckedAt` + saleResult) is GONE — it was the wave142
- * rule Dennis's 2026-09-17 ruling replaced. `SEO_INDEXABLE_SALE_RESULTS` stays
- * exported because `hasConcludedOutcome` (the teaser's sold-price block) still
- * uses that taxonomy; it simply no longer decides indexability.
+ * Callers still apply `isConcludedIndexable` in memory to the rows they fetch.
+ * Both sitemap call sites do (sitemap-entries.ts, sitemap.xml/route.ts); do not
+ * add a third that skips it.
  */
 export function concludedIndexableWhere(now: Date = new Date()): Prisma.AuctionWhereInput {
   return {
-    status: { in: [...SEO_CONCLUDED_STATUSES] },
-    category: { in: [...SEO_CONCLUDED_INDEXABLE_CATEGORIES] },
-    // Location half of the content bar. Both clauses are spelled out rather than
-    // relying on SQL's three-valued logic to make `<> ''` also drop NULLs.
-    AND: [{ municipality: { not: null } }, { NOT: { municipality: '' } }],
-    // Recency floor — drop stale sold-comps (see SEO_CONCLUDED_MAX_AGE_MONTHS).
-    endsAt: { gte: concludedRecencyCutoff(now) },
+    AND: [
+      ...CONCLUDED_REQUIRED_ARMS.map((a) => a.where),
+      atLeastWhere(CONCLUDED_SIGNAL_ARMS, SEO_CONCLUDED_MIN_DATA_SIGNALS),
+      recencyFloorWhere(now),
+    ],
   };
 }
 
 /**
- * The columns `isConcludedIndexable` reads. Every sitemap call site selects
- * EXACTLY this so the in-memory filter can never be starved of a field and
- * silently reject rows that actually qualify (a dropped field in a select is a
- * one-way failure — it looks like "fewer rows qualified", not like a bug).
+ * The columns `isConcludedIndexable` reads. Every call site selects EXACTLY this
+ * so the in-memory filter can never be starved of a field and silently reject
+ * rows that actually qualify (a dropped field in a select is a one-way failure —
+ * it looks like "fewer rows qualified", not like a bug).
  */
 export const CONCLUDED_INDEXABLE_SELECT = {
   status: true,
-  category: true,
+  saleResult: true,
+  province: true,
   municipality: true,
-  lotDescription: true,
-  propertyDescription: true,
-  appraisalValue: true,
-  valorSubasta: true,
-  cadastralRef: true,
-  courtName: true,
-  courtReference: true,
   endsAt: true,
+  soldDate: true,
+  soldPrice: true,
+  valorSubasta: true,
+  lotDescription: true,
+  address: true,
 } as const;

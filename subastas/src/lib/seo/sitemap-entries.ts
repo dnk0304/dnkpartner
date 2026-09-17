@@ -188,12 +188,13 @@ export async function buildSitemapEntries(
         skip: chunk.skip,
         take: CHILD_SITEMAP_SIZE,
       });
-      // ⭐ THE IN-MEMORY HALF OF THE MEMBERSHIP RULE (Dennis 2026-09-17).
-      // `concludedIndexableWhere()` is only the CANDIDATE query — the content
-      // bar counts words across two prose columns and SQL cannot express a
-      // string length. Applying the real gate here is what keeps
-      // `sitemap ⊆ indexable` true, i.e. what stops us publishing a URL that
-      // renders noindex. See concluded-indexable.ts's invariant note.
+      // ⭐ THE IN-MEMORY HALF OF THE MEMBERSHIP RULE.
+      // With content bar v2 the WHERE expresses the WHOLE predicate, so this
+      // filter should reject nothing — except the one documented asymmetry
+      // (Prisma cannot trim, so a blank-but-not-null string clears SQL and fails
+      // the gate). Keeping it is what makes `sitemap ⊆ indexable` structurally
+      // true rather than true-by-inspection: it stops us ever publishing a URL
+      // that renders noindex. See concluded-indexable.ts's invariant note.
       //
       // Filtering AFTER skip/take is deliberate: the skip window is computed on
       // the SQL-ordered candidate set, so a given URL stays in the SAME child

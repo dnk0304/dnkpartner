@@ -180,13 +180,14 @@ export async function AuctionTeaser({ data }: { data: AuctionTeaserData }) {
   // Concluded-outcome block. Gated on CONTENT PRESENCE (hasConcludedOutcome),
   // NOT on indexability. It is a SUPERSET of isConcludedIndexable: every
   // indexed concluded page renders the block (so it can never look thin), and
-  // old pages that fell below the 24-month recency floor still render it for
-  // the human even though they are noindex,follow. Do NOT "tidy" this back to
-  // isConcludedIndexable — that would silently blank the outcome on ~145k
-  // pages. Aggregate financial fact only.
+  // old pages that fall below the recency floor (when it is on) still render it
+  // for the human even though they are noindex,follow. Do NOT "tidy" this back
+  // to isConcludedIndexable — that would silently blank the outcome on ~145k
+  // pages. The category arm was dropped from BOTH predicates on 2026-09-17
+  // (full-registry ruling), which is what keeps this a superset. Aggregate
+  // financial fact only.
   const showResult = hasConcludedOutcome({
     status: data.status,
-    category: data.category,
     saleResult: data.saleResult ?? null,
     resultCheckedAt: data.resultCheckedAt ? new Date(data.resultCheckedAt) : null,
   });
