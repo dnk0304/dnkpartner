@@ -40,6 +40,11 @@ import {
 // for the finished-only town count AND the "recent results" content block, so
 // the town index tier can never fork from the sitemap/detail-page gate.
 import { concludedIndexableWhere } from '@/lib/seo/concluded-indexable';
+import {
+  buildHubLastmodIndex,
+  resolveTownLastmod,
+  type HubLastmodIndex,
+} from '@/lib/seo/hub-lastmod';
 
 /**
  * "Active" auctions for the count-in-title.
@@ -1135,13 +1140,40 @@ async function _municipalityPairs(where: Prisma.AuctionWhereInput): Promise<
      * the URL and its lastmod come from the same fold, so they cannot drift.
      */
     dbNames: string[];
+    /**
+     * `max(updatedAt)` over the rows this pair was folded from, as an ISO
+     * string, or `undefined` when none carried a date. Sourced from the SAME
+     * `groupBy` and the SAME `where` that minted the URL, so the sitemap's
+     * `<lastmod>` can never again be computed over a narrower row set than the
+     * URL was (wave215: the map was active-only while the URLs were all-status,
+     * so 4,978 of 5,595 town hubs shipped dateless — see `hub-lastmod.ts`).
+     *
+     * ⚠️ ISO STRING, NOT `Date`, AND THE SUFFIX IS LOAD-BEARING. Both pair
+     * helpers below are wrapped in `unstable_cache`, which round-trips its
+     * value through JSON. A `Date` declared here therefore arrives at the
+     * caller as a `string` that TypeScript still believes is a `Date` — tsc,
+     * the unit suite and `next build` all stay green and `/sitemap/0.xml`
+     * 500s at request time on `lastModified.toISOString()`. Caught on a local
+     * fixture run 2026-09-17; the name is what keeps the revival explicit at
+     * the one call site that needs a `Date`.
+     */
+    lastModifiedISO?: string;
   }>
 > {
   const rows = await prisma.auction.groupBy({
     by: ['province', 'municipality'],
     where,
     _count: { _all: true },
+    _max: { updatedAt: true },
   });
+
+  const lastmodIndex = buildHubLastmodIndex(
+    rows.map((r) => ({
+      province: r.province,
+      municipality: r.municipality,
+      updatedAt: r._max?.updatedAt ?? null,
+    })),
+  );
 
   const byProvince = new Map<string, Array<{ name: string | null; total: number }>>();
   for (const r of rows) {
@@ -1161,6 +1193,7 @@ async function _municipalityPairs(where: Prisma.AuctionWhereInput): Promise<
     count: number;
     municipalityName: string;
     dbNames: string[];
+    lastModifiedISO?: string;
   }> = [];
   for (const [provinceKey, list] of byProvince) {
     const provinceSlug = PROVINCE_DB_KEY_TO_SLUG[provinceKey];
@@ -1176,6 +1209,7 @@ async function _municipalityPairs(where: Prisma.AuctionWhereInput): Promise<
         count: m.total,
         municipalityName: m.name,
         dbNames: m.dbNames,
+        lastModifiedISO: resolveTownLastmod(lastmodIndex, provinceKey, m.dbNames)?.toISOString(),
       });
     }
   }
@@ -1212,6 +1246,32 @@ const allMunicipalityPairsCached = unstable_cache(
 /** Switch state rides in the cache key — this feeds the SITEMAP. */
 export function allMunicipalityPairs() {
   return allMunicipalityPairsCached(archiveWhitelistCacheKey());
+}
+
+/**
+ * `max(updatedAt)` per raw DB province key over ALL auction rows.
+ *
+ * Same rule as the town hubs (see `hub-lastmod.ts`): a province hub renders its
+ * whole history, so its `<lastmod>` is the max over every row in the province,
+ * not over the currently-active subset. One `groupBy` on the indexed `province`
+ * column — 52 groups, no row scan into userland.
+ *
+ * NOT `unstable_cache`d: the only caller is the sitemap builder, whose own
+ * route is already revalidated, and a stale date here is the one thing this
+ * whole fix exists to avoid.
+ */
+export async function provinceLastmodIndex(): Promise<HubLastmodIndex> {
+  const rows = await prisma.auction.groupBy({
+    by: ['province'],
+    _max: { updatedAt: true },
+  });
+  return buildHubLastmodIndex(
+    rows.map((r) => ({
+      province: r.province,
+      municipality: null,
+      updatedAt: r._max?.updatedAt ?? null,
+    })),
+  );
 }
 
 /** Active-count per category label (for sitemap / threshold check). */

@@ -48,7 +48,13 @@ import {
   slugify,
   type CategorySlug,
 } from '@/lib/seo/slugs';
-import { categoryActiveCounts, activeMunicipalityPairs, allMunicipalityPairs } from '@/lib/seo/page-data';
+import {
+  categoryActiveCounts,
+  activeMunicipalityPairs,
+  allMunicipalityPairs,
+  provinceLastmodIndex,
+} from '@/lib/seo/page-data';
+import type { HubLastmodIndex } from '@/lib/seo/hub-lastmod';
 import { buildAuctionSlug } from '@/lib/seo/auction-slug';
 /**
  * URL-v3 (2026-08-04): detail urls in the sitemap now come from the SAME
@@ -257,58 +263,45 @@ export async function buildAggregationEntries(): Promise<SitemapUrlEntry[]> {
   // Google to stop trusting `lastmod` for the whole domain — the opposite of
   // what we need mid-URL-migration.
   //
-  // A province/town hub renders the ACTIVE auctions in its scope (the hub query
-  // is active-gated), so the honest "last modified" for a hub is the newest
-  // `updatedAt` among the active rows it actually shows. That set is 1,154 rows
-  // corpus-wide, so this is ONE tiny indexed read, not a 241k aggregate — it
-  // costs less than the town-pair query already running below it.
+  // SUPERSEDED (2026-09-17): that fix then said a hub renders only its ACTIVE
+  // auctions. Phase C made that false — since 2026-09-07 a town hub indexes on
+  // ANY auction history and renders the finalizadas bucket — so the honest
+  // "last modified" is the newest `updatedAt` over ALL the hub's rows. Both
+  // reads are `groupBy` aggregates (52 province groups; the town pairs were
+  // already being grouped anyway), so this is no more expensive than before.
   //
   // Anything with no real timestamp (core pages, tipos, categories, /resultados)
   // now OMITS <lastmod> entirely rather than faking it: absent is neutral, fake
   // is negative.
-  const hubLastmod = new Map<string, Date>();
+  // ⭐ ALL-STATUS, NOT ACTIVE-ONLY (Forge 2026-09-17, round 2).
+  //
+  // c574a5e fixed the JOIN (raw `dbNames` instead of `slugify`) but left the
+  // SOURCE SET active-only, while the URL set is `allMunicipalityPairs()` =
+  // any status. Result measured on live wave215 (Ken 15:40): 5,595 town hubs,
+  // 617 with a `<lastmod>` — 617 being roughly the count of distinct towns
+  // holding one of the ~1,154 currently-active rows. Every phase-C
+  // "finalizadas bucket" town (index,follow, concluded history only) was
+  // permanently dateless, which is exactly the population the GSC recrawl
+  // needs a freshness signal for.
+  //
+  // The town map is GONE from this file: `_municipalityPairs` now carries
+  // `lastModified` out of the same `groupBy` and the same `where` that minted
+  // the URL, so the two can no longer be computed over different row sets.
+  // See `hub-lastmod.ts`. Provinces get the same rule via one 52-group
+  // aggregate.
+  let provinceLastmod: HubLastmodIndex = { byProvince: new Map(), byMunicipality: new Map() };
   try {
-    const activeRows = await prisma.auction.findMany({
-      where: { status: { in: ACTIVE_STATUSES }, inScope: true },
-      select: { province: true, municipality: true, updatedAt: true },
-    });
-    const bump = (key: string, d: Date | null) => {
-      if (!d) return;
-      const cur = hubLastmod.get(key);
-      if (!cur || d > cur) hubLastmod.set(key, d);
-    };
-    // Keyed by SLUG, not DB key, so the lookup lines up 1:1 with the URLs
-    // emitted below and cannot drift from them. `slugify` is the same function
-    // `_municipalityPairs` folds its (provinceSlug, municipioSlug) pairs with,
-    // so a slug collision folds to the MAX updatedAt of the folded group --
-    // which is the correct lastmod for the single page that group renders as.
-    for (const r of activeRows) {
-      const provinceSlug = r.province ? PROVINCE_DB_KEY_TO_SLUG[r.province] : undefined;
-      if (!provinceSlug) continue;
-      bump(`p:${provinceSlug}`, r.updatedAt);
-      // ⭐ KEYED ON THE RAW DB NAME, NOT `slugify(...)` (Forge 2026-09-17).
-      //
-      // The town URL's slug is produced by `foldMunicipalitiesForLegacySurface`
-      // inside `_municipalityPairs`, and for an aliased or folded town that slug
-      // is NOT `slugify(municipality)`: the DB says "Alicante/Alacant", the URL
-      // says `alicante/alacant`. Keying this map on the slugified raw name meant
-      // the lookup below missed every such town and it shipped with NO <lastmod>.
-      //
-      // MEASURED LIVE 2026-09-17 on the production sitemap: only 612 of 5,590
-      // town hubs carried a <lastmod> — 89% of them silently had none, including
-      // high-inventory towns like alicante/alacant (11 active auctions). Those
-      // are precisely the pages we are trying to get re-crawled, and a hub with
-      // no lastmod gives Google no freshness signal at all.
-      //
-      // The pairs now carry `dbNames` (the raw spellings that folded onto the
-      // slug), so the join below resolves the max over the SAME rows the URL was
-      // derived from. URL and lastmod come from one fold and cannot drift.
-      const raw = r.municipality?.trim();
-      if (raw) bump(`m:${provinceSlug}|${raw}`, r.updatedAt);
-    }
+    provinceLastmod = await provinceLastmodIndex();
   } catch {
     // Non-fatal — hubs simply ship with no <lastmod>, which is the neutral,
     // safe outcome. Never fall back to `now`.
+  }
+  const provinceLastmodBySlug = new Map<string, Date>();
+  for (const [dbKey, d] of provinceLastmod.byProvince) {
+    const slug = PROVINCE_DB_KEY_TO_SLUG[dbKey];
+    if (!slug) continue;
+    const cur = provinceLastmodBySlug.get(slug);
+    if (!cur || d > cur) provinceLastmodBySlug.set(slug, d);
   }
 
   // --- Core ---
@@ -323,7 +316,7 @@ export async function buildAggregationEntries(): Promise<SitemapUrlEntry[]> {
   for (const slug of PROVINCE_SLUGS) {
     entries.push({
       url: `${SITE}/subastas/${slug}`,
-      lastModified: hubLastmod.get(`p:${slug}`),
+      lastModified: provinceLastmodBySlug.get(slug),
       changeFrequency: 'daily',
       priority: 0.8,
     });
@@ -350,17 +343,21 @@ export async function buildAggregationEntries(): Promise<SitemapUrlEntry[]> {
       ? await allMunicipalityPairs()
       : await activeMunicipalityPairs();
     for (const p of pairs) {
-      // Max updatedAt across EVERY raw spelling that folded onto this town, so
-      // an aliased town gets the freshness of the rows its page actually shows.
-      // Falls back to the slug key for any pair that reports no dbNames.
-      let lastModified = hubLastmod.get(`m:${p.provinceSlug}|${p.municipioSlug}`);
-      for (const name of p.dbNames ?? []) {
-        const d = hubLastmod.get(`m:${p.provinceSlug}|${name.trim()}`);
-        if (d && (!lastModified || d > lastModified)) lastModified = d;
-      }
       entries.push({
         url: `${SITE}/subastas/${p.provinceSlug}/${p.municipioSlug}`,
-        lastModified,
+        // Max updatedAt across EVERY raw spelling that folded onto this town,
+        // over ALL statuses — resolved inside `_municipalityPairs` from the very
+        // rows that minted this slug, so an aliased/folded town gets the
+        // freshness of the rows its page actually renders and the date cannot
+        // be sourced from a narrower set than the URL was.
+        //
+        // Revived from an ISO STRING because the pair helpers are
+        // `unstable_cache`d and that cache round-trips through JSON: a `Date`
+        // carried across it arrives here as a string that TypeScript still
+        // types as a `Date`, and the renderer's `.toISOString()` 500s the
+        // route at request time with every build gate green. See the
+        // `lastModifiedISO` note in page-data.ts.
+        lastModified: p.lastModifiedISO ? new Date(p.lastModifiedISO) : undefined,
         changeFrequency: 'daily',
         priority: 0.7,
       });
