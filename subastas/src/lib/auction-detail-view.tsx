@@ -43,7 +43,7 @@ import type { Locale } from '@/i18n/routing';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { isLegacyRow } from '@/lib/seo/legacy-rows';
-import { isConcludedIndexable } from '@/lib/seo/concluded-indexable';
+import { isConcludedIndexable, CONCLUDED_INDEXABLE_SELECT } from '@/lib/seo/concluded-indexable';
 import AuctionDetailClient from '@/app/auction/[id]/AuctionDetailClient';
 import { FollowConfirmBanner } from '@/components/auction/FollowConfirmBanner';
 import { auctionMetaTitle, auctionDisplayTitle } from '@/lib/seo/display-title';
@@ -60,6 +60,13 @@ export async function loadAuctionMeta(id: string) {
   const auction = await prisma.auction.findUnique({
     where: { id },
     select: {
+      // ⭐ CONTENT-BAR inputs for the concluded index gate. Spread from the
+      // shared constant so this select can never drift out of step with the
+      // predicate — a field missing here would make qualifying pages silently
+      // fall to noindex, which reads as "fewer pages qualified", not as a bug.
+      // Spread FIRST: the explicit keys below restate some of these with the
+      // same value, and a spread placed after them is a TS2783 duplicate.
+      ...CONCLUDED_INDEXABLE_SELECT,
       id: true,
       title: true,
       category: true,
@@ -81,11 +88,11 @@ export async function loadAuctionMeta(id: string) {
       appraisalValue: true,
       valorSubasta: true,
       boeId: true,
-      // Sale-outcome fields (wave142) — drive the concluded-page index gate.
+      // Sale-outcome fields (wave142). These NO LONGER decide indexability
+      // (Dennis 2026-09-17 replaced that gate with the content bar) — they still
+      // drive the teaser's sold-price block via `hasConcludedOutcome`.
       saleResult: true,
       resultCheckedAt: true,
-      // Recency floor input for the concluded index gate (wave-seoslug).
-      endsAt: true,
     },
   });
   return auction;
@@ -148,10 +155,16 @@ export function buildDetailMetadata(args: {
 
   // Indexability gate. Two ways in:
   //   1. ACTIVE / PRE-AUCTION states (unchanged — always were indexable).
-  //   2. CONCLUDED property/vehicle WITH a resolved sale outcome (wave142) —
-  //      via isConcludedIndexable, the SAME predicate the sitemap membership
-  //      query uses. Keeping them identical means a sitemap URL is never
-  //      noindex. Everything else stays noindex,follow.
+  //   2. CONCLUDED property/vehicle that CLEARS THE CONTENT BAR — Dennis
+  //      2026-09-17: "we should also index finished auctions, those are pages we
+  //      have filled with all the info... keep noindex only for genuinely
+  //      empty/placeholder records". This REPLACES the wave142 rule, which
+  //      required a resolved sale outcome and so noindexed full, useful pages
+  //      for a reason the visitor could not see.
+  //      `isConcludedIndexable` is the single source of truth; the sitemap
+  //      applies the SAME function to its candidate rows, which is what keeps
+  //      `sitemap ⊆ indexable` and means a sitemap URL is never noindex.
+  //      Everything else stays noindex,follow.
   const activeStates = ['ACTIVE', 'CELEBRANDOSE', 'PRE_AUCTION', 'PROXIMA_APERTURA', 'SUSPENDIDA', 'SUSPENDED'];
   const indexable = activeStates.includes(a.status as string) || isConcludedIndexable(a);
 

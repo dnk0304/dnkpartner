@@ -170,10 +170,19 @@ export const countIndexableInventory = unstable_cache(
  * Reuses the SINGLE-SOURCE-OF-TRUTH concluded predicate
  * (`concludedIndexableWhere` in `@/lib/seo/concluded-indexable`) — the SAME
  * fragment the sitemap membership query and the concluded DETAIL-page robots
- * gate use, so a town this count marks indexable is composed entirely of rows
- * the sitemap already trusts (no new predicate to drift). AND-ed with the
- * `inScope` soft-hide gate every catalog surface shares, plus the town/province
- * scope.
+ * gate use. AND-ed with the `inScope` soft-hide gate every catalog surface
+ * shares, plus the town/province scope.
+ *
+ * ⚠️ SCOPE NOTE (Dennis 2026-09-17 content bar). `concludedIndexableWhere()` is
+ * now the SQL CANDIDATE set; the full gate adds an in-memory content bar that
+ * SQL cannot express (a word count). This count deliberately does NOT apply that
+ * bar, so it is a count of CANDIDATES, i.e. an UPPER bound on the town's
+ * individually-indexable detail pages. That is the correct input for THIS
+ * decision and not a drift: the town page's content block renders the town's
+ * finished auctions as crawlable HTML whether or not each one's own detail page
+ * clears the bar, so what makes the town non-thin is the inventory existing, not
+ * each leaf being indexable. Do NOT "fix" this by importing the in-memory
+ * filter — counting would then require loading every row.
  *
  * WHY A SEPARATE COUNT. `countIndexableInventory` (active+upcoming) drives the
  * existing town/province robots decision; this adds the finished dimension.
@@ -1108,7 +1117,25 @@ export const legacyMunicipalitySlugExists = unstable_cache(
  * the sitemap. Off-taxonomy provinces are still skipped.
  */
 async function _municipalityPairs(where: Prisma.AuctionWhereInput): Promise<
-  Array<{ provinceSlug: string; municipioSlug: string; count: number; municipalityName: string }>
+  Array<{
+    provinceSlug: string;
+    municipioSlug: string;
+    count: number;
+    municipalityName: string;
+    /**
+     * The RAW DB municipality spellings that folded onto this one town slug.
+     *
+     * Surfaced (Forge 2026-09-17) so a caller can join this pair back to the
+     * rows it came from. The sitemap needs exactly that for `<lastmod>`: the
+     * URL's slug is produced by `foldMunicipalitiesForLegacySurface`, which for
+     * an aliased town (alicante/alacant, teruel/tramacastiel, ...) does NOT
+     * equal `slugify(municipality)`. Keying a lastmod map on the slugified raw
+     * name therefore MISSED those towns entirely — measured live 2026-09-17:
+     * only 612 of 5,590 town hubs carried a <lastmod>. Joining on dbNames makes
+     * the URL and its lastmod come from the same fold, so they cannot drift.
+     */
+    dbNames: string[];
+  }>
 > {
   const rows = await prisma.auction.groupBy({
     by: ['province', 'municipality'],
@@ -1133,6 +1160,7 @@ async function _municipalityPairs(where: Prisma.AuctionWhereInput): Promise<
     municipioSlug: string;
     count: number;
     municipalityName: string;
+    dbNames: string[];
   }> = [];
   for (const [provinceKey, list] of byProvince) {
     const provinceSlug = PROVINCE_DB_KEY_TO_SLUG[provinceKey];
@@ -1147,6 +1175,7 @@ async function _municipalityPairs(where: Prisma.AuctionWhereInput): Promise<
         municipioSlug: m.slug,
         count: m.total,
         municipalityName: m.name,
+        dbNames: m.dbNames,
       });
     }
   }

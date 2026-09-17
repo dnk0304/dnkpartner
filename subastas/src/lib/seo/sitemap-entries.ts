@@ -20,11 +20,14 @@
  *   - id 0            — aggregation (home, /subastas, 52 provinces, active
  *                       towns, tipos, dense categories, /resultados, guides, noticias).
  *   - id 1..ACTIVE    — ACTIVE auction details, 20k/file (orderBy id asc).
- *   - id ACTIVE+1..   — SCOPED CONCLUDED details (property+vehicle with a real
- *                       sale outcome), 20k/file, orderBy soldDate DESC. The
- *                       membership predicate is `concludedIndexableWhere()` —
- *                       the SAME predicate the detail-page robots gate uses, so
- *                       a sitemap URL is never noindex (see concluded-indexable.ts).
+ *   - id ACTIVE+1..   — SCOPED CONCLUDED details (property+vehicle that CLEAR THE
+ *                       CONTENT BAR — Dennis 2026-09-17, replacing the old
+ *                       "with a resolved sale outcome" rule), 20k/file, orderBy
+ *                       soldDate DESC. Membership is `concludedIndexableWhere()`
+ *                       as the SQL CANDIDATE query PLUS an in-memory
+ *                       `isConcludedIndexable` filter — the bar counts words and
+ *                       SQL cannot. The invariant is `sitemap ⊆ indexable`, so a
+ *                       sitemap URL is never noindex (see concluded-indexable.ts).
  *
  * Town-page doctrine (08 §4.3) unchanged: aggregation ships only towns with ≥1
  * ACTIVE auction — same predicate as the town page's own index gate.
@@ -70,7 +73,11 @@ import {
 import { isUrlV4SwitchOn } from '@/lib/seo/url-v4-switch';
 import { readArchiveCensus } from '@/lib/registro/archive-census-read';
 import { ARCHIVE_PAGE_SIZE } from '@/lib/registro/archive-paging';
-import { concludedIndexableWhere } from '@/lib/seo/concluded-indexable';
+import {
+  concludedIndexableWhere,
+  isConcludedIndexable,
+  CONCLUDED_INDEXABLE_SELECT,
+} from '@/lib/seo/concluded-indexable';
 import { readSummary, concludedMunicipioPairsAll } from '@/lib/registro/registro-read';
 import { OUTCOME_TO_SLUG } from '@/lib/registro/registro-ui';
 
@@ -164,10 +171,10 @@ export async function buildSitemapEntries(
         // wave155: scope soft-hide gate ANDed onto the concluded-indexable set.
         where: { ...concludedIndexableWhere(), inScope: true },
         select: {
+          ...CONCLUDED_INDEXABLE_SELECT,
           id: true,
           auctionType: true,
           province: true,
-          municipality: true,
           soldDate: true,
           updatedAt: true,
         },
@@ -175,9 +182,23 @@ export async function buildSitemapEntries(
         skip: chunk.skip,
         take: CHILD_SITEMAP_SIZE,
       });
+      // ⭐ THE IN-MEMORY HALF OF THE MEMBERSHIP RULE (Dennis 2026-09-17).
+      // `concludedIndexableWhere()` is only the CANDIDATE query — the content
+      // bar counts words across two prose columns and SQL cannot express a
+      // string length. Applying the real gate here is what keeps
+      // `sitemap ⊆ indexable` true, i.e. what stops us publishing a URL that
+      // renders noindex. See concluded-indexable.ts's invariant note.
+      //
+      // Filtering AFTER skip/take is deliberate: the skip window is computed on
+      // the SQL-ordered candidate set, so a given URL stays in the SAME child
+      // between requests (the whole reason for the stable orderBy). A child may
+      // therefore come back slightly under CHILD_SITEMAP_SIZE — that is fine and
+      // expected; short is valid, EMPTY is the harmful case and the candidate
+      // query is strict enough that a fully-rejected window cannot occur.
+      const indexable = rows.filter((a) => isConcludedIndexable(a));
       // URL-v3: one batch lookup per chunk (see the active band above).
-      const v3 = await fetchV3UrlsBatch(rows.map((a) => a.id));
-      for (const a of rows) {
+      const v3 = await fetchV3UrlsBatch(indexable.map((a) => a.id));
+      for (const a of indexable) {
         entries.push({
           url: `${SITE}${resolveAuctionPath(a, v3.get(a.id))}`,
           lastModified: a.soldDate ?? a.updatedAt ?? undefined,
@@ -265,8 +286,25 @@ export async function buildAggregationEntries(): Promise<SitemapUrlEntry[]> {
       const provinceSlug = r.province ? PROVINCE_DB_KEY_TO_SLUG[r.province] : undefined;
       if (!provinceSlug) continue;
       bump(`p:${provinceSlug}`, r.updatedAt);
-      const municipioSlug = r.municipality ? slugify(r.municipality) : '';
-      if (municipioSlug) bump(`m:${provinceSlug}|${municipioSlug}`, r.updatedAt);
+      // ⭐ KEYED ON THE RAW DB NAME, NOT `slugify(...)` (Forge 2026-09-17).
+      //
+      // The town URL's slug is produced by `foldMunicipalitiesForLegacySurface`
+      // inside `_municipalityPairs`, and for an aliased or folded town that slug
+      // is NOT `slugify(municipality)`: the DB says "Alicante/Alacant", the URL
+      // says `alicante/alacant`. Keying this map on the slugified raw name meant
+      // the lookup below missed every such town and it shipped with NO <lastmod>.
+      //
+      // MEASURED LIVE 2026-09-17 on the production sitemap: only 612 of 5,590
+      // town hubs carried a <lastmod> — 89% of them silently had none, including
+      // high-inventory towns like alicante/alacant (11 active auctions). Those
+      // are precisely the pages we are trying to get re-crawled, and a hub with
+      // no lastmod gives Google no freshness signal at all.
+      //
+      // The pairs now carry `dbNames` (the raw spellings that folded onto the
+      // slug), so the join below resolves the max over the SAME rows the URL was
+      // derived from. URL and lastmod come from one fold and cannot drift.
+      const raw = r.municipality?.trim();
+      if (raw) bump(`m:${provinceSlug}|${raw}`, r.updatedAt);
     }
   } catch {
     // Non-fatal — hubs simply ship with no <lastmod>, which is the neutral,
@@ -312,9 +350,17 @@ export async function buildAggregationEntries(): Promise<SitemapUrlEntry[]> {
       ? await allMunicipalityPairs()
       : await activeMunicipalityPairs();
     for (const p of pairs) {
+      // Max updatedAt across EVERY raw spelling that folded onto this town, so
+      // an aliased town gets the freshness of the rows its page actually shows.
+      // Falls back to the slug key for any pair that reports no dbNames.
+      let lastModified = hubLastmod.get(`m:${p.provinceSlug}|${p.municipioSlug}`);
+      for (const name of p.dbNames ?? []) {
+        const d = hubLastmod.get(`m:${p.provinceSlug}|${name.trim()}`);
+        if (d && (!lastModified || d > lastModified)) lastModified = d;
+      }
       entries.push({
         url: `${SITE}/subastas/${p.provinceSlug}/${p.municipioSlug}`,
-        lastModified: hubLastmod.get(`m:${p.provinceSlug}|${p.municipioSlug}`),
+        lastModified,
         changeFrequency: 'daily',
         priority: 0.7,
       });

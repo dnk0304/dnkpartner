@@ -22,7 +22,20 @@ import { AuctionStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { buildSitemapLayout, type SitemapLayout } from '@/lib/seo/sitemap-config';
 import { buildAggregationEntries, type SitemapUrlEntry } from '@/lib/seo/sitemap-entries';
-import { concludedIndexableWhere } from '@/lib/seo/concluded-indexable';
+import {
+  concludedIndexableWhere,
+  isConcludedIndexable,
+  CONCLUDED_INDEXABLE_SELECT,
+} from '@/lib/seo/concluded-indexable';
+
+/**
+ * How many rows off the head of a concluded window to scan for the first one
+ * that clears the content bar. Small and bounded: this runs once per concluded
+ * child on the ONE url Dennis submits to GSC, and the candidate query is already
+ * strict enough that the first row almost always qualifies. Not `take: 1`,
+ * because the bar is applied in memory (see concluded-indexable.ts's invariant).
+ */
+const CONCLUDED_LASTMOD_PROBE = 25;
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -106,14 +119,21 @@ async function childLastmods(
         if (activeUpdatedAt) out.set(id, activeUpdatedAt);
         continue;
       }
-      // Concluded: first row of this child's window == the window's max.
-      const head = await prisma.auction.findFirst({
+      // Concluded: the window is ordered soldDate DESC, so the max lastmod is
+      // the first row of the window that SURVIVES the content bar (Dennis
+      // 2026-09-17). `concludedIndexableWhere()` is only the SQL candidate set —
+      // the bar counts words, which SQL cannot express — so taking the literal
+      // first row could report a lastmod for a row this child does not publish.
+      // Scan a small head slice and take the first row the real gate accepts;
+      // if none of them do, OMIT rather than inventing one (the standing rule).
+      const headRows = await prisma.auction.findMany({
         where: { ...concludedIndexableWhere(), inScope: true },
         orderBy: [{ soldDate: 'desc' }, { id: 'asc' }],
         skip: chunk.skip,
-        take: 1,
-        select: { soldDate: true, updatedAt: true },
+        take: CONCLUDED_LASTMOD_PROBE,
+        select: { ...CONCLUDED_INDEXABLE_SELECT, soldDate: true, updatedAt: true },
       });
+      const head = headRows.find((r) => isConcludedIndexable(r));
       const d = head?.soldDate ?? head?.updatedAt ?? null;
       if (d) out.set(id, d);
     }
