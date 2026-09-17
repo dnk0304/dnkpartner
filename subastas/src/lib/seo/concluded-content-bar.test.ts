@@ -235,7 +235,11 @@ const FIXTURES: Array<{ name: string; row: ConcludedIndexableRow }> = [
   { name: 'stub: no outcome', row: fullRow({ saleResult: 'SIN_RESULTADO' }) },
   { name: 'stub: null outcome', row: fullRow({ saleResult: null }) },
   { name: 'cancelled', row: fullRow({ status: 'CANCELADA' }) },
-  { name: 'no province', row: fullRow({ province: null }) },
+  // `province` is `String` NOT NULL in the schema, so a NULL province is not a
+  // representable row — the empty string is the real failure shape, and the SQL
+  // fragment for that column therefore carries no `{ not: null }` clause (Prisma
+  // rejects it on a non-nullable column).
+  { name: 'empty province', row: fullRow({ province: '' }) },
   { name: 'no signals at all', row: noSignals },
   { name: 'exactly 2 signals (date + price)', row: fullRow({ ...noSignals, endsAt: NOW, valorSubasta: 1 }) },
   { name: 'exactly 2 signals (date + text)', row: fullRow({ ...noSignals, soldDate: NOW, address: 'X' }) },

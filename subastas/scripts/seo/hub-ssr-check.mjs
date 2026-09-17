@@ -26,8 +26,26 @@ const argOf = (n, d) => {
 };
 const BASE = argOf('--base', 'https://subastasactivas.com').replace(/\/$/, '');
 
-/** Five hubs known to carry active inventory (live counts, 2026-09-17). */
-const HUBS = [
+/**
+ * Five hubs known to carry active inventory (live counts, 2026-09-17).
+ *
+ * ⚠️ These are PROD towns. Pointing --base at a throwaway fixture database
+ * makes every one of them fail check 2 for a fixture reason (no inventory), not
+ * a code reason — so `--hubs a,b,c` overrides the list with towns the local
+ * DB actually populates. Without the override the local run is a false RED,
+ * which is just as useless as a false green.
+ */
+/** Normalise a --hubs entry. Git Bash on Windows rewrites a leading `/subastas/x`
+ *  argument into `C:/Program Files/Git/subastas/x`, which then fails to parse as
+ *  a URL and reads like a code fault; recover the path rather than letting that
+ *  look like a failing hub. */
+const asPath = (h) => {
+  const i = h.indexOf('/subastas');
+  return i === -1 ? (h.startsWith('/') ? h : `/${h}`) : h.slice(i);
+};
+const HUBS = argOf('--hubs', '').trim()
+  ? argOf('--hubs', '').split(',').map((h) => asPath(h.trim())).filter(Boolean)
+  : [
   '/subastas/teruel/calamocha',
   '/subastas/valencia/rafelbunyol',
   '/subastas/madrid/madrid',
@@ -40,7 +58,16 @@ const HUBS = [
  * path segments after /subastas is what distinguishes a DETAIL url from the hub
  * itself and from a province hub.
  */
-const RE_DETAIL_HREF = /href="(\/subastas\/[a-z0-9-]+\/[a-z0-9-]+\/[a-z0-9-]+)"/g;
+/**
+ * Two shapes count, because which one a hub emits depends on the URL-v3 switch:
+ *   v3 ON  -> /subastas/{province}/{town}/{slug}   (3 segments after /subastas)
+ *   v3 OFF -> /subastas/subasta/{slug}             (the legacy detail url)
+ * Matching only the first reports "0 crawlable anchors" on a hub that is
+ * perfectly crawlable, i.e. a false RED that says "regression" when the only
+ * thing that changed is a switch. Found 2026-09-17 running this against a local
+ * build with the switch off.
+ */
+const RE_DETAIL_HREF = /href="(\/subastas\/(?:subasta\/[a-z0-9-]+|[a-z0-9-]+\/[a-z0-9-]+\/[a-z0-9-]+))"/g;
 const RE_TITLE_COUNT = /<title>\s*([\d.,]+)\s+subastas/i;
 
 let failures = 0;

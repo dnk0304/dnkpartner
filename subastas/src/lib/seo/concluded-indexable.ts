@@ -273,7 +273,16 @@ interface PredicateArm {
 function nonEmpty(
   field: 'province' | 'municipality' | 'lotDescription' | 'address',
 ): Prisma.AuctionWhereInput {
-  return { AND: [{ [field]: { not: null } }, { NOT: { [field]: '' } }] } as Prisma.AuctionWhereInput;
+  // ⚠️ `{ not: null }` is only VALID on a nullable column. `Auction.province` is
+  // `String` NOT NULL, and Prisma rejects the filter with "Argument `not` is
+  // missing" — an error that surfaced as an EMPTY concluded sitemap child,
+  // because buildSitemapEntries swallows query failures into "no entries". tsc,
+  // the unit suite and `next build` were all green; only curling /sitemap/N.xml
+  // against a real Postgres showed it. Emit the null clause only where the
+  // column can actually be null.
+  const clauses: Prisma.AuctionWhereInput[] = [{ NOT: { [field]: '' } } as Prisma.AuctionWhereInput];
+  if (field !== 'province') clauses.unshift({ [field]: { not: null } } as Prisma.AuctionWhereInput);
+  return { AND: clauses };
 }
 
 /** REQUIRED arms — all must hold. */
