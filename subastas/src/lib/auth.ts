@@ -6,6 +6,8 @@ import { isAdminEmail } from "@/lib/admin";
 import { execute, queryOne } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { sendWelcomeEmailOnce } from "@/lib/email/send-welcome";
+import { sendNewSignupAdminEmail } from "@/lib/email/send-signup-admin";
+import { afterOAuthUserCreated } from "@/lib/oauth-signup-effects";
 
 const oauthProviders = [];
 
@@ -82,8 +84,13 @@ async function ensureUserForOAuth(email: string, name?: string | null, image?: s
   );
 
   // Brand-new OAuth account — created already-verified (the provider verified
-  // the address), so this is its verification-complete moment.
-  await sendWelcomeEmailOnce(userId);
+  // the address), so this is its verification-complete moment. Welcome mail +
+  // admin heads-up, in that order. BRAND-NEW BLOCK ONLY: the existing-user path
+  // above returns before this, otherwise every repeat sign-in would re-notify.
+  await afterOAuthUserCreated(
+    { userId, email, trialEnd, now },
+    { sendWelcome: sendWelcomeEmailOnce, sendAdmin: sendNewSignupAdminEmail },
+  );
 
   return userId;
 }
