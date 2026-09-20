@@ -32,7 +32,11 @@
  *   - `statuses` / `keywords` are CSV strings; an all-blank CSV is "no
  *     constraint".
  *   - Keywords are OR-ed (`some`), case-insensitively, over the concatenation
- *     of title + generalInfo + propertyDescription + lotDescription.
+ *     of title + propertyDescription + lotDescription. (`generalInfo` was
+ *     listed here until wave219 — it is NOT a column on `model Auction`, so
+ *     it was always `undefined` at match time and contributed nothing; the
+ *     explicit Engine B select made Prisma reject it. Removed, no behaviour
+ *     change. See SN-1b.)
  *
  * Pure: no database, no env, no clock. Safe to unit-test and safe to call in a
  * tight loop (Engine B filters thousands of alerts in memory per event).
@@ -72,7 +76,6 @@ export interface AuctionForMatch {
   status?: string | null;
   appraisalValue?: number | null;
   title?: string | null;
-  generalInfo?: string | null;
   propertyDescription?: string | null;
   lotDescription?: string | null;
 }
@@ -99,7 +102,6 @@ function parseKeywords(value: string | null | undefined): string[] {
 function keywordHaystack(auction: AuctionForMatch): string {
   return [
     auction.title,
-    auction.generalInfo,
     auction.propertyDescription,
     auction.lotDescription,
   ]
