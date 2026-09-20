@@ -39,7 +39,6 @@ const lasPalmas = (over: Partial<AuctionForMatch> = {}): AuctionForMatch => ({
   status: 'CELEBRANDOSE',
   appraisalValue: 120000,
   title: 'Piso en Calle Mayor 3',
-  generalInfo: 'Procedimiento ordinario',
   propertyDescription: 'Vivienda con garaje y trastero',
   lotDescription: 'Lote unico',
   ...over,
@@ -247,8 +246,8 @@ section('keywords — OR-ed, case-insensitive, across four prose fields');
     alertMatchesAuction({ keywords: 'calle mayor' }, lasPalmas()) === true,
   );
   ok(
-    'hits generalInfo',
-    alertMatchesAuction({ keywords: 'ordinario' }, lasPalmas()) === true,
+    'hits lotDescription',
+    alertMatchesAuction({ keywords: 'lote' }, lasPalmas()) === true,
   );
   ok(
     'hits propertyDescription',
@@ -274,7 +273,7 @@ section('keywords — OR-ed, case-insensitive, across four prose fields');
     'an auction with no prose at all cannot satisfy a keyword filter',
     alertMatchesAuction(
       { keywords: 'garaje' },
-      { province: 'Las Palmas', title: null, generalInfo: null, propertyDescription: null, lotDescription: null },
+      { province: 'Las Palmas', title: null, propertyDescription: null, lotDescription: null },
     ) === false,
   );
   ok(

@@ -54,7 +54,8 @@ import { sendPush, isVapidConfigured } from '@/lib/dispatcher/webpush';
 import type { NotificationChannel } from '@prisma/client';
 import { alertsFromEmail } from '@/lib/email-from';
 import { createAuctionLiveAlertEmail } from '@/lib/email-templates';
-import type { AlertCriteria, AuctionForMatch } from '@/lib/alerts/matcher';
+import type { AlertCriteria } from '@/lib/alerts/matcher';
+import { AUCTION_MATCH_SELECT } from '@/lib/dispatcher/auction-select';
 import {
   collectAlertMatches,
   parseFanoutMode,
@@ -257,49 +258,6 @@ async function resolveFollowers(
     : favorites;
   return { all: favorites, eligible };
 }
-
-/**
- * The exact `Auction` columns the shared matcher reads, plus the three the
- * go-live mail renders. Typed against `AuctionForMatch` so that adding a filter
- * to the matcher is a COMPILE error here until this select is widened — that is
- * the anti-drift guarantee between Engine A and Engine B.
- */
-const AUCTION_MATCH_SELECT = {
-  id: true,
-  province: true,
-  municipality: true,
-  category: true,
-  source: true,
-  auctionType: true,
-  propertyType: true,
-  status: true,
-  appraisalValue: true,
-  title: true,
-  generalInfo: true,
-  propertyDescription: true,
-  lotDescription: true,
-  endsAt: true,
-} as const;
-
-/**
- * REAL anti-drift guard, not a vibes one.
- *
- * A plain `const x: AuctionForMatch = row` proves nothing here, because every
- * field on `AuctionForMatch` is optional — a row missing `propertyType` still
- * satisfies the interface, and the dispatcher would just silently match against
- * `undefined`. (Verified: adding a field to the matcher left tsc green.)
- *
- * This instead asserts at the TYPE level that every key the matcher reads is
- * present in the select. Add a filter to `AuctionForMatch` without widening
- * `AUCTION_MATCH_SELECT` and `MissingMatchFields` becomes that key's literal
- * type, which `true` is not assignable to — the build fails with the missing
- * field named in the error.
- */
-type MissingMatchFields = Exclude<keyof AuctionForMatch, keyof typeof AUCTION_MATCH_SELECT>;
-const _selectCoversEveryMatcherField: MissingMatchFields extends never
-  ? true
-  : MissingMatchFields = true;
-void _selectCoversEveryMatcherField;
 
 /**
  * The active, email-enabled saved searches — loaded ONCE PER DRAIN, not once
