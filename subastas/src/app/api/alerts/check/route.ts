@@ -8,6 +8,7 @@ import { requireAdminOrCron } from '@/lib/auth-helpers';
 import { ALERTABLE_DB_STATUSES_SQL, LIVE_NOW_DB_STATUSES_SQL } from '@/lib/auction-status';
 import { resolveFreeAndPersist, type ResolverRow } from '@/lib/auction-images/resolver';
 import { alertsFromEmail } from '@/lib/email-from';
+import { alertMatchesAuction } from '@/lib/alerts/matcher';
 
 /**
  * API endpoint to check for new auctions matching user alerts
@@ -85,74 +86,21 @@ export async function POST(request: NextRequest) {
 
     const matchesByAlert: Record<string, { alert: any; auctions: any[] }> = {};
 
-    // Match alerts with auctions
+    // Match alerts with auctions.
+    //
+    // wave218: the inline criteria ladder that used to live here was extracted
+    // VERBATIM into `@/lib/alerts/matcher` so Engine B (the dispatcher's
+    // `auction.go_live` fan-out) matches identically and the two engines cannot
+    // drift. ONE behaviour change came with the move: `Alert.propertyType` is
+    // now honoured (persisted since F2a 2026-07-28, never matched until now).
+    // Engine A therefore becomes STRICTER for alerts carrying a propertyType.
     for (const alert of alerts as any[]) {
       for (const auction of recentAuctions) {
-        // Check if auction matches alert criteria
-        let matches = true;
-
-        if (alert.province && auction.province !== alert.province) {
-          matches = false;
+        if (!alertMatchesAuction(alert, auction)) continue;
+        if (!matchesByAlert[alert.id]) {
+          matchesByAlert[alert.id] = { alert, auctions: [] };
         }
-
-        if (alert.municipality && auction.municipality !== alert.municipality) {
-          matches = false;
-        }
-
-        if (alert.category && auction.category !== alert.category) {
-          matches = false;
-        }
-
-        if (alert.source && auction.source !== alert.source) {
-          matches = false;
-        }
-
-        if (alert.auctionType && auction.auctionType !== alert.auctionType) {
-          matches = false;
-        }
-
-        if (alert.statuses) {
-          const statuses = String(alert.statuses).split(',').map((s: string) => s.trim()).filter(Boolean);
-          if (statuses.length > 0 && !statuses.includes(auction.status)) {
-            matches = false;
-          }
-        }
-
-        if (alert.minPrice && auction.appraisalValue < alert.minPrice) {
-          matches = false;
-        }
-
-        if (alert.maxPrice && auction.appraisalValue > alert.maxPrice) {
-          matches = false;
-        }
-
-        if (alert.keywords) {
-          const keywords = String(alert.keywords)
-            .split(',')
-            .map((k: string) => k.trim().toLowerCase())
-            .filter(Boolean);
-          if (keywords.length > 0) {
-            const haystack = [
-              auction.title,
-              auction.generalInfo,
-              auction.propertyDescription,
-              auction.lotDescription,
-            ]
-              .filter(Boolean)
-              .join(' ')
-              .toLowerCase();
-            if (!keywords.some((k: string) => haystack.includes(k))) {
-              matches = false;
-            }
-          }
-        }
-
-        if (matches) {
-          if (!matchesByAlert[alert.id]) {
-            matchesByAlert[alert.id] = { alert, auctions: [] };
-          }
-          matchesByAlert[alert.id].auctions.push(auction);
-        }
+        matchesByAlert[alert.id].auctions.push(auction);
       }
     }
 
