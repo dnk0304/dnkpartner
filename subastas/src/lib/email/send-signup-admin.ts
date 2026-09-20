@@ -40,7 +40,18 @@ export async function sendNewSignupAdminEmail(opts: {
     const key = process.env.RESEND_API_KEY;
     if (!key) return 'no-resend-key';
 
-    const to = process.env.ADMIN_NOTIFY_EMAIL || 'hola@subastasactivas.com';
+    // Recipient default is UNCHANGED (Ken sets ADMIN_NOTIFY_EMAIL at deploy),
+    // but an unset env must be LOUD: silently mailing the alias is how this
+    // notification stayed invisible before. One warn per send; volume is tiny.
+    const configuredTo = process.env.ADMIN_NOTIFY_EMAIL;
+    if (!configuredTo) {
+      console.warn(
+        '[signup-admin-email] ADMIN_NOTIFY_EMAIL is not set — falling back to the ' +
+          'hola@ alias. Set ADMIN_NOTIFY_EMAIL on the app service to route ' +
+          'operator mail directly.',
+      );
+    }
+    const to = configuredTo || 'hola@subastasactivas.com';
     const email = escapeHtml(opts.userEmail);
 
     try {
