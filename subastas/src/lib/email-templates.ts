@@ -998,6 +998,173 @@ export function createAuctionAlertEmail({ alertName, auctions, manageUrl }: Auct
 }
 
 /**
+ * GO-LIVE SAVED-SEARCH EMAIL (wave218, Engine B).
+ *
+ * Sent when an auction a user's saved search matches transitions
+ * PROXIMA_APERTURA/SUSPENDIDA -> CELEBRANDOSE (`auction.go_live`). This is a
+ * DIFFERENT promise from `createAuctionAlertEmail`: that one announces NEW
+ * auctions ("Nuevas subastas"), this one announces that an auction the user
+ * may already have been told about is NOW OPEN for bidding.
+ *
+ * Locked rule (Dennis, 2026-09-20): after an auction goes active, further
+ * updates are follower-only. The hint below is the ONLY place the user learns
+ * that — do not remove it.
+ *
+ * Deliberately lighter than the alert card: the dispatcher's event payload
+ * carries only title/location/appraisal/endsAt (no image resolver, no cadastral
+ * prose, no follow token), so rendering a photo card here would mean a second
+ * DB round-trip per recipient on the mail hot path. Same visual shell, no
+ * fabricated data. Pure — no DB, no env; the caller passes every URL.
+ */
+export interface AuctionLiveAlertEmailProps {
+  /** Saved-search name, when the user gave theirs one. */
+  alertName?: string | null;
+  auctions: Array<{
+    title: string;
+    url: string;
+    province?: string | null;
+    municipality?: string | null;
+    appraisalValue?: number | null;
+    endsAt?: string | Date | null;
+  }>;
+  manageUrl: string;
+}
+
+export function createAuctionLiveAlertEmail({
+  alertName,
+  auctions,
+  manageUrl,
+}: AuctionLiveAlertEmailProps): { subject: string; html: string; text: string } {
+  const brandName = 'SubastasActivas';
+  const n = auctions.length;
+
+  // Singular/plural — Spanish, unaccented in the subject so no client mangles it.
+  const subject =
+    n === 1
+      ? '1 subasta de tu alerta ya esta activa'
+      : `${n} subastas de tu alerta ya estan activas`;
+
+  const escapeHtml = (s: string) =>
+    s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+
+  const EUR = new Intl.NumberFormat('es-ES', {
+    style: 'currency',
+    currency: 'EUR',
+    maximumFractionDigits: 0,
+  });
+
+  // Honest-NULL throughout: a missing figure/location/date omits its line
+  // entirely — never "0 €", never a fabricated date.
+  const locationOf = (a: AuctionLiveAlertEmailProps['auctions'][number]): string | null => {
+    const muni = a.municipality?.trim() || null;
+    const prov = a.province?.trim() || null;
+    if (muni && prov) return `${muni}, ${prov}`;
+    return muni ?? prov ?? null;
+  };
+
+  const endsAtOf = (a: AuctionLiveAlertEmailProps['auctions'][number]): string | null => {
+    if (!a.endsAt) return null;
+    const d = a.endsAt instanceof Date ? a.endsAt : new Date(a.endsAt);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleDateString('es-ES', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'Europe/Madrid',
+    });
+  };
+
+  const subline = (label: string, value: string) =>
+    `<div style="font-size:12px;color:#6b7280;margin-top:4px;">
+       <span style="font-weight:500;">${escapeHtml(label)}:</span>
+       <span style="margin-left:4px;">${escapeHtml(value)}</span>
+     </div>`;
+
+  const listHtml = auctions
+    .map((a) => {
+      const location = locationOf(a);
+      const ends = endsAtOf(a);
+      const appraisal =
+        a.appraisalValue != null && a.appraisalValue > 0 ? EUR.format(a.appraisalValue) : null;
+      return `
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;margin:0 0 16px;border-bottom:1px solid #e5e7eb;padding-bottom:16px;">
+          <tr>
+            <td style="padding:0;">
+              <div style="font-weight:600;color:#111827;font-size:16px;line-height:1.35;margin-bottom:6px;">${escapeHtml(a.title)}</div>
+              <div style="margin-bottom:6px;"><span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600;background:#dcfce7;color:#166534;line-height:1.4;">En curso</span></div>
+              ${location ? subline('Ubicacion', location) : ''}
+              ${appraisal ? subline('Tasacion', appraisal) : ''}
+              ${ends ? subline('Termina', ends) : ''}
+              <div style="margin-top:12px;">
+                <a href="${escapeHtml(a.url)}" style="color:#2563eb;text-decoration:none;font-size:13px;font-weight:600;">Ver subasta &rarr;</a>
+              </div>
+            </td>
+          </tr>
+        </table>
+      `;
+    })
+    .join('');
+
+  const hint =
+    'A partir de ahora, para recibir mas avisos sobre una subasta concreta (pujas, cierre, suspension) sigue esa subasta con la estrella en su ficha.';
+
+  const intro = alertName
+    ? `Tu alerta &laquo;${escapeHtml(alertName)}&raquo; coincide con estas subastas, que acaban de abrirse a pujas.`
+    : 'Estas subastas que coinciden con tus criterios acaban de abrirse a pujas.';
+
+  const html = `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(subject)}</title>
+</head>
+<body style="margin:0;padding:0;font-family:Arial, sans-serif;background:#f9fafb;color:#111827;">
+  <div style="max-width:600px;margin:0 auto;padding:24px;">
+    <div style="background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
+      <div style="padding:24px;background:#111827;color:#ffffff;">
+        <h1 style="margin:0;font-size:20px;">${brandName}</h1>
+        <p style="margin:8px 0 0;font-size:14px;color:#e5e7eb;">Alertas personalizadas</p>
+      </div>
+      <div style="padding:24px;">
+        <h2 style="margin:0 0 12px;font-size:18px;">${escapeHtml(subject)}</h2>
+        <p style="margin:0 0 20px;font-size:14px;color:#4b5563;">${intro}</p>
+        <div>${listHtml}</div>
+        <p style="margin:20px 0 0;font-size:13px;color:#6b7280;line-height:1.5;">${escapeHtml(hint)}</p>
+        <div style="margin-top:24px;text-align:center;">
+          <a href="${escapeHtml(manageUrl)}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:8px;font-size:14px;">Gestionar alertas</a>
+        </div>
+      </div>
+    </div>
+    <p style="text-align:center;font-size:12px;color:#6b7280;margin-top:16px;">
+      Recibes este correo porque tienes alertas activas en ${brandName}.
+    </p>
+  </div>
+</body>
+</html>`;
+
+  const textList = auctions
+    .map((a) => {
+      const lines: string[] = [`- ${a.title} [En curso]`];
+      const location = locationOf(a);
+      if (location) lines.push(`  Ubicacion: ${location}`);
+      if (a.appraisalValue != null && a.appraisalValue > 0) {
+        lines.push(`  Tasacion: ${EUR.format(a.appraisalValue)}`);
+      }
+      const ends = endsAtOf(a);
+      if (ends) lines.push(`  Termina: ${ends}`);
+      lines.push(`  ${a.url}`);
+      return lines.join('\n');
+    })
+    .join('\n\n');
+
+  const text = `${subject}\n\n${textList}\n\n${hint}\n\nGestionar alertas: ${manageUrl}`;
+
+  return { subject, html, text };
+}
+
+/**
  * WELCOME EMAIL (Dennis, 2026-08-05) — sent ONCE, when an account becomes
  * verified. Spanish, because Spanish is the site's language.
  *

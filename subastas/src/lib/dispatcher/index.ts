@@ -1,10 +1,18 @@
 /**
- * Notification dispatcher (Wave 2b).
+ * Notification dispatcher (Wave 2b; saved-search fan-out added wave218).
  *
  * Drains rows from `event_outbox` (written by Ghost's scraper, Wave 2a), fans
  * each event out to followers (`Favorite` rows with per-event notify-prefs),
  * and delivers via three channels: email (Resend), web-push, in-app
  * `Notification` rows.
+ *
+ * wave218 adds a SECOND audience for exactly one event type: `auction.go_live`
+ * also reaches users whose active saved search (`Alert`) matches the auction,
+ * even if they never followed it. Every other event type keeps Favorite-only
+ * fan-out — see `dispatcher/alert-fanout.ts` for the locked rule and the
+ * `ALERT_GOLIVE_FANOUT` kill switch. Matching itself lives in the shared
+ * `@/lib/alerts/matcher`, which Engine A (`/api/alerts/check`) imports too, so
+ * the two engines cannot drift.
  *
  * Invariants:
  *   - At-least-once delivery (a crash before processedAt is set means the row
@@ -13,8 +21,20 @@
  *     Notification row with matching dedupeKey-in-payload before inserting a
  *     new one. (Cannot add a unique index in this wave — schema is frozen.)
  *   - Outbox row marked `processedAt` only after every (follower × channel)
- *     attempt has been recorded as delivered, failed, or skipped (duplicate /
- *     pref-off / quiet-hours).
+ *     attempt AND every alert-path mail covering that row has been recorded as
+ *     delivered, failed, or skipped (duplicate / pref-off / quiet-hours /
+ *     kill-switch). Because `grouped` alert mails span several rows, the drain
+ *     runs in three phases — follower fan-out, alert mails, then a single
+ *     markProcessed sweep — so a crash mid-batch leaves the whole batch
+ *     unprocessed and the next drain retries it. That retry cannot double-mail:
+ *     the per-auction `alreadyDelivered` check is consulted before every send.
+ *     At-least-once is preserved; at-most-once is approximated by the dedupe
+ *     key, exactly as on the follower path.
+ *   - Alert-path Notification rows are written with `alertId = NULL` and the
+ *     originating alert recorded in `payload.__alertId`. The schema carries
+ *     UNIQUE(alertId, auctionId, channel) and Engine A already owns the
+ *     (alertId, auctionId, 'email') slot with its NEW_MATCH row — reusing the
+ *     concrete alertId here would collide and silently drop the go_live row.
  *   - Atomic claim: one dispatcher instance grabs each row via UPDATE…WHERE
  *     processedAt IS NULL…RETURNING. Two instances racing produces at most one
  *     winner per row (Postgres serializes the UPDATE).
@@ -33,6 +53,17 @@ import {
 import { sendPush, isVapidConfigured } from '@/lib/dispatcher/webpush';
 import type { NotificationChannel } from '@prisma/client';
 import { alertsFromEmail } from '@/lib/email-from';
+import { createAuctionLiveAlertEmail } from '@/lib/email-templates';
+import type { AlertCriteria, AuctionForMatch } from '@/lib/alerts/matcher';
+import {
+  collectAlertMatches,
+  parseFanoutMode,
+  planAlertMails,
+  type AlertMatch,
+  type AlertSubscriber,
+  type FanoutAuction,
+  type FanoutMode,
+} from '@/lib/dispatcher/alert-fanout';
 
 type FavoriteWithUser = {
   id: string;
@@ -63,6 +94,21 @@ export interface DispatchStats {
   duplicatesSkipped: number;
   prefSkipped: number;
   quietHoursSkipped: number;
+  /**
+   * wave218 saved-search fan-out (go_live only). These four are what Ken reads
+   * out of the scheduler's dispatch JSON at deploy time.
+   *   alertMatched      — distinct (user, auction) alert hits that survived both
+   *                       dedupe gates (follower-union and __dedupe lookup).
+   *                       Populated in `count` mode; 0 in `off`.
+   *   alertEmailsSent   — alert mails actually accepted by Resend.
+   *   alertEmailsFailed — alert mails Resend rejected or that threw.
+   *   alertGroupedMails — the subset of alertEmailsSent produced by a `grouped`
+   *                       alert (one mail per user per drain, N auctions in it).
+   */
+  alertMatched: number;
+  alertEmailsSent: number;
+  alertEmailsFailed: number;
+  alertGroupedMails: number;
   errors: string[];
 }
 
@@ -81,6 +127,10 @@ function newStats(): DispatchStats {
     duplicatesSkipped: 0,
     prefSkipped: 0,
     quietHoursSkipped: 0,
+    alertMatched: 0,
+    alertEmailsSent: 0,
+    alertEmailsFailed: 0,
+    alertGroupedMails: 0,
     errors: [],
   };
 }
@@ -170,10 +220,16 @@ async function markProcessed(outboxId: string): Promise<void> {
   );
 }
 
+/**
+ * All Favorite rows for the auction, plus the subset whose per-event notify
+ * pref is on. The FULL set matters to the alert path: a user who follows the
+ * auction is owned by the follower path regardless of their prefs, so the alert
+ * path must not "rescue" them with a second mail (RULES rule 1).
+ */
 async function resolveFollowers(
   auctionId: string,
   eventType: string,
-): Promise<FavoriteWithUser[]> {
+): Promise<{ all: FavoriteWithUser[]; eligible: FavoriteWithUser[] }> {
   const prefField = followerPrefField(eventType);
 
   // We always fetch all followers for the auction, then filter in JS for pref.
@@ -196,8 +252,115 @@ async function resolveFollowers(
     },
   });
 
-  if (!prefField) return favorites;
-  return favorites.filter((f) => (f as Record<string, unknown>)[prefField] === true);
+  const eligible = prefField
+    ? favorites.filter((f) => (f as Record<string, unknown>)[prefField] === true)
+    : favorites;
+  return { all: favorites, eligible };
+}
+
+/**
+ * The exact `Auction` columns the shared matcher reads, plus the three the
+ * go-live mail renders. Typed against `AuctionForMatch` so that adding a filter
+ * to the matcher is a COMPILE error here until this select is widened — that is
+ * the anti-drift guarantee between Engine A and Engine B.
+ */
+const AUCTION_MATCH_SELECT = {
+  id: true,
+  province: true,
+  municipality: true,
+  category: true,
+  source: true,
+  auctionType: true,
+  propertyType: true,
+  status: true,
+  appraisalValue: true,
+  title: true,
+  generalInfo: true,
+  propertyDescription: true,
+  lotDescription: true,
+  endsAt: true,
+} as const;
+
+/**
+ * REAL anti-drift guard, not a vibes one.
+ *
+ * A plain `const x: AuctionForMatch = row` proves nothing here, because every
+ * field on `AuctionForMatch` is optional — a row missing `propertyType` still
+ * satisfies the interface, and the dispatcher would just silently match against
+ * `undefined`. (Verified: adding a field to the matcher left tsc green.)
+ *
+ * This instead asserts at the TYPE level that every key the matcher reads is
+ * present in the select. Add a filter to `AuctionForMatch` without widening
+ * `AUCTION_MATCH_SELECT` and `MissingMatchFields` becomes that key's literal
+ * type, which `true` is not assignable to — the build fails with the missing
+ * field named in the error.
+ */
+type MissingMatchFields = Exclude<keyof AuctionForMatch, keyof typeof AUCTION_MATCH_SELECT>;
+const _selectCoversEveryMatcherField: MissingMatchFields extends never
+  ? true
+  : MissingMatchFields = true;
+void _selectCoversEveryMatcherField;
+
+/**
+ * The active, email-enabled saved searches — loaded ONCE PER DRAIN, not once
+ * per event. Today there are 2 alerts in production; this shape holds at
+ * thousands (the filter is a pure in-memory pass and `Alert.active` is
+ * indexed). If the alert count ever reaches a size where loading them all is
+ * wrong, the fix is a keyset scan here — NOT per-alert or per-event queries.
+ */
+async function loadActiveAlerts(): Promise<AlertSubscriber[]> {
+  const alertRows = await prisma.alert.findMany({
+    where: { active: true, emailEnabled: true },
+    select: {
+      id: true,
+      name: true,
+      userId: true,
+      province: true,
+      municipality: true,
+      category: true,
+      source: true,
+      auctionType: true,
+      propertyType: true,
+      statuses: true,
+      minPrice: true,
+      maxPrice: true,
+      keywords: true,
+      notificationType: true,
+      active: true,
+      emailEnabled: true,
+      user: { select: { id: true, email: true } },
+    },
+  });
+
+  return alertRows
+    .filter((a) => Boolean(a.user?.email))
+    .map((a) => {
+      const criteria: AlertCriteria = a;
+      return {
+        ...criteria,
+        id: a.id,
+        name: a.name,
+        userId: a.userId,
+        email: a.user!.email,
+        notificationType: a.notificationType,
+        active: a.active,
+        emailEnabled: a.emailEnabled,
+      };
+    });
+}
+
+/**
+ * The one auction row the matcher + the go-live mail need. One query per
+ * go_live event; there is no cheaper shape, since each event names a different
+ * auction.
+ */
+async function loadAuctionForFanout(auctionId: string): Promise<FanoutAuction | null> {
+  const row = await prisma.auction.findUnique({
+    where: { id: auctionId },
+    select: AUCTION_MATCH_SELECT,
+  });
+  if (!row) return null;
+  return row as FanoutAuction;
 }
 
 function inQuietHours(start: number | null, end: number | null, now: Date): boolean {
@@ -421,6 +584,9 @@ async function deliverPush(
  * Dispatch a single event: resolve followers, fan out to each enabled channel,
  * record outcomes on Notification rows. Returns when every follower×channel
  * attempt has been recorded.
+ *
+ * Returns the userIds of EVERY follower of the auction (pref-filtered or not) so
+ * the caller can exclude them from the alert-path fan-out.
  */
 async function dispatchEvent(
   outboxRow: {
@@ -431,7 +597,8 @@ async function dispatchEvent(
     dedupeKey: string | null;
   },
   stats: DispatchStats,
-): Promise<void> {
+): Promise<string[]> {
+  let followerUserIds: string[] = [];
   const dedupeKey = outboxRow.dedupeKey ?? `${outboxRow.eventType}:${outboxRow.id}`;
   const auctionId =
     outboxRow.auctionId ?? (outboxRow.payload.auctionId as string | undefined) ?? null;
@@ -439,12 +606,16 @@ async function dispatchEvent(
   if (!auctionId) {
     stats.outboxSkipped++;
     stats.errors.push(`outbox_${outboxRow.id}_no_auctionid`);
-    return;
+    return followerUserIds;
   }
 
-  const followers = await resolveFollowers(auctionId, outboxRow.eventType);
+  const { all: allFollowers, eligible: followers } = await resolveFollowers(
+    auctionId,
+    outboxRow.eventType,
+  );
+  followerUserIds = allFollowers.map((f) => f.userId);
   stats.followersFanned += followers.length;
-  if (followers.length === 0) return;
+  if (followers.length === 0) return followerUserIds;
 
   // Ghost packs everything except auctionId into payload (auctionId lives in
   // the event_outbox column). Renderers want it for URL construction, so
@@ -478,18 +649,247 @@ async function dispatchEvent(
       await deliverPush(f, auctionId, outboxRow.eventType, enrichedPayload, dedupeKey, stats);
     }
   }
+
+  return followerUserIds;
 }
 
-/** Public entrypoint — drains up to `batchSize` outbox rows. */
+/**
+ * Write the audit row for one alert-path delivery.
+ *
+ * `alertId` is deliberately NULL on the column (the originating alert lives in
+ * `payload.__alertId`): the schema's UNIQUE(alertId, auctionId, channel) is
+ * already occupied by Engine A's NEW_MATCH row for the same (alert, auction,
+ * 'email'), and Postgres treats NULLs as distinct, so this is the only way both
+ * mails can be recorded. Never throws — a bookkeeping failure must not break
+ * the drain, but it IS reported, because a lost row means a possible re-mail.
+ */
+async function recordAlertNotification(args: {
+  userId: string;
+  auctionId: string;
+  alertId: string;
+  channel: NotificationChannel;
+  dedupeKey: string;
+  payload: DispatchPayload;
+  failureReason?: string;
+  stats: DispatchStats;
+}): Promise<void> {
+  try {
+    await prisma.notification.create({
+      data: {
+        userId: args.userId,
+        alertId: null,
+        auctionId: args.auctionId,
+        type: notificationTypeForEvent(EVENT_TYPES.GO_LIVE),
+        channel: args.channel,
+        payload: {
+          ...args.payload,
+          __dedupe: args.dedupeKey,
+          __event: EVENT_TYPES.GO_LIVE,
+          __alertId: args.alertId,
+        },
+        deliveredAt: args.failureReason ? null : new Date(),
+        deliveryAttempts: 1,
+        failureReason: args.failureReason ?? null,
+      },
+    });
+  } catch (err) {
+    args.stats.errors.push(`alert_notification_write:${(err as Error).message}`);
+  }
+}
+
+/**
+ * Phase (b) of the drain: send the planned alert mails.
+ *
+ * Notification rows (email + inapp) are written PER AUCTION and ONLY on a
+ * successful send, so a grouped mail that covers three auctions records three
+ * rows and a retry after a failure re-mails only what is still unrecorded.
+ */
+async function sendAlertMails(
+  matches: AlertMatch[],
+  mode: FanoutMode,
+  stats: DispatchStats,
+): Promise<void> {
+  if (mode === 'off' || matches.length === 0) return;
+
+  // Resolve the dedupe gate up front: one lookup per (user, dedupeKey) pair,
+  // bounded by the number of matches, then a pure Set-backed predicate so the
+  // planner stays synchronous and testable.
+  const pairs = Array.from(
+    new Map(
+      matches.map((m) => [`${m.userId}\u0000${m.dedupeKey}`, m] as const),
+    ).values(),
+  );
+  const delivered = new Set<string>();
+  for (const m of pairs) {
+    if (await alreadyDelivered(m.userId, 'email', m.dedupeKey)) {
+      delivered.add(`${m.userId}\u0000${m.dedupeKey}`);
+    }
+  }
+
+  const plan = planAlertMails(
+    matches,
+    (userId, dedupeKey) => delivered.has(`${userId}\u0000${dedupeKey}`),
+    mode,
+  );
+  stats.alertMatched += plan.matched;
+  stats.duplicatesSkipped += plan.skippedDuplicate;
+
+  // `count` mode: recipients computed and reported, nothing sent, no rows.
+  if (mode !== 'live' || plan.mails.length === 0) return;
+
+  const resend = getResend();
+  if (!resend) {
+    stats.alertEmailsFailed += plan.mails.length;
+    stats.errors.push('resend_not_configured');
+    return;
+  }
+
+  const manageUrl = `${APP_URL.replace(/\/+$/, '')}/alerts`;
+
+  for (const mail of plan.mails) {
+    const rendered = createAuctionLiveAlertEmail({
+      alertName: mail.alertName,
+      manageUrl,
+      auctions: mail.entries.map((e) => ({
+        title:
+          e.auction.title?.trim() ||
+          e.auction.municipality?.trim() ||
+          'Subasta',
+        url: `${APP_URL.replace(/\/+$/, '')}/auction/${e.auction.id}`,
+        province: e.auction.province ?? null,
+        municipality: e.auction.municipality ?? null,
+        appraisalValue: e.auction.appraisalValue ?? null,
+        endsAt: e.auction.endsAt ?? null,
+      })),
+    });
+
+    let failure: string | undefined;
+    try {
+      const r = await resend.emails.send({
+        from: fromEmail(),
+        to: [mail.email],
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+      });
+      if (r.error) failure = r.error.message ?? 'resend_error';
+    } catch (err) {
+      failure = (err as Error).message;
+    }
+
+    if (failure) {
+      stats.alertEmailsFailed++;
+      stats.errors.push(`alert_email:${failure}`);
+    } else {
+      stats.alertEmailsSent++;
+      if (mail.grouped) stats.alertGroupedMails++;
+    }
+
+    // One audit row per auction, both channels, success or failure. On failure
+    // the row carries failureReason and NO deliveredAt — and crucially it is
+    // still written, so `alreadyDelivered` will NOT suppress the retry (that
+    // check is keyed on the dedupe value, which a failed row also carries).
+    // That is the deliberate trade-off: we prefer a recorded failure that the
+    // operator can see over a silent hole, and the retry is governed by the
+    // outbox row, which is marked processed either way.
+    for (const e of mail.entries) {
+      const payload: DispatchPayload = {
+        auctionId: e.auction.id,
+        title: e.auction.title ?? null,
+        province: e.auction.province ?? null,
+        municipality: e.auction.municipality ?? null,
+        appraisalValue: e.auction.appraisalValue ?? null,
+        __path: 'alert',
+      };
+      if (failure) {
+        await recordAlertNotification({
+          userId: mail.userId,
+          auctionId: e.auction.id,
+          alertId: e.alertId,
+          channel: 'email',
+          dedupeKey: e.dedupeKey,
+          payload,
+          failureReason: failure,
+          stats,
+        });
+        continue;
+      }
+      await recordAlertNotification({
+        userId: mail.userId,
+        auctionId: e.auction.id,
+        alertId: e.alertId,
+        channel: 'email',
+        dedupeKey: e.dedupeKey,
+        payload,
+        stats,
+      });
+      // In-app inbox copy — alert subscribers get `email,inapp` and no quiet
+      // hours (they never configured any; only a Favorite carries those).
+      if (!(await alreadyDelivered(mail.userId, 'inapp', e.dedupeKey))) {
+        await recordAlertNotification({
+          userId: mail.userId,
+          auctionId: e.auction.id,
+          alertId: e.alertId,
+          channel: 'inapp',
+          dedupeKey: e.dedupeKey,
+          payload,
+          stats,
+        });
+        stats.inAppCreated++;
+      }
+    }
+  }
+}
+
+/**
+ * Public entrypoint — drains up to `batchSize` outbox rows.
+ *
+ * Three phases, because `grouped` alert mails span rows (see the file header):
+ *   (a) per-row follower fan-out + collect alert matches — NO markProcessed;
+ *   (b) send the alert mails for the whole batch;
+ *   (c) mark every row whose handling completed.
+ * A row that threw in (a) is never marked, so the next drain retries it.
+ */
 export async function drainOutbox(batchSize = 50): Promise<DispatchStats> {
   const stats = newStats();
+  const mode: FanoutMode = parseFanoutMode(process.env.ALERT_GOLIVE_FANOUT);
   const rows = await claimUnprocessed(batchSize);
   stats.outboxScanned = rows.length;
+
+  const handled: string[] = [];
+  const alertMatches: AlertMatch[] = [];
+  // Lazily loaded on the first go_live row; null means "not needed yet".
+  let activeAlerts: AlertSubscriber[] | null = null;
+
+  // ── (a) follower fan-out, then alert matching ────────────────────────────
   for (const row of rows) {
     try {
-      await dispatchEvent(row, stats);
-      await markProcessed(row.id);
-      stats.outboxProcessed++;
+      const followerUserIds = await dispatchEvent(row, stats);
+
+      if (mode !== 'off' && row.eventType === EVENT_TYPES.GO_LIVE) {
+        const auctionId =
+          row.auctionId ?? (row.payload.auctionId as string | undefined) ?? null;
+        if (auctionId) {
+          // One alert query for the WHOLE drain, then one auction row per
+          // go_live event. No N+1 in either direction.
+          if (activeAlerts === null) activeAlerts = await loadActiveAlerts();
+          const alerts = activeAlerts;
+          const auction = await loadAuctionForFanout(auctionId);
+          if (auction) {
+            const { matches } = collectAlertMatches({
+              eventType: row.eventType,
+              auction,
+              alerts,
+              favoriteUserIds: followerUserIds,
+              mode,
+              dedupeKey: row.dedupeKey ?? `${row.eventType}:${row.id}`,
+            });
+            alertMatches.push(...matches);
+          }
+        }
+      }
+
+      handled.push(row.id);
     } catch (err) {
       stats.outboxSkipped++;
       stats.errors.push(`outbox_${row.id}_throw:${(err as Error).message}`);
@@ -497,6 +897,25 @@ export async function drainOutbox(batchSize = 50): Promise<DispatchStats> {
       // loops, the worker sleeps between drains.
     }
   }
+
+  // ── (b) alert mails for the whole batch ──────────────────────────────────
+  try {
+    await sendAlertMails(alertMatches, mode, stats);
+  } catch (err) {
+    // Never strand follower work on an alert-path failure.
+    stats.errors.push(`alert_fanout_throw:${(err as Error).message}`);
+  }
+
+  // ── (c) mark processed ───────────────────────────────────────────────────
+  for (const id of handled) {
+    try {
+      await markProcessed(id);
+      stats.outboxProcessed++;
+    } catch (err) {
+      stats.errors.push(`outbox_${id}_mark_throw:${(err as Error).message}`);
+    }
+  }
+
   return stats;
 }
 
