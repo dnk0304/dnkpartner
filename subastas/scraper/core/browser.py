@@ -7,6 +7,9 @@ from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page
 from typing import Optional, Dict, Any
 import logging
 import atexit
+import os
+import signal
+import threading
 
 from ..config.settings import HEADLESS_BROWSER, USE_STEALTH
 from .stealth import apply_stealth_to_page
@@ -41,18 +44,97 @@ class BrowserManager:
         self._playwright = None
         self._browser = None
         self._contexts = []
-        
+        # SN-5: which thread started the CURRENT sync-Playwright driver. See
+        # _ensure_browser.
+        self._owner_thread: Optional[threading.Thread] = None
+
         # Register cleanup on exit
         atexit.register(self.close_all)
-        
+
         logger.info("BrowserManager initialized")
-    
+
+    # -----------------------------------------------------------------------
+    # SN-5 (2026-09-23) — THREAD AFFINITY. This is the root of the greenlet
+    # storm that stalled the scheduler for ~8h on 2026-09-23.
+    #
+    # `sync_playwright().start()` binds a greenlet/event loop to the CALLING
+    # thread. This class is a process-wide singleton (`__new__` + the module
+    # `_browser_manager`), but `scheduler._run_sync_scrape` deliberately runs
+    # every scrape on a FRESH thread. So scrape #1 started the driver on thread
+    # A, thread A exited, and scrape #2 on thread B reused the very same
+    # singleton — driving a driver whose loop lives on a dead thread. Playwright
+    # then raises, forever:
+    #     greenlet.error: cannot switch to a different thread
+    #                     (which happens to have exited)
+    # 618 of those since 09-19 — and one call wedged instead of raising, which
+    # is what hung the single scheduler loop. The `node .../cli.js run-driver`
+    # PID was 20 days old (= container age): ONE driver, never stopped, because
+    # nothing but `atexit` ever calls close_all().
+    #
+    # The fix: the driver is owned by the thread that started it. A different
+    # (or dead) thread never touches it — we ABANDON the handles, best-effort
+    # kill the orphaned driver process so it cannot accumulate, and start a
+    # clean driver on the current thread.
+    #
+    # We do NOT call close_all() from the wrong thread: that call is itself the
+    # cross-thread switch that raises/hangs.
+    # -----------------------------------------------------------------------
+    def _abandon_foreign_driver(self):
+        """Drop a driver owned by another (usually dead) thread, killing its process."""
+        owner = self._owner_thread
+        logger.warning(
+            "BrowserManager: Playwright driver was started on thread %r "
+            "(alive=%s) but is being used from %r — abandoning it and starting "
+            "a clean driver on this thread (SN-5 greenlet-storm guard)",
+            getattr(owner, 'name', owner),
+            getattr(owner, 'is_alive', lambda: False)(),
+            threading.current_thread().name,
+        )
+        self._kill_driver_process(self._playwright)
+        self._playwright = None
+        self._browser = None
+        self._contexts = []
+        self._owner_thread = None
+
+    @staticmethod
+    def _kill_driver_process(pw) -> None:
+        """
+        Best-effort SIGKILL of the `node ... cli.js run-driver` process behind a
+        sync-Playwright handle we can no longer talk to.
+
+        Reaches through private attributes on purpose: the public `.stop()` is
+        exactly the cross-thread call that hangs. Every step is guarded — a
+        failure here must never break a scrape, it only means one orphan lives
+        until the process exits.
+        """
+        if pw is None:
+            return
+        try:
+            proc = getattr(getattr(getattr(pw, '_connection', None),
+                                   '_transport', None), '_proc', None)
+            pid = getattr(proc, 'pid', None)
+            if not pid:
+                return
+            if os.name == 'nt':
+                import subprocess
+                subprocess.run(['taskkill', '/PID', str(pid), '/T', '/F'],
+                               capture_output=True, timeout=30)
+            else:
+                os.kill(pid, signal.SIGKILL)
+            logger.warning("BrowserManager: killed orphaned Playwright driver pid=%s", pid)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("BrowserManager: could not kill orphaned driver: %s", e)
+
     def _ensure_browser(self):
-        """Ensure browser is launched"""
+        """Ensure browser is launched (on THIS thread — see thread-affinity note)."""
+        if self._playwright is not None and self._owner_thread is not threading.current_thread():
+            self._abandon_foreign_driver()
+
         if self._browser is None or not self._browser.is_connected():
             if self._playwright is None:
                 self._playwright = sync_playwright().start()
-            
+                self._owner_thread = threading.current_thread()
+
             logger.info("Launching browser...")
             self._browser = self._playwright.chromium.launch(
                 headless=HEADLESS_BROWSER,
@@ -148,9 +230,20 @@ class BrowserManager:
             logger.warning(f"Error closing page: {e}")
     
     def close_all(self):
-        """Close all contexts and browser"""
+        """Close all contexts and browser.
+
+        SN-5: refuses to do a graceful close from a thread that does not own the
+        driver — that call is the cross-thread greenlet switch that hangs. From
+        a foreign thread (including the `atexit` hook when the owning scrape
+        thread is already gone) we abandon + kill instead, which is bounded.
+        """
+        if self._playwright is not None and self._owner_thread is not None \
+                and self._owner_thread is not threading.current_thread():
+            self._abandon_foreign_driver()
+            return
+
         logger.info("Closing all browser resources...")
-        
+
         # Close all contexts
         for context in self._contexts[:]:
             try:
@@ -168,14 +261,18 @@ class BrowserManager:
                 logger.warning(f"Error closing browser: {e}")
             self._browser = None
         
-        # Stop playwright
+        # Stop playwright. SN-5: if the graceful stop fails we must NOT leave a
+        # started-but-unstopped driver behind (that is the 20-day-old PID 750) —
+        # kill its process so the handle cannot outlive this call.
         if self._playwright:
             try:
                 self._playwright.stop()
             except Exception as e:
                 logger.warning(f"Error stopping playwright: {e}")
+                self._kill_driver_process(self._playwright)
             self._playwright = None
-        
+        self._owner_thread = None
+
         logger.info("All browser resources closed")
     
     def restart(self):

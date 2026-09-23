@@ -342,8 +342,16 @@ class BOEPreAuctionScraper(BOEParallelScraper):
                 '.resultado-busqueda, .sin-resultados, .error',
                 timeout=15000,
             )
-        except Exception:
+        except Exception as e:
+            # SN-5: same rule as the parallel scraper — a container that never
+            # appears is an ERROR, not a quiet zero. Falling through returned
+            # (0, 0), which reads as "no pre-auctions today" and hides a broken
+            # or blocked page indefinitely.
             self.log_warning("  Could not find PA results container")
+            raise RuntimeError(
+                f"PA results container never appeared (BOE page changed, "
+                f"blocked, or timed out): {e}"
+            )
 
         # BOE "too many results" error -> signal the caller to split by province.
         if page.locator('.caja.gris.error').count() > 0:

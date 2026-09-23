@@ -223,46 +223,51 @@ class BOEParallelScraper(BOEScraper):
         self.log_info(f"[Scraper {self.scraper_id}] Starting: {total_batches} batches (15-day chunks)")
         self.log_info(f"[Scraper {self.scraper_id}] Range: {start_year}-{start_month:02d}-{start_day:02d} to {end_year}-{end_month:02d}-{end_day:02d}")
         
-        for idx, (batch_start, batch_end) in enumerate(batches):
-            batch_key = f"{batch_start.strftime('%Y-%m-%d')}_to_{batch_end.strftime('%Y-%m-%d')}"
+        # SN-5: teardown in a `finally`. It used to sit AFTER the loop, so any
+        # exception outside the per-batch handler (progress save, logging,
+        # KeyboardInterrupt/SystemExit) skipped it and stranded a Playwright
+        # driver + chrome for the life of the process.
+        try:
+            for idx, (batch_start, batch_end) in enumerate(batches):
+                batch_key = f"{batch_start.strftime('%Y-%m-%d')}_to_{batch_end.strftime('%Y-%m-%d')}"
             
-            if resume and batch_key in progress['completed_batches']:
-                self.log_info(f"[Scraper {self.scraper_id}] Skipping {batch_key} (completed)")
-                continue
+                if resume and batch_key in progress['completed_batches']:
+                    self.log_info(f"[Scraper {self.scraper_id}] Skipping {batch_key} (completed)")
+                    continue
             
-            self.log_info(f"\n[Scraper {self.scraper_id}] Batch {idx + 1}/{total_batches}: {batch_key}")
+                self.log_info(f"\n[Scraper {self.scraper_id}] Batch {idx + 1}/{total_batches}: {batch_key}")
             
-            try:
-                results_found, auctions_fetched = self._scrape_batch(batch_start, batch_end)
+                try:
+                    results_found, auctions_fetched = self._scrape_batch(batch_start, batch_end)
                 
-                # Update progress
-                progress['completed_batches'].append(batch_key)
-                progress['total_auctions'] += auctions_fetched
-                progress['batches_found'][batch_key] = results_found
-                progress['batches_fetched'][batch_key] = auctions_fetched
+                    # Update progress
+                    progress['completed_batches'].append(batch_key)
+                    progress['total_auctions'] += auctions_fetched
+                    progress['batches_found'][batch_key] = results_found
+                    progress['batches_fetched'][batch_key] = auctions_fetched
                 
-                self._save_progress(progress)
+                    self._save_progress(progress)
                 
-                self.log_info(f"[Scraper {self.scraper_id}] ✓ Batch complete: Found {results_found}, Fetched {auctions_fetched}")
+                    self.log_info(f"[Scraper {self.scraper_id}] ✓ Batch complete: Found {results_found}, Fetched {auctions_fetched}")
                 
-            except Exception as e:
-                self.log_error(f"[Scraper {self.scraper_id}] Failed batch {batch_key}: {e}")
-                progress['errors'].append({
-                    'batch': batch_key,
-                    'error': str(e),
-                    'timestamp': datetime.now().isoformat(),
-                })
-                self._save_progress(progress)
+                except Exception as e:
+                    self.log_error(f"[Scraper {self.scraper_id}] Failed batch {batch_key}: {e}")
+                    progress['errors'].append({
+                        'batch': batch_key,
+                        'error': str(e),
+                        'timestamp': datetime.now().isoformat(),
+                    })
+                    self._save_progress(progress)
             
-            # Delay between batches
-            if idx < total_batches - 1:
-                random_delay(15, 20)
+                # Delay between batches
+                if idx < total_batches - 1:
+                    random_delay(15, 20)
         
-        self.log_info(f"\n[Scraper {self.scraper_id}] COMPLETE: {progress['total_auctions']:,} auctions")
-        
-        # Cleanup browser
-        self._close_own_browser()
-        
+            self.log_info(f"\n[Scraper {self.scraper_id}] COMPLETE: {progress['total_auctions']:,} auctions")
+        finally:
+            # Cleanup browser
+            self._close_own_browser()
+
         return progress
     
     def _generate_15day_batches(self, start_date: datetime, end_date: datetime) -> List[tuple]:
@@ -304,11 +309,22 @@ class BOEParallelScraper(BOEScraper):
             random_delay(2, 4)
             
             # Check for results
+            # SN-5: a missing results container is a FAILED batch, not a quiet
+            # zero. Previously it was logged and fell through: the pagination
+            # loop then found 0 items, broke, and the batch returned (0, 0) —
+            # counted as a successful empty window, invisible in
+            # progress['errors']. On BOE_OTRAS_TRIBUTARIAS that turned a broken
+            # page into "0 new auctions, 0 errors" for days. Raising ends the
+            # batch through the caller's handler, which records the error.
             try:
                 page.wait_for_selector('.resultado-busqueda, .sin-resultados, .error', timeout=15000)
-            except Exception:
+            except Exception as e:
                 self.log_warning("Could not find results container")
-            
+                raise RuntimeError(
+                    f"results container never appeared for {start_str}..{end_str} "
+                    f"(BOE page changed, blocked, or timed out): {e}"
+                )
+
             # Check for error
             if page.locator('.caja.gris.error').count() > 0:
                 self.log_warning("BOE returned 'too many results' error")

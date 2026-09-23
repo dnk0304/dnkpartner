@@ -46,5 +46,14 @@ RUN mkdir -p /app/logs
 # Set Python path
 ENV PYTHONPATH=/app
 
+# SN-5: stdout was BLOCK-buffered, so `docker logs` lagged the file log by
+# HOURS and the 2026-09-23 stall was invisible there. Unbuffered from now on.
+ENV PYTHONUNBUFFERED=1
+
+# SN-5 T4: liveness of the WORK, not of the process. Fails when the
+# dispatch tick has not stamped /app/logs/heartbeat.json within
+# STALL_ALERT_MIN (default 15 min). start-period covers boot.
+HEALTHCHECK --interval=2m --timeout=20s --start-period=5m --retries=2 CMD python /app/healthcheck.py || exit 1
+
 # Default command (can be overridden in docker-compose)
 CMD ["celery", "-A", "tasks.celeryconfig", "worker", "--loglevel=info"]
