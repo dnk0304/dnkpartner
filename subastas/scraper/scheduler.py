@@ -103,6 +103,36 @@ MINT_URL_V3_ENDPOINT = os.getenv(
 MINT_URL_V3_INTERVAL_MIN = int(os.getenv("MINT_URL_V3_INTERVAL_MIN", "5"))
 MINT_URL_V3_BATCH = int(os.getenv("MINT_URL_V3_BATCH", "500"))
 
+# ---------------------------------------------------------------------------
+# SN-5 (2026-09-23) — STALL HARDENING. See scrape_runner.py and watchdog.py.
+#
+# THE INCIDENT: every scrape ran on a worker thread joined with NO timeout, on
+# the SAME single thread that runs every other job. One BOE_OTRAS_TRIBUTARIAS
+# pass wedged inside sync-Playwright and the whole scheduler stopped: last
+# dispatch tick 05:03Z, last promote 04:55Z, last mint 06:15Z, until Ken
+# restarted the container at 12:48:40Z. Nothing alerted.
+#
+# THREE INDEPENDENT GUARDS, so no single one has to be perfect:
+#   T1  every scrape has a HARD timeout, preferably in its own process
+#       (scrape_runner.run_scrape)
+#   T2  the light ticks run on their OWN scheduler thread and never touch
+#       _scrape_lock, so a wedged scrape cannot stop dispatch/promote/mint
+#   T4  a heartbeat file + healthcheck + one admin mail per stall episode
+# ---------------------------------------------------------------------------
+sys.path.insert(0, str(SCRIPT_DIR))
+import scrape_runner  # noqa: E402
+import watchdog  # noqa: E402
+from scrape_runner import run_scrape as _run_scrape_with_timeout  # noqa: E402
+from watchdog import Heartbeat, StallMonitor  # noqa: E402
+
+#: Light ticks — cheap, bounded-HTTP or short-SQL jobs that MUST keep running
+#: while a scrape is in flight. These are exactly the jobs the stall killed.
+LIGHT_TICK_JOBS = ("dispatch", "promote", "monitor", "freeze", "mint")
+
+#: How often the light lane wakes up. One minute matches the old loop.
+TICK_LOOP_SLEEP_S = int(os.getenv("TICK_LOOP_SLEEP_S", "20"))
+SCRAPE_LOOP_SLEEP_S = int(os.getenv("SCRAPE_LOOP_SLEEP_S", "60"))
+
 
 class ScraperScheduler:
     def __init__(self):
@@ -112,12 +142,63 @@ class ScraperScheduler:
         # already spaces them, but jobs that overrun must still not overlap).
         self._scrape_lock = threading.Lock()
 
+        # SN-5 T2: two independent schedule.Scheduler instances on two threads.
+        # `sched_ticks` carries the light jobs and NEVER touches _scrape_lock;
+        # `sched_scrapes` carries everything that drives a browser. A wedged
+        # scrape can therefore stop at most the scrape lane.
+        self.sched_ticks = schedule.Scheduler()
+        self.sched_scrapes = schedule.Scheduler()
+
+        # SN-5 T2: "max one in flight" per job. `schedule` happily re-enters a
+        # job whose previous run is still going — which, for a 1-minute dispatch
+        # tick against a slow app, is how you get a thread pile-up.
+        self._inflight = set()
+        self._inflight_lock = threading.Lock()
+
+        # SN-5 T4
+        self.heartbeat = Heartbeat()
+        self.stall_monitor = None
+
     def log(self, message):
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         log_line = f"[{timestamp}] {message}"
-        print(log_line)
+        print(log_line, flush=True)
         with open(self.log_file, 'a', encoding='utf-8') as f:
             f.write(log_line + '\n')
+
+    # -----------------------------------------------------------------------
+    # SN-5 T2 — job wrappers
+    # -----------------------------------------------------------------------
+
+    def _guarded(self, name, fn, heartbeat=False):
+        """
+        Wrap a scheduled job so that (a) at most one run is in flight, (b) an
+        exception can never kill the lane's loop, and (c) light ticks stamp the
+        heartbeat on SUCCESS.
+
+        The heartbeat is stamped only on a clean return: a tick that throws
+        every minute is not a healthy tick, and stamping it would hide exactly
+        the kind of silent failure T4 exists to catch.
+        """
+        def _job():
+            with self._inflight_lock:
+                if name in self._inflight:
+                    self.log(f"  [{name}] previous run still in flight — skipping this tick")
+                    return
+                self._inflight.add(name)
+            try:
+                fn()
+                if heartbeat:
+                    self.heartbeat.stamp(name)
+            except Exception as e:  # noqa: BLE001
+                self.log(f"  [{name}] job raised: {type(e).__name__}: {e}")
+                import traceback
+                self.log(traceback.format_exc())
+            finally:
+                with self._inflight_lock:
+                    self._inflight.discard(name)
+        _job.__name__ = f"guarded_{name}"
+        return _job
 
     def _get_pg_conn(self):
         """Return a psycopg2 connection using DATABASE_URL."""
@@ -156,28 +237,22 @@ class ScraperScheduler:
         try/except logs the outcome — but if the worker thread raises we log it
         LOUDLY here (not silently swallowed) and return None so the caller sees
         fetched=0 with a visible traceback rather than a masked success.
+
+        SN-5 (2026-09-23): the join is now BOUNDED, and for every registered
+        label the scrape runs in its OWN PROCESS. See scrape_runner.py for the
+        incident and the reasoning. The contract of this method is unchanged —
+        returns the callable's result, or None on failure/timeout — so no call
+        site had to move.
+
+        The lock is still held for the duration, but it is now a lock with a
+        deadline: it is released after at most SCRAPE_TIMEOUT_MIN minutes, so it
+        can no longer be held forever by a wedged Playwright call. Nothing in
+        the light tick lane waits on it.
         """
-        box = {}
-
-        def _worker():
-            try:
-                box['result'] = fn(*args, **kwargs)
-            except BaseException as e:  # noqa: BLE001 — capture to re-surface
-                box['error'] = e
-                import traceback
-                box['traceback'] = traceback.format_exc()
-
         with self._scrape_lock:
-            t = threading.Thread(target=_worker, name=f"scrape-{label}", daemon=False)
-            t.start()
-            t.join()
-
-        if 'error' in box:
-            self.log(f"  [{label}] scrape thread crashed: "
-                     f"{type(box['error']).__name__}: {box['error']}")
-            self.log(box.get('traceback', ''))
-            return None
-        return box.get('result')
+            return _run_scrape_with_timeout(
+                label, fn, self.log, args=args, kwargs=kwargs,
+            )
 
     # -----------------------------------------------------------------------
     # monitor_status_changes — G6 (direct psycopg2) + Wave 2a (outbox)
@@ -2777,25 +2852,28 @@ class ScraperScheduler:
         self.log("=" * 70)
 
         # Pulse (bid updates) — every 35 min
-        schedule.every(35).minutes.do(self.scrape_pulse)
+        self.sched_scrapes.every(35).minutes.do(self._guarded('pulse', self.scrape_pulse))
 
         # Status monitor (expire + ending_soon) — every 30 min
-        schedule.every(30).minutes.do(self.monitor_status_changes)
+        self.sched_ticks.every(30).minutes.do(
+            self._guarded('monitor', self.monitor_status_changes, heartbeat=True))
 
         # Freeze reconcile (Mechanism 1b) — every 30 min, as its OWN job rather
         # than a call inside monitor_status_changes: a failure in the monitor
         # must not be able to suppress the reconcile, which is the thing that
         # catches every non-scheduler path to CONCLUIDA_PORTAL.
-        schedule.every(30).minutes.do(self.freeze_reconcile)
+        self.sched_ticks.every(30).minutes.do(
+            self._guarded('freeze', self.freeze_reconcile, heartbeat=True))
 
         # Promotion (PROXIMA_APERTURA -> CELEBRANDOSE when opensAt arrives)
         # — every 30 min. The time-driven hinge the lifecycle was missing.
-        schedule.every(30).minutes.do(self.promote_pending_auctions)
+        self.sched_ticks.every(30).minutes.do(
+            self._guarded('promote', self.promote_pending_auctions, heartbeat=True))
 
         # Daily BOE update (JUDICIAL family) + alert trigger — 08:00, 14:00, 20:00
-        schedule.every().day.at("08:00").do(self.run_daily_update_and_alerts)
-        schedule.every().day.at("14:00").do(self.run_daily_update_and_alerts)
-        schedule.every().day.at("20:00").do(self.run_daily_update_and_alerts)
+        self.sched_scrapes.every().day.at("08:00").do(self._guarded('judicial', self.run_daily_update_and_alerts))
+        self.sched_scrapes.every().day.at("14:00").do(self._guarded('judicial', self.run_daily_update_and_alerts))
+        self.sched_scrapes.every().day.at("20:00").do(self._guarded('judicial', self.run_daily_update_and_alerts))
 
         # Phase 2: per-category updates, each 4x/day on its own staggered
         # schedule (offset from the judicial slots + from each other so we never
@@ -2803,14 +2881,14 @@ class ScraperScheduler:
         # NOTARIAL is the proven template wired now; AEAT / OTRAS_TRIBUTARIAS /
         # ADMINISTRATIVAS are registered the same way (Stage 2) once verified.
         for t in ("06:30", "12:30", "18:30", "23:30"):
-            schedule.every().day.at(t).do(self.run_notarial_update)
+            self.sched_scrapes.every().day.at(t).do(self._guarded('notarial', self.run_notarial_update))
         # --- Stage 2 (verified end-to-end on live PG 2026-06-01) ---
         for t in ("06:45", "12:45", "18:45", "23:45"):
-            schedule.every().day.at(t).do(self.run_aeat_update)
+            self.sched_scrapes.every().day.at(t).do(self._guarded('aeat', self.run_aeat_update))
         for t in ("07:00", "13:00", "19:00", "00:00"):
-            schedule.every().day.at(t).do(self.run_otras_tributarias_update)
+            self.sched_scrapes.every().day.at(t).do(self._guarded('otras_tributarias', self.run_otras_tributarias_update))
         for t in ("07:15", "13:15", "19:15", "00:15"):
-            schedule.every().day.at(t).do(self.run_administrativas_update)
+            self.sched_scrapes.every().day.at(t).do(self._guarded('administrativas', self.run_administrativas_update))
 
         # Seguridad Social (TGSS) seized-asset portal — source="SEGSOCIAL".
         # Source refreshes only WEEKLY, so ONE daily pass is ample. The full
@@ -2818,7 +2896,7 @@ class ScraperScheduler:
         # ~36 result pages + one ficha GET each) — no Playwright, light footprint.
         # 06:10 sits clear of the BOE judicial (08/14/20), the category browsers
         # (06:30+), and the 05:30 suspended-recheck.
-        schedule.every().day.at("06:10").do(self.run_segsocial_update)
+        self.sched_scrapes.every().day.at("06:10").do(self._guarded('segsocial', self.run_segsocial_update))
 
         # PLABI (Ministerio de Justicia liquidation portal) — source="PLABI".
         # Concursal microenterprise asset liquidations (Law 16/2022), ~479 lotes
@@ -2826,13 +2904,13 @@ class ScraperScheduler:
         # pages + one ficha GET each), no Playwright, light footprint. 06:20 sits
         # clear of SegSocial (06:10), the category browsers (06:30+), and the
         # 05:30 suspended-recheck.
-        schedule.every().day.at("06:20").do(self.run_plabi_update)
+        self.sched_scrapes.every().day.at("06:20").do(self._guarded('plabi', self.run_plabi_update))
 
         # Pre-auction discovery (BOE SUBASTA.ESTADO=PA, "Próxima apertura") —
         # every 6h (4x/day). Fills the PROXIMA_APERTURA bucket the daily path
         # can't see; promote_pending_auctions flips each row live when its
         # opensAt arrives. Runs through _run_sync_scrape (loop-free thread).
-        schedule.every(6).hours.do(self.run_preauction_discovery)
+        self.sched_scrapes.every(6).hours.do(self._guarded('preauction', self.run_preauction_discovery))
 
         # SUSPENDIDA reopen-recheck — daily. Re-scrapes EVERY suspended row's
         # BOE detail (which the 5-day window scrape never revisits) and flips
@@ -2840,7 +2918,7 @@ class ScraperScheduler:
         # (emit_status_change -> auction.go_live, alerts fire). Also refreshes
         # resumeAt + suspensionMotive on rows that stay suspended. ~119 rows ->
         # one staggered daily slot clear of the category browsers above.
-        schedule.every().day.at("05:30").do(self.recheck_suspended_auctions)
+        self.sched_scrapes.every().day.at("05:30").do(self._guarded('suspended_recheck', self.recheck_suspended_auctions))
 
         # BOE status reconciliation (CP3, Forge 2026-09-02) — daily at 04:45,
         # clear of the 05:15 sale-rescrape / 05:30 suspended-recheck / category
@@ -2853,15 +2931,15 @@ class ScraperScheduler:
         # fields). PLABI/SEGSOCIAL excluded (source='BOE'); settled/CONCLUIDA
         # rows untouchable; BOE-down bail. Deliberately NOT the CP4 one-time mass
         # sweep of the old ~453 backlog (that is lookback-bounded out here).
-        schedule.every().day.at("04:45").do(self.reconcile_boe_status)
+        self.sched_scrapes.every().day.at("04:45").do(self._guarded('boe_reconcile', self.reconcile_boe_status))
 
         # Mechanism 2: daily post-close sale-result re-scrape (catches freeze
         # misses + drains history not yet backfilled). Bounded per run; the
         # ~200k history sweep is the one-time backfill_sale_results.py, not this.
-        schedule.every().day.at("05:15").do(
-            lambda: self.recheck_sale_results(
+        self.sched_scrapes.every().day.at("05:15").do(
+            self._guarded('sale_results', lambda: self.recheck_sale_results(
                 limit=int(os.getenv('RESULT_RESCRAPE_LIMIT', '1000'))
-            )
+            ))
         )
 
         # Catastro DNPRC enrichment — daily. Fills año-construcción / uso and
@@ -2869,20 +2947,20 @@ class ScraperScheduler:
         # service @ 1 req/s (~473 refs < 10 min). Dead refs (cod 4/5) are
         # stamped so they are not re-hammered; everything re-confirmed weekly.
         # Staggered clear of the browser jobs above.
-        schedule.every().day.at("05:45").do(self.run_catastro_enrichment)
+        self.sched_scrapes.every().day.at("05:45").do(self._guarded('catastro', self.run_catastro_enrichment))
 
         # Phase 3: region benchmark recompute — once daily at 06:00, right after
         # the catastro/refresh surface jobs (05:45) so the EUR/m2 value-signal
         # reflects the freshest year/use/surface enrichment. Idempotent + self-
         # healing (atomic full replace); a missed day is harmless.
-        schedule.every().day.at("06:00").do(self.trigger_benchmark_recompute)
+        self.sched_scrapes.every().day.at("06:00").do(self._guarded('benchmark', self.trigger_benchmark_recompute))
 
         # Auction-outcome registry rollup (Forge 2026-07-18) — once daily at
         # 06:15, AFTER the benchmark recompute (06:00) and the sale-result
         # recheck (earlier) so the freshest outcomes are rolled up. Rebuilds
         # AuctionOutcomeStats (counts + medians + discount by
         # period x basis x geo x category x outcome). Idempotent full replace.
-        schedule.every().day.at("06:15").do(self.trigger_registro_recompute)
+        self.sched_scrapes.every().day.at("06:15").do(self._guarded('registro', self.trigger_registro_recompute))
 
         # Monthly per-province noticias (Forge 2026-07-20) — daily at 06:35,
         # AFTER the 06:15 registro recompute so the month's AuctionOutcomeStats
@@ -2890,29 +2968,31 @@ class ScraperScheduler:
         # it only writes when the most-recent COMPLETE month has no rows yet, so
         # in normal operation it fires ~once/month (on the 1st) and is a cheap
         # no-op every other day. Idempotent UPSERT; deterministic; no LLM.
-        schedule.every().day.at("06:35").do(self.generate_monthly_noticias)
+        self.sched_scrapes.every().day.at("06:35").do(self._guarded('noticias', self.generate_monthly_noticias))
 
         # Wave 2b: dispatcher drain — every DISPATCH_INTERVAL_MIN minutes
-        schedule.every(DISPATCH_INTERVAL_MIN).minutes.do(self.dispatch_outbox)
+        self.sched_ticks.every(DISPATCH_INTERVAL_MIN).minutes.do(
+            self._guarded('dispatch', self.dispatch_outbox, heartbeat=True))
 
         # MINT-ON-INGEST — every MINT_URL_V3_INTERVAL_MIN minutes (default 5).
         # Deliberately an INTERVAL rather than a hook appended to each of the 8
         # ingest jobs: the interval also covers the older standalone scrapers
         # that bypass the adapter entirely, and it self-heals a missed tick.
         # Worst-case lag from ingest to minted url is one interval.
-        schedule.every(MINT_URL_V3_INTERVAL_MIN).minutes.do(self.mint_url_v3)
+        self.sched_ticks.every(MINT_URL_V3_INTERVAL_MIN).minutes.do(
+            self._guarded('mint', self.mint_url_v3, heartbeat=True))
 
         # Geocode drain (fast) — every GEOCODE_INTERVAL_MIN minutes (default 10).
         # ACTIVE rows only: new live rows get coords promptly.
         geocode_interval = int(os.getenv("GEOCODE_INTERVAL_MIN", "10"))
-        schedule.every(geocode_interval).minutes.do(self.geocode_drain)
+        self.sched_scrapes.every(geocode_interval).minutes.do(self._guarded('geocode', self.geocode_drain))
 
         # Geocode drain (slow, ALL statuses incl. finished) — every
         # GEOCODE_FINISHED_INTERVAL_MIN minutes (default 30). Drains the
         # finished-with-address backlog so coverage doesn't decay as auctions
         # conclude. Lower frequency keeps active rows prioritised.
         geocode_finished_interval = int(os.getenv("GEOCODE_FINISHED_INTERVAL_MIN", "30"))
-        schedule.every(geocode_finished_interval).minutes.do(self.geocode_drain_all)
+        self.sched_scrapes.every(geocode_finished_interval).minutes.do(self._guarded('geocode_all', self.geocode_drain_all))
 
         self.log("Schedule configured:")
         self.log("  Pulse (bid updates):  Every 35 min")
@@ -2936,37 +3016,90 @@ class ScraperScheduler:
         self.log(f"  Geocode drain (all):  Every {geocode_finished_interval} min (ALL statuses incl. finished)")
         self.log(f"  ending_soon window:   {ENDING_SOON_HOURS}h before endsAt")
         self.log(f"  dispatch endpoint:    {DISPATCH_ENDPOINT}")
+        self.log(f"  [SN-5] scrape timeout: {scrape_runner.timeout_seconds('DEFAULT')}s "
+                 f"(isolation={scrape_runner.isolation_mode()}), "
+                 f"heartbeat={self.heartbeat.path}, "
+                 f"stall threshold={watchdog.stall_threshold_seconds()}s")
         self.log("")
+
+        # SN-5 T4: start the stall monitor BEFORE the initial checks, so a boot
+        # that wedges in one of them is still reported.
+        self.stall_monitor = StallMonitor(self.heartbeat, self.log)
+        self.stall_monitor.start()
 
         # Run initial checks immediately
         self.log("Running initial monitor check...")
         self.monitor_status_changes()
+        self.heartbeat.stamp('monitor')
         # Initial freeze reconcile so a deploy drains the concluded backlog now
         # rather than up to 30 min later (the amounts are racing the portal wipe).
         self.log("Running initial freeze reconcile...")
         self.freeze_reconcile()
+        self.heartbeat.stamp('freeze')
         # Initial promotion sweep so any already-due pre-auction goes live on boot.
         self.log("Running initial promotion check...")
         self.promote_pending_auctions()
+        self.heartbeat.stamp('promote')
         # Initial dispatcher drain so anything queued before scheduler started
         # gets picked up on boot.
         self.log("Running initial dispatcher drain...")
         self.dispatch_outbox()
+        self.heartbeat.stamp('dispatch')
         # Initial mint pass so auctions ingested while the scheduler was down
         # get their permanent url now rather than up to one interval later.
         self.log("Running initial url-v3 mint pass...")
         self.mint_url_v3()
+        self.heartbeat.stamp('mint')
+
+    # -----------------------------------------------------------------------
+    # run — SN-5 T2: TWO LANES, TWO THREADS
+    # -----------------------------------------------------------------------
+    # Before: one thread ran `schedule.run_pending()` for every job, and every
+    # scrape was `t.join()`-ed with no timeout ON that thread. A wedged
+    # Playwright call therefore stopped dispatch, promote, mint, monitor and
+    # freeze as collateral — which is exactly what happened on 2026-09-23.
+    #
+    # Now the SCRAPE lane owns its own `schedule.Scheduler` on a daemon thread.
+    # The light TICK lane keeps the main thread. The lanes share nothing but the
+    # process: the tick lane never acquires `_scrape_lock`, so the worst a hung
+    # scrape can do is stall other scrapes — and even that is bounded by
+    # SCRAPE_TIMEOUT_MIN.
+    #
+    # The scrape lane is a DAEMON thread on purpose: if it is ever wedged
+    # somewhere a timeout cannot reach, the container must still be able to stop.
+    def _scrape_lane(self):
+        while True:
+            try:
+                self.sched_scrapes.run_pending()
+            except Exception as e:  # noqa: BLE001 — a bad job must not end the lane
+                self.log(f"  [scrape-lane] run_pending raised: {type(e).__name__}: {e}")
+                import traceback
+                self.log(traceback.format_exc())
+            time.sleep(SCRAPE_LOOP_SLEEP_S)
 
     def run(self):
         self.setup_schedule()
+
+        lane = threading.Thread(target=self._scrape_lane, name="scrape-lane", daemon=True)
+        lane.start()
+        self.log("Scrape lane started on its own thread; tick lane on the main thread.")
+
         try:
             while True:
-                schedule.run_pending()
-                time.sleep(60)
+                try:
+                    self.sched_ticks.run_pending()
+                except Exception as e:  # noqa: BLE001
+                    self.log(f"  [tick-lane] run_pending raised: {type(e).__name__}: {e}")
+                    import traceback
+                    self.log(traceback.format_exc())
+                time.sleep(TICK_LOOP_SLEEP_S)
         except KeyboardInterrupt:
             self.log("Scheduler stopped by user")
         except Exception as e:
             self.log(f"Fatal error: {e}")
+        finally:
+            if self.stall_monitor is not None:
+                self.stall_monitor.stop()
 
 
 def main():
