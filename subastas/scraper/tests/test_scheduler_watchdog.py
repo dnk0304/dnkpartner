@@ -18,6 +18,7 @@ also asserts the SAME code path on the GOOD input, so a test that can only pass
 (because the assertion is vacuous) is visible as a test that never went red.
 """
 
+import io
 import json
 import os
 import subprocess
@@ -341,6 +342,68 @@ def test_stall_monitor_mails_exactly_once_per_episode(tmp_path, monkeypatch):
 def test_admin_mail_is_a_noop_without_a_resend_key(monkeypatch):
     monkeypatch.delenv("RESEND_API_KEY", raising=False)
     assert watchdog.send_admin_stall_mail("s", "b", _capture) == "no-resend-key"
+
+
+# --- SN-5b: Cloudflare blocks the stock urllib UA on api.resend.com ---------
+
+class _FakeResp:
+    def __init__(self, body: bytes):
+        self._body = body
+
+    def read(self):
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def _headers_ci(req):
+    """urllib capitalizes header keys ('User-agent'); compare case-insensitively."""
+    return {k.lower(): v for k, v in req.headers.items()}
+
+
+def _mail_env(monkeypatch):
+    monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
+    monkeypatch.setenv("ADMIN_NOTIFY_EMAIL", "ops@example.com")
+
+
+def test_stall_mail_sends_a_real_user_agent_and_logs_the_resend_id(monkeypatch):
+    _mail_env(monkeypatch)
+    seen = {}
+
+    def _fake_urlopen(req, timeout=None):
+        seen["req"] = req
+        return _FakeResp(b'{"id": "abc-123"}')
+
+    monkeypatch.setattr(watchdog.urllib.request, "urlopen", _fake_urlopen)
+    assert watchdog.send_admin_stall_mail("s", "b", _capture) == "sent"
+
+    hdrs = _headers_ci(seen["req"])
+    ua = hdrs.get("user-agent")
+    assert ua, "stall mail must send an explicit User-Agent (Cloudflare 1010)"
+    assert "urllib" not in ua.lower() and "python" not in ua.lower()
+    assert ua == watchdog.WATCHDOG_USER_AGENT
+    assert hdrs.get("accept") == "application/json"
+    assert hdrs.get("content-type") == "application/json"
+    assert hdrs.get("authorization") == "Bearer re_test_key"
+    assert any("id=abc-123" in m for m in LOGS), LOGS
+
+
+def test_stall_mail_logs_a_403_body_and_does_not_raise(monkeypatch):
+    _mail_env(monkeypatch)
+
+    def _fake_urlopen(req, timeout=None):
+        raise watchdog.urllib.error.HTTPError(
+            watchdog.RESEND_ENDPOINT, 403, "Forbidden", {},
+            io.BytesIO(b"error code: 1010"),
+        )
+
+    monkeypatch.setattr(watchdog.urllib.request, "urlopen", _fake_urlopen)
+    assert watchdog.send_admin_stall_mail("s", "b", _capture) == "send-failed"
+    assert any("HTTP 403" in m and "1010" in m for m in LOGS), LOGS
 
 
 def test_healthcheck_exit_codes(tmp_path, monkeypatch):

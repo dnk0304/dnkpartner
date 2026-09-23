@@ -47,6 +47,10 @@ DEFAULT_STALL_MIN = 15
 RESEND_ENDPOINT = "https://api.resend.com/emails"
 DEFAULT_ALERTS_FROM = "SubastasActivas <alertas@subastasactivas.com>"
 DEFAULT_ADMIN_TO = "hola@subastasactivas.com"
+# Cloudflare (in front of api.resend.com) 403s the stock `Python-urllib/3.x`
+# User-Agent with `error code: 1010`. Any request to a Cloudflare-fronted host
+# MUST carry a real UA — see SN-5b.
+WATCHDOG_USER_AGENT = "dnksubastas-scheduler/1.0"
 
 
 def _now() -> datetime:
@@ -208,12 +212,21 @@ def send_admin_stall_mail(subject: str, body: str,
     req = urllib.request.Request(
         RESEND_ENDPOINT, data=payload, method="POST",
         headers={"Authorization": f"Bearer {key}",
-                 "Content-Type": "application/json"},
+                 "Content-Type": "application/json",
+                 "Accept": "application/json",
+                 "User-Agent": WATCHDOG_USER_AGENT},
     )
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
-            resp.read()
-        log(f"  [watchdog] stall alert mailed to {to}")
+            raw = resp.read()
+        try:
+            msg_id = (json.loads(raw.decode("utf-8", errors="replace")) or {}).get("id")
+        except Exception:  # noqa: BLE001 - a malformed 2xx body must not fail the send
+            msg_id = None
+        if msg_id:
+            log(f"  [watchdog] stall alert sent id={msg_id} to {to}")
+        else:
+            log(f"  [watchdog] stall alert mailed to {to}")
         return "sent"
     except urllib.error.HTTPError as e:
         log(f"  [watchdog] stall alert HTTP {e.code}: {e.read()[:300]!r}")
