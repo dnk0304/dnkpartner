@@ -30,6 +30,7 @@ import json
 import schedule
 import urllib.request
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 # G4: Linux/Coolify compat
@@ -46,8 +47,31 @@ APP_BASE_URL = os.getenv("NEXT_PUBLIC_APP_URL", "http://localhost:3005").rstrip(
 PYTHON_BIN = os.getenv("PYTHON_BIN", "python3" if sys.platform != "win32" else "python")
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 
+# SN-6 (2026-09-23): the auction clock is Europe/Madrid WALL TIME.
+# Auction.opensAt / Auction.endsAt are `timestamp without time zone` holding the
+# literal wall time printed by the source portal (BOE strips the ISO offset in
+# _extract_detail_date; SEGSOCIAL _parse_fecha builds a naive datetime from the
+# printed digits) — pinned by tests/test_resume_at_timezone.py. Comparing those
+# columns against datetime.utcnow() therefore runs the scheduler 1h (CET) or 2h
+# (CEST) LATE: a 10:00 Madrid pre-auction promoted at 10:00Z = 12:00 Madrid.
+# Use _now_local() for every opensAt/endsAt comparison. WRITE stamps
+# (transitionedAt/updatedAt/resultCheckedAt/outbox) stay UTC — unchanged.
+SCHEDULER_TZ = ZoneInfo(os.getenv("SCHEDULER_TZ", "Europe/Madrid"))
+
 # Wave 2a: ending_soon threshold (hours before endsAt to emit the event)
 ENDING_SOON_HOURS = int(os.getenv("ENDING_SOON_HOURS", "24"))
+
+# SN-4 (2026-09-23): act-window length stamped onto a promoted pre-auction that
+# carries NO endsAt. Sources that publish a single auction ACT instant and no end
+# instant (TGSS/SEGSOCIAL — see segsocial_scraper._map_status) ingest with
+# endsAt = NULL rather than a fabricated date. The window is scheduler POLICY,
+# not scraped data, so it is applied here at the moment the row actually goes
+# live: endsAt = opensAt + SEGSOCIAL_ACT_WINDOW_HOURS. Without it a promoted
+# endsAt-NULL row would never be reachable by monitor_status_changes (whose
+# expiry rules all require endsAt IS NOT NULL) and would stay CELEBRANDOSE
+# forever. Applies to ANY promoted row with endsAt NULL, not only SEGSOCIAL;
+# the env name is kept as briefed.
+SEGSOCIAL_ACT_WINDOW_HOURS = int(os.getenv("SEGSOCIAL_ACT_WINDOW_HOURS", "24"))
 
 # Legacy first-gen row exclusion (2026-06-02). See database/legacy_rows.py.
 # Used by scrape_pulse + promote_pending_auctions so legacy cuid/0x-hex rows
@@ -135,6 +159,18 @@ SCRAPE_LOOP_SLEEP_S = int(os.getenv("SCRAPE_LOOP_SLEEP_S", "60"))
 
 
 class ScraperScheduler:
+    @staticmethod
+    def _now_local():
+        """Now as a NAIVE Europe/Madrid wall-clock datetime.
+
+        The comparison clock for opensAt/endsAt (see SCHEDULER_TZ above). Naive
+        on purpose: the columns are `timestamp without time zone`, so an aware
+        value would be silently UTC-normalised on the wire and reintroduce the
+        very skew this closes. DST-correct by construction — ZoneInfo picks the
+        right offset for the instant, so no fixed +1/+2 assumption is baked in.
+        """
+        return datetime.now(SCHEDULER_TZ).replace(tzinfo=None)
+
     def __init__(self):
         self.log_file = LOG_DIR / f"scheduler_{datetime.now().strftime('%Y%m%d')}.log"
         # Serialize all sync-Playwright scrape jobs so two never launch a
@@ -277,7 +313,8 @@ class ScraperScheduler:
         try:
             conn = self._get_pg_conn()
             cursor = conn.cursor()
-            now = datetime.utcnow()
+            now = datetime.utcnow()       # WRITE stamps (UTC) — unchanged
+            now_local = self._now_local()  # SN-6: opensAt/endsAt compare clock
 
             # ---- 1. Expire past-deadline live auctions ----
             # Lifecycle: PROXIMA_APERTURA -> (opensAt) -> CELEBRANDOSE ->
@@ -298,12 +335,12 @@ class ScraperScheduler:
                        "boeLink", province, municipality,
                        "appraisalValue", "currentBid",
                        "address", "currentBidAmount", "pujaStatus",
-                       "suspensionReason", "resumeAt"
+                       "suspensionReason", "resumeAt", "opensAt"
                 FROM "Auction"
                 WHERE status IN ('ACTIVE', 'CELEBRANDOSE', 'SUSPENDIDA')
                   AND "endsAt" IS NOT NULL
                   AND "endsAt" < %s
-            """, (now,))
+            """, (now_local,))
             expired = list(cursor.fetchall())
 
             # PROXIMA_APERTURA expiry — ONLY when the pre-auction genuinely ran
@@ -316,14 +353,14 @@ class ScraperScheduler:
                        "boeLink", province, municipality,
                        "appraisalValue", "currentBid",
                        "address", "currentBidAmount", "pujaStatus",
-                       "suspensionReason", "resumeAt"
+                       "suspensionReason", "resumeAt", "opensAt"
                 FROM "Auction"
                 WHERE status = 'PROXIMA_APERTURA'
                   AND "opensAt" IS NOT NULL
                   AND "opensAt" <= %s
                   AND "endsAt" IS NOT NULL
                   AND "endsAt" < %s
-            """, (now, now))
+            """, (now_local, now_local))
             expired.extend(cursor.fetchall())
 
             if expired:
@@ -359,7 +396,7 @@ class ScraperScheduler:
                     boe_link, province, municipality,
                     appraisal_value, current_bid,
                     address, current_bid_amount, puja_status,
-                    suspension_reason, resume_at,
+                    suspension_reason, resume_at, opens_at,
                 ) in expired:
                     try:
                         emit_status_change(
@@ -378,6 +415,7 @@ class ScraperScheduler:
                             current_bid_amount=int(current_bid_amount) if current_bid_amount else None,
                             puja_status=puja_status,
                             ends_at=ends_at,
+                            opens_at=opens_at,
                             detected_by="scheduler.monitor_status_changes",
                         )
                     except Exception as e:
@@ -421,7 +459,7 @@ class ScraperScheduler:
                     self.log(f"  Marked {len(expired)} auctions as CONCLUIDA_PORTAL (outbox written)")
 
             # ---- 2. ending_soon — emit once for auctions entering final 24h ----
-            ending_soon_cutoff = now + timedelta(hours=ENDING_SOON_HOURS)
+            ending_soon_cutoff = now_local + timedelta(hours=ENDING_SOON_HOURS)
             cursor.execute("""
                 SELECT a.id, a."boeId", a."endsAt", a.title,
                        a."boeLink", a.province, a.municipality,
@@ -431,7 +469,7 @@ class ScraperScheduler:
                   AND a."endsAt" IS NOT NULL
                   AND a."endsAt" > %s
                   AND a."endsAt" <= %s
-            """, (now, ending_soon_cutoff))
+            """, (now_local, ending_soon_cutoff))
             ending_soon_rows = cursor.fetchall()
 
             if ending_soon_rows:
@@ -556,7 +594,8 @@ class ScraperScheduler:
         try:
             conn = self._get_pg_conn()
             cursor = conn.cursor()
-            now = datetime.utcnow()
+            now = datetime.utcnow()       # WRITE stamps (UTC) — unchanged
+            now_local = self._now_local()  # SN-6: opensAt compare clock
 
             cursor.execute(f"""
                 SELECT id, "boeId", "endsAt", status, title,
@@ -568,7 +607,7 @@ class ScraperScheduler:
                   AND "opensAt" <= %s
                   AND ("endsAt" IS NULL OR "endsAt" > %s)
                   AND {LEGACY_EXCLUSION_SQL}
-            """, (now, now))
+            """, (now_local, now_local))
             pending = cursor.fetchall()
 
             if not pending:
@@ -584,19 +623,27 @@ class ScraperScheduler:
             from app.database.outbox import emit_status_change
 
             promoted_ids = [row[0] for row in pending]
+            act_window = timedelta(hours=SEGSOCIAL_ACT_WINDOW_HOURS)
+            # SN-4: stamp the act window on rows that opened with endsAt NULL
+            # (single-act sources). COALESCE leaves a real scraped endsAt alone.
             cursor.execute("""
                 UPDATE "Auction"
                 SET status = 'CELEBRANDOSE',
                     "transitionedAt" = %s,
-                    "updatedAt" = %s
+                    "updatedAt" = %s,
+                    "endsAt" = COALESCE("endsAt", "opensAt" + %s)
                 WHERE id = ANY(%s)
-            """, (now, now, promoted_ids))
+            """, (now, now, act_window, promoted_ids))
 
             for (
                 auction_id, boe_id, ends_at, from_status, title,
                 boe_link, province, municipality,
                 appraisal_value, current_bid, opens_at,
             ) in pending:
+                # Mirror the COALESCE above so the outbox payload carries the
+                # endsAt the row now actually holds (same formula, same run).
+                if ends_at is None and opens_at is not None:
+                    ends_at = opens_at + act_window
                 try:
                     emit_status_change(
                         cursor,
@@ -611,6 +658,7 @@ class ScraperScheduler:
                         appraisal_value=float(appraisal_value or 0),
                         current_bid=float(current_bid) if current_bid else None,
                         ends_at=ends_at,
+                        opens_at=opens_at,
                         detected_by="scheduler.promote_pending_auctions",
                     )
                 except Exception as e:
@@ -787,7 +835,8 @@ class ScraperScheduler:
 
             withdrawn = live_kept = promoted = backfilled = other = failed = 0
             conn2 = self._get_pg_conn()
-            now2 = datetime.utcnow()
+            now2 = datetime.utcnow()       # WRITE stamps (UTC) — unchanged
+            now2_local = self._now_local()  # SN-6: endsAt compare clock
 
             for (auction_id, boe_id, ends_at, from_status, title,
                  boe_link, province, municipality,
@@ -916,7 +965,7 @@ class ScraperScheduler:
                 #     LIVE/opened. NEVER cancel. endsAt guard: if the window
                 #     already closed, do not resurrect it — leave it for the
                 #     normal conclude path.
-                if eff_ends is not None and eff_ends <= now2:
+                if eff_ends is not None and eff_ends <= now2_local:
                     other += 1
                     self.log(
                         f"    kept {boe_id}: BOE live but window already closed "
@@ -1167,7 +1216,8 @@ class ScraperScheduler:
 
             reopened = still_susp = terminal = failed = 0
             conn2 = self._get_pg_conn()
-            now = datetime.utcnow()
+            now = datetime.utcnow()       # WRITE stamps (UTC) — unchanged
+            now_local = self._now_local()  # SN-6: endsAt compare clock
 
             for (auction_id, boe_id, ends_at, title, boe_link,
                  province, municipality, appraisal_value, current_bid,
@@ -1230,7 +1280,7 @@ class ScraperScheduler:
                     # detail_status is None => no banner on a confirmed-parsed
                     # page => the suspension is LIFTED => reopened. Flip to
                     # CELEBRANDOSE only if the window has not already closed.
-                    if eff_ends is not None and eff_ends <= now:
+                    if eff_ends is not None and eff_ends <= now_local:
                         # Reopened but already past its close -> let the normal
                         # sweep conclude it; do not resurrect a dead window.
                         still_susp += 1
@@ -1443,7 +1493,8 @@ class ScraperScheduler:
             healed_endsat = concluded = cancelled = suspended = 0
             reopened = kept = failed = 0
             conn2 = self._get_pg_conn()
-            now2 = datetime.utcnow()
+            now2 = datetime.utcnow()       # WRITE stamps (UTC) — unchanged
+            now2_local = self._now_local()  # SN-6: endsAt compare clock
 
             for (bucket, auction_id, boe_id, ends_at, from_status, title,
                  boe_link, province, municipality, appraisal_value, current_bid,
@@ -1558,7 +1609,7 @@ class ScraperScheduler:
                     # (5) Confirmed LIVE, no terminal banner. endsAt guard: a
                     #     window that already closed is left for the conclude
                     #     path — never resurrected.
-                    if eff_ends is not None and eff_ends <= now2:
+                    if eff_ends is not None and eff_ends <= now2_local:
                         kept += 1
                         self.log(f"    kept {boe_id}: BOE live but window already closed "
                                  f"(endsAt={eff_ends}) — left for conclude path")
@@ -1834,7 +1885,8 @@ class ScraperScheduler:
         try:
             conn = self._get_pg_conn()
             cursor = conn.cursor()
-            now = datetime.utcnow()
+            now = datetime.utcnow()       # resultCheckedAt stamp (UTC)
+            now_local = self._now_local()  # SN-6: endsAt compare clock
 
             # Same migration guard as Mechanism 1 — a pre-migration DB is a
             # silent no-op, never an alarm.
@@ -1867,7 +1919,7 @@ class ScraperScheduler:
                 conn.rollback()
                 return
 
-            cursor.execute(self.FREEZE_RECONCILE_SQL, (now, now))
+            cursor.execute(self.FREEZE_RECONCILE_SQL, (now, now_local))
             swept = cursor.rowcount
 
             # ---- WITNESS: residual, measured AFTER the sweep, same transaction,
@@ -1881,7 +1933,7 @@ class ScraperScheduler:
                      AND "endsAt" IS NOT NULL
                      AND "endsAt" <= %s
                    GROUP BY 1 ORDER BY 2 DESC""",
-                (list(self.FREEZE_WITNESS_FAMILY), now),
+                (list(self.FREEZE_WITNESS_FAMILY), now_local),
             )
             residual_rows = cursor.fetchall()
             residual = sum(r[1] for r in residual_rows)
@@ -1896,7 +1948,7 @@ class ScraperScheduler:
                      AND ("pujaStatus" IS NOT NULL
                           OR COALESCE("currentBidAmount",0) > 0)
                      AND ("endsAt" IS NULL OR "endsAt" > %s)""",
-                (now,),
+                (now_local,),
             )
             incoherent = cursor.fetchone()[0]
 

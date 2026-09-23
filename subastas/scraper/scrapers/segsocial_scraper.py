@@ -573,16 +573,32 @@ class SegSocialScraper(BankBaseScraper):
     def _map_status(fecha_dt: Optional[datetime]) -> Tuple[str, Optional[datetime], Optional[datetime]]:
         """Map the auction-act date to our enum.
 
-        future date  -> PROXIMA_APERTURA, opensAt = the act date (promote_pending
-                        flips it to CELEBRANDOSE when opensAt arrives).
+        future date  -> PROXIMA_APERTURA, opensAt = the act date, endsAt = NULL
+                        (promote_pending flips it to CELEBRANDOSE when opensAt
+                        arrives, and stamps endsAt then).
         today/past   -> CELEBRANDOSE (active default), endsAt = the act date.
         no date      -> CELEBRANDOSE (banks-pattern default for an active listing).
+
+        SN-4 FIX (2026-09-23): the future branch used to return
+        ``(fecha_dt, fecha_dt)`` — opensAt == endsAt, a ZERO-LENGTH window. The
+        TGSS "subasta" is a single act at ``fecha_dt``; the portal publishes no
+        end instant, so there is nothing honest to put in endsAt at ingest.
+        With endsAt == opensAt the row was unreachable by
+        ``promote_pending_auctions`` (``endsAt IS NULL OR endsAt > now``) and was
+        instead swept PROXIMA_APERTURA -> CONCLUIDA_PORTAL by
+        ``monitor_status_changes`` the moment the act date passed: the auction
+        was retired without ever going live, so ``auction.go_live`` could never
+        be emitted for this source (0 go_live rows in 7 days, 593 SEGSOCIAL rows
+        affected). We do NOT fabricate an end date here (see
+        ``repair_fabricated_endsat.py`` — invented endsAt values have cost us a
+        repair pass before). endsAt stays honest-NULL until the auction actually
+        opens; the act-window length is scheduler policy, applied at promotion.
         """
         if fecha_dt is None:
             return "CELEBRANDOSE", None, None
         now = datetime.now()
         if fecha_dt.date() > now.date():
-            return "PROXIMA_APERTURA", fecha_dt, fecha_dt
+            return "PROXIMA_APERTURA", fecha_dt, None
         return "CELEBRANDOSE", None, fecha_dt
 
     # ----- honest-NULL overrides -------------------------------------------
