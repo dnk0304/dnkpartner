@@ -424,6 +424,24 @@ def test_backfill_repairs_future_broken_rows_only(backfill_db):
     assert _ends_at(conn, "retired") == str(past), "CONCLUIDA rows are never touched"
 
 
+def test_backfill_never_touches_a_retired_row(backfill_db):
+    """Pins the STATUS filter on its own.
+
+    In the test above the CONCLUIDA row is also excluded by the future-only date
+    rail, so widening the status filter there would still pass. Here the retired
+    row carries a FUTURE opensAt, so only ``status = 'PROXIMA_APERTURA'`` can
+    keep it out. Reviving a retired auction would emit a go_live for something
+    the portal has already closed.
+    """
+    conn, _ = backfill_db
+    future = datetime.utcnow() + timedelta(days=5)
+    _bf_insert(conn, "retired_future", "CONCLUIDA_PORTAL", future, future)
+    _bf_insert(conn, "proxima_future", "PROXIMA_APERTURA", future, future)
+    assert _run(["--apply"]) == 0
+    assert _ends_at(conn, "retired_future") == str(future)
+    assert _ends_at(conn, "proxima_future") is None
+
+
 def test_backfill_dry_run_writes_nothing(backfill_db):
     conn, shim = backfill_db
     future = datetime.utcnow() + timedelta(days=5)
