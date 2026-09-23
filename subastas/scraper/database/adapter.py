@@ -652,9 +652,23 @@ class DatabaseAdapter:
 
         now = datetime.now()
 
-        # Check if exists
-        cursor.execute('SELECT id FROM "Auction" WHERE "boeId" = %s', (data['boe_id'],))
+        # Check if exists.
+        # SN-4 (2026-09-23): also read the CURRENT status (and opensAt when the
+        # column exists) so a scraper-driven status flip on an existing row can
+        # be routed through the outbox — see _emit_upsert_status_change below.
+        if 'opensAt' in forge_cols:
+            cursor.execute(
+                'SELECT id, status, "opensAt" FROM "Auction" WHERE "boeId" = %s',
+                (data['boe_id'],),
+            )
+        else:
+            cursor.execute(
+                'SELECT id, status, NULL FROM "Auction" WHERE "boeId" = %s',
+                (data['boe_id'],),
+            )
         existing = cursor.fetchone()
+        prev_status = existing[1] if existing else None
+        prev_opens_at = existing[2] if existing else None
 
         # Layer 2 defensive guard (2026-06-02): if the matched row is a legacy
         # first-gen junk row (boeId ~ '^0x' OR id ~ cuid), DROP `status` from
@@ -815,6 +829,25 @@ class DatabaseAdapter:
                 tuple(params)
             )
             logger.info(f"Updated auction: {data['boe_id']}")
+
+            # SN-4: a scraper upsert that CHANGES status must not do so silently.
+            # Until now the generic upsert path wrote `status` straight onto the
+            # row with no EventOutbox / AuctionStatusHistory write at all, so a
+            # PROXIMA_APERTURA -> CELEBRANDOSE flip performed by a daily source
+            # scrape (SEGSOCIAL's 06:10 pass, and any BOE pass taking the same
+            # route) produced NO auction.go_live event and no notification. The
+            # emission runs on the caller's cursor, i.e. inside the same
+            # transaction as the UPDATE it describes, and is fully deduped by
+            # dedupeKey, so a later promote_pending_auctions detecting the same
+            # transition cannot double-send.
+            if not legacy_locked and prev_status and data.get('status')                     and data['status'] != prev_status:
+                self._emit_upsert_status_change(
+                    cursor,
+                    auction_id=existing[0],
+                    data=data,
+                    from_status=prev_status,
+                    opens_at=data.get('opens_at') or prev_opens_at,
+                )
         else:
             # Build dynamic insert so we only name columns we have values for
             col_names = [
@@ -993,6 +1026,64 @@ class DatabaseAdapter:
         conn.commit()
         return data['boe_id']
     
+    def _emit_upsert_status_change(self, cursor, *, auction_id, data,
+                                   from_status: str, opens_at) -> None:
+        """Route a scraper-upsert status flip through the outbox (SN-4).
+
+        Best-effort by design: a failure here must never abort the ingest
+        transaction that carries the scraped data itself, so the exception is
+        logged and swallowed (identical policy to the scheduler's own
+        emit_status_change call sites).
+
+        Kill switch: UPSERT_STATUS_EVENTS=off disables the emission entirely and
+        restores the pre-SN-4 silent behaviour, without a redeploy of the code.
+        """
+        if os.getenv("UPSERT_STATUS_EVENTS", "on").strip().lower() in ("off", "0", "false"):
+            return
+        # SAVEPOINT: if the outbox INSERT raises, psycopg2 leaves the WHOLE
+        # transaction aborted and the pending auction UPDATE would be lost on
+        # commit. The savepoint confines any failure to the emission itself.
+        try:
+            cursor.execute("SAVEPOINT sn4_outbox")
+        except Exception:
+            return
+        try:
+            from .outbox import emit_status_change
+            boe_id = data.get('boe_id') or ''
+            emit_status_change(
+                cursor,
+                auction_id=auction_id,
+                boe_id=boe_id,
+                boe_link=data.get('boe_link')
+                or f"https://subastas.boe.es/detalleSubasta.php?idSub={boe_id}",
+                title=data.get('title') or '',
+                from_status=from_status,
+                to_status=data['status'],
+                province=data.get('province') or '',
+                municipality=data.get('municipality') or '',
+                address=data.get('address') or '',
+                appraisal_value=float(data.get('appraisal_value') or 0),
+                current_bid=float(data['current_bid']) if data.get('current_bid') else None,
+                current_bid_amount=int(data['current_bid_amount']) if data.get('current_bid_amount') else None,
+                puja_status=data.get('puja_status'),
+                ends_at=data.get('ends_at'),
+                opens_at=opens_at,
+                detected_by='adapter.upsert_auction',
+            )
+            cursor.execute("RELEASE SAVEPOINT sn4_outbox")
+            logger.info(
+                f"Status change emitted for {boe_id}: {from_status} -> {data['status']}"
+            )
+        except Exception as e:
+            try:
+                cursor.execute("ROLLBACK TO SAVEPOINT sn4_outbox")
+            except Exception:
+                pass
+            logger.error(
+                f"outbox emission failed for upsert status change "
+                f"{data.get('boe_id')} ({from_status} -> {data.get('status')}): {e}"
+            )
+
     def _generate_id(self) -> str:
         """Generate unique ID for SQLite"""
         import uuid

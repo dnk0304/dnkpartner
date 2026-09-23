@@ -49,6 +49,18 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 # Wave 2a: ending_soon threshold (hours before endsAt to emit the event)
 ENDING_SOON_HOURS = int(os.getenv("ENDING_SOON_HOURS", "24"))
 
+# SN-4 (2026-09-23): act-window length stamped onto a promoted pre-auction that
+# carries NO endsAt. Sources that publish a single auction ACT instant and no end
+# instant (TGSS/SEGSOCIAL — see segsocial_scraper._map_status) ingest with
+# endsAt = NULL rather than a fabricated date. The window is scheduler POLICY,
+# not scraped data, so it is applied here at the moment the row actually goes
+# live: endsAt = opensAt + SEGSOCIAL_ACT_WINDOW_HOURS. Without it a promoted
+# endsAt-NULL row would never be reachable by monitor_status_changes (whose
+# expiry rules all require endsAt IS NOT NULL) and would stay CELEBRANDOSE
+# forever. Applies to ANY promoted row with endsAt NULL, not only SEGSOCIAL;
+# the env name is kept as briefed.
+SEGSOCIAL_ACT_WINDOW_HOURS = int(os.getenv("SEGSOCIAL_ACT_WINDOW_HOURS", "24"))
+
 # Legacy first-gen row exclusion (2026-06-02). See database/legacy_rows.py.
 # Used by scrape_pulse + promote_pending_auctions so legacy cuid/0x-hex rows
 # are never re-scraped or status-flipped. monitor_status_changes is left
@@ -223,7 +235,7 @@ class ScraperScheduler:
                        "boeLink", province, municipality,
                        "appraisalValue", "currentBid",
                        "address", "currentBidAmount", "pujaStatus",
-                       "suspensionReason", "resumeAt"
+                       "suspensionReason", "resumeAt", "opensAt"
                 FROM "Auction"
                 WHERE status IN ('ACTIVE', 'CELEBRANDOSE', 'SUSPENDIDA')
                   AND "endsAt" IS NOT NULL
@@ -241,7 +253,7 @@ class ScraperScheduler:
                        "boeLink", province, municipality,
                        "appraisalValue", "currentBid",
                        "address", "currentBidAmount", "pujaStatus",
-                       "suspensionReason", "resumeAt"
+                       "suspensionReason", "resumeAt", "opensAt"
                 FROM "Auction"
                 WHERE status = 'PROXIMA_APERTURA'
                   AND "opensAt" IS NOT NULL
@@ -284,7 +296,7 @@ class ScraperScheduler:
                     boe_link, province, municipality,
                     appraisal_value, current_bid,
                     address, current_bid_amount, puja_status,
-                    suspension_reason, resume_at,
+                    suspension_reason, resume_at, opens_at,
                 ) in expired:
                     try:
                         emit_status_change(
@@ -303,6 +315,7 @@ class ScraperScheduler:
                             current_bid_amount=int(current_bid_amount) if current_bid_amount else None,
                             puja_status=puja_status,
                             ends_at=ends_at,
+                            opens_at=opens_at,
                             detected_by="scheduler.monitor_status_changes",
                         )
                     except Exception as e:
@@ -509,19 +522,27 @@ class ScraperScheduler:
             from app.database.outbox import emit_status_change
 
             promoted_ids = [row[0] for row in pending]
+            act_window = timedelta(hours=SEGSOCIAL_ACT_WINDOW_HOURS)
+            # SN-4: stamp the act window on rows that opened with endsAt NULL
+            # (single-act sources). COALESCE leaves a real scraped endsAt alone.
             cursor.execute("""
                 UPDATE "Auction"
                 SET status = 'CELEBRANDOSE',
                     "transitionedAt" = %s,
-                    "updatedAt" = %s
+                    "updatedAt" = %s,
+                    "endsAt" = COALESCE("endsAt", "opensAt" + %s)
                 WHERE id = ANY(%s)
-            """, (now, now, promoted_ids))
+            """, (now, now, act_window, promoted_ids))
 
             for (
                 auction_id, boe_id, ends_at, from_status, title,
                 boe_link, province, municipality,
                 appraisal_value, current_bid, opens_at,
             ) in pending:
+                # Mirror the COALESCE above so the outbox payload carries the
+                # endsAt the row now actually holds (same formula, same run).
+                if ends_at is None and opens_at is not None:
+                    ends_at = opens_at + act_window
                 try:
                     emit_status_change(
                         cursor,
@@ -536,6 +557,7 @@ class ScraperScheduler:
                         appraisal_value=float(appraisal_value or 0),
                         current_bid=float(current_bid) if current_bid else None,
                         ends_at=ends_at,
+                        opens_at=opens_at,
                         detected_by="scheduler.promote_pending_auctions",
                     )
                 except Exception as e:

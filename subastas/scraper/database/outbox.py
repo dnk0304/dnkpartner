@@ -17,6 +17,23 @@ dedupeKey format: {auctionId}:{eventType}:{discriminator}
   bid events:    discriminator = bid amount as int string
   ending_soon:   discriminator = "24h"
   go_live:       discriminator = "live"
+
+LIFECYCLE SUFFIX (SN-4, 2026-09-23)
+-----------------------------------
+The status discriminators above are LIFECYCLE-BLIND: an auction that is re-listed
+(same Auction row, same boeId, a NEW opensAt) produces the very same dedupeKey as
+its previous lifecycle, so ON CONFLICT DO NOTHING silently swallowed the second
+run's events and no notification was ever sent. Observed on SUB-SS-483: the
+`<id>:auction.finished:CONCLUIDA_PORTAL` row written on 2026-06-17 blocked the
+2026-09-23 finish outright.
+
+When the caller supplies `opens_at`, status events now append the lifecycle
+instance: `{auctionId}:{eventType}:{discriminator}@{YYYYMMDDHHMM of opensAt}`.
+opensAt is used (not transitionedAt/now) because it is STABLE for the whole of
+one lifecycle — a retry, a re-run or a second detector emitting the same
+transition still produces the identical key, so one-mail-per-user-per-auction-
+per-lifecycle is preserved. A caller that cannot supply opensAt keeps the legacy
+unsuffixed key (behaviour unchanged), and the two forms never collide.
 """
 
 import json
@@ -27,6 +44,19 @@ from typing import Optional, Dict, Any
 logger = logging.getLogger(__name__)
 
 ENDING_SOON_HOURS = 24  # threshold for ending_soon event
+
+
+def lifecycle_suffix(opens_at: Optional[datetime]) -> str:
+    """dedupeKey suffix identifying ONE lifecycle of an auction (SN-4).
+
+    Returns "" when the caller has no opensAt (legacy key preserved), else
+    "@YYYYMMDDHHMM". A minute-resolution UTC-agnostic strftime is used rather
+    than .timestamp() so the value is identical regardless of the host timezone
+    (opensAt is stored naive) and stays stable across re-emissions.
+    """
+    if opens_at is None:
+        return ""
+    return "@" + opens_at.strftime("%Y%m%d%H%M")
 
 
 def write_event(
@@ -153,6 +183,7 @@ def emit_status_change(
     current_bid_amount: Optional[int] = None,
     puja_status: Optional[str] = None,
     ends_at: Optional[datetime] = None,
+    opens_at: Optional[datetime] = None,
     suspension_reason: Optional[str] = None,
     resume_at: Optional[datetime] = None,
     detected_by: str = "scheduler",
@@ -160,6 +191,10 @@ def emit_status_change(
     """
     Emit the correct event for a status transition.
     Writes both EventOutbox + AuctionStatusHistory in the caller's transaction.
+
+    opens_at (SN-4): the lifecycle instance this transition belongs to. When
+    given, it is appended to the dedupeKey discriminator so a RE-LISTED auction
+    can emit the same event type a second time. See the module docstring.
     """
     now = datetime.utcnow()
 
@@ -179,6 +214,9 @@ def emit_status_change(
     else:
         event_type = "auction.status_change"
         discriminator = to_status
+
+    # SN-4: bind the key to this lifecycle instance when we know it.
+    discriminator = f"{discriminator}{lifecycle_suffix(opens_at)}"
 
     payload = {
         "boeId": boe_id,
@@ -200,6 +238,7 @@ def emit_status_change(
         "finalBidCents": current_bid_amount,
         "pujaStatus": puja_status,
         "endsAt": ends_at.isoformat() if ends_at else None,
+        "opensAt": opens_at.isoformat() if opens_at else None,
         "suspensionReason": suspension_reason,
         "resumeAt": resume_at.isoformat() if resume_at else None,
         "detectedAt": now.isoformat(),
